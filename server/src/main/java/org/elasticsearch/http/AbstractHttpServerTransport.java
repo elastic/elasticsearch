@@ -136,7 +136,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     @Override
     public HttpStats stats() {
         pruneClientStats();
-        return new HttpStats(httpChannelStats.values(), httpChannels.size(), totalChannelsAccepted.get());
+        return new HttpStats(new ArrayList<>(httpChannelStats.values()), httpChannels.size(), totalChannelsAccepted.get());
     }
 
     void pruneClientStats() {
@@ -310,7 +310,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         totalChannelsAccepted.incrementAndGet();
-        httpChannelStats.put(System.identityHashCode(httpChannel), new HttpStats.ClientStats(httpChannel, threadPool.absoluteTimeInMillis()));
+        httpChannelStats.put(System.identityHashCode(httpChannel), new HttpStats.ClientStats(threadPool.absoluteTimeInMillis()));
         httpChannel.addCloseListener(ActionListener.wrap(() -> {
             httpChannels.remove(httpChannel);
             HttpStats.ClientStats clientStats = httpChannelStats.get(System.identityHashCode(httpChannel));
@@ -341,6 +341,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 } else if (httpRequest.getHeaders().containsKey("User-Agent")) {
                     clientStats.agent = httpRequest.getHeaders().get("User-Agent").get(0);
                 }
+            }
+            if (clientStats.localAddress == null) {
+                clientStats.localAddress = NetworkAddress.format(httpChannel.getLocalAddress());
+                clientStats.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
             }
             clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
             clientStats.lastUri = httpRequest.uri();

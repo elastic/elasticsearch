@@ -23,21 +23,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 
 public class HttpStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;
     private final long totalOpen;
-    private final Collection<ClientStats> clientStats;
+    private final List<ClientStats> clientStats;
 
-    public HttpStats(Collection<ClientStats> clientStats, long serverOpen, long totalOpened) {
+    public HttpStats(List<ClientStats> clientStats, long serverOpen, long totalOpened) {
         this.clientStats = clientStats;
         this.serverOpen = serverOpen;
         this.totalOpen = totalOpened;
@@ -52,7 +50,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
         totalOpen = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             // add deserialization here
-            clientStats = List.of();
+            clientStats = in.readList(ClientStats::new);
         } else {
             clientStats = List.of();
         }
@@ -63,7 +61,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            // add serialization here
+            out.writeList(clientStats);
         }
     }
 
@@ -117,7 +115,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    static class ClientStats {
+    static class ClientStats implements Writeable {
         int id;
         String agent;
         String localAddress;
@@ -129,11 +127,35 @@ public class HttpStats implements Writeable, ToXContentFragment {
         volatile long requestCount;
         volatile long requestSizeBytes;
 
-        ClientStats(HttpChannel httpChannel, long openedTimeMillis) {
+        ClientStats(long openedTimeMillis) {
             this.id = System.identityHashCode(this);
-            this.localAddress = NetworkAddress.format(httpChannel.getLocalAddress());
-            this.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
             this.openedTimeMillis = openedTimeMillis;
+        }
+
+        ClientStats(StreamInput in) throws IOException {
+            this.id = in.readInt();
+            this.agent = in.readString();
+            this.localAddress = in.readString();
+            this.remoteAddress = in.readString();
+            this.lastUri = in.readString();
+            this.openedTimeMillis = in.readLong();
+            this.closedTimeMillis = in.readLong();
+            this.lastRequestTimeMillis = in.readLong();
+            this.requestCount = in.readLong();
+            this.requestSizeBytes = in.readLong();
+        }
+
+        @Override public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(id);
+            out.writeString(agent);
+            out.writeString(localAddress);
+            out.writeString(remoteAddress);
+            out.writeString(lastUri);
+            out.writeLong(openedTimeMillis);
+            out.writeLong(closedTimeMillis);
+            out.writeLong(lastRequestTimeMillis);
+            out.writeLong(requestCount);
+            out.writeLong(requestSizeBytes);
         }
     }
 }

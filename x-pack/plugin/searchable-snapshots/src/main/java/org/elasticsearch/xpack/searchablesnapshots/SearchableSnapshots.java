@@ -229,8 +229,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
-    public String getPluginName() {
+    public String getFeatureName() {
         return "searchable_snapshots";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages caches and configuration for searchable snapshots";
     }
 
     @Override

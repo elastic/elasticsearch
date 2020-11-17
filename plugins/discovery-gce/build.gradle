@@ -44,13 +44,15 @@ test {
   systemProperty 'tests.artifact', project.name
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // classes are missing
-  'com.google.common.base.Splitter',
-  'com.google.common.collect.Lists',
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'com.google.common.base.Splitter',
+          'com.google.common.collect.Lists',
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger'
+  )
+}

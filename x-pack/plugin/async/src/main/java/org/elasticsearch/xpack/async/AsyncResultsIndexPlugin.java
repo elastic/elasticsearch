@@ -49,8 +49,13 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
     }
 
     @Override
-    public String getPluginName() {
+    public String getFeatureName() {
         return "async_search";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages results of async searches";
     }
 
     @Override

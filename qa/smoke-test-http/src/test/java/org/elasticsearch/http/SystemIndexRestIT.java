@@ -144,8 +144,13 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public String getPluginName() {
+        public String getFeatureName() {
             return SystemIndexRestIT.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
 
         public static class AddDocRestHandler extends BaseRestHandler {

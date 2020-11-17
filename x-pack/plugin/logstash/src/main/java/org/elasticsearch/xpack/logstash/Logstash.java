@@ -102,7 +102,12 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
-    public String getPluginName() {
+    public String getFeatureName() {
         return "logstash_management";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Enables Logstash Central Management pipeline storage";
     }
 }

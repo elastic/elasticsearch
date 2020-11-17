@@ -238,7 +238,12 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public String getPluginName() {
+    public String getFeatureName() {
         return "enrich";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages data related to Enrich policies";
     }
 }

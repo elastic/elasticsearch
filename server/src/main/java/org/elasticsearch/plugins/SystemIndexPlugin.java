@@ -41,5 +41,13 @@ public interface SystemIndexPlugin extends ActionPlugin {
         return Collections.emptyList();
     }
 
-    String getPluginName();
+    /**
+     * @return The name of the feature, as used for specifying feature states in snapshot creation and restoration.
+     */
+    String getFeatureName();
+
+    /**
+     * @return A description of the feature, as used for the Get Snapshottable Features API.
+     */
+    String getFeatureDescription();
 }

@@ -93,8 +93,13 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
         }
 
         @Override
-        public String getPluginName() {
+        public String getFeatureName() {
             return SearchableSnapshotsSystemIndicesIntegTests.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
     }
 }

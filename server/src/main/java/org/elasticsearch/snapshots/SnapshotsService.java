@@ -1976,7 +1976,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // TODO: dry up redundant computation and code between clone and non-clone case, in particular reuse
                         //  `inFlightShardStates` across both clone and standard snapshot code
                         if (entry.isClone()) {
-                            // Collect waiting shards that in entry that we can assign now that we are done with the deletion
+                            // Collect waiting shards from that entry that we can assign now that we are done with the deletion
                             final List<RepositoryShardId> canBeUpdated = new ArrayList<>();
                             for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> value : entry.clones()) {
                                 if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)

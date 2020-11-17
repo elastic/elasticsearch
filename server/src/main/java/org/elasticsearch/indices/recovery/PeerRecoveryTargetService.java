@@ -567,10 +567,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void handleException(TransportException e) {
-            onException(e);
-        }
-
-        private void onException(Exception e) {
             if (logger.isTraceEnabled()) {
                 logger.trace(() -> new ParameterizedMessage(
                     "[{}][{}] Got exception on recovery", request.shardId().getIndex().getName(),

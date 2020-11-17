@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -109,6 +110,18 @@ public abstract class IpFieldScript extends AbstractFieldScript {
 
         public void emit(String v) {
             script.emit(v);
+        }
+    }
+
+    public static class Values {
+        private final IpFieldScript script;
+
+        public Values(IpFieldScript script) {
+            this.script = script;
+        }
+
+        public List<Object> values(String path) {
+            return XContentMapValues.extractRawValues(path, script.getSource());
         }
     }
 }

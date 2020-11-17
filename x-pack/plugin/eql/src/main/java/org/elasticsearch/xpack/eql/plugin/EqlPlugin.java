@@ -93,15 +93,6 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         );
     }
 
-    boolean isSnapshot() {
-        return Build.CURRENT.isSnapshot();
-    }
-
-    // TODO: this needs to be used by all plugin methods - including getActions and createComponents
-    public static boolean isEnabled() {
-        return true; // basic license level features are always enabled
-    }
-
     @Override
     public List<RestHandler> getRestHandlers(Settings settings,
                                              RestController restController,

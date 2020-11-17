@@ -54,7 +54,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     private XContentBuilder createBuilder(Set<String> includes, Set<String> excludes) throws IOException {
-        return XContentBuilder.builder(getXContentType().xContent(), includes, excludes);
+        return XContentBuilder.builder(getXContentType(), includes, excludes);
     }
 
     public void testSingleFieldObject() throws IOException {

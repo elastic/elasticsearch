@@ -87,8 +87,8 @@ public class SentEvent implements ToXContentObject {
                 // as this makes debugging pagerduty services much harder, this should be changed to only filter for
                 // body.service_key - however the body is currently just a string, making filtering much harder
                 if (WatcherParams.hideSecrets(params)) {
-                    try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType().xContent(),
-                            params, "body")) {
+                    try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType(),
+                        params, "body")) {
                         builder.rawField(XField.REQUEST.getPreferredName(), is, builder.contentType());
                     }
                 } else {

@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Matcher of sequences. Keeps track of on-going sequences and advancing them through each stage.
@@ -31,7 +33,7 @@ public class SequenceMatcher {
         long until = 0;
         long rejectionMaxspan = 0;
         long rejectionUntil = 0;
-        
+
         @Override
         public String toString() {
             return LoggerMessageFormat.format(null, "Stats: Seen [{}]/Ignored [{}]/Until [{}]/Rejected {Maxspan [{}]/Until [{}]}",
@@ -51,32 +53,36 @@ public class SequenceMatcher {
         }
     }
 
-    /** Current sequences for each key */
-    /** Note will be multiple sequences for the same key and the same stage with different timestamps */
+    // Current sequences for each key
+    // Note will be multiple sequences for the same key and the same stage with different timestamps
     private final KeyToSequences keyToSequences;
-    /** Current keys on each stage */
+    // Current keys on each stage
     private final StageToKeys stageToKeys;
 
     private final int numberOfStages;
     private final int completionStage;
 
-    /** list of completed sequences - separate to avoid polluting the other stages */
-    private final List<Sequence> completed;
+    // Set of completed sequences - separate to avoid polluting the other stages
+    // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
+    private final Set<Sequence> completed;
     private final long maxSpanInMillis;
 
-    private Limit limit;
-    private boolean limitReached = false;
+    private final boolean descending;
+
+    private final Limit limit;
+    private boolean headLimit = false;
 
     private final Stats stats = new Stats();
 
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, TimeValue maxSpan, Limit limit) {
+    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
+        this.descending = descending;
         this.stageToKeys = new StageToKeys(completionStage);
         this.keyToSequences = new KeyToSequences(completionStage);
-        this.completed = new LinkedList<>();
+        this.completed = new TreeSet<>();
 
         this.maxSpanInMillis = maxSpan.millis();
 
@@ -84,7 +90,7 @@ public class SequenceMatcher {
         this.limit = limit;
     }
 
-    public void trackSequence(Sequence sequence) {
+    private void trackSequence(Sequence sequence) {
         SequenceKey key = sequence.key();
 
         stageToKeys.add(0, key);
@@ -97,7 +103,7 @@ public class SequenceMatcher {
      * Match hits for the given stage.
      * Returns false if the process needs to be stopped.
      */
-    public boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+    boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
         for (Tuple<KeyAndOrdinal, HitReference> tuple : hits) {
             KeyAndOrdinal ko = tuple.v1();
             HitReference hit = tuple.v2();
@@ -110,14 +116,24 @@ public class SequenceMatcher {
 
                 // early skip in case of reaching the limit
                 // check the last stage to avoid calling the state machine in other stages
-                if (reachedLimit()) {
-                    log.trace("Limit reached {}", stats);
+                if (headLimit) {
+                    log.trace("(Head) Limit reached {}", stats);
                     return false;
                 }
             }
         }
+
+        // check tail limit
+        if (tailLimitReached()) {
+            log.trace("(Tail) Limit reached {}", stats);
+            return false;
+        }
         log.trace("{}", stats);
         return true;
+    }
+
+    private boolean tailLimitReached() {
+        return limit != null && limit.limit() < 0 && limit.absLimit() <= completed.size();
     }
 
     /**
@@ -126,7 +142,7 @@ public class SequenceMatcher {
      */
     private void match(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
         stats.seen++;
-        
+
         int previousStage = stage - 1;
         // check key presence to avoid creating a collection
         SequenceGroup group = keyToSequences.groupIfPresent(previousStage, key);
@@ -147,7 +163,7 @@ public class SequenceMatcher {
             keyToSequences.remove(previousStage, group);
             stageToKeys.remove(previousStage, key);
         }
-        
+
         //
         // Conditional checks
         //
@@ -170,24 +186,31 @@ public class SequenceMatcher {
                 }
             }
         }
-        
+
         sequence.putMatch(stage, ordinal, hit);
 
         // bump the stages
         if (stage == completionStage) {
-            if (limitReached == false) {
-                completed.add(sequence);
-                // update the bool lazily
-                limitReached = limit != null && completed.size() == limit.totalLimit();
+            // when dealing with descending queries
+            // avoid duplicate matching (since the ASC query can return previously seen results)
+            if (descending) {
+                for (Sequence seen : completed) {
+                    if (seen.key().equals(key) && seen.ordinal().equals(ordinal)) {
+                        return;
+                    }
+                }
             }
+
+            completed.add(sequence);
+            // update the bool lazily
+            // only consider positive limits / negative ones imply tail which means having to go
+            // through the whole page of results before selecting the last ones
+            // doing a limit early returns the 'head' not 'tail'
+            headLimit = limit != null && limit.limit() > 0 && completed.size() == limit.totalLimit();
         } else {
             stageToKeys.add(stage, key);
             keyToSequences.add(stage, sequence);
         }
-    }
-
-    public boolean reachedLimit() {
-        return limitReached;
     }
 
     /**
@@ -197,8 +220,21 @@ public class SequenceMatcher {
      * However sequences on higher stages can, hence this check to know whether
      * it's possible to advance the window early.
      */
-    public boolean hasCandidates(int stage) {
-        for (int i = stage; i < completionStage; i++) {
+    boolean hasFollowingCandidates(int stage) {
+        return hasCandidates(stage, completionStage);
+    }
+
+    /**
+     * Checks whether the previous stages still have in-flight data.
+     * Used to see whether, after rebasing a window it makes sense to continue finding matches.
+     * If there are no in-progress windows, any future results are unnecessary.
+     */
+    boolean hasCandidates() {
+        return hasCandidates(0, completionStage);
+    }
+
+    private boolean hasCandidates(int start, int stop) {
+        for (int i = start; i < stop; i++) {
             if (stageToKeys.isEmpty(i) == false) {
                 return true;
             }
@@ -206,17 +242,38 @@ public class SequenceMatcher {
         return false;
     }
 
-
-    public List<Sequence> completed() {
-        return limit != null ? limit.view(completed) : completed;
+    List<Sequence> completed() {
+        List<Sequence> asList = new ArrayList<>(completed);
+        return limit != null ? limit.view(asList) : asList;
     }
 
-    public void dropUntil() {
+    void dropUntil() {
         keyToSequences.dropUntil();
     }
 
-    public void until(Iterable<KeyAndOrdinal> markers) {
+    void until(Iterable<KeyAndOrdinal> markers) {
         keyToSequences.until(markers);
+    }
+
+    /**
+     * Called when moving to a new page.
+     * This allows the matcher to keep only the last match per stage
+     * and adjust insertion positions.
+     */
+    void trim(boolean everything) {
+        // for descending sequences, remove all in-flight sequences
+        // since the windows moves head and thus there is no chance
+        // of new results coming in
+
+        // however this needs to be indicated from outside since
+        // the same window can be only ASC trimmed during a loop
+        // and fully once the DESC query moves
+        if (everything) {
+            keyToSequences.clear();
+        } else {
+            // keep only the tail
+            keyToSequences.trimToTail();
+        }
     }
 
     public Stats stats() {
@@ -232,7 +289,7 @@ public class SequenceMatcher {
 
     @Override
     public String toString() {
-        return LoggerMessageFormat.format(null, "Tracking [{}] keys with [{}] completed and in-flight {}",
+        return LoggerMessageFormat.format(null, "Tracking [{}] keys with [{}] completed and {} in-flight",
                 keyToSequences,
                 completed.size(),
                 stageToKeys);

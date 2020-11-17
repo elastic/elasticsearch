@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.autoscaling;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -21,34 +23,49 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
-import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingDecisionAction;
+import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportDeleteAutoscalingPolicyAction;
-import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingDecisionAction;
+import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportPutAutoscalingPolicyAction;
-import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDecider;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
+import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
-import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandler;
+import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Container class for autoscaling functionality.
  */
-public class Autoscaling extends Plugin implements ActionPlugin {
+public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugin, AutoscalingExtension {
 
     private static final Boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
 
@@ -72,14 +89,17 @@ public class Autoscaling extends Plugin implements ActionPlugin {
 
     public static final Setting<Boolean> AUTOSCALING_ENABLED_SETTING = Setting.boolSetting(
         "xpack.autoscaling.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
     private final boolean enabled;
 
+    private final List<AutoscalingExtension> autoscalingExtensions;
+
     public Autoscaling(final Settings settings) {
         this.enabled = AUTOSCALING_ENABLED_SETTING.get(settings);
+        this.autoscalingExtensions = new ArrayList<>(List.of(this));
     }
 
     /**
@@ -101,10 +121,27 @@ public class Autoscaling extends Plugin implements ActionPlugin {
     }
 
     @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        return List.of(new AutoscalingCalculateCapacityService.Holder(this));
+    }
+
+    @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled) {
             return List.of(
-                new ActionHandler<>(GetAutoscalingDecisionAction.INSTANCE, TransportGetAutoscalingDecisionAction.class),
+                new ActionHandler<>(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
                 new ActionHandler<>(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
                 new ActionHandler<>(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
                 new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
@@ -126,7 +163,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
     ) {
         if (enabled) {
             return List.of(
-                new RestGetAutoscalingDecisionHandler(),
+                new RestGetAutoscalingCapacityHandler(),
                 new RestDeleteAutoscalingPolicyHandler(),
                 new RestGetAutoscalingPolicyHandler(),
                 new RestPutAutoscalingPolicyHandler()
@@ -141,7 +178,16 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         return List.of(
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
-            new NamedWriteableRegistry.Entry(AutoscalingDecider.class, AlwaysAutoscalingDecider.NAME, AlwaysAutoscalingDecider::new)
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderConfiguration.class,
+                FixedAutoscalingDeciderConfiguration.NAME,
+                FixedAutoscalingDeciderConfiguration::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FixedAutoscalingDeciderConfiguration.NAME,
+                FixedAutoscalingDeciderService.FixedReason::new
+            )
         );
     }
 
@@ -150,9 +196,9 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         return List.of(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse),
             new NamedXContentRegistry.Entry(
-                AutoscalingDecider.class,
-                new ParseField(AlwaysAutoscalingDecider.NAME),
-                AlwaysAutoscalingDecider::parse
+                AutoscalingDeciderConfiguration.class,
+                new ParseField(FixedAutoscalingDeciderConfiguration.NAME),
+                FixedAutoscalingDeciderConfiguration::parse
             )
         );
     }
@@ -161,4 +207,17 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         return XPackPlugin.getSharedLicenseState();
     }
 
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        loader.loadExtensions(AutoscalingExtension.class).forEach(autoscalingExtensions::add);
+    }
+
+    @Override
+    public Collection<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders() {
+        return List.of(new FixedAutoscalingDeciderService());
+    }
+
+    public Set<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> createDeciderServices() {
+        return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
+    }
 }

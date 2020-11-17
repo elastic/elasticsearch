@@ -92,7 +92,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
         return this;
     }
 
@@ -116,9 +116,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
             SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
-
-    @Override
-    public void clear() {}
 
     @Override
     public long ramBytesUsed() {
@@ -186,7 +183,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         }
 
         @Override
-        public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             return this;
         }
 
@@ -210,9 +207,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
                 SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new IllegalArgumentException("only supported on numeric fields");
         }
-
-        @Override
-        public void clear() {}
 
         @Override
         public long ramBytesUsed() {

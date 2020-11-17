@@ -23,7 +23,7 @@ public class StopDatafeedActionRequestTests extends AbstractSerializingTestCase<
             request.setForce(randomBoolean());
         }
         if (randomBoolean()) {
-            request.setAllowNoDatafeeds(randomBoolean());
+            request.setAllowNoMatch(randomBoolean());
         }
         if (randomBoolean()) {
             request.setResolvedStartedDatafeedIds(generateRandomStringArray(4, 8, false));

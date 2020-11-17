@@ -12,6 +12,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
+
 public class SequenceKey {
 
     public static final SequenceKey NONE = new SequenceKey();
@@ -24,12 +26,8 @@ public class SequenceKey {
         this.hashCode = Objects.hash(keys);
     }
 
-    public List<String> asStringList() {
-        String[] s = new String[keys.length];
-        for (int i = 0; i < keys.length; i++) {
-            s[i] = Objects.toString(keys[i]);
-        }
-        return Arrays.asList(s);
+    public List<Object> asList() {
+        return keys == null ? emptyList() : Arrays.asList(keys);
     }
 
     @Override
@@ -48,7 +46,7 @@ public class SequenceKey {
         }
 
         SequenceKey other = (SequenceKey) obj;
-        return Arrays.deepEquals(keys, other.keys);
+        return Arrays.equals(keys, other.keys);
     }
 
     @Override

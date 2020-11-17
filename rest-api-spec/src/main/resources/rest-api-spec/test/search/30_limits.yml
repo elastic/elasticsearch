@@ -11,7 +11,7 @@ setup:
       index:
           index:  test_1
           id:     1
-          body:   { foo: bar }
+          body:   { foo: bar, foo2: bar, foo3: bar }
 
   - do:
       indices.refresh: {}
@@ -94,9 +94,9 @@ setup:
           query:
             match_all: {}
           docvalue_fields:
-            - "one"
-            - "two"
-            - "three"
+            - "foo"
+            - "foo2"
+            - "foo3"
 
 ---
 "Script_fields size limit":

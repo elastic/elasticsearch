@@ -15,10 +15,9 @@ Delete autoscaling policy.
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
 {
-  "policy": {
-    "deciders": {
-      "always": {
-      }
+  "roles": [],
+  "deciders": {
+    "fixed": {
     }
   }
 }
@@ -51,6 +50,23 @@ This example deletes an autoscaling policy named `my_autosaling_policy`.
 [source,console]
 --------------------------------------------------
 DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+This example deletes all autoscaling policies.
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/*
 --------------------------------------------------
 // TEST
 

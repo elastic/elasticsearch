@@ -59,12 +59,12 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMatchNoDocs() throws IOException {
 
-        testBothCases(new MatchNoDocsQuery(), dataset,
+        testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(LONG_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()), null // without type hint
         );
 
-        testBothCases(new MatchNoDocsQuery(), dataset,
+        testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(LONG_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()), ValueType.NUMERIC // with type hint
         );
@@ -73,7 +73,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
     public void testMatchAllDocs() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(LONG_FIELD),
             agg -> {
                 assertEquals(9, agg.getBuckets().size());
@@ -85,7 +85,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             }, null //without type hint
         );
 
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(LONG_FIELD),
             agg -> {
                 assertEquals(9, agg.getBuckets().size());
@@ -104,7 +104,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         // Numerics don't support any regex include/exclude, so should fail no matter what we do
 
         AggregationExecutionException e = expectThrows(AggregationExecutionException.class,
-            () -> testBothCases(new MatchNoDocsQuery(), dataset,
+            () -> testSearchCase(new MatchNoDocsQuery(), dataset,
                 aggregation -> aggregation.field(LONG_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
                 agg -> fail("test should have failed with exception"), null
             ));
@@ -113,7 +113,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             "values for include/exclude clauses used to filter numeric fields"));
 
         e = expectThrows(AggregationExecutionException.class,
-            () -> testBothCases(new MatchNoDocsQuery(), dataset,
+            () -> testSearchCase(new MatchNoDocsQuery(), dataset,
                 aggregation -> aggregation.field(LONG_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
                 agg -> fail("test should have failed with exception"), ValueType.NUMERIC // with type hint
             ));
@@ -126,34 +126,10 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
     private void testSearchCase(Query query, List<Long> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        executeTestCase(false, query, dataset, configure, verify, valueType);
-    }
-
-    private void testSearchAndReduceCase(Query query, List<Long> dataset,
-                                         Consumer<TermsAggregationBuilder> configure,
-                                         Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        executeTestCase(true, query, dataset, configure, verify, valueType);
-    }
-
-    private void testBothCases(Query query, List<Long> dataset,
-                               Consumer<TermsAggregationBuilder> configure,
-                               Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        testSearchCase(query, dataset, configure, verify, valueType);
-        testSearchAndReduceCase(query, dataset, configure, verify, valueType);
-    }
-
-    private void executeTestCase(boolean reduced, Query query, List<Long> dataset,
-                                 Consumer<TermsAggregationBuilder> configure,
-                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (Long value : dataset) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
-
                     document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
                     document.add(new LongPoint(LONG_FIELD, value));
                     indexWriter.addDocument(document);
@@ -175,12 +151,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType longFieldType
                     = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                InternalMappedTerms rareTerms;
-                if (reduced) {
-                    rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, longFieldType);
-                } else {
-                    rareTerms = search(indexSearcher, query, aggregationBuilder, longFieldType);
-                }
+                InternalMappedTerms rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, longFieldType);
                 verify.accept(rareTerms);
             }
         }

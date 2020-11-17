@@ -43,6 +43,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -86,10 +87,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     public BulkRequest(StreamInput in) throws IOException {
         super(in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            requests.add(DocWriteRequest.readDocumentRequest(null, in));
-        }
+        requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
     }
@@ -110,6 +108,11 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Add a request to the current BulkRequest.
+     *
+     * Note for internal callers: This method does not respect all global parameters.
+     *                            Only the global index is applied to the request objects.
+     *                            Global parameters would be respected if the request was serialized for a REST call as it is
+     *                            in the high level rest client.
      * @param request Request to add
      * @return the current bulk request
      */
@@ -300,11 +303,35 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this;
     }
 
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+     * - {@link BulkRequest#add(IndexRequest)}
+     * - {@link BulkRequest#add(UpdateRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest[])} )}
+     * - {@link BulkRequest#add(Iterable)}
+     * @param globalPipeline the global default setting
+     * @return Bulk request with global setting set
+     */
     public final BulkRequest pipeline(String globalPipeline) {
         this.globalPipeline = globalPipeline;
         return this;
     }
 
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+      - {@link BulkRequest#add(IndexRequest)}
+      - {@link BulkRequest#add(UpdateRequest)}
+      - {@link BulkRequest#add(DocWriteRequest)}
+      - {@link BulkRequest#add(DocWriteRequest[])} )}
+      - {@link BulkRequest#add(Iterable)}
+     * @param globalRouting the global default setting
+     * @return Bulk request with global setting set
+     */
     public final BulkRequest routing(String globalRouting){
         this.globalRouting = globalRouting;
         return this;
@@ -332,6 +359,18 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return globalRequireAlias;
     }
 
+    /**
+     * Note for internal callers (NOT high level rest client),
+     * the global parameter setting is ignored when used with:
+     *
+     * - {@link BulkRequest#add(IndexRequest)}
+     * - {@link BulkRequest#add(UpdateRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest)}
+     * - {@link BulkRequest#add(DocWriteRequest[])} )}
+     * - {@link BulkRequest#add(Iterable)}
+     * @param globalRequireAlias the global default setting
+     * @return Bulk request with global setting set
+     */
     public BulkRequest requireAlias(Boolean globalRequireAlias) {
         this.globalRequireAlias = globalRequireAlias;
         return this;
@@ -365,10 +404,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
-        out.writeVInt(requests.size());
-        for (DocWriteRequest<?> request : requests) {
-            DocWriteRequest.writeDocumentRequest(out, request);
-        }
+        out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
     }
@@ -399,5 +435,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     @Override
     public long ramBytesUsed() {
         return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+    }
+
+    public Set<String> getIndices() {
+        return Collections.unmodifiableSet(indices);
     }
 }

@@ -37,14 +37,10 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
 
     public TransportClusterInfoAction(String actionName, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                      Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // read operation, lightweight...
-        return ThreadPool.Names.SAME;
+                                      Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver,
+                                      Writeable.Reader<Response> response) {
+        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, response,
+                ThreadPool.Names.SAME);
     }
 
     @Override

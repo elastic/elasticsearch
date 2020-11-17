@@ -46,13 +46,13 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         ROOT_RESOURCE_PATH + "meta_index_template.json", Version.CURRENT.id, VERSION_PATTERN,
         Collections.singletonMap(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id)));
 
-    private static final IndexTemplateConfig NOTIFICATIONS_TEMPLATE = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+    public static final IndexTemplateConfig NOTIFICATIONS_TEMPLATE = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
         ROOT_RESOURCE_PATH + "notifications_index_template.json", Version.CURRENT.id, VERSION_PATTERN,
         Collections.singletonMap(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id)));
 
     private static final IndexTemplateConfig CONFIG_TEMPLATE = configTemplate();
 
-    private static final IndexTemplateConfig INFERENCE_TEMPLATE = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
+    public static final IndexTemplateConfig INFERENCE_TEMPLATE = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
         ROOT_RESOURCE_PATH + "inference_index_template.json", Version.CURRENT.id, VERSION_PATTERN,
         Collections.singletonMap(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id)));
 

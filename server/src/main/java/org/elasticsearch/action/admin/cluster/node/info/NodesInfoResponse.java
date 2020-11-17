@@ -35,6 +35,7 @@ import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
+import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
@@ -125,6 +126,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             if (nodeInfo.getInfo(IngestInfo.class) != null) {
                 nodeInfo.getInfo(IngestInfo.class).toXContent(builder, params);
+            }
+            if (nodeInfo.getInfo(AggregationInfo.class) != null) {
+                nodeInfo.getInfo(AggregationInfo.class).toXContent(builder, params);
             }
 
             builder.endObject();

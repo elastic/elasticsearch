@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-significanttext-aggregation]]
-=== Significant Text Aggregation
+=== Significant text aggregation
+++++
+<titleabbrev>Significant text</titleabbrev>
+++++
 
 An aggregation that returns interesting or unusual occurrences of free-text terms in a set.
 It is like the <<search-aggregations-bucket-significantterms-aggregation,significant terms>> aggregation but differs in that:
@@ -36,21 +39,21 @@ Example:
 --------------------------------------------------
 GET news/_search
 {
-    "query" : {
-        "match" : {"content" : "Bird flu"}
-    },
-    "aggregations" : {
-        "my_sample" : {
-            "sampler" : {
-                "shard_size" : 100
-            },
-            "aggregations": {
-                "keywords" : {
-                    "significant_text" : { "field" : "content" }
-                }
-            }
+  "query": {
+    "match": { "content": "Bird flu" }
+  },
+  "aggregations": {
+    "my_sample": {
+      "sampler": {
+        "shard_size": 100
+      },
+      "aggregations": {
+        "keywords": {
+          "significant_text": { "field": "content" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:news]
@@ -101,7 +104,7 @@ Filtering near-duplicate text is a difficult task at index-time but we can clean
 `filter_duplicate_text` setting.
 
 
-First let's look at an unfiltered real-world example using the  http://research.signalmedia.co/newsir16/signal-dataset.html[Signal media dataset] of
+First let's look at an unfiltered real-world example using the https://research.signalmedia.co/newsir16/signal-dataset.html[Signal media dataset] of
 a million news articles covering a wide variety of news. Here are the raw significant text results for a search for the articles 
 mentioning "elasticsearch":
 
@@ -109,7 +112,7 @@ mentioning "elasticsearch":
 [source,js]
 --------------------------------------------------
 {
-    ...
+  ...
   "aggregations": {
     "sample": {
       "doc_count": 35,
@@ -345,6 +348,7 @@ as such may be:
 Like most design decisions, this is the basis of a trade-off in which we have chosen to provide fast performance at the cost of some (typically small) inaccuracies.
 However, the `size` and `shard size` settings covered in the next section provide tools to help control the accuracy levels.
 
+[[significanttext-aggregation-parameters]]
 ==== Parameters
 
 ===== Significance heuristics
@@ -420,21 +424,21 @@ context:
 --------------------------------------------------
 GET news/_search
 {
-    "query" : {
-        "match" : {
-            "content" : "madrid"
-        }
-    },
-    "aggs" : {
-        "tags" : {
-            "significant_text" : {
-                "field" : "content",
-                "background_filter": {
-                    "term" : { "content" : "spain"}
-                }
-            }
-        }
+  "query": {
+    "match": {
+      "content": "madrid"
     }
+  },
+  "aggs": {
+    "tags": {
+      "significant_text": {
+        "field": "content",
+        "background_filter": {
+          "term": { "content": "spain" }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:news]
@@ -458,19 +462,19 @@ will be analyzed using the `source_fields` parameter:
 --------------------------------------------------
 GET news/_search
 {
-    "query" : {
-        "match" : {
-            "custom_all" : "elasticsearch"
-        }
-    },
-    "aggs" : {
-        "tags" : {
-            "significant_text" : {
-                "field" : "custom_all",
-                "source_fields": ["content" , "title"]
-            }
-        }
+  "query": {
+    "match": {
+      "custom_all": "elasticsearch"
     }
+  },
+  "aggs": {
+    "tags": {
+      "significant_text": {
+        "field": "custom_all",
+        "source_fields": [ "content", "title" ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:news]

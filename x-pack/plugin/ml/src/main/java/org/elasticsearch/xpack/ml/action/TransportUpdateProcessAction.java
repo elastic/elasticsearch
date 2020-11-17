@@ -14,6 +14,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateProcessAction.Request, UpdateProcessAction.Response> {
 
@@ -26,8 +27,7 @@ public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateP
     }
 
     @Override
-    protected void taskOperation(UpdateProcessAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<UpdateProcessAction.Response> listener) {
+    protected void taskOperation(UpdateProcessAction.Request request, JobTask task, ActionListener<UpdateProcessAction.Response> listener) {
         UpdateParams updateParams = UpdateParams.builder(request.getJobId())
                 .modelPlotConfig(request.getModelPlotConfig())
                 .perPartitionCategorizationConfig(request.getPerPartitionCategorizationConfig())

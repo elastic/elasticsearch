@@ -119,6 +119,10 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
+    }
+
+    @Override
     public void flushStream() {
     }
 
@@ -134,7 +138,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void kill() {
+    public void kill(boolean awaitCompletion) {
         open = false;
     }
 

@@ -228,4 +228,22 @@ public class LocalModel implements Closeable {
     public void close() {
         release();
     }
+
+    @Override
+    public String toString() {
+        return "LocalModel{" +
+            "trainedModelDefinition=" + trainedModelDefinition +
+            ", modelId='" + modelId + '\'' +
+            ", fieldNames=" + fieldNames +
+            ", defaultFieldMap=" + defaultFieldMap +
+            ", statsAccumulator=" + statsAccumulator +
+            ", trainedModelStatsService=" + trainedModelStatsService +
+            ", persistenceQuotient=" + persistenceQuotient +
+            ", currentInferenceCount=" + currentInferenceCount +
+            ", inferenceConfig=" + inferenceConfig +
+            ", licenseLevel=" + licenseLevel +
+            ", trainedModelCircuitBreaker=" + trainedModelCircuitBreaker +
+            ", referenceCount=" + referenceCount +
+            '}';
+    }
 }

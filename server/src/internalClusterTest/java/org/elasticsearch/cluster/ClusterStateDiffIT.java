@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -716,11 +717,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 randomBoolean(),
                                 randomBoolean(),
-                                randomFrom(SnapshotsInProgress.State.values()),
+                                SnapshotsInProgressSerializationTests.randomState(ImmutableOpenMap.of()),
+                                Collections.emptyList(),
                                 Collections.emptyList(),
                                 Math.abs(randomLong()),
-                                (long) randomIntBetween(0, 1000),
+                                randomIntBetween(0, 1000),
                                 ImmutableOpenMap.of(),
+                                null,
                                 SnapshotInfoTests.randomUserMetadata(),
                                 randomVersion(random()))));
                     case 1:

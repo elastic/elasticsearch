@@ -21,12 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -48,19 +42,12 @@ public class SThrow extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitThrow(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitThrow(this, scope);
     }
 
     @Override
-    void analyze(SemanticScope semanticScope) {
-        semanticScope.setCondition(expressionNode, Read.class);
-        semanticScope.putDecoration(expressionNode, new TargetType(Exception.class));
-        AExpression.analyze(expressionNode, semanticScope);
-        expressionNode.cast(semanticScope);
-
-        semanticScope.setCondition(this, MethodEscape.class);
-        semanticScope.setCondition(this, LoopEscape.class);
-        semanticScope.setCondition(this, AllEscape.class);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        expressionNode.visit(userTreeVisitor, scope);
     }
 }

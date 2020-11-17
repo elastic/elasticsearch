@@ -58,6 +58,14 @@ public class StringContains extends CaseSensitiveScalarFunction {
         return isStringAndExact(substring, sourceText(), Expressions.ParamOrdinal.SECOND);
     }
 
+    public Expression string() {
+        return string;
+    }
+
+    public Expression substring() {
+        return substring;
+    }
+
     @Override
     protected Pipe makePipe() {
         return new StringContainsFunctionPipe(source(), this,
@@ -124,6 +132,6 @@ public class StringContains extends CaseSensitiveScalarFunction {
 
     @Override
     public boolean isCaseSensitive() {
-        return eqlConfiguration().isCaseSensitive();
+        return true;
     }
 }

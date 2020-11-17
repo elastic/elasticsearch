@@ -55,7 +55,7 @@ public class CloseJobRequestTests extends AbstractXContentTestCase<CloseJobReque
         CloseJobRequest request = new CloseJobRequest(jobIds.toArray(new String[0]));
 
         if (randomBoolean()) {
-            request.setAllowNoJobs(randomBoolean());
+            request.setAllowNoMatch(randomBoolean());
         }
 
         if (randomBoolean()) {

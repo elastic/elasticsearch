@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
       "description":"Provides statistics on operations happening in a data stream."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url":{
       "paths":[
         {

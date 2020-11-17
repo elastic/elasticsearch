@@ -18,7 +18,7 @@ to extract those fields from a large `_source` field:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -37,14 +37,14 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "title":   "Some short title",
   "date":    "2015-01-01",
   "content": "A very long content field..."
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "stored_fields": [ "title", "date" ] <2>
 }

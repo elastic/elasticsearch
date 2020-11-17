@@ -21,7 +21,6 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -38,7 +37,6 @@ import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
-import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
@@ -79,6 +77,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -108,6 +107,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
@@ -236,6 +236,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
             InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
+            InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
             DestructiveOperations.REQUIRES_NAME_SETTING,
             NoMasterBlockService.NO_MASTER_BLOCK_SETTING,
             GatewayService.EXPECTED_DATA_NODES_SETTING,
@@ -265,7 +266,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_CORS_ALLOW_METHODS,
             HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
             HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
-            HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED,
             HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
             HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
             HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
@@ -357,6 +357,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportSettings.CONNECTIONS_PER_NODE_PING,
             TransportSettings.TRACE_LOG_EXCLUDE_SETTING,
             TransportSettings.TRACE_LOG_INCLUDE_SETTING,
+            TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
             NetworkService.NETWORK_SERVER,
             NetworkService.GLOBAL_NETWORK_HOST_SETTING,
             NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING,
@@ -469,7 +470,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
             Coordinator.PUBLISH_TIMEOUT_SETTING,
             Coordinator.PUBLISH_INFO_TIMEOUT_SETTING,
-            JoinHelper.JOIN_TIMEOUT_SETTING,
             FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
             FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
             FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING,

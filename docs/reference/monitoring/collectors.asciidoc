@@ -120,7 +120,7 @@ NOTE: Collection is currently done serially, rather than in parallel, to avoid
 For more information about the configuration options for the collectors, see
 <<monitoring-collection-settings>>.
 
-[float]
+[discrete]
 [[es-monitoring-stack]]
 ==== Collecting data from across the Elastic Stack
 

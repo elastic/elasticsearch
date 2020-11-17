@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -15,4 +13,3 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTest.enabled = false

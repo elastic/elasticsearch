@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -94,7 +95,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ClusterService clusterService,
         XPackLicenseState licenseState,
         TransformServices transformServices,
-        Client client
+        Client client,
+        IngestService ingestService
     ) {
         this(
             UpdateTransformAction.NAME,
@@ -106,7 +108,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             clusterService,
             licenseState,
             transformServices,
-            client
+            client,
+            ingestService
         );
     }
 
@@ -120,7 +123,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ClusterService clusterService,
         XPackLicenseState licenseState,
         TransformServices transformServices,
-        Client client
+        Client client,
+        IngestService ingestService
     ) {
         super(
             name,
@@ -146,6 +150,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
+            ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
@@ -210,6 +215,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 // - transform is not failed (stopped transforms do not have a task)
                 // - the node where transform is executed on is at least 7.8.0 in order to understand the request
                 if (transformTask != null
+                    && transformTask.isAssigned()
                     && transformTask.getState() instanceof TransformState
                     && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
                     && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {
@@ -229,6 +235,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 clusterState,
                 updatedConfig.getSource().getIndex(),
                 updatedConfig.getDestination().getIndex(),
+                updatedConfig.getDestination().getPipeline(),
                 request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
                 ActionListener.wrap(
                     validationResponse -> {
@@ -391,12 +398,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             if (request.isDeferValidation()) {
                 functionValidationListener.onResponse(true);
             } else {
-                // TODO: it seems we are not validating ingest pipelines, consider to share code with PUT
-                if (request.isDeferValidation()) {
-                    functionValidationListener.onResponse(true);
-                } else {
-                    function.validateQuery(client, config.getSource(), functionValidationListener);
-                }
+                function.validateQuery(client, config.getSource(), functionValidationListener);
             }
         }, listener::onFailure));
     }

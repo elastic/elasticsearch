@@ -4,8 +4,6 @@
 <titleabbrev>Simulate template</titleabbrev>
 ++++
 
-experimental[]
-
 Returns the index configuration that would be applied by a particular 
 <<indices-templates, index template>>.
 
@@ -82,7 +80,7 @@ omit this parameter and specify the template configuration in the request body.
 ////
 
 `create`::
-(Optional, boolean) If `true`, the template passed in the body is 
+(Optional, Boolean) If `true`, the template passed in the body is 
 only used if no existing templates match the same index patterns. 
 If `false`, the simulation uses the template with the highest priority.
 Note that the template is not permanently added or updated in either case;
@@ -204,7 +202,7 @@ PUT /_component_template/ct2                    <2>
 
 PUT /_index_template/final-template            <3>
 {
-  "index_patterns": ["myindex*"],
+  "index_patterns": ["my-index-*"],
   "composed_of": ["ct1", "ct2"],
   "priority": 5
 }
@@ -256,7 +254,7 @@ The specified template is used for the simulation if it has a higher priority th
 --------------------------------------------------
 POST /_index_template/_simulate
 {
-  "index_patterns": ["myindex*"],
+  "index_patterns": ["my-index-*"],
   "composed_of": ["ct2"],
   "priority": 10,
   "template": {
@@ -292,7 +290,7 @@ The response shows any overlapping templates with a lower priority.
     {
       "name" : "final-template",
       "index_patterns" : [
-        "myindex*"
+        "my-index-*"
       ]
     }
   ]

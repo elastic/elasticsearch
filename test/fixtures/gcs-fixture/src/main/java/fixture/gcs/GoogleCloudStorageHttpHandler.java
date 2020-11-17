@@ -132,10 +132,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "*", request)) {
                 // GET Bucket https://cloud.google.com/storage/docs/json_api/v1/buckets/get
-                byte[] response = ("{\"kind\":\"storage#bucket\",\"name\":\""+ bucket + "\",\"id\":\"0\"}").getBytes(UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                exchange.getResponseBody().write(response);
+                throw new AssertionError("Should not call get bucket API");
 
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/" + bucket + "/o/*", request)) {
                 // Download Object https://cloud.google.com/storage/docs/request-body

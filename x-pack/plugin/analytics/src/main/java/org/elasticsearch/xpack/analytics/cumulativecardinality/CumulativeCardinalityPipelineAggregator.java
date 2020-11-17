@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
+import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus;
 import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -47,7 +48,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         try {
             long cardinality = 0;
             for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-                HyperLogLogPlusPlus bucketHll = resolveBucketValue(histo, bucket, bucketsPaths()[0]);
+                AbstractHyperLogLogPlusPlus bucketHll = resolveBucketValue(histo, bucket, bucketsPaths()[0]);
                 if (hll == null && bucketHll != null) {
                     // We have to create a new HLL because otherwise it will alter the
                     // existing cardinality sketch and bucket value
@@ -73,9 +74,9 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         }
     }
 
-    private HyperLogLogPlusPlus resolveBucketValue(MultiBucketsAggregation agg,
-                                                   InternalMultiBucketAggregation.InternalBucket bucket,
-                                                   String aggPath) {
+    private AbstractHyperLogLogPlusPlus resolveBucketValue(MultiBucketsAggregation agg,
+                                                           InternalMultiBucketAggregation.InternalBucket bucket,
+                                                           String aggPath) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
         if (propertyValue == null) {

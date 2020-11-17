@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStatsTests;
 
 import java.io.IOException;
 import java.util.HashMap;

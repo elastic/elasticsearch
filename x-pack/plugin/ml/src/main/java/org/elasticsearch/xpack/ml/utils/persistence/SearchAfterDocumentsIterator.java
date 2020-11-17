@@ -17,7 +17,9 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -128,8 +130,16 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
             sourceBuilder.searchAfter(searchAfterValues);
         }
 
+        for (Map.Entry<String, String> docValueFieldAndFormat : docValueFieldAndFormatPairs().entrySet()) {
+            sourceBuilder.docValueField(docValueFieldAndFormat.getKey(), docValueFieldAndFormat.getValue());
+        }
+
         searchRequest.source(sourceBuilder);
         return executeSearchRequest(searchRequest);
+    }
+
+    protected Map<String, String> docValueFieldAndFormatPairs() {
+        return Collections.emptyMap();
     }
 
     protected SearchResponse executeSearchRequest(SearchRequest searchRequest) {

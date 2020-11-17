@@ -31,7 +31,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() throws Exception {
         SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
 
         var usageAction = new SpatialUsageTransportAction(mock(TransportService.class), null, null,
@@ -50,7 +50,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
     public void testEnabled() throws Exception {
         Settings.Builder settings = Settings.builder();
         SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
 

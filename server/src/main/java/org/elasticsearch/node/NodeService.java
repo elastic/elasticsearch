@@ -39,6 +39,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,6 +62,7 @@ public class NodeService implements Closeable {
     private final ResponseCollectorService responseCollectorService;
     private final SearchTransportService searchTransportService;
     private final IndexingPressure indexingPressure;
+    private final AggregationUsageService aggregationUsageService;
 
     private final Discovery discovery;
 
@@ -69,7 +71,8 @@ public class NodeService implements Closeable {
                 CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
-                SearchTransportService searchTransportService, IndexingPressure indexingPressure) {
+                SearchTransportService searchTransportService, IndexingPressure indexingPressure,
+                AggregationUsageService aggregationUsageService) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -85,11 +88,12 @@ public class NodeService implements Closeable {
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
         this.indexingPressure = indexingPressure;
+        this.aggregationUsageService = aggregationUsageService;
         clusterService.addStateApplier(ingestService);
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
-                boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
+                boolean transport, boolean http, boolean plugin, boolean ingest, boolean aggs, boolean indices) {
         return new NodeInfo(Version.CURRENT, Build.CURRENT, transportService.getLocalNode(),
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
@@ -100,6 +104,7 @@ public class NodeService implements Closeable {
                 http ? (httpServerTransport == null ? null : httpServerTransport.info()) : null,
                 plugin ? (pluginService == null ? null : pluginService.info()) : null,
                 ingest ? (ingestService == null ? null : ingestService.info()) : null,
+                aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
                 indices ? indicesService.getTotalIndexingBufferBytes() : null
         );
     }

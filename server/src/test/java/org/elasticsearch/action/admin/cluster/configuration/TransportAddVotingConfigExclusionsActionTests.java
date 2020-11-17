@@ -41,11 +41,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -131,7 +131,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         new TransportAddVotingConfigExclusionsAction(nodeSettings, clusterSettings, transportService, clusterService, threadPool,
-            new ActionFilters(emptySet()), new IndexNameExpressionResolver()); // registers action
+            new ActionFilters(emptySet()), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))); // registers action
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -437,11 +437,6 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             @Override
             public void handleException(TransportException exp) {
                 onException.accept(exp);
-            }
-
-            @Override
-            public String executor() {
-                return Names.SAME;
             }
 
             @Override

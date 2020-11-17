@@ -6,6 +6,7 @@
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
@@ -43,7 +44,11 @@ public class IndexInputStats {
     private final TimedCounter optimizedBytesRead = new TimedCounter();
 
     private final Counter cachedBytesRead = new Counter();
+    private final Counter indexCacheBytesRead = new Counter();
     private final TimedCounter cachedBytesWritten = new TimedCounter();
+
+    private final Counter blobStoreBytesRequested = new Counter();
+    private final AtomicLong currentIndexCacheFills = new AtomicLong();
 
     public IndexInputStats(long fileLength, LongSupplier currentTimeNanos) {
         this(fileLength, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
@@ -72,6 +77,10 @@ public class IndexInputStats {
 
     public void addCachedBytesRead(int bytesRead) {
         cachedBytesRead.add(bytesRead);
+    }
+
+    public void addIndexCacheBytesRead(int bytesRead) {
+        indexCacheBytesRead.add(bytesRead);
     }
 
     public void addCachedBytesWritten(long bytesWritten, long nanoseconds) {
@@ -110,6 +119,19 @@ public class IndexInputStats {
                 backwardSmallSeeks.add(delta);
             }
         }
+    }
+
+    public void addBlobStoreBytesRequested(long bytesRequested) {
+        blobStoreBytesRequested.add(bytesRequested);
+    }
+
+    public Releasable addIndexCacheFill() {
+        final long openValue = currentIndexCacheFills.incrementAndGet();
+        assert openValue > 0 : openValue;
+        return () -> {
+            final long closeValue = currentIndexCacheFills.decrementAndGet();
+            assert closeValue >= 0 : closeValue;
+        };
     }
 
     public long getFileLength() {
@@ -160,13 +182,25 @@ public class IndexInputStats {
         return cachedBytesRead;
     }
 
+    public Counter getIndexCacheBytesRead() {
+        return indexCacheBytesRead;
+    }
+
     public TimedCounter getCachedBytesWritten() {
         return cachedBytesWritten;
+    }
+
+    public Counter getBlobStoreBytesRequested() {
+        return blobStoreBytesRequested;
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
     public boolean isLargeSeek(long delta) {
         return delta != Long.MIN_VALUE && Math.abs(delta) > seekingThreshold;
+    }
+
+    public long getCurrentIndexCacheFills() {
+        return currentIndexCacheFills.get();
     }
 
     public static class Counter {

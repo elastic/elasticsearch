@@ -37,7 +37,7 @@ IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin,
 lifecycle policies are set up automatically.
 You do not need to take any other actions.
 You can modify the default policies through
-{kibana-ref}/example-using-index-lifecycle-policy.html[{kib} Management]
+<<example-using-index-lifecycle-policy,{kib} Management>>
 or the {ilm-init} APIs.
 
 [discrete]
@@ -55,9 +55,10 @@ reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
 * A `delete` phase that sets `min_age` to remove the index 90 days after rollover.
 Note that this value is relative to the rollover time, not the index creation time. 
 
-You can create the policy through {kib} Management or with the 
+You can create the policy through {kib} or with the 
 <<ilm-put-lifecycle, put policy>> API. 
-To create the policy from {kib}, go to Management and click **Index Lifecycle Policies**.
+To create the policy from {kib}, open the menu and go to *Stack Management >
+Index Lifecycle Policies*. Click *Index Lifecycle Policies*.
 
 [role="screenshot"]
 image:images/ilm/create-policy.png[]
@@ -109,9 +110,14 @@ To enable the {ilm-init} to manage the data stream, the template configures one 
 
 * `index.lifecycle.name` specifies the name of the lifecycle policy to apply to the data stream.
 
-You can use the {kib} Create template wizard to add the template.
-This wizard invokes the put _index_template API to create the <<indices-templates,index template>>
-with the options you specify.
+You can use the {kib} Create template wizard to add the template. From Kibana,
+open the menu and go to *Stack Management > Index Management*. In the *Index
+Templates* tab, click *Create template*.
+
+image::images/data-streams/create-index-template.png[Create template page]
+
+This wizard invokes the <<indices-put-template,put index template API>> to create
+the index template with the options you specify.
 
 .API example
 [%collapsible]
@@ -265,18 +271,18 @@ DELETE /_index_template/timeseries_template
 
 [discrete]
 [[manage-time-series-data-without-data-streams]]
-=== Manage time-series data without data streams
+=== Manage time series data without data streams
 
 Even though <<data-streams, data streams>> are a convenient way to scale
-and manage time-series data, they are designed to be append-only. We recognise there
+and manage time series data, they are designed to be append-only. We recognise there
 might be use-cases where data needs to be updated or deleted in place and the
 data streams don't support delete and update requests directly,
 so the index APIs would need to be used directly on the data stream's backing indices.
 
-In these cases, you can use an index alias to manage indices containing the time-series data
+In these cases, you can use an index alias to manage indices containing the time series data
 and periodically roll over to a new index.
 
-To automate rollover and management of time-series indices with {ilm-init} using an index
+To automate rollover and management of time series indices with {ilm-init} using an index
 alias, you:
 
 . Create a lifecycle policy that defines the appropriate phases and actions.
@@ -288,7 +294,7 @@ as expected.
 
 [discrete]
 [[ilm-gs-alias-apply-policy]]
-=== Create a legacy index template to apply the lifecycle policy
+=== Create an index template to apply the lifecycle policy
 
 To automatically apply a lifecycle policy to the new write index on rollover,
 specify the policy in the index template used to create new indices.
@@ -303,25 +309,27 @@ that match the index pattern.
 * `index.lifecycle.rollover_alias` specifies the index alias to be rolled over
 when the rollover action is triggered for an index.
 
-You can use the {kib} Create template wizard to add the template. 
-To access the wizard, go to Management, click **Index Management**,
-and select the **Index Templates** view. 
+You can use the {kib} Create template wizard to add the template. To access the
+wizard, open the menu and go to *Stack Management > Index Management*. In the
+the *Index Templates* tab, click *Create template*.
 
 [role="screenshot"]
-image:images/ilm/create-template-wizard.png[]
+image:images/ilm/create-template-wizard.png[Create template page]
 
 The create template request for the example template looks like this:
 
 [source,console]
 -----------------------
-PUT _template/timeseries_template
+PUT _index_template/timeseries_template
 {
   "index_patterns": ["timeseries-*"],                 <1>
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "index.lifecycle.name": "timeseries_policy",      <2>
-    "index.lifecycle.rollover_alias": "timeseries"    <3>
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "timeseries_policy",      <2>
+      "index.lifecycle.rollover_alias": "timeseries"    <3>
+    }
   }
 }
 -----------------------
@@ -336,7 +344,7 @@ Required for policies that use the rollover action.
 
 [source,console]
 --------------------------------------------------
-DELETE /_template/timeseries_template
+DELETE _index_template/timeseries_template
 --------------------------------------------------
 // TEST[continued]
 
@@ -344,7 +352,7 @@ DELETE /_template/timeseries_template
 
 [discrete]
 [[ilm-gs-alias-bootstrap]]
-=== Bootstrap the initial time-series index with a write index alias
+=== Bootstrap the initial time series index with a write index alias
 
 To get things started, you need to bootstrap an initial index and
 designate it as the write index for the rollover alias specified in your index template.

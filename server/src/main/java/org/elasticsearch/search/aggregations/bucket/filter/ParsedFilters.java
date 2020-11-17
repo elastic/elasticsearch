@@ -117,9 +117,9 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
             if (keyed) {
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                 bucket.key = currentFieldName;
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             }
 
             List<Aggregation> aggregations = new ArrayList<>();

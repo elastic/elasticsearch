@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -113,11 +112,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        } else {
-            indexingPressureStats = null;
-        }
+        indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
@@ -266,9 +261,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalWriteable(indexingPressureStats);
-        }
+        out.writeOptionalWriteable(indexingPressureStats);
     }
 
     @Override

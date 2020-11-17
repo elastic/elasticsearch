@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Mapper Size plugin allows document to record their uncompressed size at index time.'
@@ -28,3 +29,5 @@ restResources {
     includeCore '_common', 'indices', 'index', 'get'
   }
 }
+// no unit tests
+test.enabled = false

@@ -27,7 +27,6 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -160,14 +159,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
         RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
-            threadPool.schedule(new RecoveryRunner(newTarget.recoveryId()), retryAfter, ThreadPool.Names.GENERIC);
+            threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
         }
     }
 
     protected void reestablishRecovery(final StartRecoveryRequest request, final String reason, TimeValue retryAfter) {
         final long recoveryId = request.recoveryId();
         logger.trace("will try to reestablish recovery with id [{}] in [{}] (reason [{}])", recoveryId, retryAfter, reason);
-        threadPool.schedule(new RecoveryRunner(recoveryId, request), retryAfter, ThreadPool.Names.GENERIC);
+        threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryId, request));
     }
 
     private void doRecovery(final long recoveryId, final StartRecoveryRequest preExistingRequest) {
@@ -633,14 +632,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
 
             if (cause instanceof ConnectTransportException) {
-                logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", request.shardId(),
-                    recoverySettings.retryDelayNetwork(), cause.getMessage());
-                if (request.sourceNode().getVersion().onOrAfter(Version.V_7_9_0)) {
-                    reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
-                } else {
-                    retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(),
-                        recoverySettings.activityTimeout());
-                }
+                logger.info("recovery of {} from [{}] interrupted by network disconnect, will retry in [{}]; cause: [{}]",
+                    request.shardId(), request.sourceNode(), recoverySettings.retryDelayNetwork(), cause.getMessage());
+                reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
                 return;
             }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -28,20 +29,25 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction.Index;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -52,6 +58,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
@@ -65,30 +75,29 @@ public class TransportBulkActionTests extends ESTestCase {
     /** Services needed by bulk action */
     private TransportService transportService;
     private ClusterService clusterService;
-    private ThreadPool threadPool;
+    private TestThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
 
     class TestTransportBulkAction extends TransportBulkAction {
 
+        volatile boolean failIndexCreation = false;
         boolean indexCreated = false; // set when the "real" index is created
 
         TestTransportBulkAction() {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()),
-                    new IndexingPressure(Settings.EMPTY));
-        }
-
-        @Override
-        protected boolean needToCheck() {
-            return true;
+                    new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of()));
         }
 
         @Override
         void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
-            listener.onResponse(null);
+            if (failIndexCreation) {
+                listener.onFailure(new ResourceAlreadyExistsException("index already exists"));
+            } else {
+                listener.onResponse(null);
+            }
         }
     }
 
@@ -236,5 +245,62 @@ public class TransportBulkActionTests extends ESTestCase {
             new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(DocWriteRequest.OpType.INDEX)
             .routing("custom");
         prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata);
+    }
+
+    public void testOnlySystem() {
+        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        indicesLookup.put(".foo",
+            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+        indicesLookup.put(".bar",
+            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(".test", ""))));
+        List<String> onlySystem = List.of(".foo", ".bar");
+        assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+
+        onlySystem = List.of(".foo", ".bar", ".test");
+        assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+
+        List<String> nonSystem = List.of("foo", "bar");
+        assertFalse(bulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
+
+        List<String> mixed = List.of(".foo", ".test", "other");
+        assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
+    }
+
+    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+        bulkAction.failIndexCreation = randomBoolean();
+
+        try {
+            threadPool.startForcingRejections();
+            PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        } finally {
+            threadPool.stopForcingRejections();
+        }
+    }
+
+    private BulkRequest buildBulkRequest(List<String> indices) {
+        BulkRequest request = new BulkRequest();
+        for (String index : indices) {
+            final DocWriteRequest<?> subRequest;
+            switch (randomIntBetween(1, 3)) {
+                case 1:
+                    subRequest = new IndexRequest(index);
+                    break;
+                case 2:
+                    subRequest = new DeleteRequest(index).id("0");
+                    break;
+                case 3:
+                    subRequest = new UpdateRequest(index, "0");
+                    break;
+                default:
+                    throw new IllegalStateException("only have 3 cases");
+            }
+            request.add(subRequest);
+        }
+        return request;
     }
 }

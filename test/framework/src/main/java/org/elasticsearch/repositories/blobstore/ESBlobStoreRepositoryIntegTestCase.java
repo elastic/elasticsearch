@@ -36,6 +36,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -321,7 +322,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         logger.info("--> restore all indices from the snapshot");
         assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true));
 
-        ensureGreen();
+        // higher timeout since we can have quite a few shards and a little more data here
+        ensureGreen(TimeValue.timeValueSeconds(120));
 
         for (int i = 0; i < indexCount; i++) {
             assertHitCount(client().prepareSearch(indexNames[i]).setSize(0).get(), docCounts[i]);

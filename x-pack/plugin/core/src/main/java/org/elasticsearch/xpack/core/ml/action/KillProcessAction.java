@@ -29,10 +29,6 @@ public class KillProcessAction extends ActionType<KillProcessAction.Response> {
             super(jobId);
         }
 
-        public Request() {
-            super();
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
         }

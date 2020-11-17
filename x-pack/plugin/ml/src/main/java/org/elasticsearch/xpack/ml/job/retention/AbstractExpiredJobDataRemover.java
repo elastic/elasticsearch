@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
@@ -27,10 +28,16 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
     protected final OriginSettingClient client;
     private final Iterator<Job> jobIterator;
+    private final TaskId parentTaskId;
 
-    AbstractExpiredJobDataRemover(OriginSettingClient client, Iterator<Job> jobIterator) {
+    AbstractExpiredJobDataRemover(OriginSettingClient client, Iterator<Job> jobIterator, TaskId parentTaskId) {
         this.client = client;
         this.jobIterator = jobIterator;
+        this.parentTaskId = parentTaskId;
+    }
+
+    protected TaskId getParentTaskId() {
+        return parentTaskId;
     }
 
     @Override

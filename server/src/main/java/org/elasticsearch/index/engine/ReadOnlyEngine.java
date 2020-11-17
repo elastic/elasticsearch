@@ -31,7 +31,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
@@ -48,7 +49,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -219,8 +219,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory) throws EngineException {
-        return getFromSearcher(get, searcherFactory, SearcherScope.EXTERNAL);
+    public GetResult get(Get get, DocumentMapper mapper, Function<Searcher, Searcher> searcherWrapper) {
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
     }
 
     @Override
@@ -291,8 +291,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
-                                                boolean requiredFullRange)  {
+    public Translog.Snapshot newChangesSnapshot(String source, Function<String, MappedFieldType> fieldTypeLookup, long fromSeqNo,
+                                                long toSeqNo, boolean requiredFullRange)  {
         return newEmptySnapshot();
     }
 

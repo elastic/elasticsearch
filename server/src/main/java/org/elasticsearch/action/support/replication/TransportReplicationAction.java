@@ -119,6 +119,7 @@ public abstract class TransportReplicationAction<
     protected final IndicesService indicesService;
     protected final TransportRequestOptions transportOptions;
     protected final String executor;
+    protected final boolean forceExecutionOnPrimary;
 
     // package private for testing
     protected final String transportReplicaAction;
@@ -157,6 +158,7 @@ public abstract class TransportReplicationAction<
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
+        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
@@ -800,11 +802,6 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
                 public void handleResponse(Response response) {
                     finishOnSuccess(response);
                 }
@@ -905,7 +902,7 @@ public abstract class TransportReplicationAction<
     protected void acquirePrimaryOperationPermit(final IndexShard primary,
                                                  final Request request,
                                                  final ActionListener<Releasable> onAcquired) {
-        primary.acquirePrimaryOperationPermit(onAcquired, executor, request);
+        primary.acquirePrimaryOperationPermit(onAcquired, executor, request, forceExecutionOnPrimary);
     }
 
     /**

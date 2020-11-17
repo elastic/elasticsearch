@@ -24,17 +24,12 @@ import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 
 public class SpatialUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final Settings settings;
-    private final XPackLicenseState licenseState;
-
     @Inject
     public SpatialUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        Settings settings, XPackLicenseState licenseState) {
         super(XPackUsageFeatureAction.SPATIAL.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
-        this.settings = settings;
-        this.licenseState = licenseState;
     }
 
     @Override

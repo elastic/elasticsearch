@@ -25,16 +25,17 @@ public class TermsGroupSource extends SingleGroupSource {
         ConstructingObjectParser<TermsGroupSource, Void> parser = new ConstructingObjectParser<>(NAME, lenient, (args) -> {
             String field = (String) args[0];
             ScriptConfig scriptConfig = (ScriptConfig) args[1];
+            boolean missingBucket = args[2] == null ? false : (boolean) args[2];
 
-            return new TermsGroupSource(field, scriptConfig);
+            return new TermsGroupSource(field, scriptConfig, missingBucket);
         });
 
         SingleGroupSource.declareValuesSourceFields(parser, lenient);
         return parser;
     }
 
-    public TermsGroupSource(final String field, final ScriptConfig scriptConfig) {
-        super(field, scriptConfig);
+    public TermsGroupSource(final String field, final ScriptConfig scriptConfig, boolean missingBucket) {
+        super(field, scriptConfig, missingBucket);
     }
 
     public TermsGroupSource(StreamInput in) throws IOException {
@@ -48,10 +49,5 @@ public class TermsGroupSource extends SingleGroupSource {
 
     public static TermsGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
-    }
-
-    @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return true;
     }
 }

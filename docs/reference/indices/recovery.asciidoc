@@ -11,9 +11,9 @@ indices.
 
 [source,console]
 ----
-GET /twitter/_recovery
+GET /my-index-000001/_recovery
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-recovery-api-request]]

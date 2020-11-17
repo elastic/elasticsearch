@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
@@ -58,14 +57,13 @@ import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class TransportPutTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
 
@@ -75,7 +73,6 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
-    private final IngestService ingestService;
 
     @Inject
     public TransportPutTransformAction(
@@ -125,7 +122,8 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             threadPool,
             actionFilters,
             PutTransformAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         this.licenseState = licenseState;
         this.client = client;
@@ -140,10 +138,10 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
+            ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
-        this.ingestService = ingestService;
     }
 
     static HasPrivilegesRequest buildPrivilegeCheck(
@@ -190,16 +188,6 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
@@ -221,6 +209,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
+            config.getDestination().getPipeline(),
             request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
             ActionListener.wrap(
                 validationResponse -> {
@@ -283,7 +272,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
             logger.debug("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
         }, listener::onFailure);
 
         // <2> Put our transform
@@ -314,22 +303,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             if (request.isDeferValidation()) {
                 validationListener.onResponse(true);
             } else {
-                if (config.getDestination().getPipeline() != null) {
-                    if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
-                        return;
-                    }
-                }
-                if (request.isDeferValidation()) {
-                    validationListener.onResponse(true);
-                } else {
-                    function.validateQuery(client, config.getSource(), validationListener);
-                }
+                function.validateQuery(client, config.getSource(), validationListener);
             }
         }, listener::onFailure));
     }

@@ -33,11 +33,10 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -80,28 +80,20 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     private static final int BUFFER_SIZE = 4096;
 
-    private final boolean compress;
-
     private final String codec;
 
     private final String blobNameFormat;
 
     private final CheckedFunction<XContentParser, T, IOException> reader;
 
-    private final NamedXContentRegistry namedXContentRegistry;
-
     /**
      * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
-     * @param compress       true if the content should be compressed
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader,
-                                   NamedXContentRegistry namedXContentRegistry, boolean compress) {
+    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader) {
         this.reader = reader;
         this.blobNameFormat = blobNameFormat;
-        this.namedXContentRegistry = namedXContentRegistry;
-        this.compress = compress;
         this.codec = codec;
     }
 
@@ -112,23 +104,21 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param name          name to be translated into
      * @return parsed blob object
      */
-    public T read(BlobContainer blobContainer, String name) throws IOException {
+    public T read(BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry,
+                  BigArrays bigArrays) throws IOException {
         String blobName = blobName(name);
-        return readBlob(blobContainer, blobName);
+        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+             InputStream in = blobContainer.readBlob(blobName)) {
+            Streams.copy(in, out, false);
+            return deserialize(blobName, namedXContentRegistry, out.bytes());
+        }
     }
 
     public String blobName(String name) {
         return String.format(Locale.ROOT, blobNameFormat, name);
     }
 
-    /**
-     * Reads blob with specified name without resolving the blobName using using {@link #blobName} method.
-     *
-     * @param blobContainer blob container
-     * @param blobName blob name
-     */
-    public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
-        final BytesReference bytes = Streams.readFully(blobContainer.readBlob(blobName));
+    public T deserialize(String blobName, NamedXContentRegistry namedXContentRegistry, BytesReference bytes) throws IOException {
         final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
         try {
             final IndexInput indexInput = bytes.length() > 0 ? new ByteBuffersIndexInput(
@@ -149,49 +139,27 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     }
 
     /**
-     * Writes blob in atomic manner with resolving the blob name using {@link #blobName} method.
-     * <p>
-     * The blob will be compressed and checksum will be written if required.
-     *
-     * Atomic move might be very inefficient on some repositories. It also cannot override existing files.
-     *
-     * @param obj           object to be serialized
-     * @param blobContainer blob container
-     * @param name          blob name
-     */
-    public void writeAtomic(T obj, BlobContainer blobContainer, String name) throws IOException {
-        final String blobName = blobName(name);
-        writeTo(obj, blobName, bytesArray -> {
-            try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlobAtomic(blobName, stream, bytesArray.length(), true);
-            }
-        });
-    }
-
-    /**
      * Writes blob with resolving the blob name using {@link #blobName} method.
      * <p>
-     * The blob will be compressed and checksum will be written if required.
+     * The blob will optionally by compressed.
      *
      * @param obj                 object to be serialized
      * @param blobContainer       blob container
      * @param name                blob name
-     * @param failIfAlreadyExists Whether to fail if the blob already exists
+     * @param compress            whether to use compression
      */
-    public void write(T obj, BlobContainer blobContainer, String name, boolean failIfAlreadyExists) throws IOException {
+    public void write(T obj, BlobContainer blobContainer, String name, boolean compress, BigArrays bigArrays) throws IOException {
         final String blobName = blobName(name);
-        writeTo(obj, blobName, bytesArray -> {
-            try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
-            }
-        });
+        serialize(obj, blobName, compress, bigArrays, bytes -> blobContainer.writeBlob(blobName, bytes.streamInput(), bytes.length(),
+                false));
     }
 
-    private void writeTo(final T obj, final String blobName,
-                         final CheckedConsumer<BytesReference, IOException> consumer) throws IOException {
-        try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
-            final String resourceDesc = "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")";
-            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, blobName, outputStream, BUFFER_SIZE)) {
+    public void serialize(final T obj, final String blobName, final boolean compress, BigArrays bigArrays,
+                          CheckedConsumer<BytesReference, IOException> consumer) throws IOException {
+        try (ReleasableBytesStreamOutput outputStream = new ReleasableBytesStreamOutput(bigArrays)) {
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")", blobName,
+                    org.elasticsearch.common.io.Streams.noCloseStream(outputStream), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
@@ -199,26 +167,16 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                         // this is important since some of the XContentBuilders write bytes on close.
                         // in order to write the footer we need to prevent closing the actual index input.
                     }
-                }) {
-                    if (compress) {
-                        try (StreamOutput compressedStreamOutput = CompressorFactory.COMPRESSOR.streamOutput(indexOutputOutputStream)) {
-                            write(obj, compressedStreamOutput);
-                        }
-                    } else {
-                        write(obj, indexOutputOutputStream);
-                    }
+                }; XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE,
+                        compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream)
+                                : indexOutputOutputStream)) {
+                    builder.startObject();
+                    obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
+                    builder.endObject();
                 }
                 CodecUtil.writeFooter(indexOutput);
             }
             consumer.accept(outputStream.bytes());
-        }
-    }
-
-    private void write(T obj, OutputStream streamOutput) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE, streamOutput)) {
-            builder.startObject();
-            obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
-            builder.endObject();
         }
     }
 }

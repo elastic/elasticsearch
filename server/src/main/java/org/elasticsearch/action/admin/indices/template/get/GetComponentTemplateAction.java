@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -103,11 +102,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            int size = in.readVInt();
-            componentTemplates = new HashMap<>();
-            for (int i = 0 ; i < size ; i++) {
-                componentTemplates.put(in.readString(), new ComponentTemplate(in));
-            }
+            componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
         }
 
         public Response(Map<String, ComponentTemplate> componentTemplates) {
@@ -120,11 +115,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(componentTemplates.size());
-            for (Map.Entry<String, ComponentTemplate> componentTemplate : componentTemplates.entrySet()) {
-                out.writeString(componentTemplate.getKey());
-                componentTemplate.getValue().writeTo(out);
-            }
+            out.writeMap(componentTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
 
         @Override

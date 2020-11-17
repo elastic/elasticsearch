@@ -16,13 +16,9 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class SpatialInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public SpatialInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                      Settings settings, XPackLicenseState licenseState) {
+    public SpatialInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.SPATIAL.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override

@@ -395,6 +395,7 @@ public class ShardStateAction {
         final String allocationId;
         final long primaryTerm;
         final String message;
+        @Nullable
         final Exception failure;
         final boolean markAsStale;
 
@@ -409,7 +410,7 @@ public class ShardStateAction {
         }
 
         public FailedShardEntry(ShardId shardId, String allocationId, long primaryTerm,
-                                String message, Exception failure, boolean markAsStale) {
+                                String message, @Nullable Exception failure, boolean markAsStale) {
             this.shardId = shardId;
             this.allocationId = allocationId;
             this.primaryTerm = primaryTerm;

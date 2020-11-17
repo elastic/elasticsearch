@@ -18,7 +18,7 @@ For {es}, adherence to FIPS 140-2 is ensured by
 - Allowing the configuration of {es} in a FIPS 140-2 compliant manner, as
   documented below.
 
-[float]
+[discrete]
 === Upgrade considerations
 
 If you plan to upgrade your existing cluster to a version that can be run in
@@ -40,14 +40,14 @@ regenerate your `elasticsearch.keystore` and migrate all secure settings to it,
 in addition to the necessary configuration changes outlined below, before
 starting each node.
 
-[float]
+[discrete]
 === Configuring {es} for FIPS 140-2
 
 Apart from setting `xpack.security.fips_mode.enabled`, a number of security
 related settings need to be configured accordingly in order to be compliant
 and able to run {es} successfully in a FIPS 140-2 enabled JVM.
 
-[float]
+[discrete]
 ==== TLS
 
 SSLv2 and SSLv3 are not allowed by FIPS 140-2, so `SSLv2Hello` and `SSLv3` cannot
@@ -58,7 +58,7 @@ NOTE: The use of TLS ciphers is mainly governed by the relevant crypto module
 are configured by default in {es} are FIPS 140-2 compliant and as such can be
 used in a FIPS 140-2 JVM. See <<ssl-tls-settings,`ssl.cipher_suites`>>.
 
-[float]
+[discrete]
 ==== TLS Keystores and keys
 
 Keystores can be used in a number of <<ssl-tls-settings>> in order to
@@ -84,7 +84,7 @@ keys must have corresponding length according to the following table:
 | `AES-256`               | 15630          | 512+
 |=======================
 
-[float]
+[discrete]
 ==== Password Hashing
 
 {es} offers a number of algorithms for securely hashing credentials in memory and
@@ -107,7 +107,7 @@ The user cache will be emptied upon node restart, so any existing hashes using
 non-compliant algorithms will be discarded and the new ones will be created
 using the compliant `PBKDF2` algorithm you have selected.
 
-[float]
+[discrete]
 === Limitations
 
 Due to the limitations that FIPS 140-2 compliance enforces, a small number of

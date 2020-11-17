@@ -71,6 +71,11 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
         settingsFilter.addFilterSettingParams(request);

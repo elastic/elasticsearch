@@ -62,10 +62,10 @@ public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
     }
 
     private static Evaluation parseEvaluation(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         Evaluation evaluation = parser.namedObject(Evaluation.class, parser.currentName(), null);
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return evaluation;
     }
 

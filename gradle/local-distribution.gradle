@@ -25,7 +25,7 @@
  * */
 import org.elasticsearch.gradle.Architecture
 
-apply plugin:'elasticsearch.distribution-download'
+apply plugin:'elasticsearch.internal-distribution-download'
 
 elasticsearch_distributions {
   local {
@@ -36,7 +36,7 @@ elasticsearch_distributions {
 }
 
 tasks.register('localDistro', Sync) {
-  from(elasticsearch_distributions.local.extracted)
+  from(elasticsearch_distributions.local)
   into("build/distribution/local")
   doLast {
     logger.lifecycle("Elasticsearch distribution installed to ${destinationDir}.")

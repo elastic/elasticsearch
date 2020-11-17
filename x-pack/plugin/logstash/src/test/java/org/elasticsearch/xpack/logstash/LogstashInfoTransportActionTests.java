@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.logstash;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -22,9 +21,7 @@ import static org.mockito.Mockito.when;
 
 public class LogstashInfoTransportActionTests extends ESTestCase {
 
-    public void testEnabledSetting() throws Exception {
-        boolean enabled = randomBoolean();
-        Settings settings = Settings.builder().put("path.home", createTempDir()).put("xpack.logstash.enabled", enabled).build();
+    public void testEnabledDefault() throws Exception {
         LogstashInfoTransportAction featureSet = new LogstashInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
@@ -41,16 +38,6 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.enabled(), is(true));
-    }
-
-    public void testEnabledDefault() throws Exception {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        LogstashInfoTransportAction featureSet = new LogstashInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            null
-        );
-        assertThat(featureSet.enabled(), is(true));
     }
 
     public void testAvailable() throws Exception {

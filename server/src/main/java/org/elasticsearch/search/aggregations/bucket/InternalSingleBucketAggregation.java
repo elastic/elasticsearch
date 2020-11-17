@@ -177,6 +177,11 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
+    }
+
+    @Override
     public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
         InternalAggregations rewritten = rewriter.apply(aggregations);
         if (rewritten == null) {

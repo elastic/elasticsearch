@@ -1237,7 +1237,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertEquals(-0.6, (double) buckets.get(0).getKey(), 0.01d);
 
         r = client().prepareSearch("test")
-            .addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(0.0, 3.0)))
+            .addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(0.0, 0.3)))
             .get();
         assertSearchResponse(r);
 

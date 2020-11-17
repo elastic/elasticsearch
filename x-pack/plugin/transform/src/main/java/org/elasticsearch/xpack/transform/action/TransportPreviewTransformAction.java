@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
@@ -29,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -60,7 +59,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
     PreviewTransformAction.Request,
     PreviewTransformAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPreviewTransformAction.class);
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -77,7 +75,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        Settings settings
+        Settings settings,
+        IngestService ingestService
     ) {
         this(
             PreviewTransformAction.NAME,
@@ -88,7 +87,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             licenseState,
             indexNameExpressionResolver,
             clusterService,
-            settings
+            settings,
+            ingestService
         );
     }
 
@@ -101,7 +101,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        Settings settings
+        Settings settings,
+        IngestService ingestService
     ) {
         super(name, transportService, actionFilters, PreviewTransformAction.Request::new);
         this.licenseState = licenseState;
@@ -114,6 +115,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
+            ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
@@ -129,6 +131,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
+            config.getDestination().getPipeline(),
             SourceDestValidations.PREVIEW_VALIDATIONS,
             ActionListener.wrap(r -> {
                 // create the function for validation

@@ -41,18 +41,29 @@ public class GetTransformStatsResponse {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GetTransformStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "get_transform_stats_response", true,
-            args -> new GetTransformStatsResponse((List<TransformStats>) args[0],
-                    (List<TaskOperationFailure>) args[1], (List<ElasticsearchException>) args[2]));
+        "get_transform_stats_response",
+        true,
+        args -> new GetTransformStatsResponse(
+            (List<TransformStats>) args[0],
+            (long) args[1],
+            (List<TaskOperationFailure>) args[2],
+            (List<ElasticsearchException>) args[3]
+        )
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), TransformStats.PARSER::apply, TRANSFORMS);
-        // Discard the count field which is the size of the transforms array
-        PARSER.declareInt((a, b) -> {}, COUNT);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p),
-                AcknowledgedTasksResponse.TASK_FAILURES);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
-                AcknowledgedTasksResponse.NODE_FAILURES);
+        PARSER.declareLong(constructorArg(), COUNT);
+        PARSER.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> TaskOperationFailure.fromXContent(p),
+            AcknowledgedTasksResponse.TASK_FAILURES
+        );
+        PARSER.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            AcknowledgedTasksResponse.NODE_FAILURES
+        );
     }
 
     public static GetTransformStatsResponse fromXContent(final XContentParser parser) {
@@ -60,19 +71,28 @@ public class GetTransformStatsResponse {
     }
 
     private final List<TransformStats> transformsStats;
+    private final long count;
     private final List<TaskOperationFailure> taskFailures;
     private final List<ElasticsearchException> nodeFailures;
 
-    public GetTransformStatsResponse(List<TransformStats> transformsStats,
-                                              @Nullable List<TaskOperationFailure> taskFailures,
-                                              @Nullable List<? extends ElasticsearchException> nodeFailures) {
+    public GetTransformStatsResponse(
+        List<TransformStats> transformsStats,
+        long count,
+        @Nullable List<TaskOperationFailure> taskFailures,
+        @Nullable List<? extends ElasticsearchException> nodeFailures
+    ) {
         this.transformsStats = transformsStats;
+        this.count = count;
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(taskFailures);
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(nodeFailures);
     }
 
     public List<TransformStats> getTransformsStats() {
         return transformsStats;
+    }
+
+    public long getCount() {
+        return count;
     }
 
     public List<ElasticsearchException> getNodeFailures() {
@@ -85,7 +105,7 @@ public class GetTransformStatsResponse {
 
     @Override
     public int hashCode() {
-        return Objects.hash(transformsStats, nodeFailures, taskFailures);
+        return Objects.hash(transformsStats, count, nodeFailures, taskFailures);
     }
 
     @Override
@@ -100,7 +120,8 @@ public class GetTransformStatsResponse {
 
         final GetTransformStatsResponse that = (GetTransformStatsResponse) other;
         return Objects.equals(this.transformsStats, that.transformsStats)
-                && Objects.equals(this.nodeFailures, that.nodeFailures)
-                && Objects.equals(this.taskFailures, that.taskFailures);
+            && Objects.equals(this.count, that.count)
+            && Objects.equals(this.nodeFailures, that.nodeFailures)
+            && Objects.equals(this.taskFailures, that.taskFailures);
     }
 }

@@ -27,7 +27,7 @@ testClusters.integTest {
   nameCustomization = { null }
 }
 
-integTest.runner {
+integTest {
   nonInputProperties.systemProperty 'tests.logfile',
     "${-> testClusters.integTest.singleNode().getServerLog()}"
 }

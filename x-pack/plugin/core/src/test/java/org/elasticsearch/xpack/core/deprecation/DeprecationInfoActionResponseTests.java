@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -78,7 +79,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         List<DatafeedConfig> datafeeds = Collections.singletonList(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"));
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
             true, true);
         boolean clusterIssueFound = randomBoolean();

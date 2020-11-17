@@ -135,19 +135,22 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         double[] probabilities = softMax(scores);
 
         ClassificationConfig classificationConfig = (ClassificationConfig) config;
-        Tuple<Integer, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+        Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
             probabilities,
             LANGUAGE_NAMES,
             null,
             classificationConfig.getNumTopClasses(),
             PredictionFieldType.STRING);
-        assert topClasses.v1() >= 0 && topClasses.v1() < LANGUAGE_NAMES.size() :
+        final InferenceHelpers.TopClassificationValue classificationValue = topClasses.v1();
+        assert classificationValue.getValue() >= 0 && classificationValue.getValue() < LANGUAGE_NAMES.size() :
             "Invalid language predicted. Predicted language index " + topClasses.v1();
-        return new ClassificationInferenceResults(topClasses.v1(),
-            LANGUAGE_NAMES.get(topClasses.v1()),
+        return new ClassificationInferenceResults(classificationValue.getValue(),
+            LANGUAGE_NAMES.get(classificationValue.getValue()),
             topClasses.v2(),
             Collections.emptyList(),
-            classificationConfig);
+            classificationConfig,
+            classificationValue.getProbability(),
+            classificationValue.getScore());
     }
 
     @Override

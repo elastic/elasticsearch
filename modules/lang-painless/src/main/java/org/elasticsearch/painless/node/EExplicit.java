@@ -21,12 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Explicit;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -54,34 +48,12 @@ public class EExplicit extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitExplicit(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitExplicit(this, scope);
     }
 
     @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
-        }
-
-        Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (valueType == null) {
-            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
-        }
-
-        semanticScope.setCondition(childNode, Read.class);
-        semanticScope.putDecoration(childNode, new TargetType(valueType));
-        semanticScope.setCondition(childNode, Explicit.class);
-        analyze(childNode, semanticScope);
-        childNode.cast(semanticScope);
-
-        semanticScope.putDecoration(this, new ValueType(valueType));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        childNode.visit(userTreeVisitor, scope);
     }
 }

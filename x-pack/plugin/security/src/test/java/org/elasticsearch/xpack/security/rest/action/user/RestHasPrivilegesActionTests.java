@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -42,14 +43,15 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         final RestHasPrivilegesAction action =
             new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
-        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject();
+             NodeClient client = new NoOpNodeClient(this.getTestName())) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withPath("/_security/user/_has_privileges/")
                 .withContent(new BytesArray(bodyBuilder.toString()), XContentType.JSON)
                 .build();
             final RestChannel channel = new FakeRestChannel(request, true, 1);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
-                action.handleRequest(request, channel, mock(NodeClient.class)));
+                action.handleRequest(request, channel, client));
             assertThat(e.getMessage(), equalTo("there is no authenticated user"));
         }
     }
@@ -61,12 +63,13 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
         final RestHasPrivilegesAction action =
             new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
+            NodeClient client = new NoOpNodeClient(this.getTestName());
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withPath("/_security/user/_has_privileges/")
                 .withContent(new BytesArray(bodyBuilder.toString()), XContentType.JSON)
                 .build();
             final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
-            action.handleRequest(request, channel, mock(NodeClient.class));
+            action.handleRequest(request, channel, client);
             assertThat(channel.capturedResponse(), notNullValue());
             assertThat(channel.capturedResponse().status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
             assertThat(

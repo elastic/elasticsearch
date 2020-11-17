@@ -17,7 +17,7 @@ For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -32,12 +32,12 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "number_one": "10" <1>
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "number_two": "10" <2>
 }
@@ -58,7 +58,7 @@ coercion globally across all mapping types:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.mapping.coerce": false
@@ -76,10 +76,10 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "number_one": "10" } <1>
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "number_two": "10" } <2>
 --------------------------------------------------
 // TEST[catch:bad_request]

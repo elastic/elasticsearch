@@ -23,6 +23,8 @@ import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -31,6 +33,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -118,7 +121,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Convert the entity from a {@link Response} into a map of maps.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (XContentParser parser = xContentType.xContent().createParser(
                 NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -131,7 +134,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Convert the entity from a {@link Response} into a list of maps.
      */
     public static List<Object> entityAsList(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (XContentParser parser = xContentType.xContent().createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -392,7 +395,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             } catch (final IOException e) {
                 throw new AssertionError("error getting active tasks list", e);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     /**
@@ -643,8 +646,23 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            final Request deleteRequest = new Request("DELETE", "*");
+            //remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
+            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(warnings -> {
+                    if (warnings.size() == 0) {
+                        return false;
+                    } else if (warnings.size() > 1) {
+                        return true;
+                    }
+                    // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
+                    final String warning = warnings.get(0);
+                    final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
+                        && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+                    return isSystemIndexWarning == false;
+                }).build();
+            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -660,12 +678,21 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeDataStreams() throws IOException {
         try {
             if (hasXPack()) {
-                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                adminClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=all"));
             }
         } catch (ResponseException e) {
-            // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore
-            if (e.getResponse().getStatusLine().getStatusCode() != 405) {
-                throw e;
+            // We hit a version of ES that doesn't understand expand_wildcards, try again without it
+            try {
+                if (hasXPack()) {
+                    adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                }
+            } catch (ResponseException ee) {
+                // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field
+                // or that doesn't support data streams so it's safe to ignore
+                int statusCode = ee.getResponse().getStatusLine().getStatusCode();
+                if (statusCode < 404 || statusCode > 405) {
+                    throw ee;
+                }
             }
         }
     }
@@ -793,7 +820,17 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected void refreshAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
-        refreshRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        // Allow system index deprecation warnings
+        refreshRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            } else {
+                return warnings.get(0).startsWith("this request accesses system indices:") == false;
+            }
+        }));
         client().performRequest(refreshRequest);
     }
 
@@ -1027,7 +1064,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * in an non green state
      * @param index index to test for
      **/
-    protected static void ensureGreen(String index) throws IOException {
+    public static void ensureGreen(String index) throws IOException {
         ensureHealth(index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
@@ -1183,11 +1220,61 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
         Response response = client().performRequest(new Request("GET", endpoint));
-        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        return responseAsMap(response);
+    }
+
+    protected static Map<String, Object> responseAsMap(Response response) throws IOException {
+        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
                 response.getEntity().getContent(), false);
         assertNotNull(responseEntity);
         return responseEntity;
+    }
+
+    protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
+        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
+        request.addParameter("verify", Boolean.toString(verify));
+        request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
+
+        final Response response = client().performRequest(request);
+        assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
+    }
+
+    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
+        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+
+        final Response response = client().performRequest(request);
+        assertThat(
+            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
+    }
+
+    protected static void restoreSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot + "/_restore");
+        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+
+        final Response response = client().performRequest(request);
+        assertThat(
+            "Failed to restore snapshot [" + snapshot + "] from repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertAcked(String message, Response response) throws IOException {
+        final int responseStatusCode = response.getStatusLine().getStatusCode();
+        assertThat(
+            message + ": expecting response code [200] but got [" + responseStatusCode + ']',
+            responseStatusCode,
+            equalTo(RestStatus.OK.getStatus())
+        );
+        final Map<String, Object> responseAsMap = responseAsMap(response);
+        Boolean acknowledged = (Boolean) XContentMapValues.extractValue(responseAsMap, "acknowledged");
+        assertThat(message + ": response is not acknowledged", acknowledged, equalTo(Boolean.TRUE));
     }
 
     /**
@@ -1223,6 +1310,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics":
             case "metrics-settings":
             case "metrics-mappings":
+            case "synthetics":
+            case "synthetics-settings":
+            case "synthetics-mappings":
+            case ".snapshot-blob-cache":
+            case ".deprecation-indexing-template":
+            case "ilm-history":
                 return true;
             default:
                 return false;
@@ -1410,7 +1503,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assertOK(response);
 
             try (InputStream is = response.getEntity().getContent()) {
-                XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+                XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
                 final Map<String, ?> map = XContentHelper.convertToMap(xContentType.xContent(), is, true);
                 assertThat(map, notNullValue());
                 assertThat("License must exist", map.containsKey("license"), equalTo(true));
@@ -1435,8 +1528,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(warnings -> {
-            return warnings.stream().anyMatch(message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
-                PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+            if (warnings.size() > 0) {
+                boolean matches = warnings.stream().anyMatch(
+                    message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
+                    PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+                return matches == false;
+            } else {
+                return false;
+            }
         });
+        request.setOptions(options);
     }
 }

@@ -98,7 +98,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 reverseNestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 ReverseNested reverseNested = (ReverseNested)
                         ((InternalAggregation)nested).getProperty(REVERSE_AGG_NAME);
@@ -160,7 +160,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 reverseNestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -224,9 +224,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     reverseNested(REVERSE_AGG_NAME).subAggregation(aliasMaxAgg));
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), agg, fieldType);
-                Nested aliasNested = search(newSearcher(indexReader, false, true),
+                Nested aliasNested = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), aliasAgg, fieldType);
 
                 ReverseNested reverseNested = nested.getAggregations().get(REVERSE_AGG_NAME);

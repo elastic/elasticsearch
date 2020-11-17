@@ -49,7 +49,7 @@ Elasticsearch 8.0 node will not start in the presence of indices created in a
 version of Elasticsearch before 7.0.
 
 *Impact* +
-Reindex indices created in {es} 6.x or before with {es} 7.x if they need to be carried forward to  {es} 8.x. 
+Reindex indices created in {es} 6.x or before with {es} 7.x if they need to be carried forward to  {es} 8.x.
 ====
 
 .REST API endpoints containing `_xpack` have been removed.
@@ -92,3 +92,4 @@ include::migrate_8_0/settings.asciidoc[]
 include::migrate_8_0/snapshots.asciidoc[]
 include::migrate_8_0/threadpool.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
+include::migrate_8_0/migrate_to_java_time.asciidoc[]

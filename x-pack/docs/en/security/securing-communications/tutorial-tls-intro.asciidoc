@@ -23,7 +23,7 @@ requirements that are not covered in this tutorial. See
 <<dev-vs-prod-mode>> and
 <<add-elasticsearch-nodes>>.
 
-[float]
+[discrete]
 [[encrypting-internode-prerequisites]]
 === Before you begin
 

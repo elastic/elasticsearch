@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,9 +44,6 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
 
         public Request(DatafeedUpdate update) {
             this.update = update;
-        }
-
-        public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -90,12 +85,4 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
             return Objects.hash(update);
         }
     }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, PutDatafeedAction.Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, UpdateDatafeedAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

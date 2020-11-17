@@ -56,7 +56,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override

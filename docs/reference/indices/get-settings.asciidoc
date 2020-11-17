@@ -9,9 +9,9 @@ returns setting information for the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_settings
+GET /my-index-000001/_settings
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[get-index-settings-api-request]]
@@ -71,14 +71,14 @@ Wildcard expressions are also supported. The following are some examples:
 
 [source,console]
 --------------------------------------------------
-GET /twitter,kimchy/_settings
+GET /my-index-000001,my-index-000002/_settings
 
 GET /_all/_settings
 
-GET /log_2013_*/_settings
+GET /log_2099_*/_settings
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/^/PUT kimchy\nPUT log_2013_01_01\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\nPUT log_2099_01_01\n/]
 
 ===== Filtering settings by name
 
@@ -87,6 +87,6 @@ as follows:
 
 [source,console]
 --------------------------------------------------
-GET /log_2013_-*/_settings/index.number_*
+GET /log_2099_-*/_settings/index.number_*
 --------------------------------------------------
 // TEST[continued]

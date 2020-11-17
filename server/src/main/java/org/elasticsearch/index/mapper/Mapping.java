@@ -48,6 +48,7 @@ public final class Mapping implements ToXContentFragment {
     final RootObjectMapper root;
     final MetadataFieldMapper[] metadataMappers;
     final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
+    final Map<String, MetadataFieldMapper> metadataMappersByName;
     final Map<String, Object> meta;
 
     public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper,
@@ -55,8 +56,10 @@ public final class Mapping implements ToXContentFragment {
         this.indexCreated = indexCreated;
         this.metadataMappers = metadataMappers;
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
+        Map<String, MetadataFieldMapper> metadataMappersByName = new HashMap<>();
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
             metadataMappersMap.put(metadataMapper.getClass(), metadataMapper);
+            metadataMappersByName.put(metadataMapper.name(), metadataMapper);
         }
         this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
@@ -67,12 +70,20 @@ public final class Mapping implements ToXContentFragment {
             }
         });
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
+        this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
     }
 
     /** Return the root object mapper. */
     public RootObjectMapper root() {
         return root;
+    }
+
+    public void validate(MappingLookup mappers) {
+        for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
+            metadataFieldMapper.validate(mappers);
+        }
+        root.validate(mappers);
     }
 
     /**
@@ -127,6 +138,10 @@ public final class Mapping implements ToXContentFragment {
         }
 
         return new Mapping(indexCreated, mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
+    }
+
+    public MetadataFieldMapper getMetadataMapper(String mapperName) {
+        return metadataMappersByName.get(mapperName);
     }
 
     @Override

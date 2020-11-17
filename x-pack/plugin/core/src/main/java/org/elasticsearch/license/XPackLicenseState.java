@@ -72,7 +72,7 @@ public class XPackLicenseState {
 
         SPATIAL_GEO_GRID(OperationMode.GOLD, true),
 
-        SEARCHABLE_SNAPSHOTS(OperationMode.PLATINUM, true);
+        SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;

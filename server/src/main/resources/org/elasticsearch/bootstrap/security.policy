@@ -28,6 +28,13 @@ grant codeBase "${codebase.elasticsearch-secure-sm}" {
   permission java.security.AllPermission;
 };
 
+//// Elasticsearch core:
+//// These are only allowed inside the server jar, not in plugins
+grant codeBase "${codebase.elasticsearch}" {
+  // needed for loading plugins which may expect the context class loader to be set
+  permission java.lang.RuntimePermission "setContextClassLoader";
+};
+
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 

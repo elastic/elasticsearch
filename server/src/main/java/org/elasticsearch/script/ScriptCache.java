@@ -42,7 +42,7 @@ public class ScriptCache {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
-    static final CompilationRate UNLIMITED_COMPILATION_RATE = new CompilationRate(0, TimeValue.ZERO);
+    public static final CompilationRate UNLIMITED_COMPILATION_RATE = new CompilationRate(0, TimeValue.ZERO);
 
     private final Cache<CacheKey, Object> cache;
     private final ScriptMetrics scriptMetrics;

@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Collections;
 import java.util.List;
@@ -44,14 +43,14 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitDeclBlock(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclBlock(this, scope);
     }
 
     @Override
-    void analyze(SemanticScope semanticScope) {
-        for (SDeclaration declaration : declarationNodes) {
-            declaration.analyze(semanticScope);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (SDeclaration declarationNode : declarationNodes) {
+            declarationNode.visit(userTreeVisitor, scope);
         }
     }
 }

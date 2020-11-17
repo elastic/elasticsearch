@@ -122,8 +122,8 @@ public final class DocumentPermissions {
                 failIfQueryUsesClient(queryBuilder, queryShardContext);
                 Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
                 filter.add(roleQuery, SHOULD);
-                if (queryShardContext.getMapperService().hasNested()) {
-                    NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
+                if (queryShardContext.hasNested()) {
+                    NestedHelper nestedHelper = new NestedHelper(queryShardContext::getObjectMapper, queryShardContext::isFieldMapped);
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
                             .add(Queries.newNonNestedFilter(), FILTER).build();

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,10 +72,12 @@ public class DataFrameAnalyticsConfigProvider {
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final DataFrameAnalyticsAuditor auditor;
 
-    public DataFrameAnalyticsConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
+    public DataFrameAnalyticsConfigProvider(Client client, NamedXContentRegistry xContentRegistry, DataFrameAnalyticsAuditor auditor) {
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = xContentRegistry;
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     /**
@@ -98,6 +101,7 @@ public class DataFrameAnalyticsConfigProvider {
                        ClusterState clusterState,
                        ActionListener<DataFrameAnalyticsConfig> listener) {
         String id = update.getId();
+
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DataFrameAnalyticsConfig.documentId(id));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(
             getResponse -> {
@@ -133,7 +137,13 @@ public class DataFrameAnalyticsConfigProvider {
                 DataFrameAnalyticsConfig updatedConfig = updatedConfigBuilder.build();
 
                 // Index the update config
-                index(updatedConfig, getResponse, listener);
+                index(updatedConfig, getResponse, ActionListener.wrap(
+                    indexedConfig -> {
+                        auditor.info(id, Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED, update.getUpdatedFields()));
+                        listener.onResponse(indexedConfig);
+                    },
+                    listener::onFailure
+                ));
             },
             listener::onFailure
         ));

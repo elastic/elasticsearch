@@ -62,6 +62,21 @@ when there are no matches or only partial matches.
 --
 end::allow-no-match[]
 
+tag::allow-no-match-models[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no models that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty array when there are no
+matches and the subset of results when there are partial matches. If this
+parameter is `false`, the request returns a `404` status code when there are no
+matches or only partial matches.
+--
+end::allow-no-match-models[]
+
 tag::analysis[]
 Defines the type of {dfanalytics} you want to perform on your source index. For
 example: `outlier_detection`. See <<ml-dfa-analysis-objects>>.
@@ -292,7 +307,7 @@ Specifies whether the feature influence calculation is enabled. Defaults to
 end::compute-feature-influence[]
 
 tag::custom-preprocessor[]
-(Optional, boolean)
+(Optional, Boolean)
 Boolean value indicating if the analytics job created the preprocessor
 or if a user provided it. This adjusts the feature importance calculation.
 When `true`, the feature importance calculation returns importance for the
@@ -447,7 +462,7 @@ real-time {dfeed} runs. In particular, the default `check_window` span
 calculation is based on the maximum of `2h` or `8 * bucket_span`.
 
 `enabled`::
-(boolean) Specifies whether the {dfeed} periodically checks for delayed data.
+(Boolean) Specifies whether the {dfeed} periodically checks for delayed data.
 Defaults to `true`.
 ====
 end::delayed-data-check-config[]
@@ -521,6 +536,14 @@ tag::dfas-feature-bag-fraction[]
 The fraction of features that is used when selecting a random bag for each
 candidate split.
 end::dfas-feature-bag-fraction[]
+
+tag::dfas-feature-processors[]
+A collection of feature preprocessors that modify one or more included fields.
+The analysis uses the resulting one or more features instead of the
+original document field. Multiple `feature_processors` entries can refer to the
+same document fields.
+Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs.
+end::dfas-feature-processors[]
 
 tag::dfas-iteration[]
 The number of iterations on the analysis.
@@ -604,7 +627,7 @@ Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
 information about shrinkage, see
-https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
+{wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 
@@ -655,6 +678,12 @@ The number of individual forecasts currently available for the job. A value of
 `1` or more indicates that forecasts exist.
 end::forecast-total[]
 
+tag::exclude-generated[]
+Indicates if certain fields should be removed from the configuration on
+retrieval. This allows the configuration to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+end::exclude-generated[]
+
 tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real
 time. The default value is either the bucket span for short bucket spans, or,
@@ -672,6 +701,10 @@ end::frequent-category-count[]
 tag::from[]
 Skips the specified number of {dfanalytics-jobs}. The default value is `0`.
 end::from[]
+
+tag::from-models[]
+Skips the specified number of models. The default value is `0`.
+end::from-models[]
 
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
@@ -757,6 +790,23 @@ The field that is added to incoming documents to contain the inference
 prediction. Defaults to the `results_field` value of the {dfanalytics-job} that was
 used to train the model, which defaults to `<dependent_variable>_prediction`.
 end::inference-config-results-field-processor[]
+
+tag::inference-metadata-feature-importance-feature-name[]
+The feature for which this importance was calculated.
+end::inference-metadata-feature-importance-feature-name[]
+tag::inference-metadata-feature-importance-magnitude[]
+The average magnitude of this feature across all the training data.
+This value is the average of the absolute values of the importance
+for this feature.
+end::inference-metadata-feature-importance-magnitude[]
+tag::inference-metadata-feature-importance-max[]
+The maximum importance value across all the training data for this
+feature.
+end::inference-metadata-feature-importance-max[]
+tag::inference-metadata-feature-importance-min[]
+The minimum importance value across all the training data for this
+feature.
+end::inference-metadata-feature-importance-min[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by,
@@ -924,8 +974,9 @@ There are three available modes:
 +
 --
 * `auto`: The chunk size is dynamically calculated. This is the default and
-recommended value.
-* `manual`: Chunking is applied according to the specified `time_span`.
+recommended value when the {dfeed} does not use aggregations.
+* `manual`: Chunking is applied according to the specified `time_span`. Use this 
+mode when the {dfeed} uses aggregations.
 * `off`: No chunking is applied.
 --
 end::mode[]
@@ -942,7 +993,7 @@ failure.
 end::model-bytes-exceeded[]
 
 tag::model-id[]
-The unique identifier of the trained {infer} model.
+The unique identifier of the trained model.
 end::model-id[]
 
 tag::model-memory-limit[]
@@ -1120,7 +1171,7 @@ tag::over-field-name[]
 The field used to split the data. In particular, this property is used for
 analyzing the splits with respect to the history of all splits. It is used for
 finding unusual values in the population of all splits. For more information,
-see {ml-docs}/ml-configuring-pop.html[Performing population analysis].
+see {ml-docs}/ml-configuring-populations.html[Performing population analysis].
 end::over-field-name[]
 
 tag::partition-field-name[]
@@ -1229,11 +1280,13 @@ Specifies scripts that evaluate custom expressions and returns script fields to
 the {dfeed}. The detector configuration objects in a job can contain functions
 that use these script fields. For more information, see
 {ml-docs}/ml-configuring-transform.html[Transforming data with script fields]
-and <<request-body-search-script-fields,Script fields>>.
+and <<script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]
-The `size` parameter that is used in {es} searches. The default value is `1000`.
+The `size` parameter that is used in {es} searches when the {dfeed} does not use 
+aggregations. The default value is `1000`. The maximum value is the value of 
+`index.max_result_window` which is 10,000 by default.
 end::scroll-size[]
 
 tag::search-bucket-avg[]
@@ -1256,6 +1309,11 @@ tag::size[]
 Specifies the maximum number of {dfanalytics-jobs} to obtain. The default value
 is `100`.
 end::size[]
+
+tag::size-models[]
+Specifies the maximum number of models to obtain. The default value
+is `100`.
+end::size-models[]
 
 tag::snapshot-id[]
 Identifier for the model snapshot.
@@ -1320,8 +1378,8 @@ function.
 end::summary-count-field-name[]
 
 tag::tags[]
-A comma delimited string of tags. A {infer} model can have many tags, or none.
-When supplied, only {infer} models that contain all the supplied tags are
+A comma delimited string of tags. A trained model can have many tags, or none.
+When supplied, only trained models that contain all the supplied tags are
 returned.
 end::tags[]
 

@@ -1,14 +1,11 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('enrich'))
-  testImplementation project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('enrich:qa:common'))
+  javaRestTestImplementation project(path: xpackModule('core'))
+  javaRestTestImplementation project(path: xpackModule('enrich:qa:common'))
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "test_admin", password: "x-pack-test-password", role: "superuser"

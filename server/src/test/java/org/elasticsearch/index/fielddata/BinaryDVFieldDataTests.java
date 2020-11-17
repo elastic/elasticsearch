@@ -50,7 +50,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
                 .endObject()
                 .endObject().endObject());
 
-        final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
+        final DocumentMapper mapper = mapperService.parse("test", new CompressedXContent(mapping));
 
         List<BytesRef> bytesList1 = new ArrayList<>(2);
         bytesList1.add(randomBytes());

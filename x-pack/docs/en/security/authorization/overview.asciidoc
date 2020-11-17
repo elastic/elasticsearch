@@ -9,7 +9,7 @@ This process takes place after the user is successfully identified and
 <<setting-up-authentication,authenticated>>. 
 
 [[roles]]
-[float]
+[discrete]
 === Role-based access control
 
 The {security-features} provide a role-based access control (RBAC) mechanism,
@@ -61,7 +61,7 @@ The method for assigning roles to users varies depending on which realms you use
 to authenticate users. For more information, see <<mapping-roles>>.
 
 [[attributes]]
-[float]
+[discrete]
 === Attribute-based access control
 
 The {security-features} also provide an attribute-based access control (ABAC)

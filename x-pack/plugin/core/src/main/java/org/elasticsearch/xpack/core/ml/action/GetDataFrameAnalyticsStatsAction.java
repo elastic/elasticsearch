@@ -7,13 +7,11 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -145,13 +143,6 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             return Objects.equals(id, other.id)
                 && allowNoMatch == other.allowNoMatch
                 && Objects.equals(pageParams, other.pageParams);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetDataFrameAnalyticsStatsAction action) {
-            super(client, action, new Request());
         }
     }
 

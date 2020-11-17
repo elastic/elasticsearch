@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -45,12 +44,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
 
     public SnapshotsStatusResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        List<SnapshotStatus> builder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            builder.add(new SnapshotStatus(in));
-        }
-        snapshots = Collections.unmodifiableList(builder);
+        snapshots = Collections.unmodifiableList(in.readList(SnapshotStatus::new));
     }
 
     SnapshotsStatusResponse(List<SnapshotStatus> snapshots) {
@@ -68,10 +62,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(snapshots.size());
-        for (SnapshotStatus snapshotInfo : snapshots) {
-            snapshotInfo.writeTo(out);
-        }
+        out.writeList(snapshots);
     }
 
     @Override

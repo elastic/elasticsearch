@@ -26,16 +26,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 public class ShardSegments implements Writeable, Iterable<Segment> {
 
-    private ShardRouting shardRouting;
+    private final ShardRouting shardRouting;
 
-    private List<Segment> segments;
+    private final List<Segment> segments;
 
     ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
         this.shardRouting = shardRouting;
@@ -44,15 +42,7 @@ public class ShardSegments implements Writeable, Iterable<Segment> {
 
     ShardSegments(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
-        int size = in.readVInt();
-        if (size == 0) {
-            segments = Collections.emptyList();
-        } else {
-            segments = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                segments.add(new Segment(in));
-            }
-        }
+        segments = in.readList(Segment::new);
     }
 
     @Override
@@ -91,9 +81,6 @@ public class ShardSegments implements Writeable, Iterable<Segment> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
-        out.writeVInt(segments.size());
-        for (Segment segment : segments) {
-            segment.writeTo(out);
-        }
+        out.writeList(segments);
     }
 }

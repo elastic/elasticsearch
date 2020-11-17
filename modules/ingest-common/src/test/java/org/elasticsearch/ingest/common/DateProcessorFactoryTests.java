@@ -146,4 +146,42 @@ public class DateProcessorFactoryTests extends ESTestCase {
         DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getTargetField(), equalTo(targetField));
     }
+
+    public void testParseOutputFormat() throws Exception {
+        final String outputFormat = "dd:MM:yyyy";
+        Map<String, Object> config = new HashMap<>();
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
+        config.put("field", sourceField);
+        config.put("target_field", targetField);
+        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("output_format", outputFormat);
+        DateProcessor processor = factory.create(null, null, null, config);
+        assertThat(processor.getOutputFormat(), equalTo(outputFormat));
+    }
+
+    public void testDefaultOutputFormat() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
+        config.put("field", sourceField);
+        config.put("target_field", targetField);
+        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        DateProcessor processor = factory.create(null, null, null, config);
+        assertThat(processor.getOutputFormat(), equalTo(DateProcessor.DEFAULT_OUTPUT_FORMAT));
+    }
+
+    public void testInvalidOutputFormatRejected() throws Exception {
+        final String outputFormat = "invalid_date_format";
+        Map<String, Object> config = new HashMap<>();
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
+        config.put("field", sourceField);
+        config.put("target_field", targetField);
+        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("output_format", outputFormat);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.create(null, null, null, config));
+        assertThat(e.getMessage(), containsString("invalid output format [" + outputFormat + "]"));
+    }
 }

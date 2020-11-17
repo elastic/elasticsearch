@@ -52,8 +52,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        double minBound,
-        double maxBound,
+        DoubleBounds extendedBounds,
         DoubleBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
@@ -69,8 +68,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
             order,
             keyed,
             minDocCount,
-            minBound,
-            maxBound,
+            extendedBounds,
             hardBounds,
             valuesSourceConfig.format(),
             context,
@@ -112,7 +110,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
                         if (key == previousKey) {
                             continue;
                         }
-                        if (hardBounds == null || hardBounds.contain(key)) {
+                        if (hardBounds == null || hardBounds.contain(key * interval)) {
                             long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                             if (bucketOrd < 0) { // already seen
                                 bucketOrd = -1 - bucketOrd;

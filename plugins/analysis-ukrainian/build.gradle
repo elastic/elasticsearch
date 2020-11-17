@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.'
@@ -41,7 +41,9 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /morfologik-.*/, to: 'lucene'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // we don't use the morfologik-fsa polish stemmer
-  'morfologik.stemming.polish.PolishStemmer'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // we don't use the morfologik-fsa polish stemmer
+          'morfologik.stemming.polish.PolishStemmer'
+  )
+}

@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
@@ -70,8 +69,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH,
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
+        LegacyGeoShapeFieldMapper.PrefixTrees.GEOHASH,
+        LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE
     };
 
     @Override
@@ -102,8 +101,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .startObject("properties").startObject("geo")
             .field("type", "geo_shape");
         if (randomBoolean()) {
-            xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
-                .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
+            xcb = xcb.field("tree", randomFrom(PREFIX_TREES));
         }
         xcb = xcb.endObject().endObject().endObject();
 
@@ -477,7 +475,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         // don't use random mapping as permits quadtree
         String mapping = Strings.toString(
             usePrefixTrees ?
-                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE) :
+                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE) :
                 createDefaultMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();

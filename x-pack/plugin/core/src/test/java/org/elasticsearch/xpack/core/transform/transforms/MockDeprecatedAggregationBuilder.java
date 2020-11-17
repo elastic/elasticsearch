@@ -11,14 +11,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -63,6 +64,11 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return ValuesSourceRegistry.UNREGISTERED_KEY;
+    }
+
+    @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
     }
 
@@ -72,7 +78,7 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {

@@ -53,7 +53,7 @@ public class GetCalendarEventsActionRequestTests extends AbstractSerializingTest
 
         ActionRequestValidationException validationException = request.validate();
         assertNotNull(validationException);
-        assertEquals("Validation Failed: 1: If job_id is used calendar_id must be '_all';", validationException.getMessage());
+        assertEquals("Validation Failed: 1: If job_id is used calendar_id must be '_all' or '*';", validationException.getMessage());
 
         request = new GetCalendarEventsAction.Request("_all");
         request.setJobId("foo");

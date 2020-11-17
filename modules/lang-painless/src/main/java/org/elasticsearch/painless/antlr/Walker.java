@@ -31,7 +31,6 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.antlr.PainlessParser.AddsubContext;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentContext;
@@ -107,7 +106,6 @@ import org.elasticsearch.painless.antlr.PainlessParser.TryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.VariableContext;
 import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
@@ -161,29 +159,31 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+
 /**
  * Converts the ANTLR tree to a Painless tree.
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName, String sourceText, CompilerSettings settings) {
-        return new Walker(mainMethod, sourceName, sourceText, settings).source;
+    public static SClass buildPainlessTree(String sourceName, String sourceText, CompilerSettings settings) {
+        return new Walker(sourceName, sourceText, settings).source;
     }
 
-    private final ScriptClassInfo scriptClassInfo;
-    private final SClass source;
     private final CompilerSettings settings;
     private final String sourceName;
 
     private int identifier;
 
-    private Walker(ScriptClassInfo scriptClassInfo, String sourceName, String sourceText, CompilerSettings settings) {
-        this.scriptClassInfo = scriptClassInfo;
+    private final SClass source;
+
+    private Walker(String sourceName, String sourceText, CompilerSettings settings) {
         this.settings = settings;
         this.sourceName = sourceName;
-        this.source = (SClass)visit(buildAntlrTree(sourceText));
 
         this.identifier = 0;
+
+        this.source = (SClass)visit(buildAntlrTree(sourceText));
     }
 
     private int nextIdentifier() {
@@ -247,32 +247,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         // part of the overall class
         List<AStatement> statements = new ArrayList<>();
 
-        // add gets methods as declarations available for the user as variables
-        for (int index = 0; index < scriptClassInfo.getGetMethods().size(); ++index) {
-            org.objectweb.asm.commons.Method method = scriptClassInfo.getGetMethods().get(index);
-            String name = method.getName().substring(3);
-            name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
-
-            statements.add(new SDeclaration(nextIdentifier(), location(ctx),
-                    PainlessLookupUtility.typeToCanonicalTypeName(scriptClassInfo.getGetReturns().get(index)), name, null));
-        }
-
         for (StatementContext statement : ctx.statement()) {
             statements.add((AStatement)visit(statement));
         }
 
-        String returnCanonicalTypeName = PainlessLookupUtility.typeToCanonicalTypeName(scriptClassInfo.getExecuteMethodReturnType());
-        List<String> paramTypes = new ArrayList<>();
-        List<String> paramNames = new ArrayList<>();
-
-        for (ScriptClassInfo.MethodArgument argument : scriptClassInfo.getExecuteArguments()) {
-            paramTypes.add(PainlessLookupUtility.typeToCanonicalTypeName(argument.getClazz()));
-            paramNames.add(argument.getName());
-        }
-
         // generate the execute method from the collected statements and parameters
-        SFunction execute = new SFunction(nextIdentifier(), location(ctx), returnCanonicalTypeName, "execute", paramTypes, paramNames,
-                new SBlock(nextIdentifier(), location(ctx), statements), true, false, false, true);
+        SFunction execute = new SFunction(nextIdentifier(), location(ctx), "<internal>", "execute", emptyList(), emptyList(),
+                new SBlock(nextIdentifier(), location(ctx), statements), false, false, false, false);
         functions.add(execute);
 
         return new SClass(nextIdentifier(), location(ctx), functions);

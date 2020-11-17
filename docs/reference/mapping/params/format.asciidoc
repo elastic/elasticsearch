@@ -11,7 +11,7 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {

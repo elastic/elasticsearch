@@ -21,15 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * Represents a regex constant. All regexes are constants.
@@ -55,57 +48,12 @@ public class ERegex extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitRegex(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitRegex(this, scope);
     }
 
     @Override
-    void analyze(SemanticScope semanticScope) {
-        if (semanticScope.getCondition(this, Write.class)) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
-        }
-
-        if (semanticScope.getCondition(this, Read.class) == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
-        }
-
-        if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == false) {
-            throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
-                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
-                    + "recursion and long loops."));
-        }
-
-        int flags = 0;
-
-        for (int c = 0; c < this.flags.length(); c++) {
-            flags |= flagForChar(this.flags.charAt(c));
-        }
-
-        try {
-            Pattern.compile(pattern, flags);
-        } catch (PatternSyntaxException e) {
-            throw new Location(getLocation().getSourceName(), getLocation().getOffset() + 1 + e.getIndex()).createError(
-                    new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
-        }
-
-        semanticScope.putDecoration(this, new ValueType(Pattern.class));
-        semanticScope.putDecoration(this, new StandardConstant(flags));
-    }
-
-    private int flagForChar(char c) {
-        switch (c) {
-            case 'c': return Pattern.CANON_EQ;
-            case 'i': return Pattern.CASE_INSENSITIVE;
-            case 'l': return Pattern.LITERAL;
-            case 'm': return Pattern.MULTILINE;
-            case 's': return Pattern.DOTALL;
-            case 'U': return Pattern.UNICODE_CHARACTER_CLASS;
-            case 'u': return Pattern.UNICODE_CASE;
-            case 'x': return Pattern.COMMENTS;
-            default:
-                throw new IllegalArgumentException("Unknown flag [" + c + "]");
-        }
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

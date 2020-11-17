@@ -347,7 +347,7 @@ public class DatafeedConfigProvider {
      * </ul>
      *
      * @param expression the expression to resolve
-     * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
+     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param tasks The current tasks meta-data. For expanding IDs when datafeeds might have missing configurations
@@ -355,7 +355,7 @@ public class DatafeedConfigProvider {
      * @param listener The expanded datafeed IDs listener
      */
     public void expandDatafeedIds(String expression,
-                                  boolean allowNoDatafeeds,
+                                  boolean allowNoMatch,
                                   PersistentTasksCustomMetadata tasks,
                                   boolean allowMissingConfigs,
                                   ActionListener<SortedSet<String>> listener) {
@@ -371,7 +371,7 @@ public class DatafeedConfigProvider {
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
-        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
         Collection<String> matchingStartedDatafeedIds = matchingDatafeedIdsWithTasks(tokens, tasks);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -407,12 +407,12 @@ public class DatafeedConfigProvider {
      * See {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
-     * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
+     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded datafeed config listener
      */
-    public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ActionListener<List<DatafeedConfig.Builder>> listener) {
+    public void expandDatafeedConfigs(String expression, boolean allowNoMatch, ActionListener<List<DatafeedConfig.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
@@ -423,7 +423,7 @@ public class DatafeedConfigProvider {
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
-        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(

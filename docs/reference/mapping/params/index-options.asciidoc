@@ -32,7 +32,7 @@ Offsets are used by the <<unified-highlighter,unified highlighter>> to speed up 
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -44,12 +44,12 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text": "Quick brown fox"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {

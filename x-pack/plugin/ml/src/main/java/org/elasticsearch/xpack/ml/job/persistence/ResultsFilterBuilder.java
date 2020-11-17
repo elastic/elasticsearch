@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.utils.QueryBuilderHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,6 +86,11 @@ public class ResultsFilterBuilder {
 
         TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery(fieldName, fieldValue);
         addQuery(termQueryBuilder);
+        return this;
+    }
+
+    public ResultsFilterBuilder resourceTokenFilters(String fieldName, String[] tokens) {
+        QueryBuilderHelper.buildTokenFilterQuery(fieldName, tokens).ifPresent(this::addQuery);
         return this;
     }
 

@@ -72,11 +72,11 @@ public final class PutRoleResponse {
             parser.nextToken();
         }
         // parse extraneous wrapper
-        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
         ensureFieldName(parser, parser.nextToken(), "role");
         parser.nextToken();
         final PutRoleResponse roleResponse = PARSER.parse(parser, null);
-        ensureExpectedToken(Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.END_OBJECT, parser.nextToken(), parser);
         return roleResponse;
     }
 }

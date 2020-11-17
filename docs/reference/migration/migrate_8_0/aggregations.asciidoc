@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_aggregations_changes]]
 === Aggregations changes
 

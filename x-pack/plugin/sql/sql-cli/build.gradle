@@ -54,9 +54,9 @@ tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 
-task runcli {
+tasks.register("runcli") {
   description = 'Run the CLI and connect to elasticsearch running on 9200'
-  dependsOn shadowJar
+  dependsOn "shadowJar"
   doLast {
     List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
     if ('true'.equals(System.getProperty('debug', 'false'))) {

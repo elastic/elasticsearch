@@ -11,10 +11,11 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.store.IndexInputStats.SEEKING_THRESHOLD;
 import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 
 public class IndexInputStatsTests extends ESTestCase {
 
-    private static LongSupplier FAKE_CLOCK = () -> {
+    private static final LongSupplier FAKE_CLOCK = () -> {
         assert false : "should not be called";
         return -1L;
     };
@@ -32,7 +33,7 @@ public class IndexInputStatsTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(1, 50); i++) {
             final long currentPosition = randomLongBetween(0L, inputStats.getFileLength() - 1L);
             final long previousPosition = randomBoolean() ? currentPosition : randomLongBetween(0L, inputStats.getFileLength() - 1L);
-            final int bytesRead = randomIntBetween(1, Math.toIntExact(Math.max(1L, inputStats.getFileLength() - currentPosition)));
+            final int bytesRead = randomIntBetween(1, toIntBytes(Math.max(1L, inputStats.getFileLength() - currentPosition)));
 
             inputStats.incrementBytesRead(previousPosition, currentPosition, bytesRead);
 

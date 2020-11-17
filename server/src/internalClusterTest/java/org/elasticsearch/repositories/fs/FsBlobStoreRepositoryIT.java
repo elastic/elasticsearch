@@ -105,7 +105,7 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
         Path tempDir = createTempDir();
         Path path = tempDir.resolve("bar");
 
-        try (FsBlobStore store = new FsBlobStore(Settings.EMPTY, path, true)) {
+        try (FsBlobStore store = new FsBlobStore(randomIntBetween(1, 8) * 1024, path, true)) {
             assertFalse(Files.exists(path));
             BlobPath blobPath = BlobPath.cleanPath().add("foo");
             store.blobContainer(blobPath);
@@ -116,7 +116,7 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
             assertFalse(Files.exists(storePath));
         }
 
-        try (FsBlobStore store = new FsBlobStore(Settings.EMPTY, path, false)) {
+        try (FsBlobStore store = new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false)) {
             assertTrue(Files.exists(path));
             BlobPath blobPath = BlobPath.cleanPath().add("foo");
             BlobContainer container = store.blobContainer(blobPath);

@@ -164,7 +164,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
                                                                                           IFD indexFieldData) throws Exception {
             topLevelBuilds++;
-            return (IFD) indexFieldData.localGlobalDirect(indexReader);
+            return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override

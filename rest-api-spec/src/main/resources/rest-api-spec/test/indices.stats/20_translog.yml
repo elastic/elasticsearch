@@ -93,6 +93,7 @@
         body:
           settings:
             soft_deletes.enabled: true
+            routing.rebalance.enable: "none" # prevents shard relocations while we are closing an index
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true

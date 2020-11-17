@@ -11,13 +11,15 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-/** List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage. */
+/**
+ * List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage.
+ * this class expects the insertion to be ordered
+ */
 abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
     private final SequenceKey key;
@@ -26,42 +28,30 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     // NB: since the size varies significantly, use a LinkedList
     // Considering the order it might make sense to use a B-Tree+ for faster lookups which should work well with
     // timestamp compression (whose range is known for the current frame).
-    private final List<E> elements = new LinkedList<>();
-
-    private int hashCode = 0;
+    private final LinkedList<E> elements = new LinkedList<>();
 
     private Ordinal start, stop;
 
     protected OrdinalGroup(SequenceKey key, Function<E, Ordinal> extractor) {
         this.key = key;
-        hashCode = key.hashCode();
-
         this.extractor = extractor;
     }
 
-    public SequenceKey key() {
+    SequenceKey key() {
         return key;
     }
 
-    public void add(E element) {
-        elements.add(element);
-        hashCode = 31 * hashCode + Objects.hashCode(element);
-
+    void add(E element) {
         Ordinal ordinal = extractor.apply(element);
-        if (start == null) {
+        if (start == null || start.compareTo(ordinal) > 0) {
             start = ordinal;
-        } else if (stop == null) {
-            stop = ordinal;
-        } else {
-            if (start.compareTo(ordinal) > 0) {
-                start = ordinal;
-            }
-            if (stop.compareTo(ordinal) < 0) {
-                stop = ordinal;
-            }
         }
+        if (stop == null || stop.compareTo(ordinal) < 0) {
+            stop = ordinal;
+        }
+        elements.add(element);
     }
-    
+
     /**
      * Returns the latest element from the group that has its timestamp
      * less than the given argument alongside its position in the list.
@@ -72,11 +62,13 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
         // trim
         if (match != null) {
-            elements.subList(0, match.v2() + 1).clear();
+            int pos = match.v2() + 1;
+            elements.subList(0, pos).clear();
 
             // update min time
             if (elements.isEmpty() == false) {
-                start = extractor.apply(elements.get(0));
+                start = extractor.apply(elements.peekFirst());
+                stop = extractor.apply(elements.peekLast());
             } else {
                 start = null;
                 stop = null;
@@ -88,6 +80,16 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     E before(Ordinal ordinal) {
         Tuple<E, Integer> match = findBefore(ordinal);
         return match != null ? match.v1() : null;
+    }
+
+    void trimToLast() {
+        E last = elements.peekLast();
+        if (last != null) {
+            elements.clear();
+            start = null;
+            stop = null;
+            add(last);
+        }
     }
 
     private Tuple<E, Integer> findBefore(Ordinal ordinal) {
@@ -107,7 +109,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         return match != null ? new Tuple<>(match, matchPos) : null;
     }
 
-    public boolean isEmpty() {
+    boolean isEmpty() {
         return elements.isEmpty();
     }
 
@@ -132,7 +134,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     public int hashCode() {
         return key.hashCode();
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -145,7 +147,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
         OrdinalGroup<?> other = (OrdinalGroup<?>) obj;
         return Objects.equals(key, other.key)
-                && Objects.equals(hashCode, other.hashCode);
+                && Objects.equals(elements, other.elements);
     }
 
     @Override

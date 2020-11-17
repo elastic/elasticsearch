@@ -42,6 +42,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.synchronizedNavigableSet;
@@ -299,6 +300,7 @@ public final class TestUtils {
     public static class FSyncTrackingFileSystemProvider extends FilterFileSystemProvider {
 
         private final Map<Path, AtomicInteger> files = new ConcurrentHashMap<>();
+        private final AtomicBoolean failFSyncs = new AtomicBoolean();
         private final FileSystem delegateInstance;
         private final Path rootDir;
 
@@ -306,6 +308,18 @@ public final class TestUtils {
             super("fsynccounting://", delegate);
             this.rootDir = new FilterPath(rootDir, this.fileSystem);
             this.delegateInstance = delegate;
+        }
+
+        public FileSystem getDelegateInstance() {
+            return delegateInstance;
+        }
+
+        public void failFSyncs(boolean shouldFail) {
+            failFSyncs.set(shouldFail);
+        }
+
+        public Path resolve(String other) {
+            return rootDir.resolve(other);
         }
 
         @Nullable
@@ -321,6 +335,9 @@ public final class TestUtils {
 
                 @Override
                 public void force(boolean metaData) throws IOException {
+                    if (failFSyncs.get()) {
+                        throw new IOException("simulated");
+                    }
                     super.force(metaData);
                     counter.incrementAndGet();
                 }

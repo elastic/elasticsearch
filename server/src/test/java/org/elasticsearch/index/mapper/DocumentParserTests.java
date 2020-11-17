@@ -56,7 +56,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new DocumentParserTestsPlugin(), new TestRuntimeField.Plugin());
+        return org.elasticsearch.common.collect.List.of(new DocumentParserTestsPlugin(), new TestRuntimeField.Plugin());
     }
 
     public void testDynamicUpdateWithRuntimeField() throws Exception {

@@ -31,7 +31,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class LicensedPluginTests extends ESTestCase {
+public class InstallLicensedPluginTests extends ESTestCase {
 
     /**
      * Check that an unlicensed plugin is accepted.
@@ -39,18 +39,18 @@ public class LicensedPluginTests extends ESTestCase {
     public void testUnlicensedPlugin() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(false);
-        LicensedPlugin.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo);
+        InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo);
     }
 
     /**
      * Check that a licensed plugin cannot be installed on OSS.
      */
-    public void testLicensedPluginOnOss() throws Exception {
+    public void testInstallPluginCommandOnOss() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
         final UserException userException = expectThrows(
             UserException.class,
-            () -> LicensedPlugin.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo)
+            () -> InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo)
         );
 
         assertThat(userException.exitCode, equalTo(ExitCodes.NOPERM));
@@ -60,20 +60,20 @@ public class LicensedPluginTests extends ESTestCase {
     /**
      * Check that a licensed plugin cannot be installed when the distribution type is unknown.
      */
-    public void testLicensedPluginOnUnknownDistribution() throws Exception {
+    public void testInstallPluginCommandOnUnknownDistribution() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
-        expectThrows(UserException.class, () -> LicensedPlugin.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo));
+        expectThrows(UserException.class, () -> InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo));
         assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));
     }
 
     /**
      * Check that a licensed plugin can be installed when the distribution type is default.
      */
-    public void testLicensedPluginOnDefault() throws Exception {
+    public void testInstallPluginCommandOnDefault() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
-        LicensedPlugin.checkCanInstallationProceed(terminal, Build.Flavor.DEFAULT, pluginInfo);
+        InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.DEFAULT, pluginInfo);
     }
 
     private PluginInfo buildInfo(boolean isLicensed) {

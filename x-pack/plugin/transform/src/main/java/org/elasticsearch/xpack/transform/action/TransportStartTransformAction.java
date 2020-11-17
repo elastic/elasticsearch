@@ -136,9 +136,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            DiscoveryNode.isRemoteClusterClient(settings)
-                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
-                : null,
+            null /* transforms are BASIC so always allowed, no need to check license */,
             ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()

@@ -513,11 +513,6 @@ public class XPackLicenseState {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
-    public static boolean isTransformAllowedForOperationMode(final OperationMode operationMode) {
-        // any license (basic and upwards)
-        return operationMode != License.OperationMode.MISSING;
-    }
-
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }

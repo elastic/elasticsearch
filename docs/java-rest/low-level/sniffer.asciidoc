@@ -126,7 +126,7 @@ include-tagged::{doc-tests}/SnifferDocumentation.java[sniff-request-timeout]
 --------------------------------------------------
 
 Also, a custom `NodesSniffer` implementation can be provided for advanced
-use-cases that may require fetching the ``Node``s from external sources rather
+use cases that may require fetching the nodes from external sources rather
 than from Elasticsearch:
 
 ["source","java",subs="attributes,callouts,macros"]

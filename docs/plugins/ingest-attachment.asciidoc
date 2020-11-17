@@ -34,7 +34,7 @@ include::install_remove.asciidoc[]
 [[ingest-attachment-json-ex]]
 ==== Example
 
-To add a file attachment to a JSON document, you must first encode the file as a
+If ingesting JSON documents, you must first encode the attachment file as a
 base64 string. On Unix-like systems, you can use a command like this:
 
 [source,shell]
@@ -42,12 +42,12 @@ base64 string. On Unix-like systems, you can use a command like this:
 base64 -in myfile.rtf
 ----
 
-The following base64 string encodes a Rich Text Format (`.rtf`) file containing
-the text `Lorem ipsum dolor sit amet`:
+The following base64 string is for an `.rtf` file containing the text `Lorem
+ipsum dolor sit amet`:
 `e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=`.
 
-Use an attachment processor to decode the string and extract the original file's
-properties, including its content:
+Use an attachment processor to decode the string and extract the file's
+properties:
 
 [source,console]
 ----

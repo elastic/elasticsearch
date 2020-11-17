@@ -256,7 +256,7 @@ public class BootstrapForTesting {
                     // load codebase to class map used for tests
                     policyCodebases = new HashMap<>(codebasesMap);
                     Map<String, String> codebasesProps = parsePropertiesFile(codebasesPath);
-                    for (var entry : codebasesProps.entrySet()) {
+                    for (Map.Entry<String, String> entry : codebasesProps.entrySet()) {
                         addClassCodebase(policyCodebases, entry.getKey(), entry.getValue());
                     }
                 }

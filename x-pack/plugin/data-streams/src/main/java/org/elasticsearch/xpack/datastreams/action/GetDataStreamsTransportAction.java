@@ -98,7 +98,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         IndexNameExpressionResolver iner,
         GetDataStreamAction.Request request
     ) {
-        List<String> results = iner.dataStreamNames(clusterState, request.indicesOptions(), request.getNames());
+        List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, clusterState, request.getNames(), request.indicesOptions());
         Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
 
         return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).collect(Collectors.toList());

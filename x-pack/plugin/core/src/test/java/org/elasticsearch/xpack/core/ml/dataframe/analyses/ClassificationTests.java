@@ -362,6 +362,11 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(constraints.get(0).getUpperBound(), equalTo(30L));
     }
 
+    public void testGetExplicitlyMappedFields_FieldCapabilitiesResponseIsNull() {
+        Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields("results", null);
+        assertThat(explicitlyMappedFields, equalTo(singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
+    }
+
     public void testGetExplicitlyMappedFields_DependentVariableMappingIsAbsent() {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], Collections.emptyMap());
         Map<String, Object> explicitlyMappedFields =

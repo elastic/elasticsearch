@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
@@ -326,7 +327,8 @@ public class QueryPhase {
         if (sortType != SortField.Type.LONG) return; // for now restrict sort optimization only to long sort
         String fieldName = sortField.getField();
         if (fieldName == null) return; // happens when _score or _doc is the 1st sort field
-        final MappedFieldType fieldType = searchContext.fieldType(fieldName);
+        QueryShardContext queryShardContext = searchContext.getQueryShardContext();
+        final MappedFieldType fieldType = queryShardContext.getFieldType(fieldName);
         if (fieldType == null) return; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if (fieldType.isSearchable() == false) return;
         if (fieldType.hasDocValues() == false) return;

@@ -134,6 +134,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -559,23 +560,22 @@ public class JobResultsProvider {
                 .unmappedType("double").order(SortOrder.DESC));
     }
 
-    public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
-
+    public void getAutodetectParams(Job job, String snapshotId, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler)  {
         String jobId = job.getId();
 
         ActionListener<AutodetectParams.Builder> getScheduledEventsListener = ActionListener.wrap(
-                paramsBuilder -> {
-                    ScheduledEventsQueryBuilder scheduledEventsQueryBuilder = new ScheduledEventsQueryBuilder();
-                    scheduledEventsQueryBuilder.start(job.earliestValidTimestamp(paramsBuilder.getDataCounts()));
-                    scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
-                            events -> {
-                                paramsBuilder.setScheduledEvents(events.results());
-                                consumer.accept(paramsBuilder.build());
-                            },
-                            errorHandler
-                    ));
-                },
-                errorHandler
+            paramsBuilder -> {
+                ScheduledEventsQueryBuilder scheduledEventsQueryBuilder = new ScheduledEventsQueryBuilder();
+                scheduledEventsQueryBuilder.start(job.earliestValidTimestamp(paramsBuilder.getDataCounts()));
+                scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
+                    events -> {
+                        paramsBuilder.setScheduledEvents(events.results());
+                        consumer.accept(paramsBuilder.build());
+                    },
+                    errorHandler
+                ));
+            },
+            errorHandler
         );
 
         AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
@@ -583,61 +583,65 @@ public class JobResultsProvider {
         String stateIndex = AnomalyDetectorsIndex.jobStateIndexPattern();
 
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
-                .add(createLatestDataCountsSearch(resultsIndex, jobId))
-                .add(createLatestModelSizeStatsSearch(resultsIndex))
-                .add(createLatestTimingStatsSearch(resultsIndex, jobId))
-                // These next two document IDs never need to be the legacy ones due to the rule
-                // that you cannot open a 5.4 job in a subsequent version of the product
-                .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
-                .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
+            .add(createLatestDataCountsSearch(resultsIndex, jobId))
+            .add(createLatestModelSizeStatsSearch(resultsIndex))
+            .add(createLatestTimingStatsSearch(resultsIndex, jobId))
+            // These next two document IDs never need to be the legacy ones due to the rule
+            // that you cannot open a 5.4 job in a subsequent version of the product
+            .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, snapshotId)))
+            .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
             msearch.add(createDocIdSearch(MlMetaIndex.indexName(), MlFilter.documentId(filterId)));
         }
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, msearch.request(),
-                ActionListener.<MultiSearchResponse>wrap(
-                        response -> {
-                            for (int i = 0; i < response.getResponses().length; i++) {
-                                MultiSearchResponse.Item itemResponse = response.getResponses()[i];
-                                if (itemResponse.isFailure()) {
-                                    errorHandler.accept(itemResponse.getFailure());
-                                    return;
-                                }
-                                SearchResponse searchResponse = itemResponse.getResponse();
-                                ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-                                int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                                if (CollectionUtils.isEmpty(shardFailures) == false) {
-                                    LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
-                                        Arrays.toString(shardFailures));
-                                    errorHandler.accept(new ElasticsearchException(
-                                        ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
-                                    return;
-                                }
-                                if (unavailableShards > 0) {
-                                    errorHandler.accept(new ElasticsearchException("[" + jobId
-                                        + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
-                                    return;
-                                }
-                                SearchHits hits = searchResponse.getHits();
-                                long hitsCount = hits.getHits().length;
-                                if (hitsCount == 0) {
-                                    SearchRequest searchRequest = msearch.request().requests().get(i);
-                                    LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
-                                }
-                                for (SearchHit hit : hits) {
-                                    try {
-                                        parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
-                                    } catch (Exception e) {
-                                        errorHandler.accept(e);
-                                        return;
-                                    }
-                                }
+            ActionListener.<MultiSearchResponse>wrap(
+                response -> {
+                    for (int i = 0; i < response.getResponses().length; i++) {
+                        MultiSearchResponse.Item itemResponse = response.getResponses()[i];
+                        if (itemResponse.isFailure()) {
+                            errorHandler.accept(itemResponse.getFailure());
+                            return;
+                        }
+                        SearchResponse searchResponse = itemResponse.getResponse();
+                        ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                        int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                        if (CollectionUtils.isEmpty(shardFailures) == false) {
+                            LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
+                                Arrays.toString(shardFailures));
+                            errorHandler.accept(new ElasticsearchException(
+                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                            return;
+                        }
+                        if (unavailableShards > 0) {
+                            errorHandler.accept(new ElasticsearchException("[" + jobId
+                                + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                            return;
+                        }
+                        SearchHits hits = searchResponse.getHits();
+                        long hitsCount = hits.getHits().length;
+                        if (hitsCount == 0) {
+                            SearchRequest searchRequest = msearch.request().requests().get(i);
+                            LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
+                        }
+                        for (SearchHit hit : hits) {
+                            try {
+                                parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
+                            } catch (Exception e) {
+                                errorHandler.accept(e);
+                                return;
                             }
-                            getScheduledEventsListener.onResponse(paramsBuilder);
-                        },
-                        errorHandler
-                ), client::multiSearch);
+                        }
+                    }
+                    getScheduledEventsListener.onResponse(paramsBuilder);
+                },
+                errorHandler
+            ), client::multiSearch);
+    }
+
+    public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
+        getAutodetectParams(job, job.getModelSnapshotId(), consumer, errorHandler);
     }
 
     private SearchRequestBuilder createDocIdSearch(String index, String id) {
@@ -1571,6 +1575,50 @@ public class JobResultsProvider {
         } else {
             modelSizeStats(jobId, modelSizeStats -> handler.accept(modelSizeStats.getModelBytes()), errorHandler);
         }
+    }
+
+    /**
+     * Returns information needed to decide how to restart a job from a datafeed
+     * @param jobId the job id
+     * @param listener the listener
+     */
+    public void getRestartTimeInfo(String jobId, ActionListener<RestartTimeInfo> listener) {
+        AtomicReference<Bucket> latestFinalBucketHolder = new AtomicReference<>();
+
+        Consumer<DataCounts> dataCountsHandler = dataCounts -> listener.onResponse(
+            new RestartTimeInfo(
+                latestFinalBucketHolder.get() == null ? null : latestFinalBucketHolder.get().getTimestamp().getTime(),
+                dataCounts.getLatestRecordTimeStamp() == null ? null : dataCounts.getLatestRecordTimeStamp().getTime(),
+                dataCounts.getInputRecordCount() > 0)
+            );
+
+        ActionListener<Bucket> latestFinalBucketListener = ActionListener.wrap(
+            latestFinalBucket -> {
+                latestFinalBucketHolder.set(latestFinalBucket);
+                dataCounts(jobId, dataCountsHandler, listener::onFailure);
+            },
+            listener::onFailure
+        );
+
+        getLatestFinalBucket(jobId, latestFinalBucketListener);
+    }
+
+    private void getLatestFinalBucket(String jobId, ActionListener<Bucket> listener) {
+        BucketsQueryBuilder latestBucketQuery = new BucketsQueryBuilder()
+            .sortField(Result.TIMESTAMP.getPreferredName())
+            .sortDescending(true)
+            .size(1)
+            .includeInterim(false);
+        bucketsViaInternalClient(jobId, latestBucketQuery,
+            queryPage -> {
+                if (queryPage.results().isEmpty()) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onResponse(queryPage.results().get(0));
+                }
+            },
+            listener::onFailure
+        );
     }
 
     /**

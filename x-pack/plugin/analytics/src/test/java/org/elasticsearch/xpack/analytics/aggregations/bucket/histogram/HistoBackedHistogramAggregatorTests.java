@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
@@ -158,6 +159,28 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(0, histogram.getBuckets().get(4).getDocCount());
                 assertEquals(10d, histogram.getBuckets().get(5).getKey());
                 assertEquals(0, histogram.getBuckets().get(5).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
+    public void testHardBounds() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -4.5, 4.3 })));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -5, 3.2 })));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 1.0, 2.2 })));
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -6.0, 12.2 })));
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field(FIELD_NAME)
+                .interval(5)
+                .hardBounds(new DoubleBounds(0.0, 5.0));
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME));
+                assertEquals(1, histogram.getBuckets().size());
+                assertEquals(0d, histogram.getBuckets().get(0).getKey());
+                assertEquals(4, histogram.getBuckets().get(0).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }

@@ -29,7 +29,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
-    mustRunAfter(precommit)
+    mustRunAfter("precommit")
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")

@@ -51,12 +51,12 @@ class PluginBuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         project.pluginManager.apply(BuildPlugin)
         project.pluginManager.apply(RestTestBasePlugin)
-        project.pluginManager.apply(CompileOnlyResolvePlugin.class);
+        project.pluginManager.apply(CompileOnlyResolvePlugin.class)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
 
-        boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+        boolean isXPackModule = project.path.startsWith(':x-pack:plugin') || project.path.startsWith(':x-pack:quota-aware-fs')
         boolean isModule = project.path.startsWith(':modules:') || isXPackModule
 
         createBundleTasks(project, extension)
@@ -82,7 +82,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             if (extension1.description == null) {
                 throw new InvalidUserDataException('description is a required setting for esplugin')
             }
-            if (extension1.classname == null) {
+            if (extension1.type != PluginType.BOOTSTRAP && extension1.classname == null) {
                 throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
 
@@ -92,10 +92,13 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'version'             : extension1.version,
                     'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
                     'javaVersion'         : project.targetCompatibility as String,
-                    'classname'           : extension1.classname,
+                    'classname'           : extension1.type == PluginType.BOOTSTRAP ? "" : extension1.classname,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
                     'hasNativeController' : extension1.hasNativeController,
-                    'requiresKeystore'    : extension1.requiresKeystore
+                    'requiresKeystore'    : extension1.requiresKeystore,
+                    'type'                : extension1.type.toString(),
+                    'javaOpts'            : extension1.javaOpts,
+                    'licensed'            : extension1.licensed,
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)
@@ -103,6 +106,22 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(project, extension1)
+            }
+        }
+
+        // We've ported this from multiple build scripts where we see this pattern into
+        // an extension method as a first step of consolidation.
+        // We might want to port this into a general pattern later on.
+        project.ext.addQaCheckDependencies = {
+            project.afterEvaluate {
+                // let check depend on check tasks of qa sub-projects
+                def checkTaskProvider = project.tasks.named("check")
+                def qaSubproject = project.subprojects.find { it.path == project.path + ":qa" }
+                if(qaSubproject) {
+                    qaSubproject.subprojects.each {p ->
+                        checkTaskProvider.configure {it.dependsOn(p.path + ":check") }
+                    }
+                }
             }
         }
 
@@ -123,7 +142,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                 .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
-            dependsOn(project.tasks.bundlePlugin)
+            dependsOn(project.tasks.named("bundlePlugin"))
         }
     }
 

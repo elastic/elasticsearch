@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.ql.expression.Order;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -114,6 +115,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
             .fieldTiebreaker(request.tiebreakerField())
+            .resultPosition("tail".equals(request.resultPosition()) ? Order.OrderDirection.DESC : Order.OrderDirection.ASC)
             .size(request.size())
             .fetchSize(request.fetchSize());
 

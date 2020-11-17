@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,7 +56,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
 
-    private static final Version ALLOW_AUTO_CREATE_VERSION = Version.V_8_0_0;
+    private static final Version ALLOW_AUTO_CREATE_VERSION = Version.V_7_11_0;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
@@ -109,6 +108,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
                                    @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata) {
         this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null);
+    }
+
+    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
+        @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamTemplate dataStreamTemplate) {
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null);
     }
 
     public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
@@ -273,20 +278,33 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
-        private static final ObjectParser<DataStreamTemplate, Void> PARSER = new ObjectParser<>(
+        private static final ParseField HIDDEN = new ParseField("hidden");
+
+        public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
-            DataStreamTemplate::new
-        );
+            false,
+            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0]));
+
+        static {
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
+        }
+
+        private final boolean hidden;
 
         public DataStreamTemplate() {
+            this(false);
+        }
+
+        public DataStreamTemplate(boolean hidden) {
+            this.hidden = hidden;
+        }
+
+        DataStreamTemplate(StreamInput in) throws IOException {
+            hidden = in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION) && in.readBoolean();
         }
 
         public String getTimestampField() {
             return FIXED_TIMESTAMP_FIELD;
-        }
-
-        DataStreamTemplate(StreamInput in) {
-            this();
         }
 
         /**
@@ -297,13 +315,21 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of("_data_stream_timestamp", Map.of("enabled", true)));
         }
 
+        public boolean isHidden() {
+            return hidden;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+                out.writeBoolean(hidden);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field("hidden", hidden);
             builder.endObject();
             return builder;
         }
@@ -311,12 +337,14 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            return o != null && getClass() == o.getClass();
+            if (o == null || getClass() != o.getClass()) return false;
+            DataStreamTemplate that = (DataStreamTemplate) o;
+            return hidden == that.hidden;
         }
 
         @Override
         public int hashCode() {
-            return DataStreamTemplate.class.hashCode();
+            return Objects.hash(hidden);
         }
     }
 }

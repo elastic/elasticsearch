@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -31,7 +32,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -67,7 +67,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         timeSupplier = System::currentTimeMillis;
         ClusterSettings cSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, MachineLearning.MAX_OPEN_JOBS_PER_NODE));
+            Sets.newHashSet(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, MachineLearning.MAX_OPEN_JOBS_PER_NODE));
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
     }
 
@@ -110,7 +110,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 null,
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
-            assertFalse(decision.isEmpty());
+            assertTrue(decision.isPresent());
             assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(12 * DEFAULT_JOB_SIZE));
         }
@@ -122,7 +122,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 null,
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
-            assertFalse(decision.isEmpty());
+            assertTrue(decision.isPresent());
             assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(8 * DEFAULT_JOB_SIZE));
         }
@@ -134,7 +134,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 null,
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
-            assertFalse(decision.isEmpty());
+            assertTrue(decision.isPresent());
             assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
         }
@@ -156,7 +156,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 null,
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
-            assertFalse(decision.isEmpty());
+            assertTrue(decision.isPresent());
             assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
         }
@@ -168,7 +168,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
                 new NativeMemoryCapacity(ByteSizeValue.ofGb(2).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
                 reasonBuilder);
-            assertTrue(decision.isEmpty());
+            assertFalse(decision.isPresent());
         }
         {
             Optional<AutoscalingDeciderResult> decision = service.checkForScaleUp(
@@ -178,7 +178,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 new NativeMemoryCapacity(ByteSizeValue.ofMb(1).getBytes(), ByteSizeValue.ofMb(1).getBytes()),
                 new NativeMemoryCapacity(ByteSizeValue.ofGb(2).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
                 reasonBuilder);
-            assertFalse(decision.isEmpty());
+            assertTrue(decision.isPresent());
             assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(ByteSizeValue.ofGb(8).getBytes()));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(ByteSizeValue.ofMb(8992).getBytes()));
         }
@@ -199,7 +199,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             Long.MAX_VALUE,
             new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
-            reasonBuilder).isEmpty(), is(true));
+            reasonBuilder).isPresent(), is(false));
     }
 
     public void testScaleDown_WhenMemoryIsInaccurate() {
@@ -238,7 +238,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 ByteSizeValue.ofMb(100).getBytes(),
                 new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
                 reasonBuilder);
-            assertThat(result.isEmpty(), is(false));
+            assertThat(result.isPresent(), is(true));
             AutoscalingDeciderResult autoscalingDeciderResult = result.get();
             assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(),
                 equalTo(ByteSizeValue.ofMb(400).getBytes()));
@@ -251,7 +251,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 ByteSizeValue.ofMb(100).getBytes(),
                 new NativeMemoryCapacity(ByteSizeValue.ofGb(4).getBytes(), ByteSizeValue.ofMb(100).getBytes()),
                 reasonBuilder);
-            assertThat(result.isEmpty(), is(false));
+            assertThat(result.isPresent(), is(true));
             AutoscalingDeciderResult autoscalingDeciderResult = result.get();
             assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(),
                 equalTo(ByteSizeValue.ofMb(400).getBytes()));
@@ -264,7 +264,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 ByteSizeValue.ofMb(100).getBytes(),
                 new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofMb(100).getBytes()),
                 reasonBuilder);
-            assertThat(result.isEmpty(), is(true));
+            assertThat(result.isPresent(), is(false));
         }
     }
 

@@ -6,16 +6,19 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 
 import java.util.Arrays;
 import java.util.List;
 
-public final class MlAutoscalingNamedWritableProvider {
+public final class MlAutoscalingNamedWritableProvider implements NamedXContentProvider {
 
-    private MlAutoscalingNamedWritableProvider() { }
+    public MlAutoscalingNamedWritableProvider() { }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
@@ -26,5 +29,18 @@ public final class MlAutoscalingNamedWritableProvider {
                 MlScalingReason.NAME,
                 MlScalingReason::new)
         );
+    }
+
+    public static List<NamedXContentRegistry.Entry> getXContentParsers() {
+        return Arrays.asList(
+            new NamedXContentRegistry.Entry(AutoscalingDeciderConfiguration.class,
+                new ParseField(MlAutoscalingDeciderConfiguration.NAME),
+                MlAutoscalingDeciderConfiguration::parse)
+        );
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
+        return getXContentParsers();
     }
 }

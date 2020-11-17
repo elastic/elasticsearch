@@ -34,8 +34,9 @@ include::install_remove.asciidoc[]
 [[ingest-attachment-json-ex]]
 ==== Example
 
-If ingesting JSON documents, you must first encode the attachment file as a
-base64 string. On Unix-like systems, you can use a command like this:
+If attaching files to JSON documents, you must first encode the file as a base64
+string. On Unix-like systems, you can use a command like this get the base64
+string for a file:
 
 [source,shell]
 ----

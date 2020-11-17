@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
@@ -599,6 +600,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
                 if (entry.clones().isEmpty() == false) {
                     assertEquals(sourceSnapshot, entry.source().getName());
+                    for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> value : entry.clones().values()) {
+                        assertSame(value.value, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
+                    }
                     return true;
                 }
             }

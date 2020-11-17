@@ -28,6 +28,7 @@ import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -268,6 +269,7 @@ public class CacheService extends AbstractLifecycleComponent {
                             IOUtils.fsync(cacheDir, true, false);
                             logger.trace("cache directory [{}] synchronized", cacheDir);
                         } catch (Exception e) {
+                            assert e instanceof IOException : e;
                             logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
                         }
                     }
@@ -275,6 +277,7 @@ public class CacheService extends AbstractLifecycleComponent {
                     count += 1L;
                 }
             } catch (Exception e) {
+                assert e instanceof IOException : e;
                 logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
             }
         }

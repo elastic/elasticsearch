@@ -59,7 +59,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -336,13 +335,7 @@ public class QueryShardContextTests extends ESTestCase {
                 "pig", new MockFieldMapper.FakeFieldType("pig"),
                 "cat", new MockFieldMapper.FakeFieldType("cat")),
             runtimeMappings,
-            Collections.singletonList(new MapperPlugin() {
-                @Override
-                public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-                    return org.elasticsearch.common.collect.Map.of(
-                        "test", (name, node, parserContext) -> new TestRuntimeField(name));
-                }
-            }));
+            Collections.singletonList(new TestRuntimeField.Plugin()));
         assertTrue(qsc.isFieldMapped("cat"));
         assertThat(qsc.getFieldType("cat"), instanceOf(TestRuntimeField.class));
         assertThat(qsc.simpleMatchToIndexNames("cat"), equalTo(org.elasticsearch.common.collect.Set.of("cat")));

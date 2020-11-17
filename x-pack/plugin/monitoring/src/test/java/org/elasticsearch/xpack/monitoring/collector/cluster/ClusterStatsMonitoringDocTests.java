@@ -259,7 +259,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
         final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", Version.CURRENT,
-            "1.8", "_plugin_class", Collections.emptyList(), false, PluginType.ISOLATED, "");
+            "1.8", "_plugin_class", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);

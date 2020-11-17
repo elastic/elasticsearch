@@ -37,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
@@ -92,6 +93,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     private final ThreadPool threadPool;
     private final ConcurrentLinkedQueue<CacheFile> cacheFilesToSync;
+    private final AtomicLong numberOfCacheFilesToSync;
     private final CacheSynchronizationTask cacheSyncTask;
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
@@ -117,6 +119,7 @@ public class CacheService extends AbstractLifecycleComponent {
             // are done with reading/writing the cache file
             .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
             .build();
+        this.numberOfCacheFilesToSync = new AtomicLong();
         this.cacheFilesToSync = new ConcurrentLinkedQueue<>();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.maxCacheFilesToSyncAtOnce = SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING.get(settings);
@@ -218,6 +221,7 @@ public class CacheService extends AbstractLifecycleComponent {
     void onCacheFileUpdate(CacheFile cacheFile) {
         assert cacheFile != null;
         cacheFilesToSync.offer(cacheFile);
+        numberOfCacheFilesToSync.incrementAndGet();
     }
 
     /**
@@ -251,7 +255,7 @@ public class CacheService extends AbstractLifecycleComponent {
         long count = 0L;
         final Set<Path> cacheDirs = new HashSet<>();
         final long startTimeNanos = threadPool.relativeTimeInNanos();
-        final int maxCacheFilesToSync = Math.min(cacheFilesToSync.size(), this.maxCacheFilesToSyncAtOnce);
+        final long maxCacheFilesToSync = Math.min(numberOfCacheFilesToSync.get(), this.maxCacheFilesToSyncAtOnce);
         for (long i = 0L; i < maxCacheFilesToSync; i++) {
             if (lifecycleState() != Lifecycle.State.STARTED) {
                 logger.debug("stopping cache synchronization (cache service is closing)");
@@ -262,6 +266,8 @@ public class CacheService extends AbstractLifecycleComponent {
                 logger.debug("stopping cache synchronization (no more cache files to fsync)");
                 break;
             }
+            final long value = numberOfCacheFilesToSync.decrementAndGet();
+            assert value >= 0 : value;
             final Path cacheFilePath = cacheFile.getFile();
             try {
                 final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();

@@ -15,5 +15,9 @@ class org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript$Factory @no
 static_import {
     # The `emit` callback to collect values for the field
     void emit(org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript, double) bound_to org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript$Emit
+    # The `values` callback to find values for the field in the source
+    List values(org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript$Values
+
+    double tryParseDouble(Object) from_class org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript
 }
 

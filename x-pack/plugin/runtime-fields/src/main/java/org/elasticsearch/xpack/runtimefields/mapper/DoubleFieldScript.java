@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -86,5 +87,27 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         public void emit(double v) {
             script.emit(v);
         }
+    }
+
+    public static class Values {
+        private final DoubleFieldScript script;
+
+        public Values(DoubleFieldScript script) {
+            this.script = script;
+        }
+
+        public List<Object> values(String path) {
+            return XContentMapValues.extractRawValues(path, script.getSource());
+        }
+    }
+
+    public static double tryParseDouble(Object value) {
+        if (value instanceof Number) {
+            return ((Number)value).doubleValue();
+        }
+        if (value instanceof String) {
+            return Double.parseDouble((String)value);
+        }
+        throw new IllegalArgumentException("Cannot coerce " + value + " to double");
     }
 }

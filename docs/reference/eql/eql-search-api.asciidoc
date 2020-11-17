@@ -146,6 +146,7 @@ used.
 ====
 --
 
+[role="child_attributes"]
 [[eql-search-api-request-body]]
 ==== {api-request-body-title}
 
@@ -228,6 +229,26 @@ If both parameters are specified, only the query parameter is used.
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.
+
+`result_position`::
+(Optional, enum)
+Set of matching events or sequences to return.
++
+.Valid values for `result_position`
+[%collapsible%open]
+====
+`head`::
+(Default)
+Return the earliest matches, similar to the {wikipedia}/Head_(Unix)[Unix head
+command].
+
+`tail`::
+Return the most recent matches, similar to the {wikipedia}/Tail_(Unix)[Unix tail
+command].
+====
++
+NOTE: This parameter may change the set of returned hits. However, it does not
+change the sort order of hits in the response.
 
 `size`::
 (Optional, integer or float)

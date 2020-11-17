@@ -140,6 +140,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         List<ModelSnapshot> snapshots = getModelSnapshots(job.getId(), snapshot.getSnapshotId()).snapshots();
         assertThat(snapshots, hasSize(1));
+        snapshot = snapshots.get(0);
         assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
         // min version in upgraded 7.series is 7.9.0
         assertThat(snapshot.getMinVersion(), equalTo(Version.V_7_9_0));

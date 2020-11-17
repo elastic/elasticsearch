@@ -47,7 +47,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
-        this.commitId = extractCommitId(in);
+        this.commitId = tryExtractCommitId(in);
     }
 
     /**
@@ -66,16 +66,19 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         return commitId;
     }
 
-    private static String extractCommitId(DirectoryReader in) throws IOException {
+    private static String tryExtractCommitId(DirectoryReader in) {
         in = FilterDirectoryReader.unwrap(in);
         if (in instanceof StandardDirectoryReader) {
-            final StandardDirectoryReader reader = (StandardDirectoryReader) in;
-            final SegmentInfos sis = SegmentInfos.readLatestCommit(reader.directory());
-            if (sis.version == reader.getSegmentInfos().version &&
-                Objects.equals(sis.userData.get(Engine.ES_COMMIT_ID), reader.getSegmentInfos().userData.get(Engine.ES_COMMIT_ID))) {
-                assert sis.userData.equals(reader.getSegmentInfos().userData) : sis + " != " + reader.getSegmentInfos();
-                assert sis.getGeneration() == reader.getSegmentInfos().getGeneration() : sis + " != " + reader.getSegmentInfos();
-                return sis.userData.get(Engine.ES_COMMIT_ID);
+            try {
+                final StandardDirectoryReader reader = (StandardDirectoryReader) in;
+                final SegmentInfos sis = SegmentInfos.readLatestCommit(reader.directory());
+                if (sis.version == reader.getSegmentInfos().version &&
+                    Objects.equals(sis.userData.get(Engine.ES_COMMIT_ID), reader.getSegmentInfos().userData.get(Engine.ES_COMMIT_ID))) {
+                    assert sis.userData.equals(reader.getSegmentInfos().userData) : sis + " != " + reader.getSegmentInfos();
+                    return sis.userData.get(Engine.ES_COMMIT_ID);
+                }
+            } catch (Exception ignored) {
+                return null;
             }
         }
         return null;

@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -575,7 +576,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             null,
             null,
             () -> true,
-            valuesSourceRegistry
+            valuesSourceRegistry,
+            emptyMap()
         );
     }
 }

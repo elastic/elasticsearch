@@ -49,6 +49,7 @@ class BuildPlugin implements Plugin<Project> {
         configureLicenseAndNotice(project)
         project.pluginManager.apply('elasticsearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
+        project.pluginManager.apply(DependenciesGraphPlugin)
 
         PrecommitTasks.create(project, true)
     }

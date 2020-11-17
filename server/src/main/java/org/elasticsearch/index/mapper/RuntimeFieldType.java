@@ -78,7 +78,7 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
                 } else {
                     type = typeNode.toString();
                 }
-                Parser typeParser = parserContext.runtimeTypeParsers().apply(type);
+                Parser typeParser = parserContext.runtimeFieldTypeParser(type);
                 if (typeParser == null) {
                     throw new MapperParsingException("No handler for type [" + type +
                         "] declared on runtime field [" + fieldName + "]");

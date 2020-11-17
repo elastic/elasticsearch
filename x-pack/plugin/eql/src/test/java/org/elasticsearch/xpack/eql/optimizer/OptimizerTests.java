@@ -190,8 +190,8 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSortByLimit() {
-        Project p = new Project(EMPTY, rel(), emptyList());
-        OrderBy o = new OrderBy(EMPTY, p, singletonList(new Order(EMPTY, tiebreaker(), OrderDirection.ASC, NullsPosition.FIRST)));
+        Filter f = new Filter(EMPTY, rel(), TRUE);
+        OrderBy o = new OrderBy(EMPTY, f, singletonList(new Order(EMPTY, tiebreaker(), OrderDirection.ASC, NullsPosition.FIRST)));
         Tail t = new Tail(EMPTY, new Literal(EMPTY, 1, INTEGER), o);
 
         LogicalPlan optimized = new Optimizer.SortByLimit().rule(t);

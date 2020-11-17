@@ -44,6 +44,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.FieldLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -156,8 +157,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         @SuppressWarnings("unchecked")
         static Object sourceScript(Map<String, Object> vars, String path) {
-            Map<String, Object> source = (Map) vars.get("_source");
-            return XContentMapValues.extractValue(path, source);
+            SourceLookup source = (SourceLookup) vars.get("_source");
+            return source.extractValue(path, null);
         }
 
         static Object docScript(Map<String, Object> vars, String fieldName) {

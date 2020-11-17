@@ -36,6 +36,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
@@ -72,8 +73,8 @@ public class SearchStatsIT extends ESIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap("_source.field", vars -> {
-                Map<?, ?> src = (Map) vars.get("_source");
-                return src.get("field");
+                SourceLookup src = (SourceLookup) vars.get("_source");
+                return src.extractValue("field", null);
             });
         }
     }

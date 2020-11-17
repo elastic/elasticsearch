@@ -204,11 +204,12 @@ public class TrainedModelIT extends ESRestTestCase {
         getModel = client().performRequest(new Request("GET",
             MachineLearning.BASE_PATH +
                 "trained_models/" + modelId +
-                "?include=definition&decompress_definition=false&for_export=true"));
+                "?include=definition&decompress_definition=false&exclude_generated=true"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         Map<String, Object> exportedModel = entityAsMap(getModel);
         Map<String, Object> modelDefinition = ((List<Map<String, Object>>)exportedModel.get("trained_model_configs")).get(0);
+        modelDefinition.remove("model_id");
 
         String importedModelId = "regression_model_to_import";
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

@@ -66,13 +66,15 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                 cardinality,
                 metadata) -> {
                 DistanceSource distanceSource = new DistanceSource((ValuesSource.GeoPoint) valuesSource, distanceType, origin, units);
-                return new RangeAggregator(
+                double averageDocsPerRange = ((double) context.searcher().getIndexReader().maxDoc()) / ranges.length;
+                return RangeAggregator.buildWithoutAttemptedToAdaptToFilters(
                     name,
                     factories,
                     distanceSource,
                     format,
                     rangeFactory,
                     ranges,
+                    averageDocsPerRange,
                     keyed,
                     context,
                     parent,
@@ -107,7 +109,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new RangeAggregator.Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent,
+        return new RangeAggregator.Unmapped<>(name, factories, ranges, keyed, config.format(), searchContext, parent,
             rangeFactory, metadata);
     }
 

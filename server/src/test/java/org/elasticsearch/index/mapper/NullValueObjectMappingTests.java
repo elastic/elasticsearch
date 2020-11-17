@@ -36,8 +36,7 @@ public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("obj1").field("type", "object").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping), false);
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()

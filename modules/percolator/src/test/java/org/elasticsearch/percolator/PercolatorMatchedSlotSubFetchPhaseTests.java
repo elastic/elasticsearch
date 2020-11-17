@@ -43,7 +43,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
@@ -69,9 +68,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         new SearchHit(0),
                         context,
                         0,
-                        new SourceLookup(),
-                        new HashMap<>()
-                    );
+                        new SourceLookup());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -96,9 +93,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         new SearchHit(0),
                         context,
                         0,
-                        new SourceLookup(),
-                        new HashMap<>()
-                    );
+                        new SourceLookup());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
@@ -122,9 +117,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         new SearchHit(0),
                         context,
                         0,
-                        new SourceLookup(),
-                        new HashMap<>()
-                    );
+                        new SourceLookup());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());

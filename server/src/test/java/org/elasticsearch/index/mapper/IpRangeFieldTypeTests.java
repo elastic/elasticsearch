@@ -20,8 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,13 +28,11 @@ import java.util.Map;
 public class IpRangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true).build(context);
-        Map<String, Object> range = org.elasticsearch.common.collect.Map.of("gte", "2001:db8:0:0:0:0:2:1");
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("gte", "2001:db8::2:1")),
+        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, false, Version.CURRENT).build(new ContentPath());
+        Map<String, Object> range = Collections.singletonMap("gte", "2001:db8:0:0:0:0:2:1");
+        assertEquals(Collections.singletonList(Collections.singletonMap("gte", "2001:db8::2:1")),
             fetchSourceValue(mapper.fieldType(), range));
-        assertEquals(Collections.singletonList("2001:db8::2:1/32"), fetchSourceValue(mapper.fieldType(), "2001:db8:0:0:0:0:2:1/32"));
+        assertEquals(Collections.singletonList("2001:db8::2:1/32"),
+            fetchSourceValue(mapper.fieldType(), "2001:db8:0:0:0:0:2:1/32"));
     }
 }

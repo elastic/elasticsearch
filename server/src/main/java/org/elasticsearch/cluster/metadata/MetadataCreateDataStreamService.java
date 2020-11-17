@@ -31,7 +31,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,7 +68,7 @@ public class MetadataCreateDataStreamService {
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request,
                                  ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> firstBackingIndexRef = new AtomicReference<>();
-        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
             response -> {
                 if (response.isAcknowledged()) {
                     String firstBackingIndexName = firstBackingIndexRef.get();
@@ -77,29 +77,21 @@ public class MetadataCreateDataStreamService {
                         new String[]{firstBackingIndexName},
                         ActiveShardCount.DEFAULT,
                         request.masterNodeTimeout(),
-                        shardsAcked -> {
-                            finalListener.onResponse(new AcknowledgedResponse(true));
-                        },
+                        shardsAcked -> finalListener.onResponse(AcknowledgedResponse.TRUE),
                         finalListener::onFailure);
                 } else {
-                    finalListener.onResponse(new AcknowledgedResponse(false));
+                    finalListener.onResponse(AcknowledgedResponse.FALSE);
                 }
             },
             finalListener::onFailure
         );
         clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.HIGH, request, listener) {
-
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
-                }
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
                 }
             });
     }
@@ -138,8 +130,9 @@ public class MetadataCreateDataStreamService {
         if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
         }
-        if (request.name.startsWith(".")) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
+        if (request.name.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '"
+                + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
         ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
@@ -164,8 +157,11 @@ public class MetadataCreateDataStreamService {
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        DataStream newDataStream = new DataStream(request.name, timestampField,
-                Collections.singletonList(firstBackingIndex.getIndex()));
+        boolean hidden = template.getDataStreamTemplate().isHidden();
+        DataStream newDataStream =
+            new DataStream(request.name, timestampField,
+                Collections.singletonList(firstBackingIndex.getIndex()), 1L,
+                template.metadata() != null ? Collections.unmodifiableMap(new HashMap<>(template.metadata())) : null, hidden);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();

@@ -19,15 +19,14 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -69,7 +68,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -139,19 +137,13 @@ public abstract class TransportClient extends AbstractClient {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
         final PluginsService pluginsService = newPluginService(providedSettings, plugins);
-        final Settings settings =
-                Settings.builder()
-                        .put(defaultSettings)
-                        .put(pluginsService.updatedSettings())
-                        .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
-                        .build();
-        final Set<DiscoveryNodeRole> possibleRoles = pluginsService.filterPlugins(Plugin.class)
-            .stream()
-            .map(Plugin::getRoles)
-            .flatMap(Set::stream)
-            .collect(Collectors.toSet());
-        DiscoveryNode.setAdditionalRoles(possibleRoles);
         final List<Closeable> resourcesToClose = new ArrayList<>();
+        final Settings settings =
+            Settings.builder()
+                .put(defaultSettings)
+                .put(pluginsService.updatedSettings())
+                .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
+                .build();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         final NetworkService networkService = new NetworkService(emptyList());

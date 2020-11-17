@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 public class TransportKillProcessAction extends TransportJobTaskAction<KillProcessAction.Request, KillProcessAction.Response> {
@@ -39,8 +40,7 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
     }
 
     @Override
-    protected void taskOperation(KillProcessAction.Request request, TransportOpenJobAction.JobTask jobTask,
-                                 ActionListener<KillProcessAction.Response> listener) {
+    protected void taskOperation(KillProcessAction.Request request, JobTask jobTask, ActionListener<KillProcessAction.Response> listener) {
         logger.info("[{}] Killing job", jobTask.getJobId());
         auditor.info(jobTask.getJobId(), Messages.JOB_AUDIT_KILLING);
 

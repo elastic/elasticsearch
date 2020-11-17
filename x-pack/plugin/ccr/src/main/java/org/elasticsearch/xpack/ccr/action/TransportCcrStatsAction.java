@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
-import java.io.IOException;
 import java.util.Objects;
 
 public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsAction.Request, CcrStatsAction.Response> {
@@ -55,21 +53,13 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
             threadPool,
             actionFilters,
             CcrStatsAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            CcrStatsAction.Response::new,
+            Ccr.CCR_THREAD_POOL_NAME
         );
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
         this.autoFollowCoordinator = Objects.requireNonNull(autoFollowCoordinator);
-    }
-
-    @Override
-    protected String executor() {
-        return Ccr.CCR_THREAD_POOL_NAME;
-    }
-
-    @Override
-    protected CcrStatsAction.Response read(StreamInput in) throws IOException {
-        return new CcrStatsAction.Response(in);
     }
 
     @Override

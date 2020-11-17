@@ -118,7 +118,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -179,7 +179,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -235,7 +235,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             queryResult.setShardIndex(i);
             results.consumeResult(queryResult, () -> {});
         }
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -303,7 +303,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult,  () -> {});
         AtomicInteger numFetches = new AtomicInteger(0);
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -363,7 +363,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult, () -> {});
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {

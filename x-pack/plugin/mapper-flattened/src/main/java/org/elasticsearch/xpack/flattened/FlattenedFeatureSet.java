@@ -14,7 +14,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper;
 
 import java.util.Map;
 
@@ -65,7 +65,7 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
 
                         for (Map<String, Object> fieldMapping : fieldMappings.values()) {
                             String fieldType = (String) fieldMapping.get("type");
-                            if (fieldType != null && fieldType.equals(FlatObjectFieldMapper.CONTENT_TYPE)) {
+                            if (fieldType != null && fieldType.equals(FlattenedFieldMapper.CONTENT_TYPE)) {
                                 fieldCount++;
                             }
                         }

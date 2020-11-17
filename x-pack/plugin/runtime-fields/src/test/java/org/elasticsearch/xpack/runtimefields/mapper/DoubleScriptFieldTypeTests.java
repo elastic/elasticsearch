@@ -52,6 +52,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1.2), equalTo("1.2"));
@@ -255,7 +256,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected String runtimeType() {
+    protected String typeName() {
         return "double";
     }
 
@@ -329,7 +330,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DoubleFieldScript.Factory factory = scriptService.compile(script, DoubleFieldScript.CONTEXT);
-            return new DoubleScriptFieldType("test", script, factory, emptyMap());
+            return new DoubleScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
         }
     }
 }

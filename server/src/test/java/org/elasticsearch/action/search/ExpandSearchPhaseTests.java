@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -39,9 +40,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ExpandSearchPhaseTests extends ESTestCase {
 
@@ -59,6 +64,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
             AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
             QueryBuilder originalQuery = randomBoolean() ? null : QueryBuilders.termQuery("foo", "bar");
+            Map<String, Object> runtimeMappings = randomBoolean() ? emptyMap() : AbstractSearchTestCase.randomRuntimeMappings();
 
             final MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
             String collapseValue = randomBoolean() ? null : "boom";
@@ -67,8 +73,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .collapse(new CollapseBuilder("someField")
                     .setInnerHits(IntStream.range(0, numInnerHits).mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum))
                         .collect(Collectors.toList()))));
-            mockSearchPhaseContext.getRequest().source().query(originalQuery);
-            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+            mockSearchPhaseContext.getRequest().source().query(originalQuery).runtimeMappings(runtimeMappings);
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
                 void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                     assertTrue(executedMultiSearch.compareAndSet(false, true));
@@ -87,7 +93,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     }
                     assertArrayEquals(mockSearchPhaseContext.getRequest().indices(), searchRequest.indices());
                     assertArrayEquals(mockSearchPhaseContext.getRequest().types(), searchRequest.types());
-
+                    assertThat(searchRequest.source().runtimeMappings(), equalTo(runtimeMappings));
 
                     List<MultiSearchResponse.Item> mSearchResponses = new ArrayList<>(numInnerHits);
                     for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
@@ -132,7 +138,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         String collapseValue = randomBoolean() ? null : "boom";
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
             .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 assertTrue(executedMultiSearch.compareAndSet(false, true));
@@ -164,7 +170,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
     public void testSkipPhase() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
               fail("no collapsing here");
@@ -185,7 +191,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
     public void testSkipExpandCollapseNoHits() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 fail("expand should not try to send empty multi search request");
@@ -207,7 +213,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         boolean version = randomBoolean();
         final boolean seqNoAndTerm = randomBoolean();
 
-        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 final QueryBuilder postFilter = QueryBuilders.existsQuery("foo");

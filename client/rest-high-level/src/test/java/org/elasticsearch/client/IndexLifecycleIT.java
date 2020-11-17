@@ -145,6 +145,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals(statusResponse.getOperationMode(), OperationMode.RUNNING);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64907")
     public void testExplainLifecycle() throws Exception {
         Map<String, Phase> lifecyclePhases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();

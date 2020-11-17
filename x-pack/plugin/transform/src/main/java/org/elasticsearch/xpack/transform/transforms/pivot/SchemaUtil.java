@@ -23,30 +23,59 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class SchemaUtil {
     private static final Logger logger = LogManager.getLogger(SchemaUtil.class);
 
-    // Full collection of numeric field type strings
-    private static final Set<String> NUMERIC_FIELD_MAPPER_TYPES;
+    // Full collection of numeric field type strings and whether they are floating point or not
+    private static final Map<String, Boolean> NUMERIC_FIELD_MAPPER_TYPES;
     static {
-        Set<String> types = Stream.of(NumberFieldMapper.NumberType.values())
-            .map(NumberFieldMapper.NumberType::typeName)
-            .collect(Collectors.toSet());
-        types.add("scaled_float"); // have to add manually since scaled_float is in a module
+        Map<String, Boolean> types = Stream.of(NumberFieldMapper.NumberType.values())
+            .collect(Collectors.toMap(t -> t.typeName(), t -> t.numericType().isFloatingPoint()));
+
+        // have to add manually since they are in a module
+        types.put("scaled_float", true);
+        types.put("unsigned_long", false);
         NUMERIC_FIELD_MAPPER_TYPES = types;
     }
 
     private SchemaUtil() {}
 
     public static boolean isNumericType(String type) {
-        return type != null && NUMERIC_FIELD_MAPPER_TYPES.contains(type);
+        return type != null && NUMERIC_FIELD_MAPPER_TYPES.containsKey(type);
+    }
+
+    /**
+     * Convert a numeric value to a whole number if it's not a floating point number.
+     *
+     * Implementation decision: We do not care about the concrete type, but only if its floating point or not.
+     * Further checks (e.g. range) are done at indexing.
+     *
+     * If type is floating point but ends with `.0`, we still preserve `.0` in case
+     * the destination index uses dynamic mappings as well as being json friendly.
+     *
+     * @param type the type of the value according to the schema we know
+     * @param value the value as double (aggs return double for everything)
+     * @return value if its floating point, long if value is smaller than Long.MAX_VALUE, BigInteger otherwise
+     */
+    public static Object dropFloatingPointComponentIfTypeRequiresIt(String type, double value) {
+        if (NUMERIC_FIELD_MAPPER_TYPES.getOrDefault(type, true) == false) {
+            assert value % 1 == 0;
+            if (value < Long.MAX_VALUE) {
+                return (long) value;
+            }
+
+            // special case for unsigned long
+            return BigDecimal.valueOf(value).toBigInteger();
+        }
+
+        return value;
     }
 
     /**
@@ -188,8 +217,11 @@ public final class SchemaUtil {
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [{}], fall back to dynamic mapping. " +
-                    "Create the destination index with complete mappings first to avoid deducing the mappings", targetFieldName);
+                logger.warn(
+                    "Failed to deduce mapping for [{}], fall back to dynamic mapping. "
+                        + "Create the destination index with complete mappings first to avoid deducing the mappings",
+                    targetFieldName
+                );
             }
         });
 
@@ -199,8 +231,11 @@ public final class SchemaUtil {
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [{}], fall back to keyword. " +
-                    "Create the destination index with complete mappings first to avoid deducing the mappings", targetFieldName);
+                logger.warn(
+                    "Failed to deduce mapping for [{}], fall back to keyword. "
+                        + "Create the destination index with complete mappings first to avoid deducing the mappings",
+                    targetFieldName
+                );
                 targetMapping.put(targetFieldName, KeywordFieldMapper.CONTENT_TYPE);
             }
         });

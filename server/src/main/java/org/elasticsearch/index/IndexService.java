@@ -193,7 +193,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newQueryShardContext(0, null, System::currentTimeMillis, null), idFieldDataEnabled, scriptService);
+                () -> newQueryShardContext(0, null, System::currentTimeMillis, null, emptyMap()), idFieldDataEnabled, scriptService);
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -527,7 +527,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
                     try {
-                        // only flush we are we closed (closed index or shutdown) and if we are not deleted
+                        // only flush if we are closed (closed index or shutdown) and if we are not deleted
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
@@ -588,13 +588,19 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
-    public QueryShardContext newQueryShardContext(int shardId, IndexSearcher searcher, LongSupplier nowInMillis, String clusterAlias) {
+    public QueryShardContext newQueryShardContext(
+        int shardId,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Map<String, Object> runtimeMappings
+    ) {
         final SearchIndexNameMatcher indexNameMatcher =
             new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
         return new QueryShardContext(
             shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
             similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry);
+            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, runtimeMappings);
     }
 
     /**

@@ -146,24 +146,24 @@ sequence by hostname with maxspan=1s
 time = 7.880767107009888
 type = "sequence"
 
-#[[queries]]
-#queryNo = 10
-#case_insensitive = true
-#count = 10
-#expected_event_ids = [3940731, 3940732, 3941991, 3941995, 3942330, 3942334, 3942862, 3942863, 3943079, 3943083, 3943496, 3943501, 3943887, 3943893, 3944253, 3944254, 3945063, 3945071, 3945287, 3945292]
-#filter_counts = [64209, 56911]
-#filters = [
-#  'network where hostname == "newyork" and destination_port in (135, 139, 445, 3389)',
-#  'security where hostname == "newyork" and event_id == 4624'
-#]
-#query = '''
-#sequence by hostname with maxspan=1m
-#  [network where hostname == "newyork" and destination_port in (135, 139, 445, 3389)] by source_port, source_address
-#  [security where hostname == "newyork" and event_id == 4624] by source_port, ip_address
-#| tail 10
-#'''
-#time = 11.688340187072754
-#type = "sequence"
+[[queries]]
+queryNo = 10
+case_insensitive = true
+count = 10
+expected_event_ids = [3940731, 3940732, 3941991, 3941995, 3942330, 3942334, 3942862, 3942863, 3943079, 3943083, 3943496, 3943501, 3943887, 3943893, 3944253, 3944254, 3945063, 3945071, 3945287, 3945292]
+filter_counts = [64209, 56911]
+filters = [
+  'network where hostname == "newyork" and destination_port in (135, 139, 445, 3389)',
+  'security where hostname == "newyork" and event_id == 4624'
+]
+query = '''
+sequence by hostname with maxspan=1m
+  [network where hostname == "newyork" and destination_port in (135, 139, 445, 3389)] by source_port, source_address
+  [security where hostname == "newyork" and event_id == 4624] by source_port, ip_address
+| tail 10
+'''
+time = 11.688340187072754
+type = "sequence"
 
 [[queries]]
 queryNo = 11
@@ -599,25 +599,25 @@ type = "sequence"
 #time = 8.868574619293213
 #type = "sequence"
 #
-#[[queries]]
-#queryNo = 34
-#case_insensitive = true
-#count = 0
-#expected_event_ids = []
-#filter_counts = [4, 2, 54954, 394]
-#filters = [
-#  'process where process_name == "net.exe"',
-#  'process where process_name == "net1.exe"',
-#  "network where destination_port == 445",
-#  "file where pid == 4"
-#]
-#query = """
-#sequence with maxspan=10s
-#  [process where process_name == "net.exe"]
-#  [process where process_name == "net1.exe"]
-#  [network where destination_port == 445]
-#  [file where pid == 4]
-#| tail 3
-#"""
-#time = 5.871383905410767
-#type = "sequence"
+[[queries]]
+queryNo = 34
+case_insensitive = true
+count = 0
+expected_event_ids = []
+filter_counts = [4, 2, 54954, 394]
+filters = [
+  'process where process_name == "net.exe"',
+  'process where process_name == "net1.exe"',
+  "network where destination_port == 445",
+  "file where pid == 4"
+]
+query = """
+sequence with maxspan=10s
+  [process where process_name == "net.exe"]
+  [process where process_name == "net1.exe"]
+  [network where destination_port == 445]
+  [file where pid == 4]
+| tail 3
+"""
+time = 5.871383905410767
+type = "sequence"

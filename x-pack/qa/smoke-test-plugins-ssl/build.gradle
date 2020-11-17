@@ -67,6 +67,10 @@ testClusters.integTest {
   user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+    if (pluginName == 'quota-aware-fs') {
+      // This plugin has to be configured to work via system properties
+      return
+    }
     plugin pluginProject.path
     pluginsCount += 1
   }

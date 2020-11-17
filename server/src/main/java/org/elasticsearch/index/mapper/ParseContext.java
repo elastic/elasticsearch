@@ -38,6 +38,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 public abstract class ParseContext {
 
@@ -292,6 +293,7 @@ public abstract class ParseContext {
 
     public static class InternalParseContext extends ParseContext {
         private final DocumentMapper docMapper;
+        private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
         private final ContentPath path;
         private final XContentParser parser;
         private final Document document;
@@ -305,8 +307,12 @@ public abstract class ParseContext {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        public InternalParseContext(DocumentMapper docMapper, SourceToParse source, XContentParser parser) {
+        public InternalParseContext(DocumentMapper docMapper,
+                                    Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
+                                    SourceToParse source,
+                                    XContentParser parser) {
             this.docMapper = docMapper;
+            this.parserContextFunction = parserContextFunction;
             this.path = new ContentPath(0);
             this.parser = parser;
             this.document = new Document();
@@ -321,7 +327,7 @@ public abstract class ParseContext {
 
         @Override
         public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-            return docMapper.documentMapperParser().parserContext(dateFormatter);
+            return parserContextFunction.apply(dateFormatter);
         }
 
         @Override

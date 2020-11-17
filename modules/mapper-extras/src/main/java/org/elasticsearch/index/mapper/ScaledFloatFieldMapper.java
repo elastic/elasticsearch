@@ -59,7 +59,7 @@ import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
-public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
+public class ScaledFloatFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "scaled_float";
 
@@ -70,7 +70,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         return (ScaledFloatFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -122,10 +122,10 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ScaledFloatFieldMapper build(BuilderContext context) {
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+        public ScaledFloatFieldMapper build(ContentPath contentPath) {
+            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                 hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue(), nullValue.getValue());
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -138,7 +138,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         public ScaledFloatFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                     Map<String, String> meta, double scalingFactor, Double nullValue) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
         }
@@ -221,11 +221,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(name(), context) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;
@@ -327,13 +327,8 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, coerceByDefault).init(this);
-    }
-
-    @Override
-    protected ScaledFloatFieldMapper clone() {
-        return (ScaledFloatFieldMapper) super.clone();
     }
 
     @Override

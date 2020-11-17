@@ -157,8 +157,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    protected String[] getParseMaximalWarnings() {
+        return new String[]{ "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {
@@ -173,7 +173,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
             m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((KeywordFieldMapper)m).ignoreAbove()));
+            m -> assertEquals(256, ((KeywordFieldMapper)m).fieldType().ignoreAbove()));
         checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
 
@@ -318,7 +318,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))
         );
-        MappedFieldType ft = mapperService.documentMapper().fieldTypes().get("field");
+        MappedFieldType ft = mapperService.documentMapper().mappers().fieldTypes().get("field");
         assertEquals("boolean", ft.getTextSearchInfo().getSimilarity().name());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

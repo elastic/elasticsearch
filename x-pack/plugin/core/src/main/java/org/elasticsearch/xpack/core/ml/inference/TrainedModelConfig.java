@@ -47,6 +47,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper.writeNamedObject;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
@@ -54,7 +55,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
-    public static final String FOR_EXPORT = "for_export";
     public static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
     public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     private static final Set<String> RESERVED_METADATA_FIELDS = new HashSet<>(Arrays.asList(
@@ -315,9 +315,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(MODEL_ID.getPreferredName(), modelId);
         // If the model is to be exported for future import to another cluster, these fields are irrelevant.
-        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
-            builder.field(MODEL_ID.getPreferredName(), modelId);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
             builder.field(VERSION.getPreferredName(), version.toString());
             builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());

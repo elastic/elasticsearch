@@ -242,13 +242,13 @@ matching is case-sensitive.
 `+` (add)::
 Adds the values to the left and right of the operator.
 
-`-` (Subtract)::
+`-` (subtract)::
 Subtracts the value to the right of the operator from the value to the left.
 
-`*` (Subtract)::
+`*` (multiply)::
 Multiplies the values to the left and right of the operator.
 
-`/` (Divide)::
+`/` (divide)::
 Divides the value to the left of the operator by the value to the right.
 +
 [[eql-divide-operator-float-rounding]]

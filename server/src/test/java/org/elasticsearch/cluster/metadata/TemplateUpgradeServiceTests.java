@@ -224,9 +224,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             if (randomBoolean()) {
                 putTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
             } else {
-                putTemplateListeners.get(i).onResponse(new AcknowledgedResponse(randomBoolean()) {
-
-                });
+                putTemplateListeners.get(i).onResponse(AcknowledgedResponse.of(randomBoolean()));
             }
         }
 
@@ -237,9 +235,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             } else {
                 int prevUpdatesInProgress = service.upgradesInProgress.get();
-                deleteTemplateListeners.get(i).onResponse(new AcknowledgedResponse(randomBoolean()) {
-
-                });
+                deleteTemplateListeners.get(i).onResponse(AcknowledgedResponse.of(randomBoolean()));
                 assertThat(prevUpdatesInProgress - service.upgradesInProgress.get(), equalTo(1));
             }
         }
@@ -370,12 +366,9 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(updateInvocation.availablePermits(), equalTo(0));
         assertThat(finishInvocation.availablePermits(), equalTo(0));
 
-        addedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
-        });
-        changedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
-        });
-        removedListener.getAndSet(null).onResponse(new AcknowledgedResponse(true) {
-        });
+        addedListener.getAndSet(null).onResponse(AcknowledgedResponse.TRUE);
+        changedListener.getAndSet(null).onResponse(AcknowledgedResponse.TRUE);
+        removedListener.getAndSet(null).onResponse(AcknowledgedResponse.TRUE);
 
         // 3 upgrades should be completed, in addition to the final calculate
         finishInvocation.acquire(3);

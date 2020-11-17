@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -77,11 +79,13 @@ public class IndicesModuleTests extends ESTestCase {
 
     private static String[] EXPECTED_METADATA_FIELDS = new String[]{IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
             RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, DocCountFieldMapper.NAME,
+            FieldNamesFieldMapper.NAME};
 
     private static String[] EXPECTED_METADATA_FIELDS_6x = new String[]{AllFieldMapper.NAME, IgnoredFieldMapper.NAME,
         IdFieldMapper.NAME, RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-        VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+        VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, DocCountFieldMapper.NAME,
+        FieldNamesFieldMapper.NAME};
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
@@ -182,6 +186,19 @@ public class IndicesModuleTests extends ESTestCase {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
                 return Collections.singletonMap("foo", PARSER);
+            }
+        };
+        List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("already registered"));
+    }
+
+    public void testDuplicateRuntimeFieldPlugin() {
+        MapperPlugin plugin = new MapperPlugin() {
+            @Override
+            public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
+                return Collections.singletonMap("test", (name, node, parserContext) -> null);
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);

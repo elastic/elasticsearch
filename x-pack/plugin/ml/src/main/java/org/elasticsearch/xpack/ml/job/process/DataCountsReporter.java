@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ml.job.process.diagnostics.DataStreamDiagnostics;
 
 import java.util.Date;
 import java.util.Locale;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 
 /**
@@ -49,7 +49,7 @@ public class DataCountsReporter {
     private long logEvery = 1;
     private long logCount = 0;
 
-    private Function<Long, Boolean> reportingBoundaryFunction;
+    private Predicate<Long> reportingBoundaryFunction;
 
     private DataStreamDiagnostics diagnostics;
 
@@ -93,7 +93,7 @@ public class DataCountsReporter {
 
         // report at various boundaries
         long totalRecords = getInputRecordCount();
-        if (reportingBoundaryFunction.apply(totalRecords)) {
+        if (reportingBoundaryFunction.test(totalRecords)) {
             logStatus(totalRecords);
         }
 

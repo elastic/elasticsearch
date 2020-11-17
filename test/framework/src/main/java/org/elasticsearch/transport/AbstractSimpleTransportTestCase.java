@@ -1046,11 +1046,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             @Override
             public void handleException(TransportException exp) {
             }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
         };
 
         serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, StringMessageRequest::new, handler);
@@ -1318,11 +1313,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             }).txGet();
 
         assertThat(version0Response.value1, equalTo(1));
@@ -1361,11 +1351,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             }).txGet();
 
         assertThat(version1Response.value1, equalTo(1));
@@ -1403,11 +1388,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             }).txGet();
 
         assertThat(version1Response.value1, equalTo(1));
@@ -1441,11 +1421,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void handleException(TransportException exp) {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
             }).txGet();
 
@@ -1586,11 +1561,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             public void handleException(TransportException exp) {
                 latch.countDown();
             }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
         });
 
         if (!latch.await(10, TimeUnit.SECONDS)) {
@@ -1633,11 +1603,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         public void handleException(TransportException exp) {
                             latch.countDown();
                         }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
                     });
 
                 latch.await();
@@ -1662,11 +1627,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         @Override
                         public void handleException(TransportException exp) {
                             latch2.countDown();
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
                     });
 
@@ -2244,25 +2204,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceC.start();
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
-        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+        TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
-            public TransportResponse read(StreamInput in) {
-                return TransportResponse.Empty.INSTANCE;
-            }
-
-            @Override
-            public void handleResponse(TransportResponse response) {
+            public void handleResponse(TransportResponse.Empty response) {
                 responseLatch.countDown();
             }
 
             @Override
             public void handleException(TransportException exp) {
                 responseLatch.countDown();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
         };
 
@@ -2312,25 +2262,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceC.start();
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
-        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+        TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
-            public TransportResponse read(StreamInput in) {
-                return TransportResponse.Empty.INSTANCE;
-            }
-
-            @Override
-            public void handleResponse(TransportResponse response) {
+            public void handleResponse(TransportResponse.Empty response) {
                 responseLatch.countDown();
             }
 
             @Override
             public void handleException(TransportException exp) {
                 responseLatch.countDown();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
         };
 
@@ -2426,14 +2366,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceC.acceptIncomingRequests();
         CountDownLatch responseLatch = new CountDownLatch(1);
         AtomicReference<TransportException> receivedException = new AtomicReference<>(null);
-        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+        TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
-            public TransportResponse read(StreamInput in) {
-                return TransportResponse.Empty.INSTANCE;
-            }
-
-            @Override
-            public void handleResponse(TransportResponse response) {
+            public void handleResponse(TransportResponse.Empty response) {
                 responseLatch.countDown();
             }
 
@@ -2441,11 +2376,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             public void handleException(TransportException exp) {
                 receivedException.set(exp);
                 responseLatch.countDown();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
         };
 
@@ -2792,25 +2722,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "fail-to-send-action",
                 TransportRequest.Empty.INSTANCE,
                 TransportRequestOptions.EMPTY,
-                new TransportResponseHandler<TransportResponse>() {
+                new TransportResponseHandler.Empty() {
                     @Override
-                    public void handleResponse(final TransportResponse response) {
+                    public void handleResponse(final TransportResponse.Empty response) {
                         fail("handle response should not be invoked");
                     }
 
                     @Override
                     public void handleException(final TransportException exp) {
                         te.set(exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-
-                    @Override
-                    public TransportResponse read(final StreamInput in) {
-                        return TransportResponse.Empty.INSTANCE;
                     }
                 });
             assertThat(te.get(), not(nullValue()));

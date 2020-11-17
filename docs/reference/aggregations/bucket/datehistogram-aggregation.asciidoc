@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-datehistogram-aggregation]]
 === Date histogram aggregation
+++++
+<titleabbrev>Date histogram</titleabbrev>
+++++
 
 This multi-bucket aggregation is similar to the normal
 <<search-aggregations-bucket-histogram-aggregation,histogram>>, but it can

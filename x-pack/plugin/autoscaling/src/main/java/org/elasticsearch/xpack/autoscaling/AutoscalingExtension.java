@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 
 import java.util.Collection;
 

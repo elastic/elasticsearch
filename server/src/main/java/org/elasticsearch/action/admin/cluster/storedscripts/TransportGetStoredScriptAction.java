@@ -28,12 +28,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest,
         GetStoredScriptResponse> {
@@ -45,18 +42,8 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
         super(GetStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetStoredScriptRequest::new, indexNameExpressionResolver);
+            GetStoredScriptRequest::new, indexNameExpressionResolver, GetStoredScriptResponse::new, ThreadPool.Names.SAME);
         this.scriptService = scriptService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetStoredScriptResponse read(StreamInput in) throws IOException {
-        return new GetStoredScriptResponse(in);
     }
 
     @Override
@@ -69,5 +56,4 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
     protected ClusterBlockException checkBlock(GetStoredScriptRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
-
 }

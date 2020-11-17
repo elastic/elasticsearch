@@ -25,7 +25,6 @@ import java.util.Collections;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.ScriptException;
@@ -47,9 +46,6 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
         super.setUp();
 
         NumberFieldType fieldType = new NumberFieldType("field", NumberType.DOUBLE);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("field")).thenReturn(fieldType);
-        when(mapperService.fieldType("alias")).thenReturn(fieldType);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
@@ -63,7 +59,7 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData, null);
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData, null);
     }
 
     private TermsSetQueryScript.LeafFactory compile(String expression) {
@@ -88,14 +84,6 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
 
     public void testFieldAccess() throws IOException {
         TermsSetQueryScript script = compile("doc['field'].value").newInstance(null);
-        script.setDocument(1);
-
-        double result = script.execute().doubleValue();
-        assertEquals(2.718, result, 0.0);
-    }
-
-    public void testFieldAccessWithFieldAlias() throws IOException {
-        TermsSetQueryScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
         double result = script.execute().doubleValue();

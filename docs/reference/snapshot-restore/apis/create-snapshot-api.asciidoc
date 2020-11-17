@@ -75,7 +75,7 @@ Name of the snapshot to create. This name must be unique in the snapshot reposit
 ==== {api-request-body-title}
 
 `ignore_unavailable`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
 +
 If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
@@ -91,7 +91,7 @@ argument is provided, the snapshot only includes the specified data streams and 
 `include_global_state`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the current cluster state is included in the snapshot.
 Defaults to `true`.
 
@@ -114,13 +114,13 @@ Attaches arbitrary metadata to the snapshot, such as a record of who took the sn
 
 [[create-snapshot-api-partial]]
 `partial`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. Defaults to `false`.
 +
 If `true`, allows taking a partial snapshot of indices with unavailable shards.
 
 `wait_for_completion`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the request returns a response when the snapshot is complete.
 If `false`, the request returns a response when the snapshot initializes.
 Defaults to `false`.

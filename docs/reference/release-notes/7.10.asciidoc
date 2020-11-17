@@ -1,8 +1,6 @@
 [[release-notes-7.10.0]]
 == {es} version 7.10.0
 
-coming[7.10.0]
-
 Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
 
 [[breaking-7.10.0]]
@@ -36,7 +34,8 @@ Mapping::
 Cluster Coordination::
 * Deprecate and ignore join timeout {es-pull}60872[#60872] (issue: {es-issue}60873[#60873])
 
-
+Machine learning::
+* Renames \*/inference* APIs to \*/trained_models* {es-pull}63097[#63097]
 
 [[feature-7.10.0]]
 [float]
@@ -182,6 +181,7 @@ Search::
 * Add case insensitive support for regex queries {es-pull}59441[#59441]
 * Tweak toXContent implementation of ParametrizedFieldMapper {es-pull}59968[#59968]
 * Implement fields value fetching for the `text`, `search_as_you_type` and `token_count` field types {es-pull}63515[#63515]
+* Make term/prefix/wildcard/regex query parsing more lenient, with respect to the `case_insensitive` flag {es-pull}63926[#63926] (issue: {es-issue}63893[#63893])
 
 Snapshot/Restore::
 * Add repositories metering API {es-pull}60371[#60371]
@@ -205,6 +205,9 @@ Transform::
 
 Aggregations::
 * Fix AOOBE when setting min_doc_count to 0 in significant_terms {es-pull}60823[#60823] (issues: {es-issue}60683[#60683], {es-issue}60824[#60824])
+* Make sure non-collecting aggs include sub-aggs {es-pull}64214[#64214] (issue: {es-issue}64142[#64142])
+* Composite aggregation must check live docs when the index is sorted {es-pull}63864[#63864]
+* Fix broken parent and child aggregator {es-pull}63811[#63811]
 
 Allocation::
 * Fix scheduling of ClusterInfoService#refresh {es-pull}59880[#59880]
@@ -212,6 +215,7 @@ Allocation::
 Authorization::
 * Fix doc-update interceptor for indices with DLS and FLS {es-pull}61516[#61516]
 * Report anonymous roles in authenticate response {es-pull}61355[#61355] (issues: {es-issue}47195[#47195], {es-issue}53453[#53453], {es-issue}57711[#57711], {es-issue}57853[#57853])
+* Add view_index_metadata privilege over metricbeat-* for monitoring agent {es-pull}63750[#63750] (issue: {es-issue}63750[#63750])
 
 CRUD::
 * Propagate forceExecution when acquiring permit {es-pull}60634[#60634] (issue: {es-issue}60359[#60359])
@@ -228,6 +232,7 @@ Engine::
 
 Features/ILM+SLM::
 * Fix ILM history index settings {es-pull}61880[#61880] (issues: {es-issue}61457[#61457], {es-issue}61863[#61863])
+* Ensure cancelled SLM jobs do not continue to run {es-pull}63762[#63762] (issue: {es-issue}63754[#63754])
 
 Features/Java Low Level REST Client::
 * Handle non-default port in Cloud-Id {es-pull}61581[#61581]
@@ -244,6 +249,8 @@ Geo::
 
 Infra/Core::
 * Throws IndexNotFoundException in TransportGetAction for unknown System indices {es-pull}61785[#61785] (issue: {es-issue}57936[#57936])
+* Handle missing logstash index exceptions {es-pull}63698[#63698]
+* XPack Usage API should run on MANAGEMENT threads {es-pull}64160[#64160]
 
 Infra/Packaging::
 * Allow running the Docker image with a non-default group {es-pull}61194[#61194] (issue: {es-issue}60864[#60864])
@@ -256,6 +263,7 @@ Machine Learning::
 * Improve handling of exception while starting data frame analytics process {es-pull}61838[#61838] (issue: {es-issue}61704[#61704])
 * Fix progress on resume after final training has completed for classification and regression. Previously, progress was shown stuck at zero for final training. {ml-pull}1443[#1443]
 * Avoid potential "Failed to compute quantile" and "No values added to quantile sketch" log errors training regression and classification models if there are features with mostly missing values {ml-pull}1500[#1500]
+* Correct the anomaly detection job model state `min_version` {ml-pull}1546[#1546]
 
 Mapping::
 * Improve 'ignore_malformed' handling for dates {es-pull}60211[#60211] (issue: {es-issue}52634[#52634])
@@ -268,6 +276,10 @@ Search::
 * Allows nanosecond resolution in search_after {es-pull}60328[#60328] (issue: {es-issue}52424[#52424])
 * Consolidate validation for 'docvalue_fields' {es-pull}59473[#59473]
 * Correct how field retrieval handles multifields and copy_to {es-pull}61309[#61309] (issue: {es-issue}61033[#61033])
+* Apply boost only once for distance_feature query {es-pull}63767[#63767]
+* Fixed NullPointerException in `significant_text` aggregation when field does not exist {es-pull}64144[#64144] (issue: {es-issue}64045[#64045])
+* Fix async search to retry updates on version conflict {es-pull}63652[#63652] (issue: {es-issue}63213[#63213])
+* Fix sorted query when date_nanos is used as the numeric_type {es-pull}64183[#64183] (issue: {es-issue}63719[#63719])
 
 Snapshot/Restore::
 * Avoid listener call under SparseFileTracker#mutex {es-pull}61626[#61626] (issue: {es-issue}61520[#61520])
@@ -275,6 +287,22 @@ Snapshot/Restore::
 * Fix Test Failure in testCorrectCountsForDoneShards {es-pull}60254[#60254] (issue: {es-issue}60247[#60247])
 * Minimize cache file locking during prewarming {es-pull}61837[#61837] (issue: {es-issue}58658[#58658])
 * Prevent snapshots to be mounted as system indices {es-pull}61517[#61517] (issue: {es-issue}60522[#60522])
+* Make Searchable Snapshot's CacheFile Lock less {es-pull}63911[#63911] (issue: {es-issue}63586[#63586])
+* Don't Generate an Index Setting History UUID unless it's supported {es-pull}64213[#64213] (issue: {es-issue}64152[#64152])
 
 SQL::
 * Allow unescaped wildcard (*) in LIKE pattern {es-pull}63428[#63428] (issue: {es-issue}55108[#55108])
+* Validate integer paramete in string functions {es-pull}63728[#63728] (issue: {es-issue}58923[#58923])
+* Remove filter from field_caps requests {es-pull}63840[#63840] (issue: {es-issue}63832[#63832])
+
+
+
+[[upgrade-7.10.0]]
+[discrete]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade bundled JDK to 15.0.1 and switch to AdoptOpenJDK {es-pull}64253[#64253]
+
+Store::
+* Upgrade to Lucene-8.7.0 {es-pull}64532[#64532]

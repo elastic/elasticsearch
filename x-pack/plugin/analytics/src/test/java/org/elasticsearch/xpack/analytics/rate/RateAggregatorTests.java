@@ -6,23 +6,9 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -49,6 +35,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -57,6 +44,22 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RateAggregatorTests extends AggregatorTestCase {
 
@@ -140,6 +143,31 @@ public class RateAggregatorTests extends AggregatorTestCase {
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(7.0, 0.000001));
         });
+    }
+
+    public void testDocValuesMonthToMonthValueCount() throws IOException {
+        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
+            .field("val")
+            .rateMode("value_count");
+
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date");
+        dateHistogramAggregationBuilder.field(DATE_FIELD);
+        dateHistogramAggregationBuilder.calendarInterval(new DateHistogramInterval("month"));
+
+        dateHistogramAggregationBuilder.subAggregation(rateAggregationBuilder);
+        testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1)));
+            iw.addDocument(doc("2010-04-01T03:43:34", new SortedNumericDocValuesField("val", 3)));
+            iw.addDocument(
+                doc("2010-04-27T03:43:34", new SortedNumericDocValuesField("val", 4), new SortedNumericDocValuesField("val", 5))
+            );
+        }, (Consumer<InternalDateHistogram>) dh -> {
+            assertThat(dh.getBuckets(), hasSize(2));
+            assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
+            assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
+        }, dateType, numType);
     }
 
     public void testDocValuesMonthToMonthDefaultRate() throws IOException {
@@ -260,6 +288,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
+        if (randomBoolean()) {
+            rateAggregationBuilder.rateMode("sum");
+        }
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
             .calendarInterval(new DateHistogramInterval("month"))
             .subAggregation(rateAggregationBuilder);
@@ -291,6 +322,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
+        if (randomBoolean()) {
+            rateAggregationBuilder.rateMode("sum");
+        }
         TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("my_term").field("term")
             .subAggregation(rateAggregationBuilder);
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
@@ -299,16 +333,36 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
         testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                doc("2010-03-11T01:07:45", new NumericDocValuesField("val", 1), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc(
+                    "2010-03-11T01:07:45",
+                    new NumericDocValuesField("val", 1),
+                    new IntPoint("val", 1),
+                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                )
             );
             iw.addDocument(
-                doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 2), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc(
+                    "2010-03-12T01:07:45",
+                    new NumericDocValuesField("val", 2),
+                    new IntPoint("val", 2),
+                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                )
             );
             iw.addDocument(
-                doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc(
+                    "2010-04-01T03:43:34",
+                    new NumericDocValuesField("val", 3),
+                    new IntPoint("val", 3),
+                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                )
             );
             iw.addDocument(
-                doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+                doc(
+                    "2010-04-27T03:43:34",
+                    new NumericDocValuesField("val", 4),
+                    new IntPoint("val", 4),
+                    new SortedSetDocValuesField("term", new BytesRef("b"))
+                )
             );
         }, (Consumer<InternalDateHistogram>) dh -> {
             assertThat(dh.getBuckets(), hasSize(2));
@@ -320,6 +374,80 @@ public class RateAggregatorTests extends AggregatorTestCase {
             assertThat(st2.getBuckets(), hasSize(2));
             assertThat(((InternalRate) st2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) st2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(4.0, 0.000001));
+        }, dateType, numType, keywordType);
+    }
+
+    public void testKeywordSandwichWithSorting() throws IOException {
+        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
+        RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("week").field("val");
+        boolean useSum = randomBoolean();
+        if (useSum) {
+            if (randomBoolean()) {
+                rateAggregationBuilder.rateMode("sum");
+            }
+        } else {
+            rateAggregationBuilder.rateMode("value_count");
+        }
+        TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("my_term").field("term")
+            .order(BucketOrder.aggregation("my_rate", false))
+            .subAggregation(rateAggregationBuilder);
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
+            .calendarInterval(new DateHistogramInterval("week"))
+            .subAggregation(termsAggregationBuilder);
+
+        testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(
+                doc("2020-11-02T01:07:45", new NumericDocValuesField("val", 1), new SortedSetDocValuesField("term", new BytesRef("a")))
+            );
+            iw.addDocument(
+                doc("2020-11-03T01:07:45", new NumericDocValuesField("val", 2), new SortedSetDocValuesField("term", new BytesRef("a")))
+            );
+            iw.addDocument(
+                doc("2020-11-04T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+            );
+            iw.addDocument(
+                doc("2020-11-09T03:43:34", new NumericDocValuesField("val", 30), new SortedSetDocValuesField("term", new BytesRef("a")))
+            );
+            iw.addDocument(
+                doc("2020-11-10T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+            );
+            iw.addDocument(
+                doc("2020-11-11T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+            );
+        }, (Consumer<InternalDateHistogram>) dh -> {
+            assertThat(dh.getBuckets(), hasSize(2));
+            if (useSum) {
+                StringTerms st1 = (StringTerms) dh.getBuckets().get(0).getAggregations().asList().get(0);
+                assertThat(st1.getBuckets(), hasSize(2));
+                assertThat(st1.getBuckets().get(0).getKeyAsString(), equalTo("b"));
+                assertThat(((InternalRate) st1.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(4.0, 0.000001));
+                assertThat(st1.getBuckets().get(1).getKeyAsString(), equalTo("a"));
+                assertThat(((InternalRate) st1.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
+
+                StringTerms st2 = (StringTerms) dh.getBuckets().get(1).getAggregations().asList().get(0);
+                assertThat(st2.getBuckets(), hasSize(2));
+                assertThat(st2.getBuckets().get(0).getKeyAsString(), equalTo("a"));
+                assertThat(((InternalRate) st2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(30.0, 0.000001));
+                assertThat(st2.getBuckets().get(1).getKeyAsString(), equalTo("b"));
+                assertThat(((InternalRate) st2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(8.0, 0.000001));
+            } else {
+                StringTerms st1 = (StringTerms) dh.getBuckets().get(0).getAggregations().asList().get(0);
+                assertThat(st1.getBuckets(), hasSize(2));
+                assertThat(st1.getBuckets().get(0).getKeyAsString(), equalTo("a"));
+                assertThat(((InternalRate) st1.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(2.0, 0.000001));
+                assertThat(st1.getBuckets().get(1).getKeyAsString(), equalTo("b"));
+                assertThat(((InternalRate) st1.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
+
+                StringTerms st2 = (StringTerms) dh.getBuckets().get(1).getAggregations().asList().get(0);
+                assertThat(st2.getBuckets(), hasSize(2));
+                assertThat(st2.getBuckets().get(0).getKeyAsString(), equalTo("b"));
+                assertThat(((InternalRate) st2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(2.0, 0.000001));
+                assertThat(st2.getBuckets().get(1).getKeyAsString(), equalTo("a"));
+                assertThat(((InternalRate) st2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
+
+            }
         }, dateType, numType, keywordType);
     }
 
@@ -348,6 +476,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
+        if (randomBoolean()) {
+            rateAggregationBuilder.rateMode("sum");
+        }
 
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
             .calendarInterval(new DateHistogramInterval("month"))
@@ -371,6 +502,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .field("val")
             .format("00.0/M");
+        if (randomBoolean()) {
+            rateAggregationBuilder.rateMode("sum");
+        }
 
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
             .calendarInterval(new DateHistogramInterval("month"))
@@ -392,6 +526,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
+        if (randomBoolean()) {
+            rateAggregationBuilder.rateMode("sum");
+        }
 
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
             .calendarInterval(new DateHistogramInterval("month"))
@@ -411,6 +548,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
+        if (randomBoolean()) {
+            rateAggregationBuilder.rateMode("sum");
+        }
 
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
             .calendarInterval(new DateHistogramInterval("year"))
@@ -422,6 +562,47 @@ public class RateAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalDateHistogram>) dh -> {
             assertThat(dh.getBuckets(), hasSize(1));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(10.0 / 12, 0.000001));
+        }, dateType, histType);
+    }
+
+    public void testHistogramFieldMonthToMonthValueCount() throws IOException {
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
+            .rateMode("value_count")
+            .field("val");
+
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
+            .calendarInterval(new DateHistogramInterval("month"))
+            .subAggregation(rateAggregationBuilder);
+
+        testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
+            iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4, 5 })));
+        }, (Consumer<InternalDateHistogram>) dh -> {
+            assertThat(dh.getBuckets(), hasSize(2));
+            assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(2.0, 0.000001));
+            assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).getValue(), closeTo(3.0, 0.000001));
+        }, dateType, histType);
+    }
+
+    public void testHistogramFieldMonthToYearValueCount() throws IOException {
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
+            .rateMode("value_count")
+            .field("val");
+
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
+            .calendarInterval(new DateHistogramInterval("year"))
+            .subAggregation(rateAggregationBuilder);
+
+        testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
+            iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4, 5 })));
+        }, (Consumer<InternalDateHistogram>) dh -> {
+            assertThat(dh.getBuckets(), hasSize(1));
+            assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(5.0 / 12, 0.000001));
         }, dateType, histType);
     }
 
@@ -447,6 +628,24 @@ public class RateAggregatorTests extends AggregatorTestCase {
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
         }, dateType, histType, keywordType);
+    }
+
+    public void testModeWithoutField() {
+        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").rateMode("sum");
+
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
+            .calendarInterval(new DateHistogramInterval("month"))
+            .subAggregation(rateAggregationBuilder);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1)));
+            }, h -> { fail("Shouldn't be here"); }, dateType, numType)
+        );
+        assertEquals("The mode parameter is only supported with field or script", ex.getMessage());
     }
 
     private void testCase(
@@ -504,6 +703,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
         List<IndexableField> indexableFields = new ArrayList<>();
         long instant = dateFieldType(DATE_FIELD).parse(date);
         indexableFields.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+        indexableFields.add(new LongPoint(DATE_FIELD, instant));
         indexableFields.addAll(Arrays.asList(fields));
         return indexableFields;
     }

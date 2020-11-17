@@ -16,13 +16,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
-
-import java.io.IOException;
 
 public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJobsAction.Request, GetJobsAction.Response> {
 
@@ -36,18 +33,8 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                   JobManager jobManager) {
         super(GetJobsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetJobsAction.Request::new, indexNameExpressionResolver);
+            GetJobsAction.Request::new, indexNameExpressionResolver, GetJobsAction.Response::new, ThreadPool.Names.SAME);
         this.jobManager = jobManager;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetJobsAction.Response read(StreamInput in) throws IOException {
-        return new GetJobsAction.Response(in);
     }
 
     @Override

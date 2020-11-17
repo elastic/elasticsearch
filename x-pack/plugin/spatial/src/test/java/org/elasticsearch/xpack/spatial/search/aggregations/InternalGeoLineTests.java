@@ -30,14 +30,13 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
         return new SpatialPlugin();
     }
 
-    static InternalGeoLine randomInstance(String name, Map<String, Object> metadata, int size, double magicDecimal) {
+    static InternalGeoLine randomInstance(String name, Map<String, Object> metadata, int size, SortOrder sortOrder, double magicDecimal) {
         int length = randomIntBetween(2, size);
-        SortOrder sortOrder = randomFrom(SortOrder.values());
         long[] points = new long[length];
         double[] sortVals = new double[length];
         for (int i = 0; i < length; i++) {
             points[i] = randomNonNegativeLong();
-            sortVals[i] = randomIntBetween(1, 100) + magicDecimal;
+            sortVals[i] = i + magicDecimal;
         }
         Arrays.sort(sortVals);
         if (SortOrder.DESC.equals(sortOrder)) {
@@ -55,7 +54,7 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
     @Override
     protected InternalGeoLine createTestInstance(String name, Map<String, Object> metadata) {
         int size = randomIntBetween(10, GeoLineAggregationBuilder.MAX_PATH_SIZE);
-        return randomInstance(name, metadata, size, randomDoubleBetween(0, 1, false));
+        return randomInstance(name, metadata, size, randomFrom(SortOrder.values()), randomDoubleBetween(0, 1, false));
     }
 
     @Override
@@ -106,11 +105,12 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
 
     @Override
     protected List<InternalGeoLine> randomResultsToReduce(String name, int size) {
+        SortOrder sortOrder = randomFrom(SortOrder.values());
         int maxLineLength = randomIntBetween(10, GeoLineAggregationBuilder.MAX_PATH_SIZE);
         List<InternalGeoLine> instances = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             // use the magicDecimal to have absolute ordering between heap-sort and testing array sorting
-            instances.add(randomInstance(name, null, maxLineLength, ((double) i) / size));
+            instances.add(randomInstance(name, null, maxLineLength, sortOrder, ((double) i) / size));
         }
         return instances;
     }

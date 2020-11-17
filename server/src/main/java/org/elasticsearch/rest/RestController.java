@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
@@ -44,6 +45,8 @@ import org.elasticsearch.usage.UsageService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -175,7 +178,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Version version = maybeWrappedHandler.compatibleWithVersion();
         assert Version.CURRENT.minimumRestCompatibilityVersion() == version || Version.CURRENT == version
             : "REST API compatibility is only supported for version " + Version.CURRENT.minimumRestCompatibilityVersion().major;
-
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
@@ -328,8 +330,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
 
+        Collection x = new ArrayList();
+        Iterator iterator = x.iterator();
+
         Version compatibleVersion = this.compatibleVersion.
             get(request.getParsedAccept(), request.getParsedContentType(), request.hasContent());
+        System.out.println(request.getParsedContentType()!=null ? request.getParsedContentType().getParameters().get(MediaType.COMPATIBLE_WITH_PARAMETER_NAME) : "null "+request.path());
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();

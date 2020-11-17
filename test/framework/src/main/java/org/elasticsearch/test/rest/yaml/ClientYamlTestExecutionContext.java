@@ -23,12 +23,14 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -118,8 +120,19 @@ public class ClientYamlTestExecutionContext {
         if (bodies.size() == 1) {
             XContentType xContentType = getContentType(headers, XContentType.values());
             BytesRef bytesRef = bodyAsBytesRef(bodies.get(0), xContentType);
-            return new ByteArrayEntity(bytesRef.bytes, bytesRef.offset, bytesRef.length,
-                    ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            String mimeType = xContentType.mediaTypeWithoutParameters();
+
+            MediaType.HeaderValue headerValue = RandomizedTest.randomFrom(xContentType.headerValues().toArray(new MediaType.HeaderValue[0]));
+            String mediaTypeWithoutParameters = headerValue.v1();
+            ContentType contentType = ContentType.create(mediaTypeWithoutParameters, StandardCharsets.UTF_8);
+
+            Map<String, String> parameters = headerValue.v2();
+            if(parameters.containsKey(MediaType.COMPATIBLE_WITH_PARAMETER_NAME)){
+                contentType = contentType.withParameters(new BasicNameValuePair(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
+                    String.valueOf(Version.CURRENT.minimumRestCompatibilityVersion().major)));
+            }
+
+            return new ByteArrayEntity(bytesRef.bytes, bytesRef.offset, bytesRef.length, contentType);
         } else {
             XContentType xContentType = getContentType(headers, STREAMING_CONTENT_TYPES);
             List<BytesRef> bytesRefList = new ArrayList<>(bodies.size());

@@ -174,7 +174,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), null);
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().mediaType());
     }
 
     /**

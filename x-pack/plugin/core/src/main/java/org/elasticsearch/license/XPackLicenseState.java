@@ -395,7 +395,7 @@ public class XPackLicenseState {
         return mode == OperationMode.BASIC;
     }
 
-    /** A wrapper for the license mode and state, to allow atomically swapping. */
+    /** A wrapper for the license mode, state, and expiration date, to allow atomically swapping. */
     private static class Status {
 
         /** The current "mode" of the license (ie license type). */
@@ -404,7 +404,7 @@ public class XPackLicenseState {
         /** True if the license is active, or false if it is expired. */
         final boolean active;
 
-        /** The current expiration date of the license; Long.MAX_VALUE if not avILble yet. */
+        /** The current expiration date of the license; Long.MAX_VALUE if not available yet. */
         final long licenseExpiryDate;
 
         Status(OperationMode mode, boolean active, long licenseExpiryDate) {
@@ -522,8 +522,7 @@ public class XPackLicenseState {
             maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
         }
 
-        if(feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0
-            && now > status.licenseExpiryDate - GRACE_PERIOD_DURATION.getMillis()) {
+        if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 && isLicenseExpiring(now)) {
             HeaderWarning.addWarning("Your license will expire in [{}] days. " +
                     "Contact your administrator or update your license for continued use of features",
                 TimeUnit.MILLISECONDS.toDays(status.licenseExpiryDate - now));
@@ -642,6 +641,22 @@ public class XPackLicenseState {
                 return false;
             }
             return isAllowedByOperationMode(status.mode, minimumMode);
+        });
+    }
+
+    /**
+     * Test whether current license expires in less than {@code GRACE_PERIOD_DURATION}.
+     *
+     * @param now  Current time in milliseconds
+     *
+     * @return true if current license expires in less than {@code GRACE_PERIOD_DURATION}, otherwise false
+     */
+    public boolean isLicenseExpiring(long now) {
+        return checkAgainstStatus(status -> {
+            if (now > status.licenseExpiryDate - GRACE_PERIOD_DURATION.getMillis()) {
+                return true;
+            }
+            return false;
         });
     }
 

@@ -108,6 +108,7 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65086")
     public void testVars() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId).setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ?")))

@@ -84,7 +84,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_9_1 = new Version(7090199, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_9_2 = new Version(7090299, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_9_3 = new Version(7090399, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_9_4 = new Version(7090499, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_7_10_1 = new Version(7100199, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_7_11_0 = new Version(7110099, org.apache.lucene.util.Version.LUCENE_8_7_0);
@@ -260,6 +259,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte build;
     public final org.apache.lucene.util.Version luceneVersion;
     private final String toString;
+    private final int previousMajorId;
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
         this.id = id;
@@ -269,6 +269,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.build = (byte) (id % 100);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
         this.toString = major + "." + minor + "." + revision;
+        this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
     public boolean after(Version version) {
@@ -391,6 +392,22 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
         return compatible;
     }
+
+    /**
+     * Returns the minimum version that can be used for compatible REST API
+     */
+    public Version minimumRestCompatibilityVersion() {
+        return Version.CURRENT.previousMajor();
+    }
+
+    /**
+     * Returns a first major version previous to the version stored in this object.
+     * I.e 8.1.0 will return 7.0.0
+     */
+    public Version previousMajor() {
+        return Version.fromId(previousMajorId);
+    }
+
 
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {

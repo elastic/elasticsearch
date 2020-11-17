@@ -8,19 +8,13 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            properties:
-              timestamp:
-                type: date
-              message:
-                type: keyword
+            runtime:
               day_of_week:
-                type: runtime
-                runtime_type: keyword
+                type: keyword
                 script: |
                   emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
               tomorrow:
-                type: runtime
-                runtime_type: date
+                type: date
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
@@ -28,11 +22,8 @@ setup:
                     }
                   params:
                     days: 1
-              voltage:
-                type: double
               voltage_times_ten:
-                type: runtime
-                runtime_type: long
+                type: long
                 script:
                   source: |
                     for (double v : doc['voltage']) {
@@ -41,8 +32,7 @@ setup:
                   params:
                     multiplier: 10
               voltage_percent:
-                type: runtime
-                runtime_type: double
+                type: double
                 script:
                   source: |
                     for (double v : doc['voltage']) {
@@ -51,16 +41,14 @@ setup:
                   params:
                     max: 5.8
               ip:
-                type: runtime
-                runtime_type: ip
+                type: ip
                 script:
                   source: |
                     String m = doc["message"].value;
                     int end = m.indexOf(" ");
                     emit(m.substring(0, end));
               over_v:
-                type: runtime
-                runtime_type: boolean
+                type: boolean
                 script:
                   source: |
                     for (def v : doc['voltage']) {
@@ -68,6 +56,14 @@ setup:
                     }
                   params:
                     min_v: 5.0
+
+            properties:
+              timestamp:
+                type: date
+              message:
+                type: keyword
+              voltage:
+                type: double
 
   - do:
       bulk:

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -39,7 +38,6 @@ import static org.mockito.Mockito.when;
 
 public class AnalyticsInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
     private Task task;
     private ClusterService clusterService;
     private ClusterName clusterName;
@@ -47,7 +45,6 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
 
     @Before
     public void init() {
-        licenseState = mock(XPackLicenseState.class);
         task = mock(Task.class);
         when(task.getId()).thenReturn(randomLong());
         clusterService = mock(ClusterService.class);
@@ -61,11 +58,11 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() throws Exception {
         AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, licenseState, client);
+            mock(ActionFilters.class), null, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -81,12 +78,12 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
 
     public void testEnabled() throws Exception {
         AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class),
-            clusterService, null, mock(ActionFilters.class), null, licenseState, client);
+            clusterService, null, mock(ActionFilters.class), null, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();

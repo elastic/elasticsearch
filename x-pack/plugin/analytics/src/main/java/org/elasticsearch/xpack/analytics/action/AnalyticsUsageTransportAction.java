@@ -24,16 +24,14 @@ import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
     public AnalyticsUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         XPackLicenseState licenseState, Client client) {
+                                         Client client) {
         super(XPackUsageFeatureAction.ANALYTICS.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
-        this.licenseState = licenseState;
         this.client = client;
     }
 

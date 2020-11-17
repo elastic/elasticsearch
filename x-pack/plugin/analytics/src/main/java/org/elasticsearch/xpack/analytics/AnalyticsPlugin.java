@@ -12,12 +12,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -49,7 +47,6 @@ import org.elasticsearch.xpack.analytics.ttest.PairedTTestState;
 import org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder;
 import org.elasticsearch.xpack.analytics.ttest.TTestState;
 import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
@@ -69,8 +66,6 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     private final AnalyticsUsage usage = new AnalyticsUsage();
 
     public AnalyticsPlugin() { }
-
-    public static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
@@ -111,7 +106,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, TopMetricsAggregationBuilder.PARSER))
                 .addResultReader(InternalTopMetrics::new)
                 .setAggregatorRegistrar(TopMetricsAggregationBuilder::registerAggregators),
             new AggregationSpec(
@@ -123,7 +118,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 RateAggregationBuilder.NAME,
                 RateAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.RATE, checkLicense(RateAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER))
                 .addResultReader(InternalRate::new)
                 .setAggregatorRegistrar(RateAggregationBuilder::registerAggregators)
         );
@@ -175,11 +170,5 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new NamedWriteableRegistry.Entry(TTestState.class, PairedTTestState.NAME, PairedTTestState::new),
             new NamedWriteableRegistry.Entry(TTestState.class, UnpairedTTestState.NAME, UnpairedTTestState::new)
         );
-    }
-
-    private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
-        return (parser, name) -> {
-            return realParser.parse(parser, name);
-        };
     }
 }

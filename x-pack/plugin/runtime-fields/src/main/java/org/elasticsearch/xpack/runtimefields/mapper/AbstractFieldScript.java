@@ -88,17 +88,17 @@ public abstract class AbstractFieldScript {
     }
 
     /**
-     * Expose the {@code _source} to the script.
-     */
-    protected final Map<String, Object> getSource() {
-        return leafSearchLookup.source();
-    }
-
-    /**
      * Expose field data to the script as {@code doc}.
      */
     public final Map<String, ScriptDocValues<?>> getDoc() {
         return leafSearchLookup.doc();
+    }
+
+    /**
+     * A non-public convenience method that's used in testing.
+     */
+    protected final Map<String, Object> getSource() {
+        return leafSearchLookup.source().loadSourceIfNeeded();
     }
 
     /**

@@ -41,10 +41,10 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
-public class SourceLookup implements Map<String, Object> {
+public class SourceLookup {
 
     private LeafReader reader;
-    CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
+    private CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
 
     private int docId = -1;
 
@@ -180,66 +180,5 @@ public class SourceLookup implements Map<String, Object> {
 
     public Object filter(FetchSourceContext context) {
         return context.getFilter().apply(loadSourceIfNeeded());
-    }
-
-    @Override
-    public Object get(Object key) {
-        return loadSourceIfNeeded().get(key);
-    }
-
-    @Override
-    public int size() {
-        return loadSourceIfNeeded().size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return loadSourceIfNeeded().isEmpty();
-    }
-
-    @Override
-    public boolean containsKey(Object key) {
-        return loadSourceIfNeeded().containsKey(key);
-    }
-
-    @Override
-    public boolean containsValue(Object value) {
-        return loadSourceIfNeeded().containsValue(value);
-    }
-
-    @Override
-    public Set<String> keySet() {
-        return loadSourceIfNeeded().keySet();
-    }
-
-    @Override
-    public Collection<Object> values() {
-        return loadSourceIfNeeded().values();
-    }
-
-    @Override
-    public Set<Map.Entry<String, Object>> entrySet() {
-        return loadSourceIfNeeded().entrySet();
-    }
-
-    @Override
-    public Object put(String key, Object value) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Object remove(Object key) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    @SuppressWarnings("rawtypes")
-    public void putAll(Map m) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void clear() {
-        throw new UnsupportedOperationException();
     }
 }

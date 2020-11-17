@@ -267,8 +267,8 @@ this value.
 `tiebreaker_field`::
 (Optional, string)
 Field used to sort hits with the same
-<<eql-search-api-timestamp-field,timestamp>> in ascending, lexicographic order.
-See <<eql-search-specify-a-sort-tiebreaker>>.
+<<eql-search-api-timestamp-field,timestamp>> in ascending order. See
+<<eql-search-specify-a-sort-tiebreaker>>.
 
 [[eql-search-api-timestamp-field]]
 `timestamp_field`::
@@ -512,7 +512,7 @@ in ascending order.
 
 If two or more events share the same timestamp, the
 <<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
-the events in ascending, lexicographic order.
+the events in ascending order.
 
 [source,console-result]
 ----

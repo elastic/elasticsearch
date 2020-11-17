@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
@@ -43,8 +45,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
+import static org.elasticsearch.xpack.ql.util.VersionUtil.isUnsignedLongSupported;
 
 public class SqlDataTypes {
 
@@ -94,6 +98,7 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_SMALLINT", SHORT);
         ODBC_TO_ES.put("SQL_INTEGER", INTEGER);
         ODBC_TO_ES.put("SQL_BIGINT", LONG);
+        ODBC_TO_ES.put("SQL_UBIGINT", UNSIGNED_LONG);
         ODBC_TO_ES.put("SQL_REAL", FLOAT);
         ODBC_TO_ES.put("SQL_FLOAT", DOUBLE);
         ODBC_TO_ES.put("SQL_DOUBLE", DOUBLE);
@@ -202,6 +207,16 @@ public class SqlDataTypes {
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
         return type != null ? type : UNSUPPORTED;
+    }
+
+    public static DataType fromEs(String name, @Nullable Version version) {
+        DataType type = fromEs(name);
+        if (version != null) {
+            if (type == UNSIGNED_LONG && isUnsignedLongSupported(version) == false) {
+                return UNSUPPORTED;
+            }
+        }
+        return type;
     }
 
     public static DataType fromJava(Object value) {
@@ -314,7 +329,7 @@ public class SqlDataTypes {
         if (dataType == INTEGER) {
             return JDBCType.INTEGER;
         }
-        if (dataType == LONG) {
+        if (dataType == LONG || dataType == UNSIGNED_LONG) {
             return JDBCType.BIGINT;
         }
         if (dataType == DOUBLE) {
@@ -440,6 +455,9 @@ public class SqlDataTypes {
         if (dataType == LONG) {
             return 19;
         }
+        if (dataType == UNSIGNED_LONG) {
+            return 20;
+        }
         if (dataType == DOUBLE) {
             return 15;
         }
@@ -557,7 +575,7 @@ public class SqlDataTypes {
         if (dataType == INTEGER) {
             return 11;
         }
-        if (dataType == LONG) {
+        if (dataType == LONG || dataType == UNSIGNED_LONG) {
             return 20;
         }
         if (dataType == DOUBLE) {

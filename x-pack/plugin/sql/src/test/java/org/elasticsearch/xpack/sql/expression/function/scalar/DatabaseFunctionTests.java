@@ -33,12 +33,12 @@ public class DatabaseFunctionTests extends ESTestCase {
                 new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
                                   Protocol.PAGE_TIMEOUT, null,
                                   randomFrom(Mode.values()), randomAlphaOfLength(10),
-                                  null, clusterName, randomBoolean(), randomBoolean()),
+                                  null, null, clusterName, randomBoolean(), randomBoolean()),
                 new SqlFunctionRegistry(),
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())
         );
-        
+
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true);
         NamedExpression ne = result.projections().get(0);
         assertTrue(ne instanceof Alias);

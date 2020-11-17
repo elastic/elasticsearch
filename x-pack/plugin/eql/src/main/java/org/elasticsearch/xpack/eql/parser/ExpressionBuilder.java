@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -199,10 +201,9 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         String text = ctx.getText();
 
-        long value;
-
+        Number value;
         try {
-            value = Long.valueOf(StringUtils.parseLong(text));
+            value = StringUtils.parseInteger(text);
         } catch (QlIllegalArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
@@ -213,15 +214,20 @@ public class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source, siae.getMessage());
         }
 
-        Object val = Long.valueOf(value);
-        DataType type = DataTypes.LONG;
-
-        // try to downsize to int if possible (since that's the most common type)
-        if ((int) value == value) {
-            type = DataTypes.INTEGER;
-            val = Integer.valueOf((int) value);
+        DataType type;
+        if (value instanceof BigInteger) {
+            type = DataTypes.UNSIGNED_LONG;
+        } else {
+            assert value instanceof Long : "Expected value [" + value + "] of type Long but got: " + value.getClass();
+            // try to downsize to int if possible (since that's the most common type)
+            if (value.longValue() == value.intValue()) {
+                type = DataTypes.INTEGER;
+                value = Integer.valueOf(value.intValue());
+            } else {
+                type = DataTypes.LONG;
+            }
         }
-        return new Literal(source, val, type);
+        return new Literal(source, value, type);
     }
 
     @Override

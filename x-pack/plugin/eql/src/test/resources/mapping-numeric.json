@@ -10,6 +10,9 @@
         "@timestamp" : {
             "type" : "date"
         },
+        "unsigned_long_field" : {
+            "type": "unsigned_long"
+        },
         "long_field" : {
             "type" : "long"
         },

@@ -14,13 +14,14 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Random;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class MathProcessor implements Processor {
-    
+
     public enum MathOperation {
         ABS((Object l) -> {
             if (l instanceof Double) {
@@ -28,6 +29,9 @@ public class MathProcessor implements Processor {
             }
             if (l instanceof Float) {
                 return Math.abs(((Float) l).floatValue());
+            }
+            if (l instanceof BigInteger) {
+                return ((BigInteger) l).abs();
             }
 
             // fallback to integer
@@ -82,6 +86,9 @@ public class MathProcessor implements Processor {
             if (l instanceof Float) {
                 return (int) Math.signum((Float) l);
             }
+            if (l instanceof BigInteger) {
+                return ((BigInteger) l).signum();
+            }
 
             return Long.signum(((Number) l).longValue());
         }),
@@ -121,7 +128,7 @@ public class MathProcessor implements Processor {
             return apply.apply(l);
         }
     }
-    
+
     public static final String NAME = "m";
 
     private final MathOperation processor;

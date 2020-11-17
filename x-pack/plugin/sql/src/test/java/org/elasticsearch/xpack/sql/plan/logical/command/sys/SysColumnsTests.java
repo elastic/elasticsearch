@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -52,89 +54,98 @@ public class SysColumnsTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = loadMapping("mapping-multi-field-with-nested.json", true);
+    private static final int FIELD_COUNT = 16;
 
     public void testSysColumns() {
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 randomValueOtherThanMany(Mode::isDriver, () -> randomFrom(Mode.values())));
         // nested fields are ignored
-        assertEquals(15, rows.size());
+        assertEquals(FIELD_COUNT, rows.size());
         assertEquals(24, rows.get(0).size());
 
-        List<?> row = rows.get(0);
+        int index = 0;
+
+        List<?> row = rows.get(index ++);
         assertEquals("bool", name(row));
         assertEquals(Types.BOOLEAN, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(1, bufferLength(row));
 
-        row = rows.get(1);
+        row = rows.get(index ++);
         assertEquals("int", name(row));
         assertEquals(Types.INTEGER, sqlType(row));
         assertEquals(10, radix(row));
         assertEquals(4, bufferLength(row));
 
-        row = rows.get(2);
+        row = rows.get(index ++);
+        assertEquals("unsigned_long", name(row));
+        assertEquals(Types.BIGINT, sqlType(row));
+        assertEquals(10, radix(row));
+        assertEquals(Long.BYTES, bufferLength(row));
+
+        row = rows.get(index ++);
         assertEquals("text", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
-        row = rows.get(3);
+
+        row = rows.get(index ++);
         assertEquals("keyword", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
 
-        row = rows.get(4);
+        row = rows.get(index ++);
         assertEquals("date", name(row));
         assertEquals(Types.TIMESTAMP, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(29, precision(row));
         assertEquals(8, bufferLength(row));
 
-        row = rows.get(5);
+        row = rows.get(index ++);
         assertEquals("some.dotted.field", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
 
-        row = rows.get(6);
+        row = rows.get(index ++);
         assertEquals("some.string", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
-        row = rows.get(7);
+
+        row = rows.get(index ++);
         assertEquals("some.string.normalized", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
-        row = rows.get(8);
+
+        row = rows.get(index ++);
         assertEquals("some.string.typical", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
-        row = rows.get(9);
+
+        row = rows.get(index ++);
         assertEquals("some.ambiguous", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
-        row = rows.get(10);
+
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.one", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
-        row = rows.get(11);
+
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.two", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
 
-        row = rows.get(12);
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.normalized", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -145,16 +156,18 @@ public class SysColumnsTests extends ESTestCase {
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 Mode.ODBC);
-        assertEquals(15, rows.size());
+        assertEquals(FIELD_COUNT, rows.size());
         assertEquals(24, rows.get(0).size());
 
-        List<?> row = rows.get(0);
+        int index = 0;
+
+        List<?> row = rows.get(index ++);
         assertEquals("bool", name(row));
         assertEquals((short) Types.BOOLEAN, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(1, bufferLength(row));
 
-        row = rows.get(1);
+        row = rows.get(index ++);
         assertEquals("int", name(row));
         assertEquals((short) Types.INTEGER, sqlType(row));
         assertEquals(Short.class, radix(row).getClass());
@@ -164,7 +177,17 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(2);
+        row = rows.get(index ++);
+        assertEquals("unsigned_long", name(row));
+        assertEquals((short) Types.BIGINT, sqlType(row));
+        assertEquals(Short.class, radix(row).getClass());
+        assertEquals(Long.BYTES, bufferLength(row));
+        assertNull(decimalPrecision(row));
+        assertEquals(Short.class, nullable(row).getClass());
+        assertEquals(Short.class, sqlDataType(row).getClass());
+        assertEquals(Short.class, sqlDataTypeSub(row).getClass());
+
+        row = rows.get(index ++);
         assertEquals("text", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -174,7 +197,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(3);
+        row = rows.get(index ++);
         assertEquals("keyword", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -184,7 +207,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(4);
+        row = rows.get(index ++);
         assertEquals("date", name(row));
         assertEquals((short) Types.TIMESTAMP, sqlType(row));
         assertEquals(null, radix(row));
@@ -195,7 +218,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(5);
+        row = rows.get(index ++);
         assertEquals("some.dotted.field", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -205,7 +228,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(6);
+        row = rows.get(index ++);
         assertEquals("some.string", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -215,7 +238,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(7);
+        row = rows.get(index ++);
         assertEquals("some.string.normalized", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -225,7 +248,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(8);
+        row = rows.get(index ++);
         assertEquals("some.string.typical", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -235,7 +258,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(9);
+        row = rows.get(index ++);
         assertEquals("some.ambiguous", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -244,8 +267,8 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, nullable(row).getClass());
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
-        
-        row = rows.get(10);
+
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.one", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -254,8 +277,8 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, nullable(row).getClass());
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
-        
-        row = rows.get(11);
+
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.two", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -265,7 +288,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(12);
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.normalized", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -275,21 +298,23 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
     }
-    
+
     public void testSysColumnsInJdbcMode() {
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 Mode.JDBC);
-        assertEquals(15, rows.size());
+        assertEquals(FIELD_COUNT, rows.size());
         assertEquals(24, rows.get(0).size());
 
-        List<?> row = rows.get(0);
+        int index = 0;
+
+        List<?> row = rows.get(index ++);
         assertEquals("bool", name(row));
         assertEquals(Types.BOOLEAN, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(1, bufferLength(row));
 
-        row = rows.get(1);
+        row = rows.get(index ++);
         assertEquals("int", name(row));
         assertEquals(Types.INTEGER, sqlType(row));
         assertEquals(Integer.class, radix(row).getClass());
@@ -299,7 +324,17 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(2);
+        row = rows.get(index ++);
+        assertEquals("unsigned_long", name(row));
+        assertEquals(Types.BIGINT, sqlType(row));
+        assertEquals(Integer.class, radix(row).getClass());
+        assertEquals(Long.BYTES, bufferLength(row));
+        assertNull(decimalPrecision(row));
+        assertEquals(Integer.class, nullable(row).getClass());
+        assertEquals(Integer.class, sqlDataType(row).getClass());
+        assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
+
+        row = rows.get(index ++);
         assertEquals("text", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -309,7 +344,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(3);
+        row = rows.get(index ++);
         assertEquals("keyword", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -319,7 +354,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(4);
+        row = rows.get(index ++);
         assertEquals("date", name(row));
         assertEquals(Types.TIMESTAMP, sqlType(row));
         assertEquals(null, radix(row));
@@ -330,7 +365,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(5);
+        row = rows.get(index ++);
         assertEquals("some.dotted.field", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -340,7 +375,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(6);
+        row = rows.get(index ++);
         assertEquals("some.string", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -350,7 +385,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(7);
+        row = rows.get(index ++);
         assertEquals("some.string.normalized", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -360,7 +395,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(8);
+        row = rows.get(index ++);
         assertEquals("some.string.typical", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -369,8 +404,8 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, nullable(row).getClass());
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
-        
-        row = rows.get(9);
+
+        row = rows.get(index ++);
         assertEquals("some.ambiguous", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -379,8 +414,8 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, nullable(row).getClass());
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
-        
-        row = rows.get(10);
+
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.one", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -389,8 +424,8 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, nullable(row).getClass());
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
-        
-        row = rows.get(11);
+
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.two", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -400,7 +435,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
 
-        row = rows.get(12);
+        row = rows.get(index ++);
         assertEquals("some.ambiguous.normalized", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
@@ -449,7 +484,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsNoArg() throws Exception {
         executeCommand("SYS COLUMNS", emptyList(), r -> {
-            assertEquals(15, r.size());
+            assertEquals(FIELD_COUNT, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             // no index specified
             assertEquals("test", r.column(2));
@@ -464,7 +499,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithCatalogWildcard() throws Exception {
         executeCommand("SYS COLUMNS CATALOG 'cluster' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
-            assertEquals(15, r.size());
+            assertEquals(FIELD_COUNT, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -477,7 +512,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithMissingCatalog() throws Exception {
         executeCommand("SYS COLUMNS TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
-            assertEquals(15, r.size());
+            assertEquals(FIELD_COUNT, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -490,7 +525,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithNullCatalog() throws Exception {
         executeCommand("SYS COLUMNS CATALOG ? TABLE LIKE 'test' LIKE '%'", singletonList(new SqlTypedParamValue("keyword", null)), r -> {
-            assertEquals(15, r.size());
+            assertEquals(FIELD_COUNT, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -507,13 +542,13 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     public void testSysColumnsPaginationInOdbcMode() {
-        assertEquals(15, executeCommandInOdbcModeAndCountRows("SYS COLUMNS"));
-        assertEquals(15, executeCommandInOdbcModeAndCountRows("SYS COLUMNS TABLE LIKE 'test'"));
+        assertEquals(FIELD_COUNT, executeCommandInOdbcModeAndCountRows("SYS COLUMNS"));
+        assertEquals(FIELD_COUNT, executeCommandInOdbcModeAndCountRows("SYS COLUMNS TABLE LIKE 'test'"));
     }
 
     private int executeCommandInOdbcModeAndCountRows(String sql) {
         final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, randomIntBetween(1, 15), Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, Mode.ODBC, null, null, null, false, false);
+            Protocol.PAGE_TIMEOUT, null, Mode.ODBC, null, SqlVersion.fromId(Version.CURRENT.id), null, null, false, false);
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, mapping);
 
         int[] rowCount = {0};
@@ -538,7 +573,7 @@ public class SysColumnsTests extends ESTestCase {
     private void executeCommand(String sql, List<SqlTypedParamValue> params, Mode mode, Consumer<SchemaRowSet> consumer,
                                 Map<String, EsField> mapping) {
         final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, mode, null, null, null, false, false);
+            Protocol.PAGE_TIMEOUT, null, mode, null, SqlVersion.fromId(Version.CURRENT.id), null, null, false, false);
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 
         tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
@@ -559,20 +594,20 @@ public class SysColumnsTests extends ESTestCase {
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any(), any());
         doAnswer(invocation -> {
-            ((ActionListener<List<EsIndex>>) invocation.getArguments()[3]).onResponse(singletonList(test));
+            ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any());
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), any());
 
         SqlSession session = new SqlSession(config, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 
     private static void checkOdbcShortTypes(SchemaRowSet r) {
-        assertEquals(15, r.size());
+        assertEquals(FIELD_COUNT, r.size());
         // https://github.com/elastic/elasticsearch/issues/35376
         // cols that need to be of short type: DATA_TYPE, DECIMAL_DIGITS, NUM_PREC_RADIX, NULLABLE, SQL_DATA_TYPE, SQL_DATETIME_SUB
         List<Integer> cols = Arrays.asList(4, 8, 9, 10, 13, 14);

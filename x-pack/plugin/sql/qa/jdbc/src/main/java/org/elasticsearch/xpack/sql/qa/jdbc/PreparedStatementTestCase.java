@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -27,10 +28,21 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.xpack.sql.jdbc.EsType.BOOLEAN;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.BYTE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DOUBLE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.FLOAT;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.INTEGER;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase {
+
+    static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 
     public void testSupportedTypes() throws SQLException {
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
@@ -42,6 +54,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         byte byteVal = randomByte();
         short shortVal = randomShort();
         BigDecimal bigDecimalVal = BigDecimal.valueOf(randomDouble());
+        BigInteger bigIntegerVal = bigDecimalVal.abs().remainder(new BigDecimal(UNSIGNED_LONG_MAX)).toBigInteger();
         long millis = randomNonNegativeLong();
         Calendar calendarVal = Calendar.getInstance(randomTimeZone(), Locale.ROOT);
         Timestamp timestampVal = new Timestamp(millis);
@@ -61,29 +74,31 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
 
         try (Connection connection = esJdbc()) {
             StringJoiner sql = new StringJoiner(",", "SELECT ", "");
-            for (int i = 0; i < 19; i++) {
+            for (int i = 0; i < 20; i++) {
                 sql.add("?");
             }
             try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
-                statement.setString(1, stringVal);
-                statement.setInt(2, intVal);
-                statement.setLong(3, longVal);
-                statement.setFloat(4, floatVal);
-                statement.setDouble(5, doubleVal);
-                statement.setNull(6, JDBCType.DOUBLE.getVendorTypeNumber());
-                statement.setBoolean(7, booleanVal);
-                statement.setByte(8, byteVal);
-                statement.setShort(9, shortVal);
-                statement.setBigDecimal(10, bigDecimalVal);
-                statement.setTimestamp(11, timestampVal);
-                statement.setTimestamp(12, timestampVal, calendarVal);
-                statement.setDate(13, dateVal);
-                statement.setDate(14, dateVal, calendarVal);
-                statement.setTime(15, timeVal);
-                statement.setTime(16, timeVal, calendarVal);
-                statement.setObject(17, calendarVal);
-                statement.setObject(18, utilDateVal);
-                statement.setObject(19, localDateTimeVal);
+                int index = 1;
+                statement.setString(index ++, stringVal);
+                statement.setInt(index ++, intVal);
+                statement.setLong(index ++, longVal);
+                statement.setFloat(index ++, floatVal);
+                statement.setDouble(index ++, doubleVal);
+                statement.setNull(index ++, JDBCType.DOUBLE.getVendorTypeNumber());
+                statement.setBoolean(index ++, booleanVal);
+                statement.setByte(index ++, byteVal);
+                statement.setShort(index ++, shortVal);
+                statement.setBigDecimal(index ++, bigDecimalVal);
+                statement.setObject(index ++, bigIntegerVal);
+                statement.setTimestamp(index ++, timestampVal);
+                statement.setTimestamp(index ++, timestampVal, calendarVal);
+                statement.setDate(index ++, dateVal);
+                statement.setDate(index ++, dateVal, calendarVal);
+                statement.setTime(index ++, timeVal);
+                statement.setTime(index ++, timeVal, calendarVal);
+                statement.setObject(index ++, calendarVal);
+                statement.setObject(index ++, utilDateVal);
+                statement.setObject(index ++, localDateTimeVal);
 
                 try (ResultSet results = statement.executeQuery()) {
                     ResultSetMetaData resultSetMetaData = results.getMetaData();
@@ -94,25 +109,27 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                         assertEquals(parameterMetaData.getParameterType(i), resultSetMetaData.getColumnType(i));
                     }
                     assertTrue(results.next());
-                    assertEquals(stringVal, results.getString(1));
-                    assertEquals(intVal, results.getInt(2));
-                    assertEquals(longVal, results.getLong(3));
-                    assertEquals(floatVal, results.getFloat(4), 0.00001f);
-                    assertEquals(doubleVal, results.getDouble(5), 0.00001f);
-                    assertNull(results.getObject(6));
-                    assertEquals(booleanVal, results.getBoolean(7));
-                    assertEquals(byteVal, results.getByte(8));
-                    assertEquals(shortVal, results.getShort(9));
-                    assertEquals(bigDecimalVal, results.getBigDecimal(10));
-                    assertEquals(timestampVal, results.getTimestamp(11));
-                    assertEquals(timestampValWithCal, results.getTimestamp(12));
-                    assertEquals(dateVal, results.getDate(13));
-                    assertEquals(dateValWithCal, results.getDate(14));
-                    assertEquals(timeVal, results.getTime(15));
-                    assertEquals(timeValWithCal, results.getTime(16));
-                    assertEquals(new Timestamp(calendarVal.getTimeInMillis()), results.getObject(17));
-                    assertEquals(timestampVal, results.getObject(18));
-                    assertEquals(timestampVal, results.getObject(19));
+                    index = 1;
+                    assertEquals(stringVal, results.getString(index ++));
+                    assertEquals(intVal, results.getInt(index ++));
+                    assertEquals(longVal, results.getLong(index ++));
+                    assertEquals(floatVal, results.getFloat(index ++), 0.00001f);
+                    assertEquals(doubleVal, results.getDouble(index ++), 0.00001f);
+                    assertNull(results.getObject(index ++));
+                    assertEquals(booleanVal, results.getBoolean(index ++));
+                    assertEquals(byteVal, results.getByte(index ++));
+                    assertEquals(shortVal, results.getShort(index ++));
+                    assertEquals(bigDecimalVal, results.getBigDecimal(index ++));
+                    assertEquals(bigIntegerVal, results.getObject(index ++));
+                    assertEquals(timestampVal, results.getTimestamp(index ++));
+                    assertEquals(timestampValWithCal, results.getTimestamp(index ++));
+                    assertEquals(dateVal, results.getDate(index ++));
+                    assertEquals(dateValWithCal, results.getDate(index ++));
+                    assertEquals(timeVal, results.getTime(index ++));
+                    assertEquals(timeValWithCal, results.getTime(index ++));
+                    assertEquals(new Timestamp(calendarVal.getTimeInMillis()), results.getObject(index ++));
+                    assertEquals(timestampVal, results.getObject(index ++));
+                    assertEquals(timestampVal, results.getObject(index ++));
                     assertFalse(results.next());
                 }
             }
@@ -331,6 +348,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
         int intVal = randomInt();
         long longVal = randomLong();
+        BigInteger bigIntegerVal = randomBigInteger();
         double doubleVal = randomDouble();
         float floatVal = randomFloat();
         boolean booleanVal = randomBoolean();
@@ -341,32 +359,39 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
             try (PreparedStatement statement = connection.prepareStatement("SELECT ?")) {
 
                 statement.setString(1, stringVal);
-                assertEquals(new Tuple<>(JDBCType.VARCHAR.getVendorTypeNumber(), stringVal), execute(statement));
+                assertEquals(new Tuple<>(KEYWORD.getName(), stringVal), execute(statement));
                 statement.setInt(1, intVal);
-                assertEquals(new Tuple<>(JDBCType.INTEGER.getVendorTypeNumber(), intVal), execute(statement));
+                assertEquals(new Tuple<>(INTEGER.getName(), intVal), execute(statement));
                 statement.setLong(1, longVal);
-                assertEquals(new Tuple<>(JDBCType.BIGINT.getVendorTypeNumber(), longVal), execute(statement));
+                assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
+                statement.setObject(1, bigIntegerVal);
+                assertEquals(new Tuple<>(UNSIGNED_LONG.getName(), bigIntegerVal), execute(statement));
                 statement.setFloat(1, floatVal);
-                assertEquals(new Tuple<>(JDBCType.REAL.getVendorTypeNumber(), floatVal), execute(statement));
+                assertEquals(new Tuple<>(FLOAT.getName(), floatVal), execute(statement));
                 statement.setDouble(1, doubleVal);
-                assertEquals(new Tuple<>(JDBCType.DOUBLE.getVendorTypeNumber(), doubleVal), execute(statement));
+                assertEquals(new Tuple<>(DOUBLE.getName(), doubleVal), execute(statement));
                 statement.setNull(1, JDBCType.DOUBLE.getVendorTypeNumber());
-                assertEquals(new Tuple<>(JDBCType.DOUBLE.getVendorTypeNumber(), null), execute(statement));
+                assertEquals(new Tuple<>(DOUBLE.getName(), null), execute(statement));
                 statement.setBoolean(1, booleanVal);
-                assertEquals(new Tuple<>(JDBCType.BOOLEAN.getVendorTypeNumber(), booleanVal), execute(statement));
+                assertEquals(new Tuple<>(BOOLEAN.getName(), booleanVal), execute(statement));
                 statement.setByte(1, byteVal);
-                assertEquals(new Tuple<>(JDBCType.TINYINT.getVendorTypeNumber(), byteVal), execute(statement));
+                assertEquals(new Tuple<>(BYTE.getName(), byteVal), execute(statement));
                 statement.setShort(1, shortVal);
-                assertEquals(new Tuple<>(JDBCType.SMALLINT.getVendorTypeNumber(), shortVal), execute(statement));
+                assertEquals(new Tuple<>(SHORT.getName(), shortVal), execute(statement));
+
+                statement.setObject(1, longVal, JDBCType.BIGINT, 19);
+                assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
+                statement.setObject(1, Math.abs(longVal), JDBCType.BIGINT, 20);
+                assertEquals(new Tuple<>(UNSIGNED_LONG.getName(), BigInteger.valueOf(Math.abs(longVal))), execute(statement));
             }
         }
     }
 
-    private Tuple<Integer, Object> execute(PreparedStatement statement) throws SQLException {
+    private Tuple<String, Object> execute(PreparedStatement statement) throws SQLException {
         try (ResultSet results = statement.executeQuery()) {
             ResultSetMetaData resultSetMetaData = results.getMetaData();
             assertTrue(results.next());
-            Tuple<Integer, Object> result = new Tuple<>(resultSetMetaData.getColumnType(1), results.getObject(1));
+            Tuple<String, Object> result = new Tuple<>(resultSetMetaData.getColumnTypeName(1), results.getObject(1));
             assertFalse(results.next());
             return result;
         }

@@ -176,6 +176,7 @@ public class VerifierTests extends ESTestCase {
     // Test all elasticsearch numeric field types
     public void testNumeric() {
         final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
+        accept(idxr, "foo where unsigned_long_field == 0");
         accept(idxr, "foo where long_field == 0");
         accept(idxr, "foo where integer_field == 0");
         accept(idxr, "foo where short_field == 0");

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -64,6 +65,8 @@ import static java.util.Calendar.MINUTE;
 import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
 
 public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
@@ -71,6 +74,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         "test_byte",
         "test_integer",
         "test_long",
+        "test_unsigned_long",
         "test_short",
         "test_double",
         "test_float",
@@ -78,13 +82,14 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     ).collect(Collectors.toCollection(HashSet::new));
     static final Map<Tuple<String, Object>, SQLType> dateTimeTestingFields = new HashMap<>();
     static final String SELECT_ALL_FIELDS = "SELECT test_boolean, test_byte, test_integer,"
-        + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test";
+        + "test_long, test_unsigned_long, test_short, test_double, test_float, test_keyword, test_date FROM test";
     static final String SELECT_WILDCARD = "SELECT * FROM test";
     static {
         dateTimeTestingFields.put(new Tuple<>("test_boolean", true), EsType.BOOLEAN);
         dateTimeTestingFields.put(new Tuple<>("test_byte", 1), EsType.BYTE);
         dateTimeTestingFields.put(new Tuple<>("test_integer", 1), EsType.INTEGER);
         dateTimeTestingFields.put(new Tuple<>("test_long", 1L), EsType.LONG);
+        dateTimeTestingFields.put(new Tuple<>("test_unsigned_long", BigInteger.ONE), UNSIGNED_LONG);
         dateTimeTestingFields.put(new Tuple<>("test_short", 1), EsType.SHORT);
         dateTimeTestingFields.put(new Tuple<>("test_double", 1d), EsType.DOUBLE);
         dateTimeTestingFields.put(new Tuple<>("test_float", 1f), EsType.FLOAT);
@@ -231,6 +236,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         short shortNotByte = (short) randomIntBetween(Byte.MAX_VALUE + 1, Short.MAX_VALUE);
         double doubleNotByte = randomDoubleBetween(Byte.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotByte = randomFloatBetween(Byte.MAX_VALUE + 1, Float.MAX_VALUE);
+        BigInteger bigIntegerNotByte = BigInteger.valueOf(longNotByte);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
         long randomDate = randomNonNegativeLong();
 
@@ -241,6 +247,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         index("test", "1", builder -> {
             builder.field("test_integer", intNotByte);
             builder.field("test_long", longNotByte);
+            builder.field("test_unsigned_long", bigIntegerNotByte);
             builder.field("test_short", shortNotByte);
             builder.field("test_double", doubleNotByte);
             builder.field("test_float", floatNotByte);
@@ -260,6 +267,13 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", shortNotByte), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_short", Byte.class));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", shortNotByte), sqle.getMessage());
+
+            sqle = expectThrows(SQLException.class, () -> results.getByte("test_unsigned_long"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%s] of type [UNSIGNED_LONG] to [Byte]", bigIntegerNotByte),
+                sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_unsigned_long", Byte.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%s] of type [UNSIGNED_LONG] to [Byte]", bigIntegerNotByte),
+                sqle.getMessage());
 
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_long"));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotByte)), sqle.getMessage());
@@ -367,6 +381,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         long longNotShort = randomLongBetween(Short.MAX_VALUE + 1, Long.MAX_VALUE);
         double doubleNotShort = randomDoubleBetween(Short.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotShort = randomFloatBetween(Short.MAX_VALUE + 1, Float.MAX_VALUE);
+        BigInteger bigIntegerNotShort = BigInteger.valueOf(longNotShort);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
         long randomDate = randomNonNegativeLong();
 
@@ -377,6 +392,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         index("test", "1", builder -> {
             builder.field("test_integer", intNotShort);
             builder.field("test_long", longNotShort);
+            builder.field("test_unsigned_long", bigIntegerNotShort);
             builder.field("test_double", doubleNotShort);
             builder.field("test_float", floatNotShort);
             builder.field("test_keyword", randomString);
@@ -395,6 +411,13 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", longNotShort), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Short.class));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", longNotShort), sqle.getMessage());
+
+            sqle = expectThrows(SQLException.class, () -> results.getShort("test_unsigned_long"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%s] of type [UNSIGNED_LONG] to [Short]", bigIntegerNotShort),
+                sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_unsigned_long", Short.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%s] of type [UNSIGNED_LONG] to [Short]", bigIntegerNotShort),
+                sqle.getMessage());
 
             sqle = expectThrows(SQLException.class, () -> results.getShort("test_double"));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
@@ -496,6 +519,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         long longNotInt = randomLongBetween(getMaxIntPlusOne(), Long.MAX_VALUE);
         double doubleNotInt = randomDoubleBetween(getMaxIntPlusOne().doubleValue(), Double.MAX_VALUE, true);
         float floatNotInt = randomFloatBetween(getMaxIntPlusOne().floatValue(), Float.MAX_VALUE);
+        BigInteger bigIntegerNotInt = BigInteger.valueOf(longNotInt);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
         long randomDate = randomNonNegativeLong();
 
@@ -505,6 +529,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
         index("test", "1", builder -> {
             builder.field("test_long", longNotInt);
+            builder.field("test_unsigned_long", bigIntegerNotInt);
             builder.field("test_double", doubleNotInt);
             builder.field("test_float", floatNotInt);
             builder.field("test_keyword", randomString);
@@ -518,6 +543,13 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotInt)), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Integer.class));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotInt)), sqle.getMessage());
+
+            sqle = expectThrows(SQLException.class, () -> results.getInt("test_unsigned_long"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%s] of type [UNSIGNED_LONG] to [Integer]", bigIntegerNotInt),
+                sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_unsigned_long", Integer.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%s] of type [UNSIGNED_LONG] to [Integer]", bigIntegerNotInt),
+                sqle.getMessage());
 
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_double"));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
@@ -615,10 +647,12 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
         double doubleNotLong = randomDoubleBetween(getMaxLongPlusOne(), Double.MAX_VALUE, true);
         float floatNotLong = randomFloatBetween(getMaxLongPlusOne().floatValue(), Float.MAX_VALUE);
+        BigInteger bigIntegerNotLong = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomNonNegativeLong()));
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
         long randomDate = randomNonNegativeLong();
 
         index("test", "1", builder -> {
+            builder.field("test_unsigned_long", bigIntegerNotLong);
             builder.field("test_double", doubleNotLong);
             builder.field("test_float", floatNotLong);
             builder.field("test_keyword", randomString);
@@ -628,7 +662,14 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(SELECT_WILDCARD, results -> {
             results.next();
 
-            SQLException sqle = expectThrows(SQLException.class, () -> results.getLong("test_double"));
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getLong("test_unsigned_long"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%s] of type [UNSIGNED_LONG] to [Long]", bigIntegerNotLong),
+                sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_unsigned_long", Long.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%s] of type [UNSIGNED_LONG] to [Long]", bigIntegerNotLong),
+                sqle.getMessage());
+
+            sqle = expectThrows(SQLException.class, () -> results.getLong("test_double"));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Long.class));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
@@ -657,6 +698,92 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Long.class));
             assertEquals(
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Long]", asDateString(randomDate)),
+                sqle.getMessage()
+            );
+        });
+    }
+
+    // BigInteger/unsigned_long values testing
+    public void testGettingValidBigIntegerWithoutCasting() throws IOException, SQLException {
+        List<BigInteger> bigIntegerTestValues = createTestDataForNumericValueTests(ESTestCase::randomBigInteger);
+        BigInteger random1 = bigIntegerTestValues.get(0);
+        BigInteger random2 = bigIntegerTestValues.get(1);
+        BigInteger random3 = bigIntegerTestValues.get(2);
+
+        doWithQuery("SELECT test_unsigned_long, test_null_unsigned_long, test_keyword FROM test", results -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
+
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(UNSIGNED_LONG.getName(), resultSetMetaData.getColumnTypeName(1));
+            assertEquals(random1, results.getObject(1));
+            assertEquals(random1, results.getObject("test_unsigned_long"));
+            assertEquals(random1, results.getObject("test_unsigned_long", BigInteger.class));
+            assertTrue(results.getObject(1) instanceof BigInteger);
+
+            assertEquals(UNSIGNED_LONG.getName(), resultSetMetaData.getColumnTypeName(2));
+            assertNull(results.getObject(2));
+            assertTrue(results.wasNull());
+            assertNull(results.getObject("test_null_unsigned_long"));
+            assertTrue(results.wasNull());
+
+            assertTrue(results.next());
+            assertEquals(random2, results.getObject(1));
+            assertEquals(random2, results.getObject("test_unsigned_long"));
+            assertTrue(results.getObject(1) instanceof BigInteger);
+            assertEquals(random3.toString(), results.getObject("test_keyword"));
+
+            assertFalse(results.next());
+        });
+    }
+
+    public void testGettingValidBigIntegerWithCasting() throws IOException, SQLException {
+        Map<String, Number> map = createTestDataForNumericValueTypes(ESTestCase::randomBigInteger);
+
+        doWithQuery(SELECT_WILDCARD, results -> {
+            results.next();
+            for (Entry<String, Number> e : map.entrySet()) {
+                BigInteger actual = results.getObject(e.getKey(), BigInteger.class);
+                if (e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), e.getValue(), actual.floatValue());
+                } else if (e.getValue() instanceof Double) {
+                    assertEquals("For field " + e.getKey(), e.getValue(), actual.doubleValue());
+                } else {
+                    assertEquals("For field " + e.getKey(), e.getValue().longValue(), results.getLong(e.getKey()));
+                    assertEquals("For field " + e.getKey(), e.getValue().longValue(), actual.longValue());
+                }
+            }
+        });
+    }
+
+    public void testGettingInvalidBigInteger() throws IOException, SQLException {
+        createIndex("test");
+        updateMappingForNumericValuesTests("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+            builder.startObject("test_date").field("type", "date").endObject();
+        });
+
+        String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomNonNegativeLong();
+
+        index("test", "1", builder -> {
+            builder.field("test_keyword", randomString);
+            builder.field("test_date", randomDate);
+        });
+
+        doWithQuery(SELECT_WILDCARD, results -> {
+            results.next();
+
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", BigInteger.class));
+            assertEquals(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [BigInteger]", randomString),
+                sqle.getMessage()
+            );
+
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", BigInteger.class));
+            assertEquals(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigInteger]", asDateString(randomDate)),
                 sqle.getMessage()
             );
         });
@@ -1082,6 +1209,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.field("test_byte", 0);
             builder.field("test_integer", 0);
             builder.field("test_long", 0L);
+            builder.field("test_unsigned_long", 0L);
             builder.field("test_short", 0);
             builder.field("test_double", 0d);
             builder.field("test_float", 0f);
@@ -1094,6 +1222,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.field("test_byte", randomValueOtherThan((byte) 0, ESTestCase::randomByte));
             builder.field("test_integer", randomValueOtherThan(0, ESTestCase::randomInt));
             builder.field("test_long", randomValueOtherThan(0L, ESTestCase::randomLong));
+            builder.field("test_unsigned_long", randomValueOtherThan(BigInteger.ZERO, ESTestCase::randomBigInteger));
             builder.field("test_short", randomValueOtherThan((short) 0, ESTestCase::randomShort));
             builder.field(
                 "test_double",
@@ -1174,9 +1303,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             java.sql.Date expectedDate = JdbcTestUtils.asDate(randomLongDate, getZoneFromOffset(randomLongDate));
 
             assertEquals(expectedDate, results.getDate("test_date"));
-            assertEquals(expectedDate, results.getDate(9));
+            assertEquals(expectedDate, results.getDate(10));
             assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
-            assertEquals(expectedDate, results.getObject(9, java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject(10, java.sql.Date.class));
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTestsWithoutCalendar(results::getDate);
@@ -1206,7 +1335,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.set(MILLISECOND, 0);
 
             assertEquals(results.getDate("test_date", c), new java.sql.Date(c.getTimeInMillis()));
-            assertEquals(results.getDate(9, c), new java.sql.Date(c.getTimeInMillis()));
+            assertEquals(results.getDate(10, c), new java.sql.Date(c.getTimeInMillis()));
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTimeTestsWithCalendar(c, results::getDate);
@@ -1232,9 +1361,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             java.sql.Time expectedTime = JdbcTestUtils.asTime(randomLongDate, getZoneFromOffset(randomLongDate));
 
             assertEquals(expectedTime, results.getTime("test_date"));
-            assertEquals(expectedTime, results.getTime(9));
+            assertEquals(expectedTime, results.getTime(10));
             assertEquals(expectedTime, results.getObject("test_date", java.sql.Time.class));
-            assertEquals(expectedTime, results.getObject(9, java.sql.Time.class));
+            assertEquals(expectedTime, results.getObject(10, java.sql.Time.class));
 
             validateErrorsForTimeTestsWithoutCalendar(results::getTime);
         });
@@ -1263,7 +1392,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.set(DAY_OF_MONTH, 1);
 
             assertEquals(results.getTime("test_date", c), new java.sql.Time(c.getTimeInMillis()));
-            assertEquals(results.getTime(9, c), new java.sql.Time(c.getTimeInMillis()));
+            assertEquals(results.getTime(10, c), new java.sql.Time(c.getTimeInMillis()));
 
             validateErrorsForDateTimeTestsWithCalendar(c, results::getTime);
 
@@ -1333,7 +1462,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.setTimeInMillis(randomLongDate);
 
             assertEquals(results.getTimestamp("test_date", c), new java.sql.Timestamp(c.getTimeInMillis()));
-            assertEquals(results.getTimestamp(9, c), new java.sql.Timestamp(c.getTimeInMillis()));
+            assertEquals(results.getTimestamp(10, c), new java.sql.Timestamp(c.getTimeInMillis()));
 
             validateErrorsForDateTimeTestsWithCalendar(c, results::getTimestamp);
 
@@ -1943,22 +2072,23 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         T random2 = randomValueOtherThan(random1, numberGenerator);
         T random3 = randomValueOtherThanMany(Arrays.asList(random1, random2)::contains, numberGenerator);
 
-        Class<? extends Number> clazz = random1.getClass();
-        String primitiveName = clazz.getSimpleName().toLowerCase(Locale.ROOT);
+        EsType esType = of(random1.getClass());
+        assertNotNull(esType);
+        String esTypeName = esType.getName().toLowerCase(Locale.ROOT);
 
         createIndex("test");
         updateMapping("test", builder -> {
-            builder.startObject("test_" + primitiveName).field("type", primitiveName).endObject();
-            builder.startObject("test_null_" + primitiveName).field("type", primitiveName).endObject();
+            builder.startObject("test_" + esTypeName).field("type", esTypeName).endObject();
+            builder.startObject("test_null_" + esTypeName).field("type", esTypeName).endObject();
             builder.startObject("test_keyword").field("type", "keyword").endObject();
         });
 
         index("test", "1", builder -> {
-            builder.field("test_" + primitiveName, random1);
-            builder.field("test_null_" + primitiveName, (Byte) null);
+            builder.field("test_" + esTypeName, random1);
+            builder.field("test_null_" + esTypeName, (Byte) null);
         });
         index("test", "2", builder -> {
-            builder.field("test_" + primitiveName, random2);
+            builder.field("test_" + esTypeName, random2);
             builder.field("test_keyword", random3);
         });
 
@@ -1991,6 +2121,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.field("test_byte", 1);
             builder.field("test_integer", 1);
             builder.field("test_long", 1L);
+            builder.field("test_unsigned_long", 1L);
             builder.field("test_short", 1);
             builder.field("test_double", 1d);
             builder.field("test_float", 1f);
@@ -2028,6 +2159,12 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             long test_long = randomValueOtherThanMany(map::containsValue, randomGenerator).longValue();
             builder.field("test_long", test_long);
             map.put("test_long", test_long);
+
+            // random BigInteger/unsigned_long
+            BigInteger test_unsigned_long = BigInteger.valueOf(randomValueOtherThanMany(map::containsValue, randomGenerator).longValue())
+                .abs();
+            builder.field("test_unsigned_long", test_unsigned_long);
+            map.put("test_unsigned_long", test_unsigned_long);
 
             // random Double
             double test_double = randomValueOtherThanMany(map::containsValue, randomGenerator).doubleValue();
@@ -2127,7 +2264,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private String asDateString(long millis) {
-        return JdbcTestUtils.of(millis, timeZoneId);
+        return of(millis, timeZoneId);
     }
 
     private ZoneId getZoneFromOffset(Long randomLongDate) {

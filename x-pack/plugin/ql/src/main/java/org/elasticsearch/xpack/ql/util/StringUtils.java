@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.util.Check.isUnsignedLong;
 
 public final class StringUtils {
 
@@ -322,6 +323,23 @@ public final class StringUtils {
             } catch (NumberFormatException ex) {
                 // parsing fails, go through
             }
+            throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
+        }
+    }
+
+    public static Number parseInteger(String string) throws QlIllegalArgumentException {
+        try {
+            BigInteger bi = new BigInteger(string);
+            try {
+                if (bi.signum() < 0 || bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0) {
+                    return bi.longValueExact();
+                }
+                isUnsignedLong(bi);
+                return bi;
+            } catch (ArithmeticException ae) {
+                throw new QlIllegalArgumentException("Number [{}] is too large", string);
+            }
+        } catch (NumberFormatException ex) {
             throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
         }
     }

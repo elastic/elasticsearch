@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.Version;
+
 import java.util.Collection;
 
 /**
@@ -19,6 +21,11 @@ public interface DataTypeRegistry {
     Collection<DataType> dataTypes();
 
     DataType fromEs(String typeName);
+
+    // version-dependent type resolution
+    default DataType fromEs(String typeName, Version version) {
+        return fromEs(typeName);
+    }
 
     DataType fromJava(Object value);
 

@@ -5,24 +5,63 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.GregorianCalendar;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 final class JdbcTestUtils {
 
     private JdbcTestUtils() {}
 
+    private static final Map<Class<?>, EsType> CLASS_TO_ES_TYPE;
+
     static final ZoneId UTC = ZoneId.of("Z");
     static final String JDBC_TIMEZONE = "timezone";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+
+    static {
+        Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
+        aMap.put(Boolean.class, EsType.BOOLEAN);
+        aMap.put(Byte.class, EsType.BYTE);
+        aMap.put(Short.class, EsType.SHORT);
+        aMap.put(Integer.class, EsType.INTEGER);
+        aMap.put(Long.class, EsType.LONG);
+        aMap.put(BigInteger.class, EsType.UNSIGNED_LONG);
+        aMap.put(Float.class, EsType.FLOAT);
+        aMap.put(Double.class, EsType.DOUBLE);
+        aMap.put(String.class, EsType.KEYWORD);
+        aMap.put(byte[].class, EsType.BINARY);
+        aMap.put(Timestamp.class, EsType.DATETIME);
+
+        // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
+        // according to B-4 table from the jdbc4.2 spec
+        aMap.put(Calendar.class, EsType.DATETIME);
+        aMap.put(GregorianCalendar.class, EsType.DATETIME);
+        aMap.put(java.util.Date.class, EsType.DATETIME);
+        aMap.put(java.sql.Date.class, EsType.DATETIME);
+        aMap.put(java.sql.Time.class, EsType.TIME);
+        aMap.put(LocalDateTime.class, EsType.DATETIME);
+        CLASS_TO_ES_TYPE = Collections.unmodifiableMap(aMap);
+    }
+
+    static EsType of(Class<?> clazz) {
+        return CLASS_TO_ES_TYPE.get(clazz);
+    }
 
     static String of(long millis, String zoneId) {
         return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));

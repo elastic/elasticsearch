@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -26,6 +27,11 @@ public class SqlDataTypeRegistry implements DataTypeRegistry {
     @Override
     public DataType fromEs(String typeName) {
         return SqlDataTypes.fromEs(typeName);
+    }
+
+    @Override
+    public DataType fromEs(String typeName, Version version) {
+        return SqlDataTypes.fromEs(typeName, version);
     }
 
     @Override

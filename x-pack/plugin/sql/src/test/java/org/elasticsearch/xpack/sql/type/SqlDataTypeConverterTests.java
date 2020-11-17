@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
@@ -148,6 +150,16 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(date(bi.longValue()), conversion.convert(bi));
+
+            BigInteger tooLarge = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(tooLarge));
+            assertEquals("[" + tooLarge + "] out of [long] range", e.getMessage());
+        }
+        {
             Converter conversion = converterFor(INTEGER, to);
             assertNull(conversion.convert(null));
             assertEquals(date(10L), conversion.convert(10));
@@ -218,6 +230,16 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(time(11L), conversion.convert(10.6));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(time(bi.longValue()), conversion.convert(bi));
+
+            BigInteger tooLarge = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(tooLarge));
+            assertEquals("[" + tooLarge + "] out of [long] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(INTEGER, to);
@@ -506,6 +528,30 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         }
     }
 
+    public void testConversiontoUnsignedLong() {
+        DataType to = UNSIGNED_LONG;
+        {
+            Converter conversion = converterFor(DATE, to);
+            assertNull(conversion.convert(null));
+
+            long l = randomNonNegativeLong();
+            ZonedDateTime zdt = asDateOnly(l);
+            assertEquals(BigInteger.valueOf(zdt.toEpochSecond() * 1000), conversion.convert(zdt));
+
+            ZonedDateTime zdtn = asDateOnly(-l);
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(zdtn));
+            assertEquals("[" + zdtn.toEpochSecond() * 1000 + "] out of [unsigned_long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(TIME, to);
+            assertNull(conversion.convert(null));
+
+            long l = randomLong();
+            OffsetTime ot = asTimeOnly(l);
+            assertEquals(BigInteger.valueOf(ot.atDate(DateUtils.EPOCH).toInstant().toEpochMilli()), conversion.convert(ot));
+        }
+    }
+
     public void testConversionToInt() {
         DataType to = INTEGER;
         {
@@ -711,7 +757,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
                 .filter(SqlDataTypes::isInterval)
                 .collect(toList()));
     }
-    
+
     static ZonedDateTime dateTime(long millisSinceEpoch) {
         return DateUtils.asDateTime(millisSinceEpoch);
     }

@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
+import java.math.BigInteger;
 import java.util.function.BiFunction;
+
+import static org.elasticsearch.xpack.ql.util.Check.isUnsignedLong;
 
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely
@@ -31,6 +34,22 @@ public final class Arithmetics {
         }
     }
 
+    private static BigInteger unsignedLongOperation(Number l, Number r, BiFunction<BigInteger, BigInteger, BigInteger> op) {
+        BigInteger biLeft, biRight;
+        if (l instanceof BigInteger) {
+            biLeft = (BigInteger) l;
+            biRight = BigInteger.valueOf(r.longValue());
+        } else if (r instanceof BigInteger) {
+            biLeft = BigInteger.valueOf(l.longValue());
+            biRight = (BigInteger) r;
+        } else {
+            return null;
+        }
+        BigInteger bi = op.apply(biLeft, biRight);
+        isUnsignedLong(bi);
+        return bi;
+    }
+
     public static Number add(Number l, Number r) {
         if (l == null || r == null) {
             return null;
@@ -41,6 +60,10 @@ public final class Arithmetics {
         }
         if (l instanceof Float || r instanceof Float) {
             return Float.valueOf(l.floatValue() + r.floatValue());
+        }
+        BigInteger bi = unsignedLongOperation(l, r, BigInteger::add);
+        if (bi != null) {
+            return bi;
         }
         if (l instanceof Long || r instanceof Long) {
             return Long.valueOf(Math.addExact(l.longValue(), r.longValue()));
@@ -60,6 +83,10 @@ public final class Arithmetics {
         if (l instanceof Float || r instanceof Float) {
             return Float.valueOf(l.floatValue() - r.floatValue());
         }
+        BigInteger bi = unsignedLongOperation(l, r, BigInteger::subtract);
+        if (bi != null) {
+            return bi;
+        }
         if (l instanceof Long || r instanceof Long) {
             return Long.valueOf(Math.subtractExact(l.longValue(), r.longValue()));
         }
@@ -77,6 +104,16 @@ public final class Arithmetics {
         }
         if (l instanceof Float || r instanceof Float) {
             return Float.valueOf(l.floatValue() * r.floatValue());
+        }
+        // Note: in case of unsigned_long overflow (or underflow, with negative fixed point numbers), the exception is thrown.
+        // This is unlike the way some other traditional RDBMS that support unsigned types work, which simply promote the result to a
+        // floating point type, but in line with how our implementation treats other fixed point type operations (i.e. Math#xxExact()).
+        // The reason for our behavior is (prolly) the need to establish a schema based on an index mapping. Noteworthy however is also
+        // that we're not strictly consistent with the returned type: a `SUM(field)` aggregation can return a floating point, for example.
+        // TODO: document this last point or address it?
+        BigInteger bi = unsignedLongOperation(l, r, BigInteger::multiply);
+        if (bi != null) {
+            return bi;
         }
         if (l instanceof Long || r instanceof Long) {
             return Long.valueOf(Math.multiplyExact(l.longValue(), r.longValue()));
@@ -96,6 +133,10 @@ public final class Arithmetics {
         if (l instanceof Float || r instanceof Float) {
             return l.floatValue() / r.floatValue();
         }
+        BigInteger bi = unsignedLongOperation(l, r, BigInteger::divide);
+        if (bi != null) {
+            return bi;
+        }
         if (l instanceof Long || r instanceof Long) {
             return l.longValue() / r.longValue();
         }
@@ -113,6 +154,10 @@ public final class Arithmetics {
         }
         if (l instanceof Float || r instanceof Float) {
             return Float.valueOf(l.floatValue() % r.floatValue());
+        }
+        BigInteger bi = unsignedLongOperation(l, r, BigInteger::remainder);
+        if (bi != null) {
+            return bi;
         }
         if (l instanceof Long || r instanceof Long) {
             return Long.valueOf(l.longValue() % r.longValue());
@@ -139,6 +184,12 @@ public final class Arithmetics {
                 throw new ArithmeticException("float overflow");
             }
             return Float.valueOf(-n.floatValue());
+        }
+        if (n instanceof BigInteger) {
+            if (((BigInteger) n).signum() != 0) {
+                throw new ArithmeticException("unsigned_long overflow");
+            }
+            return n;
         }
         if (n instanceof Long) {
             return Long.valueOf(Math.negateExact(n.longValue()));

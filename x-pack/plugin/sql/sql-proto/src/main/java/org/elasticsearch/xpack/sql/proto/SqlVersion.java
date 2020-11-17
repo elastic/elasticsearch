@@ -65,6 +65,13 @@ public class SqlVersion implements Comparable<SqlVersion>{
         return new SqlVersion(version, from(version));
     }
 
+    public static SqlVersion fromId(int id) {
+        byte revision = (byte) ((id / REVISION_MULTIPLIER) % REVISION_MULTIPLIER);
+        byte minor = (byte) ((id / MINOR_MULTIPLIER) % REVISION_MULTIPLIER);
+        byte major = (byte) ((id / MAJOR_MULTIPLIER) % REVISION_MULTIPLIER);
+        return new SqlVersion(major, minor, revision);
+    }
+
     protected static byte[] from(String ver) {
         String[] parts = ver.split("[.-]");
         // Allow for optional snapshot and qualifier (Major.Minor.Revision-Qualifier-SNAPSHOT)

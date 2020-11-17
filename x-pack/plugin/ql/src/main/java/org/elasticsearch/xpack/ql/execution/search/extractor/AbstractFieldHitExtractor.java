@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -27,10 +28,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.
@@ -182,25 +187,16 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                 return values;
             }
             if (dataType.isNumeric() && isFromDocValuesOnly(dataType) == false) {
-                if (dataType == DataTypes.DOUBLE || dataType == DataTypes.FLOAT || dataType == DataTypes.HALF_FLOAT) {
-                    Number result = null;
-                    try {
-                        result = numberType(dataType).parse(values, true);
-                    } catch(IllegalArgumentException iae) {
-                        return null;
-                    }
-                    // docvalue_fields is always returning a Double value even if the underlying floating point data type is not Double
-                    // even if we don't extract from docvalue_fields anymore, the behavior should be consistent
-                    return result.doubleValue();
-                } else {
-                    Number result = null;
-                    try {
-                        result = numberType(dataType).parse(values, true);
-                    } catch(IllegalArgumentException iae) {
-                        return null;
-                    }
-                    return result;
+                Number result = null;
+                try {
+                    // TODO: don't mapper modules expose _source parsing methods? should the _source be (re)validated?
+                    result = dataType == UNSIGNED_LONG ? new BigInteger(values.toString()) : numberType(dataType).parse(values, true);
+                } catch(IllegalArgumentException iae) {
+                    return null;
                 }
+                // docvalue_fields is always returning a Double value even if the underlying floating point data type is not Double
+                // even if we don't extract from docvalue_fields anymore, the behavior should be consistent
+                return dataType.isRational() ? result.doubleValue() : result;
             } else if (DataTypes.isString(dataType)) {
                 return values.toString();
             } else {
@@ -215,7 +211,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                     || dataType == DATETIME
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }
-    
+
     private static NumberType numberType(DataType dataType) {
         return NumberType.valueOf(dataType.esType().toUpperCase(Locale.ROOT));
     }

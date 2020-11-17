@@ -12,12 +12,13 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
-import java.util.function.LongFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
@@ -31,8 +32,11 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.ql.util.Check.UNSIGNED_LONG_MAX;
+import static org.elasticsearch.xpack.ql.util.Check.isUnsignedLong;
 
 /**
  * Conversion utility from one Elasticsearch data type to another Elasticsearch data types.
@@ -72,6 +76,9 @@ public final class DataTypeConverter {
             if (left.isInteger()) {
                 // promote the highest int
                 if (right.isInteger()) {
+                    if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
+                        return UNSIGNED_LONG;
+                    }
                     return left.size() > right.size() ? left : right;
                 }
                 // promote the rational
@@ -129,6 +136,9 @@ public final class DataTypeConverter {
         if (to == LONG) {
             return conversionToLong(from);
         }
+        if (to == UNSIGNED_LONG) {
+            return conversionToUnsignedLong(from);
+        }
         if (to == INTEGER) {
             return conversionToInt(from);
         }
@@ -166,6 +176,25 @@ public final class DataTypeConverter {
     private static Converter conversionToIp(DataType from) {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_IP;
+        }
+        return null;
+    }
+
+    private static Converter conversionToUnsignedLong(DataType from) {
+        if (from.isRational()) {
+            return DefaultConverter.RATIONAL_TO_UNSIGNED_LONG;
+        }
+        if (from.isInteger()) {
+            return DefaultConverter.INTEGER_TO_UNSIGNED_LONG;
+        }
+        if (from == BOOLEAN) {
+            return DefaultConverter.BOOL_TO_UNSIGNED_LONG;
+        }
+        if (isString(from)) {
+            return DefaultConverter.STRING_TO_UNSIGNED_LONG;
+        }
+        if (from == DATETIME) {
+            return DefaultConverter.DATETIME_TO_UNSIGNED_LONG;
         }
         return null;
     }
@@ -334,15 +363,61 @@ public final class DataTypeConverter {
         return (int) x;
     }
 
-    public static long safeToLong(double x) {
+    public static long safeDoubleToLong(double x) {
         if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
             throw new QlIllegalArgumentException("[" + x + "] out of [long] range");
         }
         return Math.round(x);
     }
 
+    public static Long safeToLong(Number x) {
+        try {
+            if (x instanceof BigInteger) {
+                return ((BigInteger) x).longValueExact();
+            }
+            // integer converters are also provided double values (aggs generated on integer fields)
+            if (x instanceof Double || x instanceof Float) {
+                return safeDoubleToLong(x.doubleValue());
+            }
+            return x.longValue();
+        } catch (ArithmeticException ae) {
+            throw new QlIllegalArgumentException("[" + x + "] out of [long] range", ae);
+        }
+    }
+
+    // 18446744073709551615.0
+    private static final double UNSIGNED_LONG_MAX_AS_DOUBLE = UNSIGNED_LONG_MAX.doubleValue();
+
+    public static BigInteger safeToUnsignedLong(Double x) {
+        // UNSIGNED_LONG_MAX can't be represented precisely enough on a double, being converted as a rounded up value.
+        // Converting it to a double and back will yield a larger unsigned long, so the double comparison is still preferred, but
+        // it'll require the equality check. (BigDecimal comparisons only make sense for string-recovered floating point numbers.)
+        // This also means that 18446744073709551615.0 is actually a double too high to be converted as an unsigned long.
+        if (x < 0 || x >= UNSIGNED_LONG_MAX_AS_DOUBLE) {
+            throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range");
+        }
+        return BigDecimal.valueOf(x).toBigInteger();
+    }
+
+    public static BigInteger safeToUnsignedLong(Long x) {
+        if (x < 0) {
+            throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range");
+        }
+        return BigInteger.valueOf(x);
+    }
+
+    public static BigInteger safeToUnsignedLong(String x) {
+        BigInteger bi = new BigDecimal(x).toBigInteger();
+        try {
+            isUnsignedLong(bi);
+        } catch (ArithmeticException ae) {
+            throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range", ae);
+        }
+        return bi;
+    }
+
     public static Number toInteger(double x, DataType dataType) {
-        long l = safeToLong(x);
+        long l = safeDoubleToLong(x);
 
         if (dataType == BYTE) {
             return safeToByte(l);
@@ -391,42 +466,47 @@ public final class DataTypeConverter {
     public enum DefaultConverter implements Converter {
         IDENTITY(Function.identity()),
         TO_NULL(value -> null),
-        
+
         DATETIME_TO_STRING(o -> DateUtils.toString((ZonedDateTime) o)),
         OTHER_TO_STRING(String::valueOf),
 
-        RATIONAL_TO_LONG(fromDouble(DataTypeConverter::safeToLong)),
-        INTEGER_TO_LONG(fromLong(value -> value)),
+        RATIONAL_TO_UNSIGNED_LONG(fromDouble(DataTypeConverter::safeToUnsignedLong)),
+        INTEGER_TO_UNSIGNED_LONG(fromNumber(value -> DataTypeConverter.safeToUnsignedLong(value.longValue()))),
+        STRING_TO_UNSIGNED_LONG(fromString(DataTypeConverter::safeToUnsignedLong,"unsigned_long")),
+        DATETIME_TO_UNSIGNED_LONG(fromDateTime(DataTypeConverter::safeToUnsignedLong)),
+
+        RATIONAL_TO_LONG(fromDouble(DataTypeConverter::safeDoubleToLong)),
+        INTEGER_TO_LONG(fromNumber(DataTypeConverter::safeToLong)),
         STRING_TO_LONG(fromString(Long::valueOf, "long")),
         DATETIME_TO_LONG(fromDateTime(value -> value)),
 
-        RATIONAL_TO_INT(fromDouble(value -> safeToInt(safeToLong(value)))),
-        INTEGER_TO_INT(fromLong(DataTypeConverter::safeToInt)),
+        RATIONAL_TO_INT(fromDouble(value -> safeToInt(safeDoubleToLong(value)))),
+        INTEGER_TO_INT(fromNumber(value -> safeToInt(safeToLong(value)))),
         BOOL_TO_INT(fromBool(value -> value ? 1 : 0)),
         STRING_TO_INT(fromString(Integer::valueOf, "integer")),
         DATETIME_TO_INT(fromDateTime(DataTypeConverter::safeToInt)),
 
-        RATIONAL_TO_SHORT(fromDouble(value -> safeToShort(safeToLong(value)))),
-        INTEGER_TO_SHORT(fromLong(DataTypeConverter::safeToShort)),
+        RATIONAL_TO_SHORT(fromDouble(value -> safeToShort(safeDoubleToLong(value)))),
+        INTEGER_TO_SHORT(fromNumber(value -> safeToShort(safeToLong(value)))),
         BOOL_TO_SHORT(fromBool(value -> value ? (short) 1 : (short) 0)),
         STRING_TO_SHORT(fromString(Short::valueOf, "short")),
         DATETIME_TO_SHORT(fromDateTime(DataTypeConverter::safeToShort)),
 
-        RATIONAL_TO_BYTE(fromDouble(value -> safeToByte(safeToLong(value)))),
-        INTEGER_TO_BYTE(fromLong(DataTypeConverter::safeToByte)),
+        RATIONAL_TO_BYTE(fromDouble(value -> safeToByte(safeDoubleToLong(value)))),
+        INTEGER_TO_BYTE(fromNumber(value -> safeToByte(safeToLong(value)))),
         BOOL_TO_BYTE(fromBool(value -> value ? (byte) 1 : (byte) 0)),
         STRING_TO_BYTE(fromString(Byte::valueOf, "byte")),
         DATETIME_TO_BYTE(fromDateTime(DataTypeConverter::safeToByte)),
 
-        // TODO floating point conversions are lossy but conversions to integer conversions are not. Are we ok with that?
+        // TODO floating point conversions are lossy but conversions to integer are not. Are we ok with that?
         RATIONAL_TO_FLOAT(fromDouble(value -> (float) value)),
-        INTEGER_TO_FLOAT(fromLong(value -> (float) value)),
+        INTEGER_TO_FLOAT(fromNumber(Number::floatValue)),
         BOOL_TO_FLOAT(fromBool(value -> value ? 1f : 0f)),
         STRING_TO_FLOAT(fromString(Float::valueOf, "float")),
         DATETIME_TO_FLOAT(fromDateTime(value -> (float) value)),
 
         RATIONAL_TO_DOUBLE(fromDouble(Double::valueOf)),
-        INTEGER_TO_DOUBLE(fromLong(Double::valueOf)),
+        INTEGER_TO_DOUBLE(fromNumber(Number::doubleValue)),
         BOOL_TO_DOUBLE(fromBool(value -> value ? 1d : 0d)),
         STRING_TO_DOUBLE(fromString(Double::valueOf, "double")),
         DATETIME_TO_DOUBLE(fromDateTime(Double::valueOf)),
@@ -436,10 +516,11 @@ public final class DataTypeConverter {
         BOOL_TO_DATETIME(toDateTime(BOOL_TO_INT)),
         STRING_TO_DATETIME(fromString(DateUtils::asDateTime, "datetime")),
 
-        NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
+        NUMERIC_TO_BOOLEAN(fromDouble(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConverter::convertToBoolean, "boolean")),
         DATETIME_TO_BOOLEAN(fromDateTime(value -> value != 0)),
 
+        BOOL_TO_UNSIGNED_LONG(fromBool(value -> value ? BigInteger.ONE : BigInteger.ZERO)),
         BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L)),
 
         STRING_TO_IP(o -> {
@@ -461,11 +542,11 @@ public final class DataTypeConverter {
             return (Object l) -> converter.apply(((Number) l).doubleValue());
         }
 
-        private static Function<Object, Object> fromLong(LongFunction<Object> converter) {
-            return (Object l) -> converter.apply(((Number) l).longValue());
+        private static Function<Object, Object> fromNumber(Function<Number, Object> converter) {
+            return l -> converter.apply((Number) l);
         }
-        
-        private static Function<Object, Object> fromString(Function<String, Object> converter, String to) {
+
+        public static Function<Object, Object> fromString(Function<String, Object> converter, String to) {
             return (Object value) -> {
                 try {
                     return converter.apply(value.toString());

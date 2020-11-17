@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultCo
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
@@ -681,21 +682,27 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
         Tuple<Source, String> tuple = withMinus(ctx);
 
-        long value;
+        Number value;
         try {
-            value = Long.valueOf(StringUtils.parseLong(tuple.v2()));
+            value = StringUtils.parseInteger(tuple.v2());
         } catch (QlIllegalArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
 
-        Object val = Long.valueOf(value);
-        DataType type = DataTypes.LONG;
-        // try to downsize to int if possible (since that's the most common type)
-        if ((int) value == value) {
-            type = DataTypes.INTEGER;
-            val = Integer.valueOf((int) value);
+        DataType type;
+        if (value instanceof BigInteger) {
+            type = DataTypes.UNSIGNED_LONG;
+        } else {
+            assert value instanceof Long : "Expected value [" + value + "] of type Long but got: " + value.getClass();
+            // try to downsize to int if possible (since that's the most common type)
+            if (value.longValue() == value.intValue()) {
+                type = DataTypes.INTEGER;
+                value = Integer.valueOf(value.intValue());
+            } else {
+                type = DataTypes.LONG;
+            }
         }
-        return new Literal(tuple.v1(), val, type);
+        return new Literal(tuple.v1(), value, type);
     }
 
     @Override

@@ -38,7 +38,7 @@ public final class SqlTestUtils {
 
     public static final SqlConfiguration TEST_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN,
-            null, null, null, false, false);
+            null, null, null, null, false, false);
 
     public static SqlConfiguration randomConfiguration() {
         return new SqlConfiguration(randomZone(),
@@ -48,6 +48,7 @@ public final class SqlTestUtils {
                 null,
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
+                null,
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 false,
@@ -62,6 +63,7 @@ public final class SqlTestUtils {
                 null,
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
+                null,
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 false,

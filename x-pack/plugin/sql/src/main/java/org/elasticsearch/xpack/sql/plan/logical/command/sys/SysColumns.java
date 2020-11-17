@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -37,6 +38,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.displaySize;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDateTimeSub;
@@ -126,9 +128,10 @@ public class SysColumns extends Command {
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
         boolean includeFrozen = session.configuration().includeFrozen();
 
+        Version version = isDriver(session.configuration().mode()) ? Version.fromId(session.configuration().version().id) : null;
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen,
+            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, version,
                 ActionListener.wrap(esIndices -> {
                     List<List<?>> rows = new ArrayList<>();
                     for (EsIndex esIndex : esIndices) {
@@ -139,7 +142,7 @@ public class SysColumns extends Command {
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen,
+            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, version,
                 ActionListener.wrap(r -> {
                     List<List<?>> rows = new ArrayList<>();
                     // populate the data only when a target is found

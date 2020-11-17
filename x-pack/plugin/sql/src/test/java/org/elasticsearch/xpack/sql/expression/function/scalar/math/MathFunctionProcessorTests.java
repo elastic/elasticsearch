@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.util.Arrays;
 
 public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<MathProcessor> {
     public static MathProcessor randomMathFunctionProcessor() {
@@ -55,7 +57,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertNotNull(proc.process(null));
         assertNotNull(proc.process(randomLong()));
     }
-    
+
     public void testFloor() {
         MathProcessor proc = new MathProcessor(MathOperation.FLOOR);
         assertNull(proc.process(null));
@@ -64,7 +66,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertEquals(3.0, proc.process(3.9));
         assertEquals(-13.0, proc.process(-12.1));
     }
-    
+
     public void testCeil() {
         MathProcessor proc = new MathProcessor(MathOperation.CEIL);
         assertNull(proc.process(null));
@@ -72,5 +74,20 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertEquals(4.0, proc.process(3.3));
         assertEquals(4.0, proc.process(3.9));
         assertEquals(-12.0, proc.process(-12.1));
+    }
+
+    public void testUnsignedLongAbs() {
+        MathProcessor proc = new MathProcessor(MathOperation.ABS);
+        BigInteger bi = randomBigInteger();
+        assertEquals(bi, proc.process(bi));
+    }
+
+    public void testUnsignedLongSign() {
+        MathProcessor proc = new MathProcessor(MathOperation.SIGN);
+        for (BigInteger bi : Arrays.asList(BigInteger.valueOf(randomNonNegativeLong()), BigInteger.ZERO)) {
+            Object val = proc.process(bi);
+            assertEquals(bi.intValue() == 0 ? 0 : 1, val);
+            assertTrue(val instanceof Integer);
+        }
     }
 }

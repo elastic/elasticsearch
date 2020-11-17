@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -161,6 +162,9 @@ final class TypeConverter {
         if (type == Long.class) {
             return (T) asLong(val, columnType, typeString);
         }
+        if (type == BigInteger.class) {
+            return (T) asBigInteger(val, columnType, typeString);
+        }
         if (type == Float.class) {
             return (T) asFloat(val, columnType, typeString);
         }
@@ -223,6 +227,8 @@ final class TypeConverter {
                 return ((Number) v).intValue();
             case LONG:
                 return ((Number) v).longValue();
+            case UNSIGNED_LONG:
+                return new BigInteger(v.toString());
             case HALF_FLOAT:
             case SCALED_FLOAT:
             case DOUBLE:
@@ -320,11 +326,12 @@ final class TypeConverter {
             case SHORT:
             case INTEGER:
             case LONG:
+            case UNSIGNED_LONG:
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
             case DOUBLE:
-                return Boolean.valueOf(Integer.signum(((Number) val).intValue()) != 0);
+                return Boolean.valueOf(((Number) val).doubleValue() != 0);
             case KEYWORD:
             case TEXT:
                 return Boolean.valueOf((String) val);
@@ -342,6 +349,12 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return safeToByte(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                try {
+                    return ((BigInteger) val).byteValueExact();
+                } catch (ArithmeticException ae) {
+                    return failConversion(val, columnType, typeString, Byte.class, ae);
+                }
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -369,6 +382,12 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return safeToShort(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                try {
+                    return ((BigInteger) val).shortValueExact();
+                } catch (ArithmeticException ae) {
+                    return failConversion(val, columnType, typeString, Short.class, ae);
+                }
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -395,6 +414,12 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return safeToInt(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                try {
+                    return ((BigInteger) val).intValueExact();
+                } catch (ArithmeticException ae) {
+                    return failConversion(val, columnType, typeString, Integer.class, ae);
+                }
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -421,6 +446,12 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return Long.valueOf(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                try {
+                    return ((BigInteger) val).longValueExact();
+                } catch (ArithmeticException ae) {
+                    return failConversion(val, columnType, typeString, Long.class, ae);
+                }
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -453,6 +484,8 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return Float.valueOf(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return ((BigInteger) val).floatValue();
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -479,6 +512,8 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return Double.valueOf(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return ((BigInteger) val).doubleValue();
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -533,6 +568,34 @@ final class TypeConverter {
         throw new SQLFeatureNotSupportedException();
     }
 
+    private static BigInteger asBigInteger(Object val, EsType columnType, String typeString) throws SQLException {
+        switch (columnType) {
+            case BOOLEAN:
+                return ((Boolean) val).booleanValue() ? BigInteger.ONE : BigInteger.ZERO;
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+            case LONG:
+                return BigInteger.valueOf(((Number)val).longValue());
+            case UNSIGNED_LONG:
+                return new BigInteger(val.toString());
+            case FLOAT:
+            case HALF_FLOAT:
+            case SCALED_FLOAT:
+            case DOUBLE:
+                return BigDecimal.valueOf(((Number) val).doubleValue()).toBigInteger(); // no safeguarding limits checking needed
+            case KEYWORD:
+            case TEXT:
+                try {
+                    return new BigDecimal(val.toString()).toBigInteger();
+                } catch (NumberFormatException e) {
+                    return failConversion(val, columnType, typeString, BigInteger.class, e);
+                }
+            default:
+        }
+        return failConversion(val, columnType, typeString, BigInteger.class);
+    }
+
     private static BigDecimal asBigDecimal(Object val, EsType columnType, String typeString) throws SQLException {
         switch (columnType) {
             case BOOLEAN:
@@ -542,6 +605,8 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return BigDecimal.valueOf(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return new BigDecimal((BigInteger) val);
             case FLOAT:
             case HALF_FLOAT:
                 // floats are passed in as doubles here, so we need to dip into string to keep original float's (reduced) precision.

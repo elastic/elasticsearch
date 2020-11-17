@@ -21,6 +21,7 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
         "test_byte",
         "test_integer",
         "test_long",
+        "test_unsigned_long",
         "test_short",
         "test_double",
         "test_float",
@@ -36,13 +37,14 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
             }
         });
 
-        String q = "SELECT test_byte, test_integer, test_long, test_short, test_double, test_float, test_keyword, "
+        String q = "SELECT test_byte, test_integer, test_long, test_unsigned_long, test_short, test_double, test_float, test_keyword, "
             + "test_boolean, test_date FROM test";
         doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames));
 
-        q = "SELECT test_byte AS b, test_integer AS i, test_long AS l, test_short AS s, test_double AS d, test_float AS f, "
-            + "test_keyword AS k, test_boolean AS bool, test_date AS dt FROM test";
-        doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), new String[] { "b", "i", "l", "s", "d", "f", "k", "bool", "dt" }));
+        q = "SELECT test_byte AS b, test_integer AS i, test_long AS l, test_unsigned_long AS ul, test_short AS s, test_double AS d, "
+            + "test_float AS f, test_keyword AS k, test_boolean AS bool, test_date AS dt FROM test";
+        doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(),
+            new String[] { "b", "i", "l", "ul", "s", "d", "f", "k", "bool", "dt" }));
     }
 
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {

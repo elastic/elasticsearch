@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -179,7 +180,9 @@ public class CacheService extends AbstractLifecycleComponent {
             final Path path = cacheDir.resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(key.toString(), fileLength, path, CacheService.this::onCacheFileUpdate);
+            final SetOnce<CacheFile> cacheFile = new SetOnce<>();
+            cacheFile.set(new CacheFile(key.toString(), fileLength, path, () -> onCacheFileUpdate(cacheFile.get())));
+            return cacheFile.get();
         });
     }
 
@@ -213,13 +216,14 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param cacheFile the instance that needs to be fsync
      */
     void onCacheFileUpdate(CacheFile cacheFile) {
+        assert cacheFile != null;
         cacheFilesToSync.offer(cacheFile);
     }
 
     /**
      * This method is invoked after a {@link CacheFile} is evicted from the cache.
      * <p>
-     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted.d
+     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted.
      *
      * @param cacheFile the evicted instance
      */

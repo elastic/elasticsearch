@@ -78,11 +78,10 @@ public class CacheFile {
     private final AtomicBoolean needsFsync = new AtomicBoolean();
 
     /**
-     * A consumer that accepts the current {@link CacheFile} instance every time the {@link #needsFsync} flag is toggled to {@code true},
-     * which indicates that the cache file has been updated.
-     * See {@link #markAsNeedsFSync()} method.
+     * A runnable that is executed every time the {@link #needsFsync} flag is toggled to {@code true}, which indicates that the cache file
+     * has been updated. See {@link #markAsNeedsFSync()} method.
      */
-    private final Consumer<CacheFile> needsFsyncListener;
+    private final Runnable needsFsyncRunnable;
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
@@ -124,11 +123,11 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
-    public CacheFile(String description, long length, Path file, Consumer<CacheFile> fsyncListener) {
+    public CacheFile(String description, long length, Path file, Runnable onNeedFSync) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
-        this.needsFsyncListener = Objects.requireNonNull(fsyncListener);
+        this.needsFsyncRunnable = Objects.requireNonNull(onNeedFSync);
         assert invariant();
     }
 
@@ -433,7 +432,7 @@ public class CacheFile {
      */
     private void markAsNeedsFSync() {
         if (needsFsync.getAndSet(true) == false) {
-            needsFsyncListener.accept(this);
+            needsFsyncRunnable.run();
         }
     }
 

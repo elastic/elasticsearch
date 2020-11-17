@@ -42,8 +42,6 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.MIN_SNAPSHOT_CACHE_SYNC_INTERVAL;
-
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
 
     private static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(

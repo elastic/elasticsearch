@@ -248,7 +248,7 @@ public class BootstrapForTesting {
 
             // if the codebases file is inside a jar, then we don't need to load it since the jar will
             // have already been read from the classpath
-            if (policyFile.toString().contains(".jar") == false) {
+            if (policyFile.toString().contains(".jar!") == false) {
                 Path policyPath = PathUtils.get(policyFile.toURI());
                 Path codebasesPath = policyPath.getParent().resolve("plugin-security.codebases");
 

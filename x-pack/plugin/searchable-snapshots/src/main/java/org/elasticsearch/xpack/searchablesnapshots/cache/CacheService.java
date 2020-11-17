@@ -246,7 +246,7 @@ public class CacheService extends AbstractLifecycleComponent {
         long count = 0L;
         final Set<Path> cacheDirs = new HashSet<>();
         final long startTimeNanos = threadPool.relativeTimeInNanos();
-        final int maxCacheFilesToSync = this.maxCacheFilesToSyncAtOnce;
+        final int maxCacheFilesToSync = Math.min(cacheFilesToSync.size(), this.maxCacheFilesToSyncAtOnce);
         for (long i = 0L; i < maxCacheFilesToSync; i++) {
             if (lifecycleState() != Lifecycle.State.STARTED) {
                 logger.debug("stopping cache synchronization (cache service is closing)");

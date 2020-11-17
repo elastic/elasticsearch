@@ -6,6 +6,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.MachineLearningClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -98,9 +99,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 createJobAndSnapshots();
                 break;
             case MIXED:
+                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
                 testSnapshotUpgradeFailsOnMixedCluster();
                 break;
             case UPGRADED:
+                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");

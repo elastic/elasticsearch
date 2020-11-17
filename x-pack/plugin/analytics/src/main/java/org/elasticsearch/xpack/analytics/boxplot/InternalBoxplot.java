@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -164,9 +165,9 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
-    public static List<String> metricNames = Stream.of(Metrics.values())
+    public static Set<String> metricNames = Stream.of(Metrics.values())
         .map(m -> m.name().toLowerCase(Locale.ROOT))
-        .collect(Collectors.toList());
+        .collect(Collectors.toSet());
 
     private final TDigestState state;
 

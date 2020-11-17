@@ -33,6 +33,8 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
@@ -63,6 +65,18 @@ public abstract class AggregationBuilder
     /** Return this aggregation's name. */
     public String getName() {
         return name;
+    }
+
+    /**
+     * Return the field names this aggregation creates.
+     *
+     * This method is a optional helper for clients that need to know the output field names.
+     *
+     * @return The set of output field names this aggregation produces without sub-aggregation and
+     * convenience outputs ("..._as_string") or Optional.empty() if unknown or not implemented.
+     */
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.empty();
     }
 
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */

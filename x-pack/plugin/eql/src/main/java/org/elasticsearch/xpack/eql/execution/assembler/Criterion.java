@@ -25,7 +25,7 @@ public class Criterion<Q extends QueryRequest> {
 
     private final boolean descending;
 
-    Criterion(int stage,
+    public Criterion(int stage,
               Q queryRequest,
               List<HitExtractor> keys,
               HitExtractor timestamp,
@@ -83,7 +83,7 @@ public class Criterion<Q extends QueryRequest> {
 
         if (tiebreaker != null) {
             Object tb = tiebreaker.extract(hit);
-            if (tb instanceof Comparable == false) {
+            if (tb != null && tb instanceof Comparable == false) {
                 throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
             }
             tbreaker = (Comparable<Object>) tb;

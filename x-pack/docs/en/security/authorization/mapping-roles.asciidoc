@@ -10,12 +10,17 @@ For other types of realms, you must create _role-mappings_ that define which
 roles should be assigned to each user based on their username, groups, or
 other metadata.
 
+NOTE: When <<anonymous-access,anonymous access>> is enabled, the roles
+of the anonymous user are assigned to all the other users as well.
+
 You can define role-mappings via an
 <<mapping-roles-api, API>> or manage them through <<mapping-roles-file, files>>.
 These two sources of role-mapping are combined inside of the {es}
 {security-features}, so it is
 possible for a single user to have some roles that have been mapped through
 the API, and other roles that are mapped through files.
+
+NOTE: Users with no roles assigned will be unauthorized for any action.
 
 When you use role-mappings, you assign existing roles to users.
 The available roles should either be added using the
@@ -25,13 +30,8 @@ either role management method. For example, when you use the role mapping API,
 you are able to map users to both API-managed roles and file-managed roles
 (and likewise for file-based role-mappings).
 
-NOTE: The PKI, LDAP, Kerberos and SAML realms support using
+TIP: The PKI, LDAP, Kerberos, OpenID Connect, and SAML realms support using
 <<authorization_realms,authorization realms>> as an alternative to role mapping.
-
-NOTE: When <<anonymous-access,anonymous access>> is enabled, the roles
-of the anonymous user are assigned to all the other users as well.
-
-NOTE: Users with no roles assigned will be unauthorized for any action.
 
 [[mapping-roles-api]]
 ==== Using the role mapping API
@@ -49,10 +49,10 @@ this.
 By default, role mappings are stored in `ES_PATH_CONF/role_mapping.yml`,
 where `ES_PATH_CONF` is `ES_HOME/config` (zip/tar installations) or
 `/etc/elasticsearch` (package installations). To specify a different location,
-you configure the `files.role_mapping` setting in the 
-<<ref-ad-settings,Active Directory>>, 
-<<ref-ldap-settings,LDAP>>, and 
-<<ref-pki-settings,PKI>> realm settings in 
+you configure the `files.role_mapping` setting in the
+<<ref-ad-settings,Active Directory>>,
+<<ref-ldap-settings,LDAP>>, and
+<<ref-pki-settings,PKI>> realm settings in
 `elasticsearch.yml`.
 
 Within the role mapping file, the security roles are keys and groups and users
@@ -67,9 +67,9 @@ this is a common setting in Elasticsearch, changing its value might effect other
 schedules in the system.
 
 While the _role mapping APIs_ is the preferred way to manage role mappings, using
-the `role_mappings.yml` file becomes useful in a couple of use cases: 
+the `role_mappings.yml` file becomes useful in a couple of use cases:
 
-. If you want to define fixed role mappings that no one (besides an administrator 
+. If you want to define fixed role mappings that no one (besides an administrator
 with physical access to the {es} nodes) would be able to change.
 
 . If cluster administration depends on users from external realms and these users
@@ -82,7 +82,7 @@ as a minimal administrative function and is not intended to cover and be used to
 define roles for all use cases.
 
 IMPORTANT: You cannot view, edit, or remove any roles that are defined in the role
-mapping files by using the role mapping APIs. 
+mapping files by using the role mapping APIs.
 
 ==== Realm specific details
 [discrete]

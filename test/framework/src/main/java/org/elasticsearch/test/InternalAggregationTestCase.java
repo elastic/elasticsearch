@@ -368,13 +368,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, inputs.size());
-            List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
+            List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
+            // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
+            toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
             @SuppressWarnings("unchecked")
-            T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
+            T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
             int initialBucketCount = 0;
-            for (InternalAggregation internalAggregation : internalAggregations) {
+            for (InternalAggregation internalAggregation : toPartialReduce) {
                 initialBucketCount += countInnerBucket(internalAggregation);
             }
             int reducedBucketCount = countInnerBucket(reduced);

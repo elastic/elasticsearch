@@ -23,9 +23,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,6 +37,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return Collections.singletonList(new TestRuntimeField.Plugin());
+    }
 
     private XContentBuilder dynamicMapping(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> buildFields)
         throws IOException {
@@ -172,6 +180,32 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
                 "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
+    }
+
+    public void testDynamicUpdateWithRuntimeField() throws Exception {
+        MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "test")));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("test", "value")));
+        assertEquals("{\"_doc\":{\"properties\":{" +
+            "\"test\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate().root));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        Mapping merged = mapperService.documentMapper().mapping();
+        assertNotNull(merged.root.getMapper("test"));
+        assertEquals(1, merged.root.runtimeFieldTypes().size());
+        assertEquals("field", merged.root.runtimeFieldTypes().iterator().next().name());
+    }
+
+    public void testDynamicUpdateWithRuntimeFieldSameName() throws Exception {
+        MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "test")));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "value")));
+        assertEquals("{\"_doc\":{\"properties\":{" +
+            "\"field\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate().root));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        Mapping merged = mapperService.documentMapper().mapping();
+        assertNotNull(merged.root.getMapper("field"));
+        assertEquals(1, merged.root.runtimeFieldTypes().size());
+        assertEquals("field", merged.root.runtimeFieldTypes().iterator().next().name());
     }
 
     public void testIncremental() throws Exception {
@@ -475,5 +509,4 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         assertThat(mapperService.fieldType("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
-
 }

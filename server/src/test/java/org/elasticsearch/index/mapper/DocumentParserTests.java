@@ -41,7 +41,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +56,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new DocumentParserTestsPlugin());
+        return List.of(new DocumentParserTestsPlugin(), new TestRuntimeField.Plugin());
     }
 
     public void testDynamicUpdateWithRuntimeField() throws Exception {
@@ -65,14 +64,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("test", "value")));
         RootObjectMapper root = doc.dynamicMappingsUpdate().root;
         assertEquals(0, root.runtimeFieldTypes().size());
-        assertEquals(1, size(root.iterator()));
         assertNotNull(root.getMapper("test"));
-        doc.addDynamicMappingsUpdate(mapper.mapping());
-        Mapping merged = doc.dynamicMappingsUpdate();
-        assertEquals(1, size(merged.root.iterator()));
-        assertNotNull(merged.root.getMapper("test"));
-        assertEquals(1, merged.root.runtimeFieldTypes().size());
-        assertEquals("field", merged.root.runtimeFieldTypes().iterator().next().name());
     }
 
     public void testDynamicUpdateWithRuntimeFieldSameName() throws Exception {
@@ -80,23 +72,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
         RootObjectMapper root = doc.dynamicMappingsUpdate().root;
         assertEquals(0, root.runtimeFieldTypes().size());
-        assertEquals(1, size(root.iterator()));
         assertNotNull(root.getMapper("field"));
-        doc.addDynamicMappingsUpdate(mapper.mapping());
-        Mapping merged = doc.dynamicMappingsUpdate();
-        assertEquals(1, size(merged.root.iterator()));
-        assertNotNull(merged.root.getMapper("field"));
-        assertEquals(1, merged.root.runtimeFieldTypes().size());
-        assertEquals("field", merged.root.runtimeFieldTypes().iterator().next().name());
-    }
-
-    private static int size(Iterator<Mapper> iterator) {
-        int count = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            count++;
-        }
-        return count;
     }
 
     public void testFieldDisabled() throws Exception {
@@ -1487,11 +1463,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
             return Collections.singletonMap(MockMetadataMapper.CONTENT_TYPE, MockMetadataMapper.PARSER);
-        }
-
-        @Override
-        public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-            return Collections.singletonMap("test", (name, node, parserContext) -> new TestRuntimeField(name));
         }
     }
 }

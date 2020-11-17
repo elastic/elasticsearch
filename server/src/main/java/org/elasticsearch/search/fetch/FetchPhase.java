@@ -119,7 +119,6 @@ public class FetchPhase {
         FetchContext fetchContext = new FetchContext(context);
 
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
-        Map<String, Object> sharedCache = new HashMap<>();
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext);
 
@@ -160,9 +159,7 @@ public class FetchPhase {
                     docId,
                     storedToRequestedFields,
                     currentReaderContext,
-                    fieldReader,
-                    sharedCache
-                );
+                    fieldReader);
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }
@@ -280,8 +277,7 @@ public class FetchPhase {
                                          int docId,
                                          Map<String, Set<String>> storedToRequestedFields,
                                          LeafReaderContext subReaderContext,
-                                         CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader,
-                                         Map<String, Object> sharedCache) throws IOException {
+                                         CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader) throws IOException {
         int rootDocId = findRootDocumentIfNested(context, subReaderContext, docId - subReaderContext.docBase);
         if (rootDocId == -1) {
             return prepareNonNestedHitContext(
@@ -291,12 +287,9 @@ public class FetchPhase {
                 docId,
                 storedToRequestedFields,
                 subReaderContext,
-                storedFieldReader,
-                sharedCache
-            );
+                storedFieldReader);
         } else {
-            return prepareNestedHitContext(context, docId, rootDocId, storedToRequestedFields,
-                subReaderContext, storedFieldReader, sharedCache);
+            return prepareNestedHitContext(context, docId, rootDocId, storedToRequestedFields, subReaderContext, storedFieldReader);
         }
     }
 
@@ -308,20 +301,19 @@ public class FetchPhase {
      *     fetch subphases that use the hit context to access the preloaded source.
      */
     private HitContext prepareNonNestedHitContext(SearchContext context,
-                                   SearchLookup lookup,
-                                   FieldsVisitor fieldsVisitor,
-                                   int docId,
-                                   Map<String, Set<String>> storedToRequestedFields,
-                                   LeafReaderContext subReaderContext,
-                                   CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
-                                   Map<String, Object> sharedCache) throws IOException {
+                                                  SearchLookup lookup,
+                                                  FieldsVisitor fieldsVisitor,
+                                                  int docId,
+                                                  Map<String, Set<String>> storedToRequestedFields,
+                                                  LeafReaderContext subReaderContext,
+                                                  CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
         DocumentMapper documentMapper = context.mapperService().documentMapper();
         Text typeText = documentMapper.typeText();
 
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, typeText, null, null);
-            return new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
+            return new HitContext(hit, subReaderContext, subDocId, lookup.source());
         } else {
             SearchHit hit;
             loadStoredFields(context.mapperService(), fieldReader, fieldsVisitor, subDocId);
@@ -335,7 +327,7 @@ public class FetchPhase {
                 hit = new SearchHit(docId, uid.id(), typeText, emptyMap(), emptyMap());
             }
 
-            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
+            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
             if (fieldsVisitor.source() != null) {
                 hitContext.sourceLookup().setSource(fieldsVisitor.source());
             }
@@ -357,8 +349,8 @@ public class FetchPhase {
                                                int rootDocId,
                                                Map<String, Set<String>> storedToRequestedFields,
                                                LeafReaderContext subReaderContext,
-                                               CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader,
-                                               Map<String, Object> sharedCache) throws IOException {
+                                               CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader)
+            throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
         // because the entire _source is only stored with the root document.
@@ -419,9 +411,7 @@ public class FetchPhase {
             hit,
             subReaderContext,
             nestedDocId,
-            new SourceLookup(),  // Use a clean, fresh SourceLookup for the nested context
-            sharedCache
-        );
+            new SourceLookup());  // Use a clean, fresh SourceLookup for the nested context
 
         if (rootSourceAsMap != null) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json

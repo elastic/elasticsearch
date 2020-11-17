@@ -53,8 +53,10 @@ public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAct
     @Override
     protected void masterOperation(Task task, GetSnapshottableFeaturesRequest request, ClusterState state,
                                    ActionListener<GetSnapshottableFeaturesResponse> listener) throws Exception {
-        listener.onResponse(new GetSnapshottableFeaturesResponse(systemIndices.getFeatures().stream()
-            .map(GetSnapshottableFeaturesResponse.SnapshottableFeature::new)
+        listener.onResponse(new GetSnapshottableFeaturesResponse(systemIndices.getFeatures().entrySet().stream()
+            .map(featureEntry -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
+                featureEntry.getKey(),
+                featureEntry.getValue().getDescription()))
             .collect(Collectors.toList())));
     }
 

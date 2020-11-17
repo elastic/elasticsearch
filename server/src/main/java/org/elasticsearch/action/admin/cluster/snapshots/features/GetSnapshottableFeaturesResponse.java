@@ -79,27 +79,37 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
     public static class SnapshottableFeature implements Writeable, ToXContentObject {
         private final String featureName;
 
-        public SnapshottableFeature(String featureName) {
+        private final String description;
+
+        public SnapshottableFeature(String featureName, String description) {
             this.featureName = featureName;
+            this.description = description;
         }
 
         public SnapshottableFeature(StreamInput in) throws IOException {
             featureName = in.readString();
+            description = in.readString();
         }
 
         public String getFeatureName() {
             return featureName;
         }
 
+        public String getDescription() {
+            return description;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(featureName);
+            out.writeString(description);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("name", featureName);
+            builder.field("description", description);
             builder.endObject();
             return builder;
         }

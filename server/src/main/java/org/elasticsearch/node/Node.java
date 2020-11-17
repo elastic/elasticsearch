@@ -109,7 +109,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -489,12 +488,12 @@ public class Node implements Closeable {
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = pluginsService
+            final Map<String, SystemIndices.Feature> systemIndexDescriptorMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(
                     plugin -> plugin.getFeatureName(),
-                    plugin -> plugin.getSystemIndexDescriptors(settings)));
+                    plugin -> new SystemIndices.Feature(plugin.getFeatureDescription(), plugin.getSystemIndexDescriptors(settings))));
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
 
             final RerouteService rerouteService

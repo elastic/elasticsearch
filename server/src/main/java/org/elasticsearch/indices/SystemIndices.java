@@ -47,17 +47,17 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
  */
 public class SystemIndices {
-    private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
-        TASKS_FEATURE_NAME, List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
+    private static final Map<String, Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
+        TASKS_FEATURE_NAME, new Feature("Manages task results", List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index")))
     );
 
     private final CharacterRunAutomaton runAutomaton;
-    private final Map<String, Collection<SystemIndexDescriptor>> featureSystemIndexDescriptors;
+    private final Map<String, Feature> systemIndexDescriptors;
 
-    public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
-        featureSystemIndexDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
-        checkForOverlappingPatterns(featureSystemIndexDescriptors);
-        this.runAutomaton = buildCharacterRunAutomaton(featureSystemIndexDescriptors);
+    public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
+        systemIndexDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+        checkForOverlappingPatterns(systemIndexDescriptors);
+        this.runAutomaton = buildCharacterRunAutomaton(systemIndexDescriptors);
     }
 
     /**
@@ -85,8 +85,8 @@ public class SystemIndices {
      * @throws IllegalStateException if multiple descriptors match the name
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
-        final List<SystemIndexDescriptor> matchingDescriptors = featureSystemIndexDescriptors.values().stream()
-            .flatMap(Collection::stream)
+        final List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.values().stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(descriptor -> descriptor.matchesIndexPattern(name))
             .collect(toUnmodifiableList());
 
@@ -116,16 +116,17 @@ public class SystemIndices {
     public Map<String, Collection<SystemIndexDescriptor>> getSystemIndexDescriptorsByFeature() {
         // GWB-> I don't like exposing this as public, but we also need to be able to get the merged list of plugin/module features
         //   plus internal/built-in ones (i.e. tasks)
-        return featureSystemIndexDescriptors;
+        return systemIndexDescriptors.entrySet().stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, feature -> feature.getValue().getIndexDescriptors()));
     }
 
-    public Collection<String> getFeatures() {
-        return featureSystemIndexDescriptors.keySet();
+    public Map<String, Feature> getFeatures() {
+        return systemIndexDescriptors;
     }
 
-    private static CharacterRunAutomaton buildCharacterRunAutomaton(Map<String, Collection<SystemIndexDescriptor>> descriptors) {
+    private static CharacterRunAutomaton buildCharacterRunAutomaton(Map<String, Feature> descriptors) {
         Optional<Automaton> automaton = descriptors.values().stream()
-            .flatMap(Collection::stream)
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
             .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
             .reduce(Operations::union);
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
@@ -138,9 +139,9 @@ public class SystemIndices {
      * @param sourceToDescriptors A map of source (plugin) names to the SystemIndexDescriptors they provide.
      * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
      */
-    static void checkForOverlappingPatterns(Map<String, Collection<SystemIndexDescriptor>> sourceToDescriptors) {
+    static void checkForOverlappingPatterns(Map<String, Feature> sourceToDescriptors) {
         List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToDescriptors.entrySet().stream()
-            .flatMap(entry -> entry.getValue().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
+            .flatMap(entry -> entry.getValue().getIndexDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
             .collect(Collectors.toUnmodifiableList());
 
@@ -169,18 +170,34 @@ public class SystemIndices {
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
-    private static Map<String, Collection<SystemIndexDescriptor>> buildSystemIndexDescriptorMap(
-        Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesMap) {
-        final Map<String, Collection<SystemIndexDescriptor>> map =
-            new HashMap<>(pluginAndModulesMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
-        map.putAll(pluginAndModulesMap);
+    private static Map<String, Feature> buildSystemIndexDescriptorMap(Map<String, Feature> featuresMap) {
+        final Map<String, Feature> map = new HashMap<>(featuresMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
+        map.putAll(featuresMap);
         // put the server items last since we expect less of them
-        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, descriptors) -> {
-            if (map.putIfAbsent(source, descriptors) != null) {
+        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {
+            if (map.putIfAbsent(source, feature) != null) {
                 throw new IllegalArgumentException("plugin or module attempted to define the same source [" + source +
                     "] as a built-in system index");
             }
         });
         return Map.copyOf(map);
+    }
+
+    public static class Feature {
+        private final String description;
+        private final Collection<SystemIndexDescriptor> indexDescriptors;
+
+        public Feature(String description, Collection<SystemIndexDescriptor> indexDescriptors) {
+            this.description = description;
+            this.indexDescriptors = indexDescriptors;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public Collection<SystemIndexDescriptor> getIndexDescriptors() {
+            return indexDescriptors;
+        }
     }
 }

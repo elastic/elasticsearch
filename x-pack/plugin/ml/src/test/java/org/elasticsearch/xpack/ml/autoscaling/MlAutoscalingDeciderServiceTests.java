@@ -213,17 +213,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
         MlAutoscalingDeciderService service = buildService();
         MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
-        try {
-            service.checkForScaleDown(nodes,
-                ClusterState.EMPTY_STATE,
-                Long.MAX_VALUE,
-                new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
-                reasonBuilder);
-        } catch (AssertionError ae) {
-            // the scale method should thrown an assertion failure
-            return;
-        }
-        assert false : "call for scale down should have thrown an assertion error";
+        expectThrows(AssertionError.class, () -> service.checkForScaleDown(nodes,
+            ClusterState.EMPTY_STATE,
+            Long.MAX_VALUE,
+            new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
+            reasonBuilder));
     }
 
     public void testScaleDown() {

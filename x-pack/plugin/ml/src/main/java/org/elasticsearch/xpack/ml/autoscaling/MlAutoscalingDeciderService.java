@@ -16,6 +16,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -141,7 +142,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
                                                                             int maxNumInQueue) {
         List<Long> jobSizes = unassignedJobs
             .stream()
-            // TODO do we want to verify memory requirements aren't stale? Or just consider `null` a fastpath?
             .map(sizeFunction)
             .map(l -> l == null ? 0L : l)
             .collect(Collectors.toList());
@@ -304,6 +304,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
                     .build()));
         }
         if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
+            logger.debug(() -> new ParameterizedMessage(
+                "view of job memory is stale given duration [{}]. Not attempting to scale down",
+                memoryTrackingStale));
             return buildDecisionAndRequestRefresh(reasonBuilder);
         }
 
@@ -311,13 +314,21 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
             anomalyDetectionTasks.stream()
                 .filter(PersistentTask::isAssigned)
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(this::getAnomalyMemoryRequirement)
+                .mapToLong(t -> {
+                    Long mem = this.getAnomalyMemoryRequirement(t);
+                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                    return mem;
+                })
                 .max()
                 .orElse(0L),
             dataframeAnalyticsTasks.stream()
                 .filter(PersistentTask::isAssigned)
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(this::getAnalyticsMemoryRequirement)
+                .mapToLong(t -> {
+                    Long mem = this.getAnalyticsMemoryRequirement(t);
+                    assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
+                    return mem;
+                })
                 .max()
                 .orElse(0L));
 
@@ -331,6 +342,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
             if (canScaleDown(decider.getDownScaleDelay())) {
                 return scaleDownDecision.get();
             }
+            logger.debug(() -> new ParameterizedMessage(
+                "not scaling down as the current scale down delay [{}] is not satisfied. The last time scale down was detected [{}]",
+                decider.getDownScaleDelay().getStringRep(),
+                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected)));
             return new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder
@@ -353,6 +368,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
                                                     Duration memoryTrackingStale,
                                                     AutoscalingDeciderResult potentialResult) {
         if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
+            logger.debug(() -> new ParameterizedMessage(
+                "current view of job memory is stale given the duration [{}]. Returning a no scale event",
+                memoryTrackingStale.toString()));
             return buildDecisionAndRequestRefresh(reasonBuilder);
         } else {
             return potentialResult;
@@ -525,7 +543,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
                 true,
                 useAuto);
             if (nodeLoad.getError() != null) {
-                logger.warn("[{}] failed to gather node load limits, failure [{}]", node.getId(), nodeLoad.getError());
+                logger.warn("[{}] failed to gather node load limits, failure [{}]. Returning no scale",
+                    node.getId(),
+                    nodeLoad.getError());
                 return Optional.empty();
             }
             nodeLoads.add(nodeLoad);
@@ -534,6 +554,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
         // Even if we verify that memory usage is up to date before checking node capacity, we could still run into stale information.
         // We should not make a decision if the memory usage is stale/inaccurate.
         if (isMemoryAccurateFlag == false) {
+            assert isMemoryAccurateFlag : "view of memory is inaccurate after recent check";
             return Optional.empty();
         }
         long currentlyNecessaryTier = nodeLoads.stream().mapToLong(NodeLoad::getAssignedJobMemory).sum();

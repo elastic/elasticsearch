@@ -1986,9 +1986,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                             // TODO: the below logic is very similar to that in #startCloning and both could be dried up against each other
                             //       also the code for standard snapshots could make use of this breakout as well
-                            final boolean readyToExecute = updatedDeletions.getEntries().stream().noneMatch(
-                                    e -> e.repository().equals(repoName) && e.state() == SnapshotDeletionsInProgress.State.STARTED);
-                            if (readyToExecute == false || canBeUpdated.isEmpty()) {
+                            if (canBeUpdated.isEmpty() || updatedDeletions.getEntries().stream().anyMatch(
+                                    e -> e.repository().equals(repoName) && e.state() == SnapshotDeletionsInProgress.State.STARTED)) {
                                 // No shards can be updated in this snapshot so we just add it as is again
                                 snapshotEntries.add(entry);
                             } else {
@@ -2061,7 +2060,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         private void markShardReassigned(String indexName, int shardId, Map<String, Set<Integer>> reassignments) {
             final boolean added = reassignments.computeIfAbsent(indexName, k -> new HashSet<>()).add(shardId);
-            assert added;
+            assert added : "should only ever reassign each shard once but assigned [" + indexName + "][" + shardId + "] multiple times";
         }
 
         private boolean alreadyReassigned(String indexName, int shardId, Map<String, Set<Integer>> reassignments) {

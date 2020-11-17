@@ -122,7 +122,8 @@ public class ClientYamlTestExecutionContext {
             BytesRef bytesRef = bodyAsBytesRef(bodies.get(0), xContentType);
             String mimeType = xContentType.mediaTypeWithoutParameters();
 
-            MediaType.HeaderValue headerValue = RandomizedTest.randomFrom(xContentType.headerValues().toArray(new MediaType.HeaderValue[0]));
+            MediaType.HeaderValue headerValue = RandomizedTest.randomFrom(xContentType.headerValues()
+                .toArray(new MediaType.HeaderValue[0]));
             String mediaTypeWithoutParameters = headerValue.v1();
             ContentType contentType = ContentType.create(mediaTypeWithoutParameters, StandardCharsets.UTF_8);
 

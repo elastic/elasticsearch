@@ -63,7 +63,10 @@ public class InstallLicensedPluginTests extends ESTestCase {
     public void testInstallPluginCommandOnUnknownDistribution() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
-        expectThrows(UserException.class, () -> InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo));
+        expectThrows(
+            UserException.class,
+            () -> InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo)
+        );
         assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));
     }
 

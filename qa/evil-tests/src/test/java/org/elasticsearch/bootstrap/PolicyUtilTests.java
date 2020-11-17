@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -117,6 +118,13 @@ public class PolicyUtilTests extends ESTestCase {
         assertThat(info.jars, containsInAnyOrder(
             plugin.resolve("foo.jar").toUri().toURL(),
             plugin.resolve("bar.jar").toUri().toURL()));
+    }
+
+    public void testPolicyMissingCodebaseProperty() throws Exception {
+        Path plugin = makeDummyPlugin("missing-codebase.policy", "foo.jar");
+        URL policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY).toUri().toURL();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PolicyUtil.readPolicy(policyFile, Map.of()));
+        assertThat(e.getMessage(), containsString("Unknown codebases [codebase.doesnotexist] in policy file"));
     }
 
     public void testPolicyPermissions() throws Exception {

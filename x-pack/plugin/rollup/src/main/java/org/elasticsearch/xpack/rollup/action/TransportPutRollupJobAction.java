@@ -62,7 +62,6 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     private static final Logger logger = LogManager.getLogger(TransportPutRollupJobAction.class);
 
-    private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutRollupJobAction.class);
@@ -70,11 +69,10 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
     @Inject
     public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService, XPackLicenseState licenseState,
+                                       ClusterService clusterService,
                                        PersistentTasksService persistentTasksService, Client client) {
         super(PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
             PutRollupJobAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
-        this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
     }

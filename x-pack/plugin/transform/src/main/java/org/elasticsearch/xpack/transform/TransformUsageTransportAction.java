@@ -47,7 +47,6 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
 
     private static final Logger logger = LogManager.getLogger(TransformUsageTransportAction.class);
 
-    private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
@@ -57,7 +56,6 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        XPackLicenseState licenseState,
         Client client
     ) {
         super(
@@ -68,7 +66,6 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             actionFilters,
             indexNameExpressionResolver
         );
-        this.licenseState = licenseState;
         this.client = client;
     }
 

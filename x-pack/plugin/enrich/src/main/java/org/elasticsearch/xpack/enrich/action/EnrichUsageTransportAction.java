@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 
 public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
 
     @Inject
     public EnrichUsageTransportAction(
@@ -30,8 +29,7 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        XPackLicenseState licenseState
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             XPackUsageFeatureAction.ENRICH.name(),
@@ -41,7 +39,6 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
             actionFilters,
             indexNameExpressionResolver
         );
-        this.licenseState = licenseState;
     }
 
     @Override

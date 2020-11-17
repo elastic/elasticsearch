@@ -15,13 +15,9 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class MonitoringInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public MonitoringInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                         XPackLicenseState licenseState) {
+    public MonitoringInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.MONITORING.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override

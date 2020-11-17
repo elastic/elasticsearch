@@ -40,18 +40,17 @@ import static org.mockito.Mockito.when;
 public class MonitoringInfoTransportActionTests extends ESTestCase {
 
     private final MonitoringService monitoring = mock(MonitoringService.class);
-    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private final Exporters exporters = mock(Exporters.class);
 
     public void testAvailable() {
         MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testMonitoringEnabledByDefault() {
         MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -91,8 +90,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
         var usageAction = new MonitoringUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, licenseState,
-            new MonitoringUsageServices(monitoring, exporters));
+            mock(ActionFilters.class), null, new MonitoringUsageServices(monitoring, exporters));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         MonitoringFeatureSetUsage monitoringUsage = (MonitoringFeatureSetUsage) future.get().getUsage();

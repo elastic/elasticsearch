@@ -15,12 +15,9 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class EnrichInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public EnrichInfoTransportAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
+    public EnrichInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.ENRICH.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override

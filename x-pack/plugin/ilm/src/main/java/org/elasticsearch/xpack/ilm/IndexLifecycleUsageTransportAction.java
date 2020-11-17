@@ -32,15 +32,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
 
     @Inject
     public IndexLifecycleUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              Settings settings, XPackLicenseState licenseState) {
+                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.licenseState = licenseState;
     }
 
     @Override

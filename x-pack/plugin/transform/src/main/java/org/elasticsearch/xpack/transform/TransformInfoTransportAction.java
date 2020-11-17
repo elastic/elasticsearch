@@ -37,8 +37,6 @@ import java.util.List;
 
 public class TransformInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     private static final Logger logger = LogManager.getLogger(TransformInfoTransportAction.class);
 
     public static final String[] PROVIDED_STATS = new String[] {
@@ -61,11 +59,9 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
     @Inject
     public TransformInfoTransportAction(
         TransportService transportService,
-        ActionFilters actionFilters,
-        XPackLicenseState licenseState
+        ActionFilters actionFilters
     ) {
         super(XPackInfoFeatureAction.TRANSFORM.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override

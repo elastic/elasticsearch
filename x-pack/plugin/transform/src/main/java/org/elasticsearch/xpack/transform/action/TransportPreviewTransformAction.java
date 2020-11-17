@@ -60,7 +60,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
     PreviewTransformAction.Response> {
 
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
-    private final XPackLicenseState licenseState;
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -72,7 +71,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         ActionFilters actionFilters,
         Client client,
         ThreadPool threadPool,
-        XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         Settings settings,
@@ -84,7 +82,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             actionFilters,
             client,
             threadPool,
-            licenseState,
             indexNameExpressionResolver,
             clusterService,
             settings,
@@ -98,14 +95,12 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         ActionFilters actionFilters,
         Client client,
         ThreadPool threadPool,
-        XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService
     ) {
         super(name, transportService, actionFilters, PreviewTransformAction.Request::new);
-        this.licenseState = licenseState;
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;

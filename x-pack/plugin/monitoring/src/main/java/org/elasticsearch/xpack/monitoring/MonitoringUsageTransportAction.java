@@ -28,16 +28,14 @@ import java.util.Map;
 
 public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final MonitoringService monitoringService;
-    private final XPackLicenseState licenseState;
     private final Exporters exporters;
 
     @Inject
     public MonitoringUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          XPackLicenseState licenseState, MonitoringUsageServices monitoringServices) {
+                                          MonitoringUsageServices monitoringServices) {
         super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool,
             actionFilters, indexNameExpressionResolver);
-        this.licenseState = licenseState;
         this.monitoringService = monitoringServices.monitoringService;
         this.exporters = monitoringServices.exporters;
     }

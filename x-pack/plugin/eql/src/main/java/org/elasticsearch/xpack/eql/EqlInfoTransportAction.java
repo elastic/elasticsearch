@@ -17,14 +17,11 @@ import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     private final boolean enabled;
-    private final XPackLicenseState licenseState;
 
     @Inject
-    public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                  XPackLicenseState licenseState) {
+    public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.EQL.name(), transportService, actionFilters);
         this.enabled = EqlPlugin.isEnabled();
-        this.licenseState = licenseState;
     }
 
     @Override

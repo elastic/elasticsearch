@@ -28,18 +28,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransformInfoTransportActionTests extends ESTestCase {
-    private XPackLicenseState licenseState;
-
-    @Before
-    public void init() {
-        licenseState = mock(XPackLicenseState.class);
-    }
 
     public void testAvailable() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class),
-            mock(ActionFilters.class),
-            licenseState
+            mock(ActionFilters.class)
         );
         assertThat(featureSet.available(), is(true));
     }
@@ -47,8 +40,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
     public void testEnabledDefault() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class),
-            mock(ActionFilters.class),
-            licenseState
+            mock(ActionFilters.class)
         );
         assertTrue(featureSet.enabled());
     }

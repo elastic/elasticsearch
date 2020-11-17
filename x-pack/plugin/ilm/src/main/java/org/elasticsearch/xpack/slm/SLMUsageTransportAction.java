@@ -24,15 +24,12 @@ import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
 
     @Inject
     public SLMUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   XPackLicenseState licenseState) {
+                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.licenseState = licenseState;
     }
 
     @Override

@@ -29,15 +29,11 @@ import java.util.Map;
 
 public class VectorsUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
     public VectorsUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       XPackLicenseState licenseState) {
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(XPackUsageFeatureAction.VECTORS.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
-        this.licenseState = licenseState;
     }
 
     @Override

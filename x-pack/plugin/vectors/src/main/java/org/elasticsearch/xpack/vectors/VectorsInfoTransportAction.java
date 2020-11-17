@@ -15,13 +15,9 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class VectorsInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public VectorsInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                      XPackLicenseState licenseState) {
+    public VectorsInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.VECTORS.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override

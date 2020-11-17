@@ -25,14 +25,10 @@ import java.util.function.Consumer;
 public class TransportStartRollupAction extends TransportTasksAction<RollupJobTask, StartRollupJobAction.Request,
         StartRollupJobAction.Response, StartRollupJobAction.Response> {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public TransportStartRollupAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
-                                      XPackLicenseState licenseState) {
+    public TransportStartRollupAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
         super(StartRollupJobAction.NAME, clusterService, transportService, actionFilters, StartRollupJobAction.Request::new,
             StartRollupJobAction.Response::new, StartRollupJobAction.Response::new, ThreadPool.Names.SAME);
-        this.licenseState = licenseState;
     }
 
 

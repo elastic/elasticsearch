@@ -28,13 +28,6 @@ import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 
 public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
-
-    @Inject
-    public VotingOnlyNodeFeatureSet(@Nullable XPackLicenseState licenseState) {
-        this.licenseState = licenseState;
-    }
-
     @Override
     public String name() {
         return XPackField.VOTING_ONLY;
@@ -52,15 +45,11 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
 
-        private final XPackLicenseState licenseState;
-
         @Inject
         public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    XPackLicenseState licenseState) {
+                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
             super(XPackUsageFeatureAction.VOTING_ONLY.name(), transportService, clusterService,
                 threadPool, actionFilters, indexNameExpressionResolver);
-            this.licenseState = licenseState;
         }
 
         @Override
@@ -73,13 +62,9 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     public static class UsageInfoAction extends XPackInfoFeatureTransportAction {
 
-        private final XPackLicenseState licenseState;
-
         @Inject
-        public UsageInfoAction(TransportService transportService, ActionFilters actionFilters,
-                               XPackLicenseState licenseState) {
+        public UsageInfoAction(TransportService transportService, ActionFilters actionFilters) {
             super(XPackInfoFeatureAction.VOTING_ONLY.name(), transportService, actionFilters);
-            this.licenseState = licenseState;
         }
 
         @Override

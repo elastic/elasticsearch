@@ -43,24 +43,22 @@ import static org.mockito.Mockito.mock;
 
 public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
     private ClusterService clusterService;
 
     @Before
     public void init() throws Exception {
-        licenseState = mock(XPackLicenseState.class);
         clusterService = mock(ClusterService.class);
     }
 
     public void testAvailable() {
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), equalTo(true));
     }
 
     public void testName() {
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
@@ -92,7 +90,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
         var usageAction = new IndexLifecycleUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+            mock(ActionFilters.class), null);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, clusterState, future);
         IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get().getUsage();

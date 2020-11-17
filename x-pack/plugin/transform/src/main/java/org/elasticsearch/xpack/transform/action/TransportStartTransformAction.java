@@ -65,7 +65,6 @@ import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_ST
 public class TransportStartTransformAction extends TransportMasterNodeAction<StartTransformAction.Request, StartTransformAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartTransformAction.class);
-    private final XPackLicenseState licenseState;
     private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -78,7 +77,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
@@ -92,7 +90,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             transportService,
             actionFilters,
             clusterService,
-            licenseState,
             threadPool,
             indexNameExpressionResolver,
             transformServices,
@@ -108,7 +105,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
@@ -128,7 +124,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             StartTransformAction.Response::new,
             ThreadPool.Names.SAME
         );
-        this.licenseState = licenseState;
         this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;

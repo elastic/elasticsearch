@@ -34,17 +34,15 @@ import java.util.stream.Collectors;
 
 public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final boolean enabled;
-    private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
     public EqlUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   XPackLicenseState licenseState, Client client) {
+                                   Client client) {
         super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
         this.enabled = EqlPlugin.isEnabled();
-        this.licenseState = licenseState;
         this.client = client;
     }
 

@@ -27,16 +27,14 @@ import java.util.Collections;
 
 public class SpatialUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
     public SpatialUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       XPackLicenseState licenseState, Client client) {
+                                       Client client) {
         super(XPackUsageFeatureAction.SPATIAL.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
-        this.licenseState = licenseState;
         this.client = client;
     }
 

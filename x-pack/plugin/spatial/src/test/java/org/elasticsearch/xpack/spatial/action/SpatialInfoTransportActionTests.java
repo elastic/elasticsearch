@@ -38,12 +38,10 @@ import static org.mockito.Mockito.when;
 
 public class SpatialInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
     private ClusterService clusterService;
 
     @Before
     public void init() {
-        licenseState = mock(XPackLicenseState.class);
         clusterService = mock(ClusterService.class);
 
         DiscoveryNode discoveryNode = new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -58,11 +56,11 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() throws Exception {
         SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
 
         var usageAction = new SpatialUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, licenseState, mockClient());
+            mock(ActionFilters.class), null, mockClient());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         Task task = new Task(1L, "_type", "_action", "_description", null, Collections.emptyMap());
         usageAction.masterOperation(task, null, clusterService.state(), future);
@@ -77,13 +75,12 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
 
     public void testEnabled() throws Exception {
         SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
 
         SpatialUsageTransportAction usageAction = new SpatialUsageTransportAction(mock(TransportService.class),
-            clusterService, null, mock(ActionFilters.class), null,
-            licenseState, mockClient());
+            clusterService, null, mock(ActionFilters.class), null, mockClient());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, clusterService.state(), future);
         XPackFeatureSet.Usage usage = future.get().getUsage();

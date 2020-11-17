@@ -23,15 +23,11 @@ import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 
 public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
     public RollupUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      XPackLicenseState licenseState) {
+                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(XPackUsageFeatureAction.ROLLUP.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
-        this.licenseState = licenseState;
     }
 
     @Override

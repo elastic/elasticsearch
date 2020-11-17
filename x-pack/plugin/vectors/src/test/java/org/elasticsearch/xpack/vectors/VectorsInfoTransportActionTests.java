@@ -21,20 +21,13 @@ import static org.mockito.Mockito.mock;
 
 public class VectorsInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
-
-    @Before
-    public void init() {
-        licenseState = mock(XPackLicenseState.class);
-    }
-
     public void testAvailable() throws Exception {
         VectorsInfoTransportAction featureSet = new VectorsInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+            mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
 
         var usageAction = new VectorsUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, licenseState);
+            mock(ActionFilters.class), null);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -48,11 +41,11 @@ public class VectorsInfoTransportActionTests extends ESTestCase {
 
     public void testAlwaysEnabled() throws Exception {
         VectorsInfoTransportAction featureSet = new VectorsInfoTransportAction(
-mock(TransportService.class), mock(ActionFilters.class), licenseState);
+mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
 
         VectorsUsageTransportAction usageAction = new VectorsUsageTransportAction(mock(TransportService.class),
-            null, null, mock(ActionFilters.class), null, licenseState);
+            null, null, mock(ActionFilters.class), null);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();

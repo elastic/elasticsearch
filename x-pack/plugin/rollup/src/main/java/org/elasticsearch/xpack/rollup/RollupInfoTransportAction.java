@@ -15,13 +15,9 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class RollupInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public RollupInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                     XPackLicenseState licenseState) {
+    public RollupInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.ROLLUP.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override

@@ -226,7 +226,7 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<Boolean> dateDetection;
     private Explicit<Boolean> numericDetection;
     private Explicit<DynamicTemplate[]> dynamicTemplates;
-    private final Map<String, RuntimeFieldType> runtimeFieldTypes;
+    private Map<String, RuntimeFieldType> runtimeFieldTypes;
 
     RootObjectMapper(String name, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      Map<String, RuntimeFieldType> runtimeFieldTypes,
@@ -244,12 +244,13 @@ public class RootObjectMapper extends ObjectMapper {
     public ObjectMapper mappingUpdate(Mapper mapper) {
         RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
         // for dynamic updates, no need to carry root-specific options, we just
-        // set everything to they implicit default value so that they are not
+        // set everything to their implicit default value so that they are not
         // applied at merge time
         update.dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
         update.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         update.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         update.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
+        update.runtimeFieldTypes = new HashMap<>();
         return update;
     }
 

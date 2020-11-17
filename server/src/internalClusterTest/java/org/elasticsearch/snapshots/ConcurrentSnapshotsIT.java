@@ -1313,12 +1313,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Files.write(indexNBlob, randomByteArrayOfLength(1), StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    private void awaitNDeletionsInProgress(int count) throws Exception {
-        logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
-        awaitClusterState(state ->
-                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries().size() == count);
-    }
-
     private static List<SnapshotInfo> currentSnapshots(String repoName) {
         return client().admin().cluster().prepareGetSnapshots(repoName).setSnapshots(GetSnapshotsRequest.CURRENT_SNAPSHOT)
                 .get().getSnapshots(repoName);

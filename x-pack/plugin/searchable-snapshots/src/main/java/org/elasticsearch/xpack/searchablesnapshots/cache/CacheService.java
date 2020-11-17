@@ -69,7 +69,7 @@ public class CacheService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    public static final TimeValue MIN_SNAPSHOT_CACHE_SYNC_INTERVAL = TimeValue.timeValueSeconds(10L);
+    public static final TimeValue MIN_SNAPSHOT_CACHE_SYNC_INTERVAL = TimeValue.timeValueSeconds(1L);
     public static final Setting<TimeValue> SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING = Setting.timeSetting(
         SETTINGS_PREFIX + "sync_interval",
         TimeValue.timeValueSeconds(60L),                        // default

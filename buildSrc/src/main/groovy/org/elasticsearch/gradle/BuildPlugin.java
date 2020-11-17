@@ -39,9 +39,9 @@ import java.io.File;
 public class BuildPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        checkInternalPluginUsages(project);
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        checkExternalInternalPluginUsages(project);
 
         project.getPluginManager().withPlugin("elasticsearch.standalone-rest-test", appliedPlugin -> {
             throw new InvalidUserDataException(
@@ -60,7 +60,7 @@ public class BuildPlugin implements Plugin<Project> {
         BuildParams.withInternalBuild(() -> InternalPrecommitTasks.create(project, true)).orElse(() -> PrecommitTasks.create(project));
     }
 
-    private static void checkInternalPluginUsages(Project project) {
+    private static void checkExternalInternalPluginUsages(Project project) {
         if (BuildParams.isInternal() == false) {
             project.getPlugins()
                 .withType(

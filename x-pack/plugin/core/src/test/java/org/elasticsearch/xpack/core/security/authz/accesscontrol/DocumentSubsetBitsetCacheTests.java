@@ -57,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -523,7 +524,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
             final QueryShardContext shardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null);
+                client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null, emptyMap());
 
             context = new TestIndexContext(directory, iw, directoryReader, shardContext, leaf);
             return context;

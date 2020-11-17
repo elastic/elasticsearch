@@ -336,6 +336,10 @@ void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base
 
 for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
+    if (base == DockerBase.IRON_BANK) {
+      // At the moment we don't actually build the Iron Bank image
+      continue
+    }
     for (final boolean oss : [false, true]) {
       if (oss && base != DockerBase.CENTOS) {
         // We only create Docker images for the OSS distribution on CentOS.

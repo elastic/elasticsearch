@@ -326,7 +326,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static Configuration configureQuotaAwareFsPlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(QUOTA_AWARE_FS_PLUGIN_CONFIGURATION);
         DependencyHandler deps = project.getDependencies();
-        Map<String, String> quotaAwareFsPluginProject = Map.of("path", ":plugins:quota-aware-fs", "configuration", "zip");
+        Map<String, String> quotaAwareFsPluginProject = Map.of("path", ":x-pack:quota-aware-fs", "configuration", "zip");
         deps.add(QUOTA_AWARE_FS_PLUGIN_CONFIGURATION, deps.project(quotaAwareFsPluginProject));
         return examplePlugin;
     }

@@ -74,7 +74,12 @@ ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
 ENV TARBALL_PATH curl-\${VERSION}.tar.xz
 
 # Install dependencies
-RUN apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file
+RUN for iter in {1..10}; do \\
+      apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file && \\
+      exit_code=0 && break || \\
+        exit_code=\$? && echo "wget error fetching \$URL: retry \$iter in 10s" && sleep 10; \\
+    done; \\
+    return \$exit_code ; \\
 
 RUN mkdir /work
 WORKDIR /work

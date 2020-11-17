@@ -38,7 +38,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -97,9 +96,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
                                 percolatorLeafReaderContext,
                                 slot,
-                                new SourceLookup(),
-                                new HashMap<>()
-                            );
+                                new SourceLookup());
                             subContext.sourceLookup().setSource(document);
                             // force source because MemoryIndex does not store fields
                             SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields(), true);

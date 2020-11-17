@@ -26,7 +26,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
@@ -38,21 +37,18 @@ public interface FetchSubPhase {
         private final LeafReaderContext readerContext;
         private final int docId;
         private final SourceLookup sourceLookup;
-        private final Map<String, Object> cache;
 
         public HitContext(
             SearchHit hit,
             LeafReaderContext context,
             int docId,
-            SourceLookup sourceLookup,
-            Map<String, Object> cache
+            SourceLookup sourceLookup
         ) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.sourceLookup = sourceLookup;
             sourceLookup.setSegmentAndDocument(context, docId);
-            this.cache = cache;
         }
 
         public SearchHit hit() {
@@ -87,11 +83,6 @@ public interface FetchSubPhase {
 
         public IndexReader topLevelReader() {
             return ReaderUtil.getTopLevelContext(readerContext).reader();
-        }
-
-        // TODO move this into Highlighter
-        public Map<String, Object> cache() {
-            return cache;
         }
     }
 

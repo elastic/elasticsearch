@@ -650,36 +650,6 @@ public class Cache<K, V> {
         };
     }
 
-    /**
-     * An LRU sequencing of the entries in the cache. This sequence is not protected from mutations
-     * to the cache (except for {@link Iterator#remove()}. The result of iteration under any other mutation is
-     * undefined.
-     *
-     * @return an LRU-ordered {@link Iterable} over the entries in the cache
-     */
-    public Iterable<Tuple<K,V>> entries() {
-        return () -> new Iterator<>() {
-
-            private final CacheIterator iterator = new CacheIterator(head);
-
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public Tuple<K,V> next() {
-                final Cache.Entry<K, V> next = iterator.next();
-                return Tuple.tuple(next.key, next.value);
-            }
-
-            @Override
-            public void remove() {
-                iterator.remove();
-            }
-        };
-    }
-
     private class CacheIterator implements Iterator<Entry<K, V>> {
         private Entry<K, V> current;
         private Entry<K, V> next;

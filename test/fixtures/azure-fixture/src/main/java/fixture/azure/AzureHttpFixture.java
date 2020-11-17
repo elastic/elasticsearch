@@ -28,9 +28,9 @@ public class AzureHttpFixture {
 
     private final HttpServer server;
 
-    private AzureHttpFixture(final String address, final int port, final String container) throws IOException {
+    private AzureHttpFixture(final String address, final int port, final String account, final String container) throws IOException {
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(address), port), 0);
-        server.createContext("/" + container, new AzureHttpHandler(container));
+        server.createContext("/" + account, new AzureHttpHandler(account, container));
     }
 
     private void start() throws Exception {
@@ -44,10 +44,10 @@ public class AzureHttpFixture {
     }
 
     public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 3) {
-            throw new IllegalArgumentException("AzureHttpFixture expects 3 arguments [address, port, container]");
+        if (args == null || args.length != 4) {
+            throw new IllegalArgumentException("AzureHttpFixture expects 4 arguments [address, port, account, container]");
         }
-        final AzureHttpFixture fixture = new AzureHttpFixture(args[0], Integer.parseInt(args[1]), args[2]);
+        final AzureHttpFixture fixture = new AzureHttpFixture(args[0], Integer.parseInt(args[1]), args[2], args[3]);
         fixture.start();
     }
 }

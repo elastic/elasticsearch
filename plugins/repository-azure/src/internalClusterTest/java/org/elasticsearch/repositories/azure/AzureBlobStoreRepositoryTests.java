@@ -76,7 +76,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         return Collections.singletonMap("/" + DEFAULT_ACCOUNT_NAME,
-            new AzureHTTPStatsCollectorHandler(new AzureBlobStoreHttpHandler("container")));
+            new AzureHTTPStatsCollectorHandler(new AzureBlobStoreHttpHandler(DEFAULT_ACCOUNT_NAME, "container")));
     }
 
     @Override
@@ -137,8 +137,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an Azure endpoint")
     private static class AzureBlobStoreHttpHandler extends AzureHttpHandler implements BlobStoreHttpHandler {
 
-        AzureBlobStoreHttpHandler(final String container) {
-            super(container);
+        AzureBlobStoreHttpHandler(final String account, final String container) {
+            super(account, container);
         }
     }
 

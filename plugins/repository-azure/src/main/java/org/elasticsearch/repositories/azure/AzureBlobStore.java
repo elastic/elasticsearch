@@ -66,7 +66,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -74,8 +73,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
@@ -360,8 +357,10 @@ public class AzureBlobStore implements BlobStore {
                     if (isPrefix != null && isPrefix) {
                         continue;
                     }
-                    blobsBuilder.put(blobItem.getName(),
-                        new PlainBlobMetadata(blobItem.getName(), properties.getContentLength()));
+                    String blobName = blobItem.getName().substring(keyPath.length());
+
+                    blobsBuilder.put(blobName,
+                        new PlainBlobMetadata(blobName, properties.getContentLength()));
                 }
             });
         } catch (Exception e) {
@@ -371,7 +370,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public Map<String, BlobContainer> children(BlobPath path) throws IOException {
-        final var blobsBuilder = new HashSet<String>();
+        final var childrenBuilder = new HashMap<String, BlobContainer>();
         final String keyPath = path.buildAsString();
 
         try {
@@ -383,7 +382,15 @@ public class AzureBlobStore implements BlobStore {
                 for (final BlobItem blobItem : blobContainer.listBlobsByHierarchy("/", listBlobsOptions, null)) {
                     Boolean isPrefix = blobItem.isPrefix();
                     if (isPrefix != null && isPrefix) {
-                        blobsBuilder.add(blobItem.getName());
+                        String directoryName = blobItem.getName();
+                        directoryName = directoryName.substring(keyPath.length());
+                        if (directoryName.isEmpty()) {
+                            continue;
+                        }
+                        // Remove trailing slash
+                        directoryName = directoryName.substring(0, directoryName.length() - 1);
+                        childrenBuilder.put(directoryName,
+                            new AzureBlobContainer(BlobPath.cleanPath().add(blobItem.getName()), this));
                     }
                 }
             });
@@ -391,8 +398,7 @@ public class AzureBlobStore implements BlobStore {
             throw new IOException("Unable to provide children blob containers for " + path, e);
         }
 
-        return Collections.unmodifiableMap(blobsBuilder.stream().collect(
-            Collectors.toMap(Function.identity(), name -> new AzureBlobContainer(BlobPath.cleanPath().add(name), this))));
+        return Collections.unmodifiableMap(childrenBuilder);
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {

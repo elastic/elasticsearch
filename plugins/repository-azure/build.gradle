@@ -78,8 +78,6 @@ dependencies {
   api "io.netty:netty-handler-proxy:${versions.netty}"
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
-  api "io.netty:netty-transport-native-epoll:${versions.netty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
 
   // reactor
@@ -248,12 +246,17 @@ tasks.named("thirdPartyAudit").configure {
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
 
-    // We don't want to run on OSx
+    // it uses NIO
     'io.netty.channel.kqueue.KQueue',
     'io.netty.channel.kqueue.KQueueDatagramChannel',
     'io.netty.channel.kqueue.KQueueEventLoopGroup',
     'io.netty.channel.kqueue.KQueueServerSocketChannel',
     'io.netty.channel.kqueue.KQueueSocketChannel',
+    'io.netty.channel.epoll.Epoll',
+    'io.netty.channel.epoll.EpollDatagramChannel',
+    'io.netty.channel.epoll.EpollEventLoopGroup',
+    'io.netty.channel.epoll.EpollServerSocketChannel',
+    'io.netty.channel.epoll.EpollSocketChannel',
 
     // from reactor.netty.http.server.HttpServer (reactor-netty)
     'io.netty.handler.codec.haproxy.HAProxyMessage',
@@ -309,7 +312,7 @@ def azureAddress = {
   assert useFixture: 'closure should not be used without a fixture'
   int ephemeralPort = project(':test:fixtures:azure-fixture').postProcessFixture.ext."test.fixtures.azure-fixture.tcp.8091"
   assert ephemeralPort > 0
-  return 'ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:' + ephemeralPort + '/'
+  return 'ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:' + ephemeralPort + '/azure_integration_test_account'
 }
 
 String azureAccount = System.getenv("azure_storage_account")

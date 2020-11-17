@@ -64,8 +64,10 @@ public class BuildPlugin implements Plugin<Project> {
         if (BuildParams.isInternal() == false) {
             project.getPlugins()
                 .withType(
-                    InternalPlugin.class,
-                    internalPlugin -> { throw new GradleException(internalPlugin.getExternalUseErrorMessage()); }
+                        InternalPlugin.class,
+                        internalPlugin -> {
+                            throw new GradleException(internalPlugin.getExternalUseErrorMessage());
+                        }
                 );
         }
     }

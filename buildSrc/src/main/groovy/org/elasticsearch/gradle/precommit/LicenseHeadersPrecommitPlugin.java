@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.precommit;
 
+import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -29,7 +30,7 @@ import org.gradle.util.CollectionUtils;
 
 import javax.inject.Inject;
 
-public class LicenseHeadersPrecommitPlugin extends PrecommitPlugin {
+public class LicenseHeadersPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
 
     private final ProviderFactory providerFactory;
 

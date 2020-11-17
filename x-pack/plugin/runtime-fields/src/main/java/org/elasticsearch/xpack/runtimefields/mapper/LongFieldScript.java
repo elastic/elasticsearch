@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -48,5 +49,27 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
         public void emit(long v) {
             script.emit(v);
         }
+    }
+
+    public static class Values {
+        private final LongFieldScript script;
+
+        public Values(LongFieldScript script) {
+            this.script = script;
+        }
+
+        public List<Object> values(String path) {
+            return XContentMapValues.extractRawValues(path, script.getSource());
+        }
+    }
+
+    public static long tryParseLong(Object value) {
+        if (value instanceof Number) {
+            return ((Number)value).longValue();
+        }
+        if (value instanceof String) {
+            return Long.parseLong((String)value);
+        }
+        throw new IllegalArgumentException("Cannot coerce " + value + " to long");
     }
 }

@@ -118,6 +118,13 @@ public class PolicyUtilTests extends ESTestCase {
             plugin.resolve("bar.jar").toUri().toURL()));
     }
 
+    public void testPolicyMissingCodebaseProperty() throws Exception {
+        Path plugin = makeDummyPlugin("missing-codebase.policy", "foo.jar");
+        URL policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY).toUri().toURL();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PolicyUtil.readPolicy(policyFile, Map.of()));
+        assertThat(e.getMessage(), containsString("Unknown codebases [codebase.doesnotexist] in policy file"));
+    }
+
     public void testPolicyPermissions() throws Exception {
         Path plugin = makeDummyPlugin("global-and-jar.policy", "foo.jar", "bar.jar");
         Path tmpDir = createTempDir();

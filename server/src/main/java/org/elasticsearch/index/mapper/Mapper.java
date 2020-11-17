@@ -114,6 +114,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return typeParsers.apply(type);
             }
 
+            public RuntimeFieldType.Parser runtimeFieldTypeParser(String type) {
+                return runtimeTypeParsers.apply(type);
+            }
+
             public Version indexVersionCreated() {
                 return indexVersionCreated;
             }
@@ -132,10 +136,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             }
 
             public boolean isWithinMultiField() { return false; }
-
-            protected Function<String, TypeParser> typeParsers() { return typeParsers; }
-
-            protected Function<String, RuntimeFieldType.Parser> runtimeTypeParsers() { return runtimeTypeParsers; }
 
             protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
 

@@ -56,7 +56,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
 
-        boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+        boolean isXPackModule = project.path.startsWith(':x-pack:plugin') || project.path.startsWith(':x-pack:quota-aware-fs')
         boolean isModule = project.path.startsWith(':modules:') || isXPackModule
 
         createBundleTasks(project, extension)
@@ -98,6 +98,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'requiresKeystore'    : extension1.requiresKeystore,
                     'type'                : extension1.type.toString(),
                     'javaOpts'            : extension1.javaOpts,
+                    'licensed'            : extension1.licensed,
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)

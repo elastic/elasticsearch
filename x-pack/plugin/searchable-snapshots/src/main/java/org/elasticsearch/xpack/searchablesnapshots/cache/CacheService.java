@@ -218,14 +218,12 @@ public class CacheService extends AbstractLifecycleComponent {
     /**
      * This method is invoked after a {@link CacheFile} is evicted from the cache.
      * <p>
-     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted. It also removes the instance from the current
-     * queue of cache files to synchronize if the instance is referenced there.
+     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted.d
      *
      * @param cacheFile the evicted instance
      */
     void onCacheFileRemoval(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
-        cacheFilesToSync.remove(cacheFile);
     }
 
     // used in tests

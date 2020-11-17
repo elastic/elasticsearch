@@ -112,10 +112,17 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 }
 
                 logger.trace("--> evicting random cache files");
+                final Map<CacheFile, Integer> evictions = new HashMap<>();
                 for (CacheKey evictedCacheKey : randomSubsetOf(Sets.union(previous.keySet(), updates.keySet()))) {
                     cacheService.removeFromCache(evictedCacheKey::equals);
-                    previous.remove(evictedCacheKey);
-                    updates.remove(evictedCacheKey);
+                    Tuple<CacheFile, Integer> evicted = previous.remove(evictedCacheKey);
+                    if (evicted != null) {
+                        evictions.put(evicted.v1(), evicted.v2());
+                        updates.remove(evictedCacheKey);
+                    } else {
+                        evicted = updates.remove(evictedCacheKey);
+                        evictions.put(evicted.v1(), 0);
+                    }
                 }
 
                 logger.trace("--> capturing expected number of fsyncs per cache directory before synchronization");
@@ -139,14 +146,13 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 cacheService.synchronizeCache();
 
                 logger.trace("--> verifying cache synchronization correctness");
-                updates.forEach(
-                    (cacheKey, cacheFileAndExpectedNumberOfFSyncs) -> assertFalse(
-                        cacheService.isCacheFileToSync(cacheFileAndExpectedNumberOfFSyncs.v1())
-                    )
-                );
                 cacheDirFSyncs.forEach(
                     (dir, expectedNumberOfFSyncs) -> assertThat(fileSystemProvider.getNumberOfFSyncs(dir), equalTo(expectedNumberOfFSyncs))
                 );
+                evictions.forEach((cacheFile, expectedNumberOfFSyncs) -> {
+                    assertThat(cacheService.isCacheFileToSync(cacheFile), is(false));
+                    assertThat(fileSystemProvider.getNumberOfFSyncs(cacheFile.getFile()), equalTo(expectedNumberOfFSyncs));
+                });
                 previous.putAll(updates);
                 previous.forEach((key, cacheFileAndExpectedNumberOfFSyncs) -> {
                     CacheFile cacheFile = cacheFileAndExpectedNumberOfFSyncs.v1();

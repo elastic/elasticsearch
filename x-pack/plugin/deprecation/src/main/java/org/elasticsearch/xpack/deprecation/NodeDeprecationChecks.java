@@ -257,12 +257,14 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins) {
-        if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
+        final JavaVersion javaVersion = JavaVersion.current();
+
+        if (javaVersion.compareTo(JavaVersion.parse("11")) < 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Java 11 is required",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#_java_11_is_required",
-                "Java 11 will be required for future versions of Elasticsearch, this node is running version "
-                    + JavaVersion.current().toString());
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
+                "Java 11 will be required for future versions of Elasticsearch, this node is running version ["
+                    + javaVersion.toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK");
         }
         return null;
     }

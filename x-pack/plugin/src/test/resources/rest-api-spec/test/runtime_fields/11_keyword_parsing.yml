@@ -8,6 +8,19 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
+            runtime:
+              status:
+                type: keyword
+                script:
+                  source: |
+                    for (def val : values("status.active")) {
+                      try {
+                        emit(val.toString())
+                      }
+                      catch (Exception e) {
+                        // ignore
+                      }
+                    }
             properties:
               timestamp:
                 type: date
@@ -18,31 +31,8 @@ setup:
               node:
                 type: keyword
               status:
-                type: runtime
-                runtime_type: keyword
-                script:
-                  source: |
-
-                    def vs = params._source.status;
-                    if (vs instanceof List) {
-                      for (def v : vs) {
-                        try {
-                          emit(v.toString());
-                        }
-                        catch (Exception e) {
-                           // do nothing
-                        }
-                      }
-                    }
-                    else {
-                      try {
-                        emit(vs.toString());
-                      }
-                      catch (Exception e) {
-                        // do nothing
-                      }
-                    }
-
+                type: object
+                enabled: false
 
 
   - do:
@@ -51,17 +41,17 @@ setup:
         refresh: true
         body: |
           {"index":{}}
-          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a", "status" : "on" }
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a", "status" : { "active" : "on" } }
           {"index":{}}
-          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b", "status" : [ "on" ] }
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b", "status" : [ { "active" : "on" } ] }
           {"index":{}}
-          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a", "status" : [ "active", "on", true ] }
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a", "status" : { "active" : [ "active", "on", true ] } }
           {"index":{}}
           {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b", "status" : 14 }
           {"index":{}}
-          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c", "status" : [ 9, null, "off" ] }
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c", "status" : [ 9, null, { "active" : "off" } ] }
           {"index":{}}
-          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "status" : "off" }
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "status" : { "active" : "off" } }
 
 ---
 "test matching":

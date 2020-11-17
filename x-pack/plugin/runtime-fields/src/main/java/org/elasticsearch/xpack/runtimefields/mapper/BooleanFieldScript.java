@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class BooleanFieldScript extends AbstractFieldScript {
+
     public static final ScriptContext<Factory> CONTEXT = newContext("boolean_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -83,5 +86,27 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         public void value(boolean v) {
             script.emit(v);
         }
+    }
+
+    public static class Values {
+        private final BooleanFieldScript script;
+
+        public Values(BooleanFieldScript script) {
+            this.script = script;
+        }
+
+        public List<Object> values(String path) {
+            return XContentMapValues.extractRawValues(path, script.getSource());
+        }
+    }
+
+    public static boolean tryParseBoolean(Object value) {
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        if (value instanceof String) {
+            return Booleans.parseBoolean((String) value);
+        }
+        throw new IllegalArgumentException("Cannot coerce " + value + " to boolean");
     }
 }

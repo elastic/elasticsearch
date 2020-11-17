@@ -2485,11 +2485,14 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                             "Field [" + index + "] does not exist for type [" + prefixValueType.getValueCanonicalTypeName() + "]."));
                 }
             } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
-                TargetType targetType = semanticScope.getDecoration(userDotNode, TargetType.class);
+                TargetType targetType = userDotNode.isNullSafe() ? null : semanticScope.getDecoration(userDotNode, TargetType.class);
                 // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
                 valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
                         semanticScope.getCondition(userDotNode, Explicit.class) ? def.class : targetType.getTargetType();
-                semanticScope.setCondition(userDotNode, DefOptimized.class);
+
+                if (write) {
+                    semanticScope.setCondition(userDotNode, DefOptimized.class);
+                }
             } else {
                 Class<?> prefixType;
                 String prefixCanonicalTypeName;
@@ -2708,7 +2711,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
                     semanticScope.getCondition(userBraceNode, Explicit.class) ? def.class : targetType.getTargetType();
-            semanticScope.setCondition(userBraceNode, DefOptimized.class);
+
+            if (write) {
+                semanticScope.setCondition(userBraceNode, DefOptimized.class);
+            }
         } else if (Map.class.isAssignableFrom(prefixValueType)) {
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
@@ -2854,7 +2860,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 }
             }
 
-            TargetType targetType = semanticScope.getDecoration(userCallNode, TargetType.class);
+            TargetType targetType = userCallNode.isNullSafe() ? null : semanticScope.getDecoration(userCallNode, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
                     semanticScope.getCondition(userCallNode, Explicit.class) ? def.class : targetType.getTargetType();

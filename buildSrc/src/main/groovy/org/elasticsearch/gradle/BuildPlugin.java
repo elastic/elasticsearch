@@ -21,6 +21,7 @@ package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.gradle.api.GradleException;
@@ -38,6 +39,7 @@ import java.io.File;
 public class BuildPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
+        checkInternalPluginUsages(project);
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
 
@@ -56,6 +58,16 @@ public class BuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(DependenciesGraphPlugin.class);
 
         BuildParams.withInternalBuild(() -> InternalPrecommitTasks.create(project, true)).orElse(() -> PrecommitTasks.create(project));
+    }
+
+    private static void checkInternalPluginUsages(Project project) {
+        if (BuildParams.isInternal() == false) {
+            project.getPlugins()
+                .withType(
+                    InternalPlugin.class,
+                    internalPlugin -> { throw new GradleException(internalPlugin.getExternalUseErrorMessage()); }
+                );
+        }
     }
 
     public static void configureLicenseAndNotice(final Project project) {

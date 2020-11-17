@@ -84,11 +84,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -362,7 +362,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
         return snapshotInfo;
     }
@@ -539,17 +539,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return snapshotInfos.get(0);
     }
 
+    protected static ThreadPoolStats.Stats snapshotThreadPoolStats(final String node) {
+        return StreamSupport.stream(internalCluster().getInstance(ThreadPool.class, node).stats().spliterator(), false)
+                .filter(threadPool -> threadPool.getName().equals(ThreadPool.Names.SNAPSHOT))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Failed to find snapshot pool on node [" + node + "]"));
+    }
+
     protected void awaitMasterFinishRepoOperations() throws Exception {
         logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
-        final ThreadPool masterThreadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
-        assertBusy(() -> {
-            for (ThreadPoolStats.Stats stat : masterThreadPool.stats()) {
-                if (ThreadPool.Names.SNAPSHOT.equals(stat.getName())) {
-                    assertEquals(stat.getActive(), 0);
-                    break;
-                }
-            }
-        });
+        final String masterName = internalCluster().getMasterName();
+        assertBusy(() -> assertEquals(snapshotThreadPoolStats(masterName).getActive(), 0));
     }
 
     protected List<String> createNSnapshots(String repoName, int count) throws Exception {

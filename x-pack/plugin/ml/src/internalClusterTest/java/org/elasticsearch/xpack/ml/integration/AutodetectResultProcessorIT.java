@@ -161,7 +161,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 renormalizer,
                 new JobResultsPersister(originSettingClient, resultsPersisterService,
                     new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class))),
-                new AnnotationPersister(resultsPersisterService, auditor),
+                new AnnotationPersister(resultsPersisterService),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
                 new TimingStats(JOB_ID)) {

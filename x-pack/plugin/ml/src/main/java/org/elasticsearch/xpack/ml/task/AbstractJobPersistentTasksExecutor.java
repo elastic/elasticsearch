@@ -38,6 +38,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
 
     public static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState,
                                                                    IndexNameExpressionResolver expressionResolver,
+                                                                   boolean allowMissing,
                                                                    String... indicesOfInterest) {
         String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indicesOfInterest);
         List<String> unavailableIndices = new ArrayList<>(indices.length);
@@ -45,6 +46,9 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet
             if (clusterState.metadata().hasIndex(index) == false) {
+                if (allowMissing == false) {
+                    unavailableIndices.add(index);
+                }
                 continue;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
@@ -89,6 +93,9 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
 
     protected abstract String[] indicesOfInterest(Params params);
     protected abstract String getJobId(Params params);
+    protected boolean allowsMissingIndices() {
+        return true;
+    }
 
     public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(Params params, ClusterState clusterState) {
         // If we are waiting for an upgrade to complete, we should not assign to a node
@@ -127,10 +134,11 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
     }
 
     public Optional<PersistentTasksCustomMetadata.Assignment> checkRequiredIndices(String jobId,
-                                                                            ClusterState clusterState,
-                                                                            String... indicesOfInterest) {
+                                                                                   ClusterState clusterState,
+                                                                                   String... indicesOfInterest) {
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState,
             expressionResolver,
+            allowsMissingIndices(),
             indicesOfInterest);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening [" + jobId + "], because not all primary shards are active for the following indices [" +

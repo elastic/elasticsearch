@@ -347,7 +347,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.MediaTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
+                innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderName());
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
@@ -384,8 +384,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 
-    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
-        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
+    private RestRequest requestWithoutFailedHeader(HttpRequest httpRequest,
+                                                   HttpChannel httpChannel,
+                                                   Exception badRequestCause,
+                                                   String failedHeaderName) {
+        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader(failedHeaderName);
         try {
             return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         } catch (final RestRequest.BadParameterException e) {

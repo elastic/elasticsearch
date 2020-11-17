@@ -296,7 +296,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             new BytesStreamOutput(source.length()),
             includes,
             excludes,
-            XContentType.SMILE.mediaType());
+            XContentType.SMILE.mediaType()
+        );
         XContentParser sourceParser = XContentHelper.createParser(
             NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION,

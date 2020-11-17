@@ -198,7 +198,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
      * @param responseContentTypeString  f
      */
-    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes, String responseContentTypeString) throws IOException {
+    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
+                           String responseContentTypeString) throws IOException {
         this.bos = os;
         this.responseContentTypeString = responseContentTypeString;
         this.generator = xContent.createGenerator(bos, includes, excludes);

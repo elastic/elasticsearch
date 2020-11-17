@@ -135,7 +135,8 @@ public abstract class AbstractRestChannel implements RestChannel {
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
         XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes, responseContentTypeString);
+            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
+                includes, excludes, responseContentTypeString);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

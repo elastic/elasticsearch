@@ -108,8 +108,11 @@ public class UrlPartsProcessor extends AbstractProcessor {
 
         @Override
         public UrlPartsProcessor create(
-            Map<String, Processor.Factory> registry, String processorTag,
-            String description, Map<String, Object> config) throws Exception {
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "url");
             boolean removeIfSuccessful = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "remove_if_successful", false);

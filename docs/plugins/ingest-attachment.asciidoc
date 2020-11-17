@@ -42,8 +42,8 @@ string. On Unix-like systems, you can do this using the `base64` command:
 base64 -in myfile.rtf
 ----
 
-The following base64 string is for an `.rtf` file containing the text `Lorem
-ipsum dolor sit amet`:
+The command returns the base64 string for the file. The following base64 string
+is for an `.rtf` file containing the text `Lorem ipsum dolor sit amet`:
 `e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=`.
 
 Use an attachment processor to decode the string and extract the file's

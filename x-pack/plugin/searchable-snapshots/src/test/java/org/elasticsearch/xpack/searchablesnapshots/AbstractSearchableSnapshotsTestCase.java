@@ -104,7 +104,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         if (randomBoolean()) {
             cacheSettings.put(
                 CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.getKey(),
-                TimeValue.timeValueSeconds(randomLongBetween(MIN_SNAPSHOT_CACHE_SYNC_INTERVAL.getSeconds(), Long.MAX_VALUE))
+                TimeValue.timeValueSeconds(scaledRandomIntBetween(1, 120))
             );
         }
         return new CacheService(cacheSettings.build(), clusterService, threadPool, AbstractSearchableSnapshotsTestCase::noOpCacheCleaner);

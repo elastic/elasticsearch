@@ -100,6 +100,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             maxOpenJobs,
             maxConcurrentJobAllocations,
             maxMachineMemoryPercent,
+            maxNodeMemory,
             isMemoryTrackerRecentlyRefreshed,
             useAutoMemoryPercentage);
     }

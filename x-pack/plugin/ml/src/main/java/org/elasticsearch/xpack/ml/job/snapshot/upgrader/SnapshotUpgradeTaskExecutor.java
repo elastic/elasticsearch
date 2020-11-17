@@ -93,6 +93,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             maxMachineMemoryPercent,
+            Long.MAX_VALUE,
             isMemoryTrackerRecentlyRefreshed,
             useAutoMemoryPercentage);
     }

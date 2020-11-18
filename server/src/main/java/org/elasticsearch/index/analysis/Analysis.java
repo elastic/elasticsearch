@@ -94,11 +94,6 @@ public class Analysis {
         return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
     }
 
-    public static boolean isNoStopwords(Settings settings) {
-        String value = settings.get("stopwords");
-        return value != null && "_none_".equals(value);
-    }
-
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");
         if ("_none_".equals(value)) {

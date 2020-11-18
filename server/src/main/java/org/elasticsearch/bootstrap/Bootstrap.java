@@ -359,7 +359,8 @@ final class Bootstrap {
             final String message = String.format(
                 Locale.ROOT,
                 "future versions of Elasticsearch will require Java 11; your Java version from [%s] does not meet this "
-                    + "requirement. Consider switching to a distribution of Elasticsearch with a bundled JDK",
+                    + "requirement. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
+                    + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
                 System.getProperty("java.home"));
             DeprecationLogger.getLogger(Bootstrap.class).deprecate("java_version_11_required", message);
         }

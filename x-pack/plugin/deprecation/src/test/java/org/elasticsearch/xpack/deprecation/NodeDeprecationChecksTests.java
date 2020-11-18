@@ -57,7 +57,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Java 11 is required",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
             "Java 11 will be required for future versions of Elasticsearch, this node is running version ["
-                + JavaVersion.current().toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK");
+                + JavaVersion.current().toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
+                + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.");
 
         if (isJvmEarlierThan11()) {
             assertThat(issues, hasItem(expected));

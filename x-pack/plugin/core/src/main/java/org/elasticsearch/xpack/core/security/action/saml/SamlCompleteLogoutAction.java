@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 
 /**
  * ActionType for completing SAML LogoutResponse
  */
-public final class SamlCompleteLogoutAction extends ActionType<SamlCompleteLogoutResponse> {
+public final class SamlCompleteLogoutAction extends ActionType<ActionResponse.Empty> {
 
     public static final String NAME = "cluster:admin/xpack/security/saml/complete_logout";
     public static final SamlCompleteLogoutAction INSTANCE = new SamlCompleteLogoutAction();
 
     private SamlCompleteLogoutAction() {
-        super(NAME, SamlCompleteLogoutResponse::new);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 }

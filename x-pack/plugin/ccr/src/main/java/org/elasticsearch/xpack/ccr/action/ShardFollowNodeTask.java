@@ -531,12 +531,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 scheduler.accept(TimeValue.timeValueMillis(delay), task);
             }
         } else {
-            setFatalException(e);
+            onFatalFailure(e);
         }
     }
 
-    void setFatalException(Exception e) {
-        fatalException = ExceptionsHelper.convertToElastic(e);
+    final void onFatalFailure(Exception e) {
+        synchronized (this) {
+            this.fatalException = ExceptionsHelper.convertToElastic(e);
+            if (this.renewable != null) {
+                this.renewable.cancel();
+                this.renewable = null;
+            }
+        }
         LOGGER.warn("shard follow task encounter non-retryable error", e);
     }
 

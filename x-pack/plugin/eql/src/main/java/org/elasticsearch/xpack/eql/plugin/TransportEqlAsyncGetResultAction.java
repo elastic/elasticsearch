@@ -56,7 +56,7 @@ public class TransportEqlAsyncGetResultAction extends HandledTransportAction<Get
         Writeable.Reader<StoredAsyncResponse<EqlSearchResponse>> reader = in -> new StoredAsyncResponse<>(EqlSearchResponse::new, in);
         AsyncTaskIndexService<StoredAsyncResponse<EqlSearchResponse>> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX,
             clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry);
-        return new AsyncResultsService<>(store, true, EqlSearchTask.class,
+        return new AsyncResultsService<>(store, false, EqlSearchTask.class,
             (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
             transportService.getTaskManager(), clusterService);
     }

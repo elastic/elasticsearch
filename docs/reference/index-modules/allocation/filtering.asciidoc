@@ -59,8 +59,22 @@ PUT test/_settings
 ------------------------
 // TEST[s/^/PUT test\n/]
 
-If you specify multiple filters, all conditions must be satisfied for shards to
-be relocated. For example, to move the `test` index to `big` nodes in `rack1`,
+If you specify multiple filters, all `require` type conditions and no `exclude` type conditions must be satisfied for shards to
+be relocated. For example, to move the `test` index to `big` nodes in `rack1`, you could specify:
+
+[source,console]
+------------------------
+PUT test/_settings
+{
+  "index.routing.allocation.require.size": "big",
+  "index.routing.allocation.require.rack": "rack1"
+}
+------------------------
+// TEST[s/^/PUT test\n/]
+--
+
+If your filters contain one or more `include` type conditions, at least one of them must be satisfied for shards to be
+relocated. For example, to move the `test` index to nodes that are either `big` nodes, nodes in `rack1`, or meet both conditions,
 you could specify:
 
 [source,console]
@@ -81,7 +95,10 @@ PUT test/_settings
 `index.routing.allocation.include.{attribute}`::
 
     Assign the index to a node whose `{attribute}` has at least one of the
-    comma-separated values.
+    comma-separated values. If multiple `include` settings for different attributes
+    are specified, they are combined via logical `OR`. To specify multiple attribute
+    conditions that must all be satisfied simultaneously you should use `require` type
+    settings instead.
 
 `index.routing.allocation.require.{attribute}`::
 

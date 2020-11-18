@@ -85,11 +85,6 @@ public class Analysis {
         if (sVersion != null) {
             return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
-        // check for explicit version on the index itself as default for all analysis components
-        sVersion = indexSettings.get("index.analysis.version");
-        if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
-        }
         // resolve the analysis version based on the version the index was created with
         return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
     }

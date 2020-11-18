@@ -12,7 +12,6 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -30,7 +28,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 
@@ -62,13 +59,6 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
-    }
-
-    @Override
-    public Set<String> excludeTemplates() {
-        Set<String> templates = Sets.newHashSet(super.excludeTemplates());
-        templates.add(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7); // don't remove the security index template
-        return templates;
     }
 
     @Override

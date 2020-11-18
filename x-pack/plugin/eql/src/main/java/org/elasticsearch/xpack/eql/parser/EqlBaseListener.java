@@ -392,6 +392,18 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitStringLiteral(EqlBaseParser.StringLiteralContext ctx);
   /**
+   * Enter a parse tree produced by the {@code seqValue}
+   * labeled alternative in {@link EqlBaseParser#seqPredicate}.
+   * @param ctx the parse tree
+   */
+  void enterSeqValue(EqlBaseParser.SeqValueContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code seqValue}
+   * labeled alternative in {@link EqlBaseParser#seqPredicate}.
+   * @param ctx the parse tree
+   */
+  void exitSeqValue(EqlBaseParser.SeqValueContext ctx);
+  /**
    * Enter a parse tree produced by {@link EqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
    */

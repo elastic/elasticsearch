@@ -251,7 +251,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
      * cache entry. Note that cache files might be evicted during the synchronization.
      */
-    protected void synchronizeCache() {
+    protected synchronized void synchronizeCache() {
         long count = 0L;
         final Set<Path> cacheDirs = new HashSet<>();
         final long startTimeNanos = threadPool.relativeTimeInNanos();
@@ -262,10 +262,8 @@ public class CacheService extends AbstractLifecycleComponent {
                 break;
             }
             final CacheFile cacheFile = cacheFilesToSync.poll();
-            if (cacheFile == null) {
-                logger.debug("stopping cache synchronization (no more cache files to fsync)");
-                break;
-            }
+            assert cacheFile != null;
+
             final long value = numberOfCacheFilesToSync.decrementAndGet();
             assert value >= 0 : value;
             final Path cacheFilePath = cacheFile.getFile();
@@ -294,7 +292,7 @@ public class CacheService extends AbstractLifecycleComponent {
         if (logger.isDebugEnabled()) {
             final long elapsedNanos = threadPool.relativeTimeInNanos() - startTimeNanos;
             logger.debug(
-                "cache files synchronization is done ({} cache files synchronized in {})",
+                "cache files synchronization is done ([{}] cache files synchronized in [{}])",
                 count,
                 TimeValue.timeValueNanos(elapsedNanos)
             );

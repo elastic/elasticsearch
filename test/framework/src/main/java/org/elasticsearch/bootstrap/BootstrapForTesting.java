@@ -146,10 +146,8 @@ public class BootstrapForTesting {
                 final Policy runnerPolicy;
                 if (System.getProperty("tests.gradle") != null) {
                     runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("gradle.policy"), codebases);
-                } else if (codebases.containsKey("junit-rt.jar")) {
-                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("intellij.policy"), codebases);
                 } else {
-                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("eclipse.policy"), codebases);
+                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("intellij.policy"), codebases);
                 }
                 // this mimicks the recursive data path permission added in Security.java
                 Permissions fastPathPermissions = new Permissions();

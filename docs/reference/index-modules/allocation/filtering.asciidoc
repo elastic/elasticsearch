@@ -71,7 +71,6 @@ PUT test/_settings
 }
 ------------------------
 // TEST[s/^/PUT test\n/]
---
 
 If your filters contain one or more `include` type conditions, at least one of them must be satisfied for shards to be
 relocated. For example, to move the `test` index to nodes that are either `big` nodes, nodes in `rack1`, or meet both conditions,

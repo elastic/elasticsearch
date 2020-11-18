@@ -141,7 +141,7 @@ acts as a cumulative count of the stream's rollovers, starting at `1`.
 
 `_meta`::
 (object)
-Custom metadata for the stream, pulled from the `_meta` object of the
+Custom metadata for the stream, copied from the `_meta` object of the
 stream's matching <<create-a-data-stream-template,index template>>. If empty,
 the response omits this property.
 

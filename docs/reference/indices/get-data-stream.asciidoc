@@ -42,7 +42,7 @@ PUT /_index_template/my-index-template
     }
   },
   "_meta": {
-    "my-meta-field": true
+    "my-meta-field": "foo"
   }
 }
 
@@ -217,7 +217,7 @@ The API returns the following response:
       ],
       "generation": 2,
       "_meta": {
-        "my-meta-field": true
+        "my-meta-field": "foo"
       },
       "status": "GREEN",
       "template": "my-index-template",
@@ -237,7 +237,7 @@ The API returns the following response:
       ],
       "generation": 1,
       "_meta": {
-        "my-meta-field": true
+        "my-meta-field": "foo"
       },
       "status": "YELLOW",
       "template": "my-index-template",

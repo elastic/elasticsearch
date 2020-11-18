@@ -100,10 +100,7 @@ public class UrlPartsProcessorTests extends ESTestCase {
             Map.of("scheme", "ftp", "path", "/rfc/rfc1808.txt", "extension", "txt", "domain", "ftp.is.co.za")
         );
 
-        testUrlParsing(
-            "telnet://192.0.2.16:80/",
-            Map.of("scheme", "telnet", "path", "/", "port", 80, "domain", "192.0.2.16")
-        );
+        testUrlParsing("telnet://192.0.2.16:80/", Map.of("scheme", "telnet", "path", "/", "port", 80, "domain", "192.0.2.16"));
 
         testUrlParsing(
             "ldap://[2001:db8::7]/c=GB?objectClass?one",

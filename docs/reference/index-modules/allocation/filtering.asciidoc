@@ -59,8 +59,14 @@ PUT test/_settings
 ------------------------
 // TEST[s/^/PUT test\n/]
 
-If you specify multiple filters, all `require` type conditions and no `exclude` type conditions must be satisfied for shards to
-be relocated. For example, to move the `test` index to `big` nodes in `rack1`, you could specify:
+If you specify multiple filters the following conditions must be satisfied simultaneously by a node in order for shards to be relocated
+to it:
+
+* If any `require` type conditions are specified, all of them must be satisfied
+* If any `exclude` type conditions are specified, none of them may be satisfied
+* If any `include` type conditions are specified, at least one of them must be satisfied
+
+For example, to move the `test` index to `big` nodes in `rack1`, you could specify:
 
 [source,console]
 ------------------------
@@ -68,20 +74,6 @@ PUT test/_settings
 {
   "index.routing.allocation.require.size": "big",
   "index.routing.allocation.require.rack": "rack1"
-}
-------------------------
-// TEST[s/^/PUT test\n/]
-
-If your filters contain one or more `include` type conditions, at least one of them must be satisfied for shards to be
-relocated. For example, to move the `test` index to nodes that are either `big` nodes, nodes in `rack1`, or meet both conditions,
-you could specify:
-
-[source,console]
-------------------------
-PUT test/_settings
-{
-  "index.routing.allocation.include.size": "big",
-  "index.routing.allocation.include.rack": "rack1"
 }
 ------------------------
 // TEST[s/^/PUT test\n/]
@@ -94,10 +86,7 @@ PUT test/_settings
 `index.routing.allocation.include.{attribute}`::
 
     Assign the index to a node whose `{attribute}` has at least one of the
-    comma-separated values. If multiple `include` settings for different attributes
-    are specified, they are combined via logical `OR`. To specify multiple attribute
-    conditions that must all be satisfied simultaneously you should use `require` type
-    settings instead.
+    comma-separated values.
 
 `index.routing.allocation.require.{attribute}`::
 

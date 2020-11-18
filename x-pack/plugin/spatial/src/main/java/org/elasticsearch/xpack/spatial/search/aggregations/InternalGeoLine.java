@@ -33,6 +33,19 @@ public class InternalGeoLine extends InternalAggregation {
     private SortOrder sortOrder;
     private int size;
 
+    /**
+     * A geo_line representing the bucket for a {@link GeoLineAggregationBuilder}. The values of <code>line</code> and <code>sortVals</code>
+     * are expected to be sorted using <code>sortOrder</code>.
+     *
+     * @param name            the name of the aggregation
+     * @param line            the ordered geo-points representing the line
+     * @param sortVals        the ordered sort-values associated with the points in the line (e.g. timestamp)
+     * @param metadata        the aggregation's metadata
+     * @param complete        true iff the line is representative of all the points that fall within the bucket. False otherwise.
+     * @param includeSorts    true iff the sort-values should be rendered in xContent as properties of the line-string. False otherwise.
+     * @param sortOrder       the {@link SortOrder} for the line. Whether the points are to be plotted in asc or desc order
+     * @param size            the max length of the line-string.
+     */
     InternalGeoLine(String name, long[] line, double[] sortVals, Map<String, Object> metadata, boolean complete,
                     boolean includeSorts, SortOrder sortOrder, int size) {
         super(name, metadata);

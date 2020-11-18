@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.search.sort.SortOrder;
 
+/**
+ * An {@link IntroSorter} that sorts <code>points</code> and <code>sortValues</code> using the
+ */
 final class PathArraySorter extends IntroSorter {
 
     private final long[] points;

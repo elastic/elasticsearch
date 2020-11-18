@@ -22,8 +22,8 @@ final class MergedGeoLines {
     private final int[] lineIndices; // index of which geoLine item represents
     private final int[] idxsWithinLine; // index within the geoLine for the item
     private int size;
-    private final long[] finalPoints;
-    private final double[] finalSortValues;
+    private final long[] finalPoints;       // the final sorted list of points, sorted by their respective sort-values. valid after merge
+    private final double[] finalSortValues; // the final sorted list of sort-values. valid after merge.
 
     MergedGeoLines(List<InternalGeoLine> geoLines, int finalLength, SortOrder sortOrder) {
         this.geoLines = geoLines;
@@ -44,6 +44,9 @@ final class MergedGeoLines {
         return finalSortValues;
     }
 
+    /**
+     * merges <code>geoLines</code> into one sorted list of values representing the combined line.
+     */
     public void merge() {
         // 1. add first element of each sub line to heap
         for (int i = 0; i < geoLines.size(); i++) {

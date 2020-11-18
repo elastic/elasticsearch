@@ -27,6 +27,13 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.SORT_FIELD;
 
+/**
+ * A bigArrays sorter of both a geo_line's sort-values and points.
+ *
+ * This class accumulates geo_points within buckets and heapifies the
+ * bucket based on whether there are too many items in the bucket that
+ * need to be dropped based on their sort value.
+ */
 public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
     private final GeoLineMultiValuesSource valuesSources;
 
@@ -48,6 +55,11 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         return end - start;
     }
 
+    /**
+     * @param bucket the bucket ordinal
+     * @return the array of sort-values for the specific bucket. This array may not necessarily be heapified already, so no ordering is
+     *         guaranteed.
+     */
     public double[] getSortValues(long bucket) {
         int bucketSize = getBucketSize();
         long rootIndex = bucket * bucketSize;
@@ -66,6 +78,10 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         return result;
     }
 
+    /**
+     * @param bucket the bucket ordinal
+     * @return the array of points, ordered by the their respective sort-value for the specific bucket.
+     */
     public long[] getPoints(long bucket) {
         int bucketSize = getBucketSize();
         long rootIndex = bucket * bucketSize;
@@ -116,6 +132,10 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         };
     }
 
+    /**
+     * An {@link BucketedSort.ExtraData} representing the geo-point for a document
+     * within a bucket.
+     */
     static class Extra implements BucketedSort.ExtraData, Releasable {
 
         private final BigArrays bigArrays;

@@ -104,8 +104,10 @@ class PluginBuildPlugin implements Plugin<Project> {
                 expand(properties)
                 inputs.properties(properties)
             }
-            if (isModule == false || isXPackModule) {
-                addNoticeGeneration(project, extension1)
+            BuildParams.withInternalBuild {
+                if (isModule == false || isXPackModule) {
+                    addNoticeGeneration(project, extension1)
+                }
             }
         }
 

@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -328,6 +330,27 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                 }
             }
         }
+    }
+
+    @Override
+    protected List<InternalTopMetrics> randomResultsToReduce(String name, int count) {
+        InternalTopMetrics prototype = createTestInstance();
+        return randomList(
+            count,
+            count,
+            () -> new InternalTopMetrics(
+                prototype.getName(),
+                prototype.getSortOrder(),
+                prototype.getMetricNames(),
+                prototype.getSize(),
+                randomTopMetrics(
+                    InternalAggregationTestCase::randomNumericDocValueFormat,
+                    between(0, prototype.getSize()),
+                    prototype.getMetricNames().size()
+                ),
+                prototype.getMetadata()
+            )
+        );
     }
 
     @Override

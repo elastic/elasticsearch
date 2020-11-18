@@ -309,6 +309,9 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.termenum.TermEnumAction;
+import org.elasticsearch.action.termenum.TermEnumRequest;
+import org.elasticsearch.action.termenum.TermEnumResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
@@ -1639,6 +1642,17 @@ public abstract class AbstractClient implements Client {
         public void validateQuery(final ValidateQueryRequest request, final ActionListener<ValidateQueryResponse> listener) {
             execute(ValidateQueryAction.INSTANCE, request, listener);
         }
+        
+        @Override
+        public ActionFuture<TermEnumResponse> termEnum(final TermEnumRequest request) {
+            return execute(TermEnumAction.INSTANCE, request);
+        }
+
+        @Override
+        public void termEnum(final TermEnumRequest request, final ActionListener<TermEnumResponse> listener) {
+            execute(TermEnumAction.INSTANCE, request, listener);
+        }
+        
 
         @Override
         public ValidateQueryRequestBuilder prepareValidateQuery(String... indices) {

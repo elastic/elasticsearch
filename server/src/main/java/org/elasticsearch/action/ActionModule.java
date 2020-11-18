@@ -222,6 +222,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.termenum.TermEnumAction;
+import org.elasticsearch.action.termenum.TransportTermEnumAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportMultiTermVectorsAction;
@@ -336,6 +338,7 @@ import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
+import org.elasticsearch.rest.action.admin.indices.RestTermEnumAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
@@ -542,6 +545,7 @@ public class ActionModule extends AbstractModule {
         actions.register(SimulateIndexTemplateAction.INSTANCE, TransportSimulateIndexTemplateAction.class);
         actions.register(SimulateTemplateAction.INSTANCE, TransportSimulateTemplateAction.class);
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
+        actions.register(TermEnumAction.INSTANCE, TransportTermEnumAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
@@ -723,6 +727,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestMultiSearchAction(settings));
 
         registerHandler.accept(new RestValidateQueryAction());
+        registerHandler.accept(new RestTermEnumAction());
 
         registerHandler.accept(new RestExplainAction());
 

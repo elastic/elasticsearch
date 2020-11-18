@@ -1,0 +1,126 @@
+[[search-term-enum]]
+=== Term enum API
+
+The term enum API can be used to discover terms in the index that match
+a pattern. This can be useful for features like auto-complete or regexp authoring tools:
+
+[source,console]
+--------------------------------------------------
+POST stackoverflow/_terms/list
+{
+    "field" : "tags",
+    "pattern" : "kiba"
+}
+--------------------------------------------------
+// TEST[setup:stackoverflow]
+// TEST[continued]
+
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0
+  },
+  "terms": [
+    {
+      "term": "kibana",
+      "doc_count": 8
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"8"/"$body.terms.0.doc_count"/]
+
+[[search-term-enum-api-request]]
+==== {api-request-title}
+
+`GET /<target>/_terms/list`
+
+
+[[search-term-enum-api-desc]]
+==== {api-description-title}
+
+The termenum API  can be used to discover terms in the index that match
+a pattern. By default it looks for terms that begin with the provided
+pattern but more complex pattern matching can be used by setting the
+appropriate flags that control matching.
+
+
+[[search-term-enum-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Mandatory, string)
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
++
+To search all data streams or indices in a cluster, omit this parameter or use
+`_all` or `*`.
+
+[[search-term-enum-api-request-body]]
+==== {api-request-body-title}
+
+[[term-enum-field-param]]
+`field`::
+(Mandatory, string)
+Which field to match
+
+[[term-enum-field-param]]
+`field`::
+(Mandatory, string)
+The string pattern to match in indexed terms
+
+[[term-enum-leading-wildcard-param]]
+`leading_wildcard`::
+(Optional, boolean)
+When true allows for the pattern to be found starting anywhere in the indexed term. This
+can be expensive to run so the default is false.
+
+[[term-enum-trailling-wildcard-param]]
+`trailling_wildcard`::
+(Optional, boolean)
+When true matches index terms that may contain extra characters after the provided pattern. This
+is cheap to run so the default is true and supports auto-complete style use cases.
+
+[[term-enum-size-param]]
+`size`::
+(Optional, integer)
+How many matching terms to return. Defaults to 10
+
+[[term-enum-timeout-param]]
+`timeout`::
+(Optional, integer)
+The maximum length of time in milliseconds to spend collecting results. Defaults to 1000.
+If the timeout is exceeded a `timed_out` flag is set in the response and the results may
+be partial or empty.
+
+[[term-enum-case_insensitive-param]]
+`case_insensitive`::
+(Optional, boolean)
+When true the pattern is matched against index terms without case sensitivity.
+Defaults to false.
+
+[[term-enum-use_regexp_syntax-param]]
+`use_regexp_syntax`::
+(Optional, boolean)
+When true the pattern is matched against index terms as a regular expression.
+This can be expensive to run so the default is false.
+
+[[term-enum-min_shard_doc_freq-param]]
+`min_shard_doc_freq`::
+(Optional, integer)
+Many terms in an index can be one-off typos which you might not want to see. Setting this parameter
+to a value greater than one can be effective in removing undesirable values from results.
+
+[[term-enum-sort_by_popularity-param]]
+`sort_by_popularity`::
+(Optional, boolean)
+When true terms are sorted by popularity, when false they are sorted alphabetically. Sorting
+by popularity can be slower so the default is false
+
+

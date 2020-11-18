@@ -100,6 +100,8 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.termenum.TermEnumRequest;
+import org.elasticsearch.action.termenum.TermEnumResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.common.Nullable;
 
@@ -627,6 +629,26 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified of the result
      */
     void validateQuery(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener);
+    
+    
+
+    /**
+     * Collect terms from a field
+     *
+     * @param request The termEnum request
+     * @return The result future
+     */
+    ActionFuture<TermEnumResponse> termEnum(TermEnumRequest request);
+
+    /**
+     * Collect terms from a field
+     *
+     * @param request  The termEnum request
+     * @param listener A listener to be notified of the result
+     */
+    void termEnum(TermEnumRequest request, ActionListener<TermEnumResponse> listener);    
+    
+    
 
     /**
      * Validate a query for correctness.

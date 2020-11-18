@@ -67,7 +67,7 @@ import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSIT
 class AzureClientProvider extends AbstractLifecycleComponent {
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
-    private static final int DEFAULT_MAX_CONNECTIONS = Math.min(Runtime.getRuntime().availableProcessors(), 8) * 2;
+    private static final int DEFAULT_MAX_CONNECTIONS = 50;
     private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors(), 8) * 2;
 
     static final Setting<String> EVENT_LOOP_EXECUTOR = Setting.simpleString(

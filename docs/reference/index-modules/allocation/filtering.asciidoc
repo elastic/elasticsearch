@@ -59,14 +59,16 @@ PUT test/_settings
 ------------------------
 // TEST[s/^/PUT test\n/]
 
-If you specify multiple filters the following conditions must be satisfied simultaneously by a node in order for shards to be relocated
-to it:
+If you specify multiple filters the following conditions must be satisfied
+simultaneously by a node in order for shards to be relocated to it:
 
 * If any `require` type conditions are specified, all of them must be satisfied
 * If any `exclude` type conditions are specified, none of them may be satisfied
-* If any `include` type conditions are specified, at least one of them must be satisfied
+* If any `include` type conditions are specified, at least one of them must be
+satisfied
 
-For example, to move the `test` index to `big` nodes in `rack1`, you could specify:
+For example, to move the `test` index to `big` nodes in `rack1`, you could
+specify:
 
 [source,console]
 ------------------------

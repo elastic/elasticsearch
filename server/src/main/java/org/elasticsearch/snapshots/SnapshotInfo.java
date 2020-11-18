@@ -479,6 +479,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return userMetadata;
     }
 
+    public List<SnapshotFeatureInfo> featureStates() {
+        return List.copyOf(featureStates);
+    }
+
     /**
      * Compares two snapshots by their start time; if the start times are the same, then
      * compares the two snapshots by their snapshot ids.

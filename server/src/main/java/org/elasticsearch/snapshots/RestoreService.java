@@ -68,6 +68,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -80,6 +81,7 @@ import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -91,6 +93,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
@@ -268,14 +271,32 @@ public class RestoreService implements ClusterStateApplier {
                     metadataBuilder = Metadata.builder();
                 }
 
-                List<Index> systemIndices = new ArrayList<>();
-                // is this filtered by what's in the request?
-                final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(indicesInSnapshot);
+                // set up feature state indices
+                Set<String> requestedFeatureStateIndexes = new HashSet<>();
+                Set<String> nonRequestedFeatureStateIndexes = new HashSet<>();
+
+                if (request.includeGlobalState() == false) {
+                    for (SnapshotFeatureInfo snapshotFeatureInfo : snapshotInfo.featureStates()) {
+                        if (Set.of(request.featureStates()).contains(snapshotFeatureInfo.getPluginName())) {
+                            requestedFeatureStateIndexes.addAll(snapshotFeatureInfo.getIndices());
+                        } else {
+                            nonRequestedFeatureStateIndexes.addAll(snapshotFeatureInfo.getIndices());
+                        }
+                    }
+                }
+
+                List<String> requestedIndicesIncludingSystem = Stream.concat(
+                    indicesInSnapshot.stream(), requestedFeatureStateIndexes.stream())
+                    .distinct()
+                    .filter(index -> nonRequestedFeatureStateIndexes.contains(index) == false)
+                    .collect(Collectors.toList());
+
+                List<Index> systemIndicesToDelete = new ArrayList<>();
+                final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(requestedIndicesIncludingSystem);
                 for (IndexId indexId : indexIdsInSnapshot) {
                     IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
                     if (snapshotIndexMetaData.isSystem()) {
-                        // add to system indices list
-                        systemIndices.add(snapshotIndexMetaData.getIndex());
+                        systemIndicesToDelete.add(snapshotIndexMetaData.getIndex());
                     }
                     metadataBuilder.put(snapshotIndexMetaData, false);
                 }
@@ -285,7 +306,7 @@ public class RestoreService implements ClusterStateApplier {
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name
                 // TODO: don't apply to system indices
-                final Map<String, String> indices = renamedIndices(request, indicesInSnapshot, dataStreamIndices);
+                final Map<String, String> indices = renamedIndices(request, requestedIndicesIncludingSystem, dataStreamIndices);
 
                 // Now we can start the actual restore process by adding shards to be recovered in the cluster state
                 // and updating cluster metadata (global and index) as needed
@@ -305,7 +326,7 @@ public class RestoreService implements ClusterStateApplier {
                                     deletionsInProgress.getEntries().get(0) + "]");
                         }
 
-                        currentState = metadataDeleteIndexService.deleteIndices(currentState, new HashSet<>(systemIndices));
+                        currentState = metadataDeleteIndexService.deleteIndices(currentState, new HashSet<>(systemIndicesToDelete));
 
                         // Updating cluster state
                         ClusterState.Builder builder = ClusterState.builder(currentState);

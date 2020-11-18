@@ -138,7 +138,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // snapshot by feature
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
-            // setFeatureList()
+            .setFeatureStates("TestSystemIndex")
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 
@@ -195,13 +195,15 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // restore indices by feature
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
-            // restore by feature
+            .setFeatureStates("SystemIndexTestPlugin")
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // verify only the original document is restored
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
-        assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
+
+        // but the non-requested feature should still have its new document
+        assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
     }
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {
@@ -224,8 +226,13 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public String getPluginName() {
+        public String getFeatureName() {
             return SystemIndexTestPlugin.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "A simple test plugin";
         }
     }
 
@@ -239,8 +246,13 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public String getPluginName() {
+        public String getFeatureName() {
             return AnotherSystemIndexTestPlugin.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "Another simple test plugin";
         }
     }
 }

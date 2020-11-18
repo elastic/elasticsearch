@@ -234,4 +234,12 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
         request.ignoreIndexSettings(ignoreIndexSettings);
         return this;
     }
+
+    /**
+     * Sets the list of features whose states should be restored as part of this snapshot
+     */
+    public RestoreSnapshotRequestBuilder setFeatureStates(String... featureStates) {
+        request.featureStates(featureStates);
+        return this;
+    }
 }

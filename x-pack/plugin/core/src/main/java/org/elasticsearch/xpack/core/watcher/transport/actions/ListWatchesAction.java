@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -47,12 +49,20 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
         public static final ParseField SIZE_FIELD = new ParseField("size");
         public static final ParseField QUERY_FIELD = new ParseField("query");
         public static final ParseField SORT_FIELD = new ParseField("sort");
+        public static final ParseField SEARCH_AFTER_FIELD = new ParseField("search_after");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "list_watch_request",
             true,
-            (args, c) -> new Request((Integer) args[0], (Integer) args[1], (QueryBuilder) args[2], (List<FieldSortBuilder>) args[3])
+            (args, c) -> {
+                Integer from = (Integer) args[0];
+                Integer size = (Integer) args[1];
+                QueryBuilder query = (QueryBuilder) args[2];
+                List<FieldSortBuilder> sort = (List<FieldSortBuilder>) args[3];
+                SearchAfterBuilder searchAfter = (SearchAfterBuilder) args[4];
+                return new Request(from, size, query, sort, searchAfter);
+            }
         );
 
         static {
@@ -71,6 +81,8 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
                 }
                 return result;
             }, SORT_FIELD);
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> SearchAfterBuilder.fromXContent(p), SEARCH_AFTER_FIELD,
+                ObjectParser.ValueType.VALUE_ARRAY);
         }
 
         public static Request fromXContent(XContentParser parser) throws IOException {
@@ -81,6 +93,7 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
         private final Integer size;
         private final QueryBuilder query;
         private final List<FieldSortBuilder> sorts;
+        private final SearchAfterBuilder searchAfter;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -92,13 +105,19 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
             } else {
                 sorts = null;
             }
+            searchAfter = in.readOptionalWriteable(SearchAfterBuilder::new);
         }
 
-        public Request(Integer from, Integer size, QueryBuilder query, List<FieldSortBuilder> sorts) {
+        public Request(Integer from,
+                       Integer size,
+                       QueryBuilder query,
+                       List<FieldSortBuilder> sorts,
+                       SearchAfterBuilder searchAfter) {
             this.from = from;
             this.size = size;
             this.query = query;
             this.sorts = sorts;
+            this.searchAfter = searchAfter;
         }
 
         public Integer getFrom() {
@@ -115,6 +134,10 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
 
         public List<FieldSortBuilder> getSorts() {
             return sorts;
+        }
+
+        public SearchAfterBuilder getSearchAfter() {
+            return searchAfter;
         }
 
         @Override
@@ -134,6 +157,7 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
             } else {
                 out.writeBoolean(false);
             }
+            out.writeOptionalWriteable(searchAfter);
         }
 
         @Override
@@ -155,6 +179,9 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
                 }
                 builder.endArray();
             }
+            if (searchAfter != null) {
+                builder.array(SEARCH_AFTER_FIELD.getPreferredName(), searchAfter.getSortValues());
+            }
             return builder.endObject();
         }
 
@@ -166,12 +193,13 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
             return Objects.equals(from, request.from) &&
                 Objects.equals(size, request.size) &&
                 Objects.equals(query, request.query) &&
-                Objects.equals(sorts, request.sorts);
+                Objects.equals(sorts, request.sorts) &&
+                Objects.equals(searchAfter, request.searchAfter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(from, size, query, sorts);
+            return Objects.hash(from, size, query, sorts, searchAfter);
         }
     }
 

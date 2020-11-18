@@ -38,7 +38,7 @@ public class RestListWatchesAction extends BaseRestHandler {
         if (request.hasContentOrSourceParam()) {
             listWatchesRequest = ListWatchesAction.Request.fromXContent(request.contentOrSourceParamParser());
         } else {
-            listWatchesRequest = new ListWatchesAction.Request(null, null, null, null);
+            listWatchesRequest = new ListWatchesAction.Request(null, null, null, null, null);
         }
         return channel -> client.execute(ListWatchesAction.INSTANCE, listWatchesRequest, new RestToXContentListener<>(channel));
     }

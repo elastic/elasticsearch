@@ -76,6 +76,9 @@ public class TransportListWatchesAction extends WatcherTransportAction<ListWatch
                 searchRequest.source().sort(sort);
             }
         }
+        if (request.getSearchAfter() != null) {
+            searchRequest.source().searchAfter(request.getSearchAfter().getSortValues());
+        }
         searchRequest.source().trackTotalHits(true);
         searchRequest.source().seqNoAndPrimaryTerm(true);
         return searchRequest;

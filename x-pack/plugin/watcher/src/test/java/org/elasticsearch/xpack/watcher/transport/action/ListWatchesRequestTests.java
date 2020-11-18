@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -51,11 +52,17 @@ public class ListWatchesRequestTests extends AbstractSerializingTestCase<ListWat
                 sorts.add(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
             }
         }
+        SearchAfterBuilder searchAfter = null;
+        if (randomBoolean()) {
+            searchAfter = new SearchAfterBuilder();
+            searchAfter.setSortValues(new Object[]{randomInt()});
+        }
         return new ListWatchesAction.Request(
             randomBoolean() ? randomIntBetween(0, 10000) : null,
             randomBoolean() ? randomIntBetween(0, 10000) : null,
             query,
-            sorts
+            sorts,
+            searchAfter
         );
     }
 

@@ -394,7 +394,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
         refresh();
 
-        ListWatchesAction.Request request = new ListWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata.key1")));
+        ListWatchesAction.Request request =
+            new ListWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
         ListWatchesAction.Response response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
@@ -405,7 +406,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherMetadata = (Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
         assertThat(watcherMetadata.get("key2"), equalTo(5));
 
-        request = new ListWatchesAction.Request(2, 2, null, List.of(new FieldSortBuilder("metadata.key1")));
+        request = new ListWatchesAction.Request(2, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
         response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
@@ -416,7 +417,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherMetadata = (Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
         assertThat(watcherMetadata.get("key2"), equalTo(3));
 
-        request = new ListWatchesAction.Request(null, null, new TermQueryBuilder("_id", "4"), null);
+        request = new ListWatchesAction.Request(null, null, new TermQueryBuilder("_id", "4"), null, null);
         response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo(1L));
         assertThat(response.getWatches().size(), equalTo(1));
@@ -425,7 +426,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(watcherMetadata.get("key1"), equalTo(4));
         assertThat(watcherMetadata.get("key2"), equalTo(2));
 
-        request = new ListWatchesAction.Request(4, 2, null, List.of(new FieldSortBuilder("metadata.key2")));
+        request = new ListWatchesAction.Request(4, 2, null, List.of(new FieldSortBuilder("metadata.key2")), null);
         response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));

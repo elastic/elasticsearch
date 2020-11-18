@@ -50,6 +50,57 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new SpatialPlugin());
     }
 
+    // test that missing values are ignored
+    public void testMissingValues() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name")
+            .point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .sort(sortConfig)
+            .size(10);
+
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
+            .field("group_id")
+            .subAggregation(lineAggregationBuilder);
+
+        long lonLat = (((long) GeoEncodingUtils.encodeLongitude(90.0)) << 32) | GeoEncodingUtils.encodeLatitude(45.0) & 0xffffffffL;
+        //input
+        long[] points = new long[] {lonLat, 0, lonLat, 0,lonLat, lonLat, lonLat};
+        double[] sortValues = new double[]{1, 0, 2, 0, 3, 4, 5};
+        //expected
+        long[] expectedAggPoints = new long[] {lonLat, lonLat, lonLat, lonLat, lonLat};
+        double[] expectedAggSortValues = new double[]{
+            NumericUtils.doubleToSortableLong(1),
+            NumericUtils.doubleToSortableLong(2),
+            NumericUtils.doubleToSortableLong(3),
+            NumericUtils.doubleToSortableLong(4),
+            NumericUtils.doubleToSortableLong(5)
+        };
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+
+            for (int i = 0; i < points.length; i++) {
+                if (points[i] == 0) {
+                    // do not index value
+                    iw.addDocument(Collections.singletonList(new SortedDocValuesField("group_id", new BytesRef("group"))));
+                } else {
+                    iw.addDocument(Arrays.asList(new LatLonDocValuesField("value_field", 45.0, 90.0),
+                        new SortedNumericDocValuesField("sort_field", NumericUtils.doubleToSortableLong(sortValues[i])),
+                        new SortedDocValuesField("group_id", new BytesRef("group"))));
+                }
+            }
+        }, terms -> {
+            assertThat(terms.getBuckets().size(), equalTo(1));
+            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("_name");
+            assertThat(geoLine.length(), equalTo(5));
+            assertTrue(geoLine.isComplete());
+            assertArrayEquals(expectedAggPoints, geoLine.line());
+            assertArrayEquals(expectedAggSortValues, geoLine.sortVals(), 0d);
+        });
+    }
 
     public void testAscending() throws IOException {
         testAggregator(SortOrder.ASC);

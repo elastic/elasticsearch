@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -12,22 +13,20 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-public class PercentileRanks extends CompoundNumericAggregate implements HasPercentileConfig {
+public class PercentileRanks extends CompoundNumericAggregate {
 
     private final List<Expression> values;
-    private final Expression method;
-    private final Expression methodParameter;
+    private final PercentilesConfig percentilesConfig;
 
-    public PercentileRanks(Source source, Expression field, List<Expression> values, Expression method, Expression methodParameter) {
+    public PercentileRanks(Source source, Expression field, List<Expression> values, PercentilesConfig percentilesConfig) {
         super(source, field, values);
-        this.method = method;
-        this.methodParameter = methodParameter;
+        this.percentilesConfig = percentilesConfig;
         this.values = values;
     }
 
     @Override
     protected NodeInfo<PercentileRanks> info() {
-        return NodeInfo.create(this, PercentileRanks::new, field(), values, method, methodParameter);
+        return NodeInfo.create(this, PercentileRanks::new, field(), values, percentilesConfig);
     }
 
     @Override
@@ -35,21 +34,15 @@ public class PercentileRanks extends CompoundNumericAggregate implements HasPerc
         if (newChildren.size() < 2) {
             throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new PercentileRanks(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), method, methodParameter);
+        return new PercentileRanks(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), percentilesConfig);
     }
 
     public List<Expression> values() {
         return values;
     }
-
-    @Override
-    public Expression method() {
-        return method;
-    }
-
-    @Override
-    public Expression methodParameter() {
-        return methodParameter;
+    
+    public PercentilesConfig percentilesConfig() {
+        return percentilesConfig;
     }
 
     @Override
@@ -60,13 +53,12 @@ public class PercentileRanks extends CompoundNumericAggregate implements HasPerc
 
         PercentileRanks that = (PercentileRanks) o;
 
-        return Objects.equals(method, that.method)
-            && Objects.equals(methodParameter, that.methodParameter);
+        return Objects.equals(percentilesConfig, that.percentilesConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), children(), method, methodParameter);
+        return Objects.hash(getClass(), children(), percentilesConfig);
     }
 
 }

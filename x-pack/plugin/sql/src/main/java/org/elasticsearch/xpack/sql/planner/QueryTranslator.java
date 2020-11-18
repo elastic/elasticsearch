@@ -612,7 +612,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Percentiles p) {
-            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()), p.percentileConfig());
+            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()), p.percentilesConfig());
         }
     }
 
@@ -620,7 +620,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, PercentileRanks p) {
-            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()), p.percentileConfig());
+            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()), p.percentilesConfig());
         }
     }
 

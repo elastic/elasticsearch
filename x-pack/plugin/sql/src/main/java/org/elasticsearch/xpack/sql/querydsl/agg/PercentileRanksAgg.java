@@ -17,9 +17,6 @@ public class PercentileRanksAgg extends DefaultAggSourceLeafAgg {
     private final List<Double> values;
     private final PercentilesConfig percentilesConfig;
 
-    public static PercentilesConfig DEFAULT_PERCENTILES_CONFIG =
-        AggregationBuilders.percentileRanks("not_important", new double[1]).percentilesConfig();
-
     public PercentileRanksAgg(String id, AggSource source, List<Double> values, PercentilesConfig percentilesConfig) {
         super(id, source);
         this.values = values;

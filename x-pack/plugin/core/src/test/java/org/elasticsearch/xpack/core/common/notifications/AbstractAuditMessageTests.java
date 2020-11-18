@@ -87,9 +87,13 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
     }
 
     public void testLongMessageIsTruncated() throws IOException {
+        StringBuilder messageText = new StringBuilder();
+        for (int i=0; i<490; i++) {
+            messageText.append("thisis17charslong");
+        }
         AbstractAuditMessage longMessage = new AbstractAuditMessage(
             randomBoolean() ? null : randomAlphaOfLength(10),
-            "thisis17charslong".repeat(490),
+            messageText.toString(),
             randomFrom(Level.values()),
             new Date(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)

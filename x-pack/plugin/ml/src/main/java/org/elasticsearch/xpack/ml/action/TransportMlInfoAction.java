@@ -135,7 +135,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
         for (DiscoveryNode node : nodes) {
             OptionalLong limit = NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings);
-            if (limit.isEmpty()) {
+            if (limit.isPresent() == false) {
                 continue;
             }
             totalMlMemory += limit.getAsLong();

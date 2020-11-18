@@ -37,3 +37,5 @@ dependencies {
 }
 
 addQaCheckDependencies()
+
+testingConventions.enabled = false

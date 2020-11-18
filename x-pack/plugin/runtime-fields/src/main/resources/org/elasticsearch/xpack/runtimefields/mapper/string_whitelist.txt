@@ -17,4 +17,7 @@ static_import {
     void emit(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript$Emit
     # The `values` callback to find values for the field in the source
     List values(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript$Values
+
+    void emitValues(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript$EmitValues
+    void emitValues(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript, String, Function) bound_to org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript$EmitTransformedValues
 }

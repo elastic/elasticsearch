@@ -13,13 +13,21 @@ setup:
                 type: keyword
                 script:
                   source: |
-                    for (def val : values("status.active")) {
-                      try {
-                        emit(val.toString())
-                      }
-                      catch (Exception e) {
-                        // ignore
-                      }
+                    emitValues("status.active");
+              status_upper:
+                type: keyword
+                script:
+                  source: |
+                    emitValues("status.active", v -> v.toUpperCase())
+              status_count:
+                type: keyword
+                script:
+                  source: |
+                    def count = values("status.active").size();
+                    if (count == 1) {
+                      emit("singlevalued");
+                    } else if (count > 1) {
+                      emit("multivalued");
                     }
             properties:
               timestamp:
@@ -71,3 +79,28 @@ setup:
             term:
               status: "off"
   - match: { hits.total.value: 2 }
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              status_upper: "off"
+  - match: { hits.total.value: 0 }
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              status_upper: "OFF"
+  - match: { hits.total.value: 2 }
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              status_count: "multivalued"
+          fields: [ status ]
+  - match: { hits.total.value: 1 }

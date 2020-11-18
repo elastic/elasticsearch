@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 public abstract class StringFieldScript extends AbstractFieldScript {
     /**
@@ -101,6 +102,38 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
         public List<Object> values(String path) {
             return XContentMapValues.extractRawValues(path, script.getSource());
+        }
+    }
+
+    public static class EmitValues {
+        private final StringFieldScript script;
+
+        public EmitValues(StringFieldScript script) {
+            this.script = script;
+        }
+
+        public void emitValues(String path) {
+            for (Object v : XContentMapValues.extractRawValues(path, script.getSource())) {
+                if (v != null) {
+                    script.emit(v.toString());
+                }
+            }
+        }
+    }
+
+    public static class EmitTransformedValues {
+        private final StringFieldScript script;
+
+        public EmitTransformedValues(StringFieldScript script) {
+            this.script = script;
+        }
+
+        public void emitValues(String path, Function<String, String> transformer) {
+            for (Object v : XContentMapValues.extractRawValues(path, script.getSource())) {
+                if (v != null) {
+                    script.emit(transformer.apply(v.toString()));
+                }
+            }
         }
     }
 }

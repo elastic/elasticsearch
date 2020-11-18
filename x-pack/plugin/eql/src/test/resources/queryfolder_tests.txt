@@ -75,12 +75,12 @@ process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
 "terms":{"process_name":["python.exe","SMSS.exe","explorer.exe"],
 ;
 
-// equalsAndInFilter
-// process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
-// ;
-// "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}},
-// {"terms":{"opcode":[0,1,2,3],"boost":1.0}}
-// ;
+equalsAndInFilter
+process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
+;
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}},
+{"terms":{"opcode":[0,1,2,3],"boost":1.0}}
+;
 
 functionEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") == true
@@ -352,7 +352,7 @@ InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),p
 //;
 //"regexp":{"command_line":{"value":"^.*?net.exe"
 //;
-
+//
 //matchFunctionTwo
 //process where match(command_line, "^.*?net.exe", "net\\.exe")
 //;
@@ -364,7 +364,13 @@ InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),p
 //;
 //"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
 //;
-//
+
+numberFunctionSingleArgument
+process where number(process_name) == 1;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"process_name","v1":null,"v2":1}
+;
+
 //matchFunctionScalar
 //process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 //;
@@ -373,11 +379,6 @@ InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),p
 //"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
 //;
 
-numberFunctionSingleArgument
-process where number(process_name) == 1;
-InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
-"params":{"v0":"process_name","v1":null,"v2":1}
-;
 
 numberFunctionTwoFieldArguments
 process where number(process_name, pid) != null;

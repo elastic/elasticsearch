@@ -147,6 +147,7 @@ public class BootstrapForTesting {
                 if (System.getProperty("tests.gradle") != null) {
                     runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("gradle.policy"), codebases);
                 } else if (codebases.containsKey("junit-rt.jar")) {
+                    System.out.println("USING INTELLIJ POLICY");
                     runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("intellij.policy"), codebases);
                 } else {
                     runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("eclipse.policy"), codebases);
@@ -193,7 +194,6 @@ public class BootstrapForTesting {
         addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
         addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
-        addClassCodebase(codebases, "junit", );
         return codebases;
     }
 

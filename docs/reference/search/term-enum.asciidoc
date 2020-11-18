@@ -30,10 +30,11 @@ The API returns the following response:
       "term": "kibana",
       "doc_count": 8
     }
-  ]
+  ],
+  "timed_out" : false
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"8"/"$body.terms.0.doc_count"/]
+// TESTRESPONSE[s/8/$body.terms.0.doc_count/]
 
 [[search-term-enum-api-request]]
 ==== {api-request-title}

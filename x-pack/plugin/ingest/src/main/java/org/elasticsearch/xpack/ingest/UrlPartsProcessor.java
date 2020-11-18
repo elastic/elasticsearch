@@ -11,8 +11,8 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,21 +53,21 @@ public class UrlPartsProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String value = ingestDocument.getFieldValue(field, String.class);
 
-        URL url;
+        URI uri;
         try {
-            url = new URL(value);
-        } catch (MalformedURLException e) {
+            uri = new URI(value);
+        } catch (URISyntaxException e) {
             throw new IllegalArgumentException("unable to parse URL [" + value + "]");
         }
         var urlParts = new HashMap<String, Object>();
-        urlParts.put("domain", url.getHost());
-        if (url.getRef() != null) {
-            urlParts.put("fragment", url.getRef());
+        urlParts.put("domain", uri.getHost());
+        if (uri.getFragment() != null) {
+            urlParts.put("fragment", uri.getFragment());
         }
         if (keepOriginal) {
             urlParts.put("original", value);
         }
-        final String path = url.toURI().getPath();
+        final String path = uri.getPath();
         if (path != null) {
             urlParts.put("path", path);
             if (path.contains(".")) {
@@ -75,14 +75,14 @@ public class UrlPartsProcessor extends AbstractProcessor {
                 urlParts.put("extension", periodIndex < path.length() ? path.substring(periodIndex + 1) : "");
             }
         }
-        if (url.getPort() != -1) {
-            urlParts.put("port", url.getPort());
+        if (uri.getPort() != -1) {
+            urlParts.put("port", uri.getPort());
         }
-        if (url.getQuery() != null) {
-            urlParts.put("query", url.getQuery());
+        if (uri.getQuery() != null) {
+            urlParts.put("query", uri.getQuery());
         }
-        urlParts.put("scheme", url.getProtocol());
-        final String userInfo = url.getUserInfo();
+        urlParts.put("scheme", uri.getScheme());
+        final String userInfo = uri.getUserInfo();
         if (userInfo != null) {
             urlParts.put("user_info", userInfo);
             if (userInfo.contains(":")) {

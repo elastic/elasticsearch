@@ -95,6 +95,21 @@ public class UrlPartsProcessorTests extends ESTestCase {
             )
         );
 
+        testUrlParsing(
+            "ftp://ftp.is.co.za/rfc/rfc1808.txt",
+            Map.of("scheme", "ftp", "path", "/rfc/rfc1808.txt", "extension", "txt", "domain", "ftp.is.co.za")
+        );
+
+        testUrlParsing(
+            "telnet://192.0.2.16:80/",
+            Map.of("scheme", "telnet", "path", "/", "port", 80, "domain", "192.0.2.16")
+        );
+
+        testUrlParsing(
+            "ldap://[2001:db8::7]/c=GB?objectClass?one",
+            Map.of("scheme", "ldap", "path", "/c=GB", "query", "objectClass?one", "domain", "[2001:db8::7]")
+        );
+
         // keep original
         testUrlParsing(
             true,
@@ -127,7 +142,7 @@ public class UrlPartsProcessorTests extends ESTestCase {
     }
 
     public void testInvalidUrl() {
-        String url = "not_a_valid_url";
+        String url = "not:\\/_a_valid_url";
         UrlPartsProcessor processor = new UrlPartsProcessor(null, null, "field", "url", true, false);
 
         Map<String, Object> source = new HashMap<>();

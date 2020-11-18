@@ -45,7 +45,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.Source;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -289,9 +289,8 @@ public class UpdateHelper {
 
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
         if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-            SourceLookup sourceLookup = new SourceLookup();
-            sourceLookup.setSource(source);
-            Object value = sourceLookup.filter(request.fetchSource());
+            Source s = Source.fromMap(0, source, sourceContentType);
+            Object value = s.filter(request.fetchSource());
             try {
                 final int initialCapacity = Math.min(1024, sourceAsBytes.length());
                 BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);

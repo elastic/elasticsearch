@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,8 +48,8 @@ public final class DocValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
-        if (false == leaf.advanceExact(lookup.docId())) {
+    public List<Object> fetchValues(Source source) throws IOException {
+        if (false == leaf.advanceExact(source.docId())) {
             return emptyList();
         }
         List<Object> result = new ArrayList<Object>(leaf.docValueCount());

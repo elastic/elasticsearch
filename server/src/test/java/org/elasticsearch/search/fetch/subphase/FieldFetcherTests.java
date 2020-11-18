@@ -30,7 +30,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -404,11 +404,8 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
 
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
-
         FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields);
-        return fieldFetcher.fetch(sourceLookup, Set.of());
+        return fieldFetcher.fetch(Source.fromBytes(0, BytesReference.bytes(source)), Set.of());
     }
 
     public MapperService createMapperService() throws IOException {

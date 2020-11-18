@@ -26,10 +26,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -162,8 +162,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
             searchHit,
             leafReaderContext,
             1,
-            new SourceLookup());
-        hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
+            source == null ? Source.emptySource(1) : Source.fromBytes(1, BytesReference.bytes(source)));
 
         FetchSourcePhase phase = new FetchSourcePhase();
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);

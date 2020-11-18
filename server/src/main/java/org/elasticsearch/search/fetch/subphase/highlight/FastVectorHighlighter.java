@@ -99,7 +99,7 @@ public class FastVectorHighlighter implements Highlighter {
                     fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, fixBrokenAnalysis, field.fieldOptions().preTags(),
                         field.fieldOptions().postTags(), boundaryScanner);
                 } else {
-                    fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.sourceLookup(),
+                    fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.source(),
                         field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                 }
             } else {
@@ -110,7 +110,7 @@ public class FastVectorHighlighter implements Highlighter {
                         fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),
                             field.fieldOptions().postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.sourceLookup(),
+                        fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.source(),
                             field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
@@ -119,7 +119,7 @@ public class FastVectorHighlighter implements Highlighter {
                             field.fieldOptions().postTags(), boundaryScanner);
                     } else {
                         fragmentsBuilder =
-                            new SourceSimpleFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.sourceLookup(),
+                            new SourceSimpleFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.source(),
                                 field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 }

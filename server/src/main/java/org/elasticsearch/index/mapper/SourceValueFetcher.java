@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.Source;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -55,10 +55,10 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(Source source) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
-            Object sourceValue = lookup.extractValue(path, nullValue);
+            Object sourceValue = source.extractValue(path, nullValue);
             if (sourceValue == null) {
                 return List.of();
             }

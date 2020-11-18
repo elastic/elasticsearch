@@ -25,10 +25,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Map;
@@ -60,7 +60,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
     private void hitExecute(String index, FetchSourceContext fetchSourceContext, HitContext hitContext) {
 
         final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-        SourceLookup source = hitContext.sourceLookup();
+        Source source = hitContext.source();
 
         // If source is disabled in the mapping, then attempt to return early.
         if (source.source() == null && source.internalSourceRef() == null) {

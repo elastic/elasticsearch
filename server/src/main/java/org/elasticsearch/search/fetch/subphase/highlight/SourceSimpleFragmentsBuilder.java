@@ -23,23 +23,23 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.Source;
 
 import java.io.IOException;
 import java.util.List;
 
 public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
-    private final SourceLookup sourceLookup;
+    private final Source source;
 
     public SourceSimpleFragmentsBuilder(MappedFieldType fieldType,
                                         boolean fixBrokenAnalysis,
-                                        SourceLookup sourceLookup,
+                                        Source source,
                                         String[] preTags,
                                         String[] postTags,
                                         BoundaryScanner boundaryScanner) {
         super(fieldType, fixBrokenAnalysis, preTags, postTags, boundaryScanner);
-        this.sourceLookup = sourceLookup;
+        this.source = source;
     }
 
     public static final Field[] EMPTY_FIELDS = new Field[0];
@@ -47,7 +47,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
-        List<Object> values = sourceLookup.extractRawValues(fieldType.name());
+        List<Object> values = source.extractRawValues(fieldType.name());
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }

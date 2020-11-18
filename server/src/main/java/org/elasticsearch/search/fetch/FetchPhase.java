@@ -50,6 +50,7 @@ import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -320,11 +321,10 @@ public class FetchPhase {
                 hit = new SearchHit(docId, fieldsVisitor.id(), emptyMap(), emptyMap());
             }
 
-            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
-            if (fieldsVisitor.source() != null) {
-                hitContext.sourceLookup().setSource(fieldsVisitor.source());
-            }
-            return hitContext;
+            Source source = fieldsVisitor.source() == null
+                ? Source.emptySource(hit.docId())
+                : Source.fromBytes(hit.docId(), fieldsVisitor.source());
+            return new HitContext(hit, subReaderContext, subDocId, source);
         }
     }
 
@@ -360,9 +360,9 @@ public class FetchPhase {
             rootId = innerHitsContext.getRootId();
 
             if (needSource) {
-                SourceLookup rootLookup = innerHitsContext.getRootLookup();
-                rootSourceAsMap = rootLookup.loadSourceIfNeeded();
-                rootSourceContentType = rootLookup.sourceContentType();
+                Source rootSource = innerHitsContext.getRootSource();
+                rootSourceAsMap = rootSource.source();
+                rootSourceContentType = rootSource.sourceContentType();
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
@@ -398,11 +398,6 @@ public class FetchPhase {
                 getInternalNestedIdentity(context, nestedDocId, subReaderContext, queryShardContext::getObjectMapper, nestedObjectMapper);
 
         SearchHit hit = new SearchHit(nestedTopDocId, rootId, nestedIdentity, docFields, metaFields);
-        HitContext hitContext = new HitContext(
-            hit,
-            subReaderContext,
-            nestedDocId,
-            new SourceLookup());  // Use a clean, fresh SourceLookup for the nested context
 
         if (rootSourceAsMap != null) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
@@ -446,10 +441,14 @@ public class FetchPhase {
                 }
             }
 
-            hitContext.sourceLookup().setSource(nestedSourceAsMap);
-            hitContext.sourceLookup().setSourceContentType(rootSourceContentType);
+            return new HitContext(
+                hit,
+                subReaderContext,
+                nestedDocId,
+                Source.fromMap(hit.docId(), nestedSourceAsMap, rootSourceContentType)
+            );
         }
-        return hitContext;
+        return new HitContext(hit, subReaderContext, nestedDocId, Source.emptySource(hit.docId()));
     }
 
     private static SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context,

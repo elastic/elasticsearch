@@ -33,9 +33,9 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -82,7 +82,7 @@ public final class InnerHitsContext {
         private Weight innerHitQueryWeight;
 
         private String rootId;
-        private SourceLookup rootLookup;
+        private Source rootSource;
 
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
@@ -136,12 +136,12 @@ public final class InnerHitsContext {
          *
          * This shared lookup allows inner hits to avoid re-loading the root _source.
          */
-        public SourceLookup getRootLookup() {
-            return rootLookup;
+        public Source getRootSource() {
+            return rootSource;
         }
 
-        public void setRootLookup(SourceLookup rootLookup) {
-            this.rootLookup = rootLookup;
+        public void setRootSource(Source rootSource) {
+            this.rootSource = rootSource;
         }
     }
 

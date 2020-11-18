@@ -23,8 +23,8 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -59,8 +59,8 @@ public final class HighlightUtils {
                 textsToHighlight = Collections.emptyList();
             }
         } else {
-            SourceLookup sourceLookup = hitContext.sourceLookup();
-            textsToHighlight = sourceLookup.extractRawValues(fieldType.name());
+            Source source = hitContext.source();
+            textsToHighlight = source.extractRawValues(fieldType.name());
         }
         assert textsToHighlight != null;
         return textsToHighlight;

@@ -20,8 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,10 +41,10 @@ public interface ValueFetcher {
      * Note that for array values, the order in which values are returned is undefined and
      * should not be relied on.
      *
-     * @param lookup a lookup structure over the document's source.
+     * @param source the document's source.
      * @return a list a standardized field values.
      */
-    List<Object> fetchValues(SourceLookup lookup) throws IOException;
+    List<Object> fetchValues(Source source) throws IOException;
 
     /**
      * Update the leaf reader used to fetch values.

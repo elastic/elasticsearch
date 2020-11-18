@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 
@@ -110,16 +111,16 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         ValueFetcher fetcher = fieldType.valueFetcher(null, null, null);
 
         SourceLookup missingValueLookup = new SourceLookup();
-        SourceLookup nullValueLookup = new SourceLookup();
-        nullValueLookup.setSource(Collections.singletonMap("field", null));
+
+        Source nullSource = Source.fromMap(0, Collections.singletonMap("field", null), null);
 
         assertTrue(fetcher.fetchValues(missingValueLookup).isEmpty());
-        assertTrue(fetcher.fetchValues(nullValueLookup).isEmpty());
+        assertTrue(fetcher.fetchValues(nullSource).isEmpty());
 
         MappedFieldType valued = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "foo");
         fetcher = valued.valueFetcher(null, null, null);
 
         assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup));
-        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup));
+        assertEquals(List.of("foo"), fetcher.fetchValues(nullSource));
     }
 }

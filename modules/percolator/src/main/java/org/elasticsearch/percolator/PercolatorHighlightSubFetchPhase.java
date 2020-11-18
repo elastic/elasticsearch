@@ -26,6 +26,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -33,7 +34,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,8 +96,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
                                 percolatorLeafReaderContext,
                                 slot,
-                                new SourceLookup());
-                            subContext.sourceLookup().setSource(document);
+                                Source.fromBytes(slot, document));
                             // force source because MemoryIndex does not store fields
                             SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields(), true);
                             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext, highlight, query);

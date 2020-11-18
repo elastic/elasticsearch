@@ -19,7 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -56,8 +56,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(queryShardContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(queryShardContext, null, format);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
+        return fetcher.fetchValues(Source.fromMap(0, Collections.singletonMap(field, sourceValue), null));
     }
 }

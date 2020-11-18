@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
-public class SourceLookup implements Map<String, Object> {
+public class SourceLookup implements Map<String, Object>, Source {
 
     private LeafReader reader;
     CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
@@ -52,6 +53,7 @@ public class SourceLookup implements Map<String, Object> {
     private Map<String, Object> source;
     private XContentType sourceContentType;
 
+    @Override
     public Map<String, Object> source() {
         return source;
     }
@@ -60,6 +62,7 @@ public class SourceLookup implements Map<String, Object> {
         return sourceContentType;
     }
 
+    @Override
     public int docId() {
         return docId;
     }
@@ -134,50 +137,26 @@ public class SourceLookup implements Map<String, Object> {
         this.sourceAsBytes = null;
         this.docId = docId;
     }
-
-    public void setSource(BytesReference source) {
-        this.sourceAsBytes = source;
-    }
-
-    public void setSourceContentType(XContentType sourceContentType) {
-        this.sourceContentType = sourceContentType;
-    }
-
-    public void setSource(Map<String, Object> source) {
-        this.source = source;
-    }
-
+    
     /**
      * Internal source representation, might be compressed....
      */
+    @Override
     public BytesReference internalSourceRef() {
         return sourceAsBytes;
     }
 
-    /**
-     * Returns the values associated with the path. Those are "low" level values, and it can
-     * handle path expression where an array/list is navigated within.
-     */
+    @Override
     public List<Object> extractRawValues(String path) {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
     }
 
-    /**
-     * For the provided path, return its value in the source.
-     *
-     * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
-     * can be returned.
-     *
-     * @param path the value's path in the source.
-     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
-     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
-     *
-     * @return the value associated with the path in the source or 'null' if the path does not exist.
-     */
+    @Override
     public Object extractValue(String path, @Nullable Object nullValue) {
         return XContentMapValues.extractValue(path, loadSourceIfNeeded(), nullValue);
     }
 
+    @Override
     public Object filter(FetchSourceContext context) {
         return context.getFilter().apply(loadSourceIfNeeded());
     }

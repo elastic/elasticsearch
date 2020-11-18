@@ -12,7 +12,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
-import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
 public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 

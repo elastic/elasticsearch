@@ -22,12 +22,10 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsAction;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsRequest;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsResponse;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;

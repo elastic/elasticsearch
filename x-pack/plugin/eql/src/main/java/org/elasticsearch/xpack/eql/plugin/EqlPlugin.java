@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;

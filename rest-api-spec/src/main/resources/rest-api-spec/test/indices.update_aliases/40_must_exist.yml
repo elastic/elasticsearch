@@ -1,5 +1,10 @@
 ---
 "Remove alias with must_exist":
+
+  - skip:
+      version: " - 7.99.99" # TODO: 7.10.99
+      reason: "must_exist does not work until 7.11"
+
   - do:
       indices.create:
         index: test_index

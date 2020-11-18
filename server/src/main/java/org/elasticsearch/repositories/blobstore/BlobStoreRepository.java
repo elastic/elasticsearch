@@ -1429,9 +1429,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.debug("Not caching repository data of size [{}] for repository [{}] because it is larger than 500KB in" +
                         " serialized size", len, metadata.name());
                 if (len > ByteSizeUnit.MB.toBytes(5)) {
-                    logger.warn("Your repository metadata blob for repository [{}] is larger than 5MB. Consider moving to a fresh" +
-                            " repository for new snapshots or deleting unneeded snapshots from your repository to ensure stable" +
-                            " repository behavior going forward.", metadata.name());
+                    logger.warn("The repository metadata for repository [{}] has size [{}B] which is larger than 5MB. Consider " +
+                            "moving to a fresh repository for new snapshots or deleting unneeded snapshots from this repository to " +
+                            "ensure stable repository behavior going forward.", metadata.name(), len);
                 }
                 return null;
             }

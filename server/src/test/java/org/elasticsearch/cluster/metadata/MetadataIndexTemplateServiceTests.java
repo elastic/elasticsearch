@@ -41,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -1575,7 +1574,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public MetadataFieldMapper build(ContentPath contentPath) {
+        public MetadataFieldMapper build() {
             return new MetadataTimestampFieldMapper(enabled.getValue());
         }
     }

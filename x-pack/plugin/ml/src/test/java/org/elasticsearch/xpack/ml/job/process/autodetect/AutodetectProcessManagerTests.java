@@ -273,7 +273,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
 
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = createSpyManager(settings.build());
@@ -620,7 +620,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobManager).getJob(eq("my_id"), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = createSpyManager();
         doCallRealMethod().when(manager).create(any(), any(), any(), any());
 
@@ -694,7 +694,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobManager).getJob(eq(jobId), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         return createManager(Settings.EMPTY);
     }
 

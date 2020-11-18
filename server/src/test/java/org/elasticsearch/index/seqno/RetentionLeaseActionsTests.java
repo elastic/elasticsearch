@@ -20,6 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -315,10 +316,10 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                         client().execute(
                                 RetentionLeaseActions.Add.INSTANCE,
                                 new RetentionLeaseActions.AddRequest(shardId, id, retainingSequenceNumber, source),
-                                new ActionListener<RetentionLeaseActions.Response>() {
+                                new ActionListener<>() {
 
                                     @Override
-                                    public void onResponse(final RetentionLeaseActions.Response response) {
+                                    public void onResponse(final ActionResponse.Empty response) {
                                         actionLatch.countDown();
                                     }
 
@@ -416,10 +417,10 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                         client().execute(
                                 RetentionLeaseActions.Renew.INSTANCE,
                                 new RetentionLeaseActions.RenewRequest(shardId, id, nextRetainingSequenceNumber, source),
-                                new ActionListener<RetentionLeaseActions.Response>() {
+                                new ActionListener<>() {
 
                                     @Override
-                                    public void onResponse(final RetentionLeaseActions.Response response) {
+                                    public void onResponse(final ActionResponse.Empty response) {
                                         actionLatch.countDown();
                                     }
 
@@ -475,10 +476,10 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                         client().execute(
                                 RetentionLeaseActions.Remove.INSTANCE,
                                 new RetentionLeaseActions.RemoveRequest(shardId, id),
-                                new ActionListener<RetentionLeaseActions.Response>() {
+                                new ActionListener<>() {
 
                                     @Override
-                                    public void onResponse(final RetentionLeaseActions.Response response) {
+                                    public void onResponse(final ActionResponse.Empty response) {
                                         actionLatch.countDown();
                                     }
 

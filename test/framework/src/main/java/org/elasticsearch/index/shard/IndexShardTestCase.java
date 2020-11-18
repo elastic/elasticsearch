@@ -367,6 +367,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             storeProvider = is -> createStore(is, shardPath);
         }
         final Store store = storeProvider.apply(indexSettings);
+        if (indexReaderWrapper == null && randomBoolean()) {
+            indexReaderWrapper = EngineTestCase.randomReaderWrapper();
+        }
         boolean success = false;
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);

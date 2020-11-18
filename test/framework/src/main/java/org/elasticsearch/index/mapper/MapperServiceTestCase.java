@@ -163,6 +163,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled,
                                                       XContentBuilder mapping) throws IOException {
+
+        MapperService mapperService = createMapperService(version, settings, idFieldDataEnabled);
+        merge(mapperService, mapping);
+        return mapperService;
+    }
+
+    protected final MapperService createMapperService(Version version,
+                                                      Settings settings,
+                                                      BooleanSupplier idFieldDataEnabled) {
         settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
@@ -182,7 +191,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
         ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
-        MapperService mapperService = new MapperService(
+        return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
             xContentRegistry(),
@@ -192,8 +201,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             idFieldDataEnabled,
             scriptService
         );
-        merge(mapperService, mapping);
-        return mapperService;
     }
 
     protected final void withLuceneIndex(
@@ -281,7 +288,26 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    private AggregationContext aggregationContext(MapperService mapperService, IndexSearcher searcher, Query query) {
+    protected final XContentBuilder runtimeFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+        return runtimeMapping(b -> {
+            b.startObject("field");
+            buildField.accept(b);
+            b.endObject();
+        });
+    }
+
+    protected final XContentBuilder runtimeMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("runtime");
+        buildFields.accept(builder);
+        return builder.endObject().endObject().endObject();
+    }
+
+    private AggregationContext aggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        IndexSearcher searcher,
+        Query query
+    ) {
         return new AggregationContext() {
             @Override
             public IndexSearcher searcher() {
@@ -310,7 +336,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public ValuesSourceRegistry getValuesSourceRegistry() {
-                throw new UnsupportedOperationException();
+                return valuesSourceRegistry;
             }
 
             @Override
@@ -365,10 +391,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         List<SourceToParse> docs,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
-        withAggregationContext(mapperService, docs, null, test);
+        withAggregationContext(null, mapperService, docs, null, test);
     }
 
     protected final void withAggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
         MapperService mapperService,
         List<SourceToParse> docs,
         Query query,
@@ -381,7 +408,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                     writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
                 }
             },
-            reader -> test.accept(aggregationContext(mapperService, new IndexSearcher(reader), query))
+            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query))
         );
     }
 

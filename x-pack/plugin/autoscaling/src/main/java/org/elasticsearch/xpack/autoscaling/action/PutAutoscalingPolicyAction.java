@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -136,18 +138,25 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
 
         @Override
         public ActionRequestValidationException validate() {
+            ActionRequestValidationException exception = null;
             if (roles != null) {
                 List<String> errors = roles.stream()
                     .filter(Predicate.not(DiscoveryNode.getPossibleRoleNames()::contains))
                     .collect(Collectors.toList());
                 if (errors.isEmpty() == false) {
-                    ActionRequestValidationException exception = new ActionRequestValidationException();
+                    exception = new ActionRequestValidationException();
                     exception.addValidationErrors(errors);
-                    return exception;
                 }
             }
 
-            return null;
+            if (Strings.validFileName(name) == false) {
+                exception = ValidateActions.addValidationError(
+                    "name must not contain the following characters " + Strings.INVALID_FILENAME_CHARS,
+                    exception
+                );
+            }
+
+            return exception;
         }
 
         @Override

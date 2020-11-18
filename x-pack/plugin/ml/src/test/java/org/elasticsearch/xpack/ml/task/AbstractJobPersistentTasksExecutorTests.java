@@ -49,7 +49,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0, verifyIndicesPrimaryShardsAreActive(cs, resolver, ".ml-anomalies-shared",
+        assertEquals(0, verifyIndicesPrimaryShardsAreActive(cs, resolver, true, ".ml-anomalies-shared",
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             MlMetaIndex.indexName(),
             MlConfigIndex.indexName()).size());
@@ -74,9 +74,11 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
         }
 
+        csBuilder = ClusterState.builder(cs);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
         List<String> result = verifyIndicesPrimaryShardsAreActive(csBuilder.build(), resolver,
+            true,
             ".ml-anomalies-shared",
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             MlMetaIndex.indexName(),

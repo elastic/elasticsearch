@@ -1,0 +1,593 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.core.termenum.action;
+
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.MemoizedSupplier;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
+public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequest, TermEnumResponse> {
+
+    protected final ClusterService clusterService;
+    protected final TransportService transportService;
+    private final IndicesService indicesService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
+    
+
+    final String transportShardAction;
+    private final String shardExecutor;
+    private final XPackLicenseState licenseState;
+
+    @Inject
+    public TransportTermEnumAction(
+        // NodeClient client,
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(TermEnumAction.NAME, transportService, actionFilters, TermEnumRequest::new);
+        
+        this.clusterService = clusterService;
+        this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.transportShardAction = actionName + "[s]";
+        this.shardExecutor = ThreadPool.Names.AUTO_COMPLETE;
+        this.indicesService =  indicesService;
+        this.licenseState = licenseState;
+
+        transportService.registerRequestHandler(
+            transportShardAction,
+            ThreadPool.Names.SAME,
+            NodeTermEnumRequest::new,
+            new NodeTransportHandler()
+        );
+
+    }
+
+    @Override
+    protected void doExecute(Task task, TermEnumRequest request, ActionListener<TermEnumResponse> listener) {
+        request.taskStartTimeMillis = task.getStartTime();
+        new AsyncBroadcastAction(task, request, listener).start();
+    }
+
+    protected NodeTermEnumRequest newNodeRequest(final String nodeId, final Set<ShardId> shardIds, TermEnumRequest request) {
+        // Given we look terms up in the terms dictionary alias filters is another aspect of search (like DLS) that we
+        // currently do not support.
+//        final ClusterState clusterState = clusterService.state();
+//        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
+//        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, shard.getIndexName(), indicesAndAliases);
+        return new NodeTermEnumRequest(nodeId, shardIds, request);
+    }
+
+    protected NodeTermEnumResponse readShardResponse(StreamInput in) throws IOException {
+        return new NodeTermEnumResponse(in);
+    }
+
+    protected Map<String, Set<ShardId>> getNodeBundles(ClusterState clusterState, TermEnumRequest request, String[] concreteIndices) {
+        // Group targeted shards by nodeId
+        Map<String, Set<ShardId>> fastNodeBundles = new HashMap<>();
+        for (String indexName : concreteIndices) {
+            Settings settings = clusterState.metadata().index(indexName).getSettings();
+            if (IndexSettings.INDEX_SEARCH_THROTTLED.get(settings)) {
+                // ignore slow throttled indices (this includes frozen)
+                continue;
+            }
+            
+            String[] singleIndex = {indexName};
+            
+            GroupShardsIterator<ShardIterator> shards = clusterService.operationRouting()
+                .searchShards(clusterState, singleIndex, null, null);
+            assert (shards.size() == 1); // We are only considering a single concrete index
+            ShardIterator shardsForIndex = shards.get(0);
+            for (ShardRouting shardRouting : shardsForIndex.getShardRoutings()) {
+                String nodeId = shardRouting.currentNodeId();
+                
+                Set<ShardId> bundle = null;
+                if (fastNodeBundles.containsKey(nodeId)){
+                    bundle = fastNodeBundles.get(nodeId);
+                } else {
+                    DiscoveryNode node = clusterState.getNodes().getDataNodes().get(nodeId);
+                    //Only consider hot and warm nodes
+                    if (DataTier.isHotNode(node)  || DataTier.isWarmNode(node)) {
+                        bundle = new HashSet<ShardId>();
+                        fastNodeBundles.put(nodeId, bundle);
+                    }
+                }
+                if (bundle != null) {
+                    bundle.add(shardRouting.shardId());
+                }
+            }
+        }
+        return fastNodeBundles;
+    }
+
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, TermEnumRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    protected ClusterBlockException checkRequestBlock(ClusterState state, TermEnumRequest countRequest, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
+    }
+
+    protected TermEnumResponse newResponse(TermEnumRequest request, AtomicReferenceArray nodesResponses,
+        ClusterState clusterState, boolean complete) {
+        int successfulShards = 0;
+        int failedShards = 0;
+        List<DefaultShardOperationFailedException> shardFailures = null;
+        Map<String, TermCount> combinedResults = new HashMap<String, TermCount>();
+        for (int i = 0; i < nodesResponses.length(); i++) {
+            Object shardResponse = nodesResponses.get(i);
+            if (shardResponse == null) {
+                // simply ignore non active shards
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = new ArrayList<>();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+            } else {
+                NodeTermEnumResponse str = (NodeTermEnumResponse) shardResponse;
+                // Only one node response has to be incomplete for the entire result to be labelled incomplete.
+                if (str.getComplete() == false) {
+                    complete = false;
+                }
+                for (TermCount term : str.terms()) {
+                    TermCount existingTc = combinedResults.get(term.getTerm());
+                    if (existingTc == null) {
+                        combinedResults.put(term.getTerm(), term);
+                    } else {
+                        // add counts
+                        existingTc.addToDocCount(term.getDocCount());
+                    }
+                }
+                successfulShards++;
+            }
+        }
+        int size = Math.min(request.size(), combinedResults.size());
+        List<String> terms = new ArrayList<>(size);
+        TermCount[] sortedCombinedResults = combinedResults.values().toArray(new TermCount[0]);
+        if (request.sortByPopularity()) {
+            // Sort by doc count descending
+            Arrays.sort(sortedCombinedResults, new Comparator<TermCount>() {
+                public int compare(TermCount t1, TermCount t2) {
+                    return Long.compare(t2.getDocCount(), t1.getDocCount());
+                }
+            });
+        } else {
+            // Sort alphabetically
+            Arrays.sort(sortedCombinedResults, new Comparator<TermCount>() {
+                public int compare(TermCount t1, TermCount t2) {
+                    return t1.getTerm().compareTo(t2.getTerm());
+                }
+            });
+        }
+
+        for (TermCount term : sortedCombinedResults) {
+            terms.add(term.getTerm());
+            if (terms.size() == size) {
+                break;
+            }
+        }
+        return new TermEnumResponse(terms, nodesResponses.length(), successfulShards, failedShards, shardFailures, complete);
+    }
+
+    static class TermCountPriorityQueue extends PriorityQueue<TermCount> {
+
+        TermCountPriorityQueue(int maxSize) {
+            super(maxSize);
+        }
+
+        @Override
+        protected boolean lessThan(TermCount a, TermCount b) {
+            return a.getDocCount() < b.getDocCount();
+        }
+
+    }
+    
+    protected NodeTermEnumResponse dataNodeOperation(NodeTermEnumRequest request, Task task) throws IOException {
+        List<TermCount> termsList = new ArrayList<>();
+        String error = null;
+        
+        // DLS/FLS check copied from ResizeRequestInterceptor
+        // MH code - not sure this is the right context
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
+
+        long timeout_millis = request.timeout();
+        long scheduledEnd = request.shardStartedTimeMillis() + timeout_millis;
+
+        ArrayList<TermsEnum> shardTermsEnums = new ArrayList<>();
+        ArrayList<Closeable> openedResources = new ArrayList<>();
+        try {
+            for (ShardId shardId : request.shardIds()) {
+                // Check we haven't just arrived on a node and time is up already.
+                if (System.currentTimeMillis() > scheduledEnd) {
+                    return new NodeTermEnumResponse(request.nodeId(), termsList, error, false);
+                }
+                final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                final IndexShard indexShard = indexService.getShard(shardId.getId());
+
+                Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+                openedResources.add(searcher);
+                final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
+                    shardId.id(),
+                    0,
+                    searcher,
+                    request::shardStartedTimeMillis,
+                    null,
+                    Collections.emptyMap()
+                );
+                if (canAccess(shardId.getIndexName(), request.field(), frozenLicenseState, threadContext) && canMatchShard(
+                    shardId,
+                    request,
+                    queryShardContext
+                )) {
+
+                    final MappedFieldType mappedFieldType = indexShard.mapperService().fieldType(request.field());
+                    if (mappedFieldType != null) {
+                        TermsEnum terms = mappedFieldType.getTerms(request.caseInsensitive(), request.string(), queryShardContext);
+                        if (terms != null) {
+                            shardTermsEnums.add(terms);
+                        }
+                    }
+                }
+            }
+            MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new TermsEnum[0]));
+            
+            int shard_size = request.size();
+            // All the above prep might take a while - do a timer check now before we continue further.
+            if (System.currentTimeMillis() > scheduledEnd) {
+                return new NodeTermEnumResponse(request.nodeId(), termsList, error, false);
+            }
+
+            int numTermsBetweenClockChecks = 100;
+            int termCount = 0;
+            if (request.sortByPopularity()) {
+                // Collect most popular matches
+                TermCountPriorityQueue pq = new TermCountPriorityQueue(shard_size);
+                TermCount spare = null;
+                // TODO make this a setting (cluster or index level?)
+                int maxTermsConsidered = 10000;
+                while (te.next() != null) {
+                    termCount++;
+                    if (termCount >= maxTermsConsidered) {
+                        toList(pq, termsList);
+                        boolean complete = te.next() == null;
+                        return new NodeTermEnumResponse(request.nodeId(), termsList, error, complete);
+                    }
+                    if (termCount % numTermsBetweenClockChecks == 0) {
+                        if (System.currentTimeMillis() > scheduledEnd) {
+                            // Gather what we have collected so far
+                            toList(pq, termsList);
+                            boolean complete = te.next() == null;
+                            return new NodeTermEnumResponse(request.nodeId(), termsList, error, complete);
+                        }
+                    }
+                    long df = te.docFreq();
+                    BytesRef bytes = te.term();
+
+                    if (spare == null) {
+                        spare = new TermCount(bytes.utf8ToString(), df);
+                    } else {
+                        spare.setTerm(bytes.utf8ToString());
+                        spare.setDocCount(df);
+                    }
+                    spare = pq.insertWithOverflow(spare);
+                }
+                toList(pq, termsList);
+            } else {
+                // Collect in alphabetical order
+                while (te.next() != null) {
+                    termCount++;
+                    if (termCount > numTermsBetweenClockChecks) {
+                        if (System.currentTimeMillis() > scheduledEnd) {
+                            boolean complete = te.next() == null;
+                            return new NodeTermEnumResponse(request.nodeId(), termsList, error, complete);
+                        }
+                        termCount = 0;
+                    }
+                    // MH TODO - multireader needs to deal with counts > 2bn - how to handle? limit num shards per reader?
+                    long df = te.docFreq();
+                    BytesRef bytes = te.term();
+                    termsList.add(new TermCount(bytes.utf8ToString(), df));
+                    if (termsList.size() >= shard_size) {
+                        break;
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            error = e.getMessage();
+        }
+        finally {
+            IOUtils.close(openedResources);
+        }
+        return new NodeTermEnumResponse(request.nodeId(), termsList, error, true);
+    }
+
+    protected void toList(TermCountPriorityQueue pq, List<TermCount> termsList) {
+        while (pq.size() > 0) {
+            termsList.add(pq.pop());
+        }
+    }
+    
+    // TODO remove this so we can shift code to server module
+    private boolean canAccess(String indexName, String fieldName, XPackLicenseState frozenLicenseState, ThreadContext threadContext) {
+        if (frozenLicenseState.isSecurityEnabled()) {
+            var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+            IndicesAccessControl indicesAccessControl =
+                threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            IndicesAccessControl.IndexAccessControl indexAccessControl =
+                indicesAccessControl.getIndexPermissions(indexName);
+            //TODO remove FLS check (the reader does that anyway)
+            // TODO remove DLS  check by getting a new security feature to filter at coordinating node the choice of indices
+            // based on if ANY DLS is present on an index.
+            if (indexAccessControl != null) {
+                final boolean fls = indexAccessControl.getFieldPermissions().grantsAccessTo(fieldName) == false;
+                final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+                if ((fls || dls) && licenseChecker.get()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private boolean canMatchShard(ShardId shardId, NodeTermEnumRequest req, SearchExecutionContext queryShardContext) throws IOException {
+        if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
+            return true;
+        }
+        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, req.shardStartedTimeMillis(), AliasFilter.EMPTY);
+        searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
+        return SearchService.queryStillMatchesAfterRewrite(searchRequest, queryShardContext);
+    }    
+
+    protected class AsyncBroadcastAction {
+
+        private final Task task;
+        private final TermEnumRequest request;
+        private ActionListener<TermEnumResponse> listener;
+        private final ClusterState clusterState;
+        private final DiscoveryNodes nodes;
+        private final int expectedOps;
+        private final AtomicInteger counterOps = new AtomicInteger();
+        private final AtomicReferenceArray nodesResponses;
+        private Map<String, Set<ShardId>> nodeBundles;
+
+        protected AsyncBroadcastAction(Task task, TermEnumRequest request, ActionListener<TermEnumResponse> listener) {
+            this.task = task;
+            this.request = request;
+            this.listener = listener;
+
+            clusterState = clusterService.state();
+
+            ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
+            if (blockException != null) {
+                throw blockException;
+            }
+            // update to concrete indices
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+            blockException = checkRequestBlock(clusterState, request, concreteIndices);
+            if (blockException != null) {
+                throw blockException;
+            }
+
+            nodes = clusterState.nodes();
+            logger.trace("resolving shards based on cluster state version [{}]", clusterState.version());
+            nodeBundles = getNodeBundles(clusterState, request, concreteIndices);
+            expectedOps = nodeBundles.size();
+
+            nodesResponses = new AtomicReferenceArray<>(expectedOps);
+        }
+
+        public void start() {
+            if (nodeBundles.size() == 0) {
+                // no shards
+                try {
+                    listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState, true));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+                // TODO or remove above try and instead just call finishHim() here? Helps keep return logic consistent
+                return;
+            }
+            // count the local operations, and perform the non local ones
+            int nodeIndex = -1;
+            for (final String nodeId : nodeBundles.keySet()) {
+                if (checkForEarlyFinish()) {
+                    return;
+                }
+                nodeIndex++;
+                Set<ShardId> shardIds = nodeBundles.get(nodeId);
+                if (shardIds.size() > 0) {
+                    performOperation(nodeId, shardIds, nodeIndex);
+                } else {
+                    // really, no shards active in this group
+                    onNoOperation(nodeId);
+                }
+            }
+        }
+        
+        // Returns true if we exited with a response to the caller.
+        boolean checkForEarlyFinish() {
+            long now = System.currentTimeMillis();
+            if ( (now - task.getStartTime()) > request.timeout().getMillis() ) {
+                finishHim(false);
+                return true;
+            }
+            return false;
+        }
+
+        protected void performOperation(final String nodeId, final Set<ShardId> shardIds, final int nodeIndex) {
+            if (shardIds.size() == 0) {
+                // no more active shards... (we should not really get here, just safety)
+                //MH TODO somewhat arbitrarily returining firsy
+                onNoOperation(nodeId);
+            } else {
+                try {
+                    //TODO pass through a reduced timeout (the original time limit, minus whatever we may have
+                    // spent already getting to this point.
+                    final NodeTermEnumRequest nodeRequest = newNodeRequest(nodeId, shardIds, request);
+                    nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+                    DiscoveryNode node = nodes.get(nodeId);
+                    if (node == null) {
+                        // no node connected, act as failure
+                        onNoOperation(nodeId);
+                    } else if (checkForEarlyFinish() == false) {
+                        transportService.sendRequest(
+                            node,
+                            transportShardAction,
+                            nodeRequest,
+                            new TransportResponseHandler<NodeTermEnumResponse>() {
+                                @Override
+                                public NodeTermEnumResponse read(StreamInput in) throws IOException {
+                                    return readShardResponse(in);
+                                }
+
+                                @Override
+                                public void handleResponse(NodeTermEnumResponse response) {
+                                    onOperation(nodeId, nodeIndex, response);
+                                }
+
+                                @Override
+                                public void handleException(TransportException e) {
+                                    onNoOperation(nodeId);
+                                }
+                            }
+                        );
+                    }
+                } catch (Exception e) {
+                    onNoOperation(nodeId);
+                }
+            }
+        }
+
+        @SuppressWarnings({ "unchecked" })
+        protected void onOperation(String nodeId, int nodeIndex, NodeTermEnumResponse response) {
+            logger.trace("received response for node {}", nodeId);
+            nodesResponses.set(nodeIndex, response);
+            if (expectedOps == counterOps.incrementAndGet()) {
+                finishHim(true);
+            } else {
+                checkForEarlyFinish();
+            }            
+        }
+
+        void onNoOperation(String nodeId) {
+            if (expectedOps == counterOps.incrementAndGet()) {
+                finishHim(true);
+            }
+        }
+
+        // Can be called multiple times - either for early time-outs or for fully-completed collections.
+        protected synchronized void finishHim(boolean complete) {
+            if (listener == null) {
+                return;
+            }
+            try {
+                listener.onResponse(newResponse(request, nodesResponses, clusterState, complete));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+            finally {                
+                listener = null;
+            }
+        }
+    }
+
+    class NodeTransportHandler implements TransportRequestHandler<NodeTermEnumRequest> {
+
+        @Override
+        public void messageReceived(NodeTermEnumRequest request, TransportChannel channel, Task task) throws Exception {
+            asyncNodeOperation(request, task, ActionListener.wrap(channel::sendResponse, e -> {
+                try {
+                    channel.sendResponse(e);
+                } catch (Exception e1) {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "Failed to send error response for action [{}] and request [{}]",
+                            actionName,
+                            request
+                        ),
+                        e1
+                    );
+                }
+            }));
+        }
+    }
+
+    private void asyncNodeOperation(NodeTermEnumRequest request, Task task, ActionListener<NodeTermEnumResponse> listener) {
+        transportService.getThreadPool()
+            .executor(shardExecutor)
+            .execute(ActionRunnable.supply(listener, () -> dataNodeOperation(request, task)));
+    }
+}

@@ -1,0 +1,82 @@
+---
+setup:
+- do:
+    indices.create:
+      index: test_k
+      body:
+        settings:
+          index:
+            number_of_shards:   1
+            number_of_replicas: 0
+        mappings:
+          properties:
+            foo:
+              type : keyword
+- do:
+    indices.create:
+      index: test_ck
+      body:
+        settings:
+          index:
+            number_of_shards:   1
+            number_of_replicas: 0
+        mappings:
+          properties:
+            foo:
+              type : constant_keyword
+              value: bar_ck
+            other:
+              type : text
+- do:
+    indices.create:
+      index: test_f
+      body:
+        settings:
+          index:
+            number_of_shards:   1
+            number_of_replicas: 0
+        mappings:
+          properties:
+            foo:
+              type : flattened
+
+---
+"Test basic term enumeration":
+  - do:
+      index:
+          index:  test_k
+          id:     1
+          body:   { foo: "bar_k" }
+
+  - do:
+      index:
+          index:  test_ck
+          id:     2
+          body:   { other: "foo" }
+
+  - do:
+      index:
+          index:  test_f
+          id:     3
+          body:   { foo: { bar: "bar_f" } }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      cluster.health:
+           index: test_f
+           wait_for_status: green
+
+  - do:
+      termsenum:
+        index:  test_*
+        body:  {"field": "foo", "string":"b"}
+  - length: {terms: 2}
+
+
+  - do:
+      termsenum:
+        index:  test_*
+        body:  {"field": "foo.bar", "string":"b"}
+  - length: {terms: 1}

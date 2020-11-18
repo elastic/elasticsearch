@@ -1,0 +1,163 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.core.termenum.action;
+
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * Internal termenum request executed directly against a specific node, querying potentially many 
+ * shards in one request
+ */
+public class NodeTermEnumRequest extends TransportRequest implements IndicesRequest {
+
+    private String field;
+    private String string;
+    private long taskStartedTimeMillis;
+    private long nodeStartedTimeMillis;
+    private boolean caseInsensitive;
+    private boolean sortByPopularity;
+    private int size;
+    private long timeout;
+    private final QueryBuilder indexFilter;
+    private Set<ShardId> shardIds;
+    private String nodeId;
+    
+
+    public NodeTermEnumRequest(StreamInput in) throws IOException {
+        super(in);
+        // Set the clock running as soon as we appear on a node.
+        nodeStartedTimeMillis = System.currentTimeMillis();
+
+        field = in.readString();
+        string = in.readString();
+        caseInsensitive = in.readBoolean();
+        sortByPopularity = in.readBoolean();
+        size = in.readVInt();
+        timeout = in.readVLong();
+        taskStartedTimeMillis = in.readVLong();
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nodeId = in.readString();
+        int numShards = in.readVInt();
+        shardIds = new HashSet<>(numShards);
+        for (int i = 0; i < numShards; i++) {
+            shardIds.add(new ShardId(in));
+        }
+    }
+
+    public NodeTermEnumRequest(final String nodeId, final Set<ShardId> shardIds, TermEnumRequest request) {
+        this.field = request.field();
+        this.string = request.string();
+        this.caseInsensitive = request.caseInsensitive();
+        this.size = request.size();
+        this.timeout = request.timeout().getMillis();
+        this.sortByPopularity = request.sortByPopularity();
+        this.taskStartedTimeMillis = request.taskStartTimeMillis;
+        this.indexFilter = request.indexFilter();
+        this.nodeId = nodeId;
+        this.shardIds = shardIds;        
+        
+        // TODO serialize shard ids
+    }
+
+    public String field() {
+        return field;
+    }
+
+    public String string() {
+        return string;
+    }
+
+    public long taskStartedTimeMillis() {
+        return this.taskStartedTimeMillis;
+    }
+    
+    /** 
+     * The time this request was materialized on a shard
+     * (defaults to "now" if serialization was not used e.g. a local request).
+     */
+    public long shardStartedTimeMillis() {
+        if (nodeStartedTimeMillis == 0) {
+            nodeStartedTimeMillis = System.currentTimeMillis();
+        }
+        return this.nodeStartedTimeMillis;
+    }    
+    
+    public Set<ShardId> shardIds() {
+        return Collections.unmodifiableSet(shardIds);
+    }
+
+    public boolean caseInsensitive() {
+        return caseInsensitive;
+    }
+
+    public boolean sortByPopularity() {
+        return sortByPopularity;
+    }
+    public int size() {
+        return size;
+    }
+
+    public long timeout() {
+        return timeout;
+    }
+    public String nodeId() {
+        return nodeId;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(field);
+        out.writeString(string);
+        out.writeBoolean(caseInsensitive);
+        out.writeBoolean(sortByPopularity);
+        out.writeVInt(size);
+        // Adjust the amount of permitted time the shard has remaining to gather terms. 
+        long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;
+        assert timeSpentSoFarInCoordinatingNode >= 0;
+        int remainingTimeForShardToUse = (int) (timeout - timeSpentSoFarInCoordinatingNode);
+        // TODO - if already timed out can we shortcut the trip somehow? Throw exception if remaining time < 0?
+        out.writeVLong(remainingTimeForShardToUse);
+        out.writeVLong(taskStartedTimeMillis);
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeString(nodeId);
+        out.writeVInt(shardIds.size());
+        for (ShardId shardId : shardIds) {
+            shardId.writeTo(out);
+        }
+    }
+
+    public QueryBuilder indexFilter() {
+        return indexFilter;
+    }
+
+    @Override
+    public String[] indices() {
+        HashSet<String> indicesNames = new HashSet<>();
+        for (ShardId shardId : shardIds) {
+            indicesNames.add(shardId.getIndexName());
+        }
+        return indicesNames.toArray(new String[0]);
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return null;
+    }
+
+}

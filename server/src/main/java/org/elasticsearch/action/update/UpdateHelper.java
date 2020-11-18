@@ -289,7 +289,7 @@ public class UpdateHelper {
 
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
         if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-            Source s = Source.fromMap(0, source, sourceContentType);
+            Source s = Source.fromMap(source, sourceContentType);
             Object value = s.filter(request.fetchSource());
             try {
                 final int initialCapacity = Math.min(1024, sourceAsBytes.length());

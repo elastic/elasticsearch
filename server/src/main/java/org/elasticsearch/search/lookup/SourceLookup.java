@@ -62,11 +62,6 @@ public class SourceLookup implements Map<String, Object>, Source {
         return sourceContentType;
     }
 
-    @Override
-    public int docId() {
-        return docId;
-    }
-
     // Scripting requires this method to be public. Using source()
     // is not possible because certain checks use source == null as
     // as a determination if source is enabled/disabled, but it should
@@ -137,7 +132,7 @@ public class SourceLookup implements Map<String, Object>, Source {
         this.sourceAsBytes = null;
         this.docId = docId;
     }
-    
+
     /**
      * Internal source representation, might be compressed....
      */

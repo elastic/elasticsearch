@@ -63,7 +63,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
                 Set<String> ignoredFields = getIgnoredFields(hit);
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), ignoredFields);
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext, ignoredFields);
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }

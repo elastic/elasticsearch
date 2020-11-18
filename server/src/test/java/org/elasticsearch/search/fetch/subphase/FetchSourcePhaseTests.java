@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -155,14 +153,11 @@ public class FetchSourcePhaseTests extends ESTestCase {
 
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
 
-        // We don't need a real index, just a LeafReaderContext which cannot be mocked.
-        MemoryIndex index = new MemoryIndex();
-        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
         HitContext hitContext = new HitContext(
             searchHit,
-            leafReaderContext,
+            null,
             1,
-            source == null ? Source.emptySource(1) : Source.fromBytes(1, BytesReference.bytes(source)));
+            source == null ? Source.EMPTY_SOURCE : Source.fromBytes(BytesReference.bytes(source)));
 
         FetchSourcePhase phase = new FetchSourcePhase();
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);

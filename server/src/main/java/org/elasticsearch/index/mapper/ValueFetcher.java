@@ -41,10 +41,11 @@ public interface ValueFetcher {
      * Note that for array values, the order in which values are returned is undefined and
      * should not be relied on.
      *
+     * @param docId the document's per-segment lucene id
      * @param source the document's source.
      * @return a list a standardized field values.
      */
-    List<Object> fetchValues(Source source) throws IOException;
+    List<Object> fetchValues(int docId, Source source) throws IOException;
 
     /**
      * Update the leaf reader used to fetch values.

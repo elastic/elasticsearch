@@ -24,7 +24,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.Source;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -70,7 +70,7 @@ public class FieldFetcher {
         this.fieldContexts = fieldContexts;
     }
 
-    public Map<String, DocumentField> fetch(Source source, Set<String> ignoredFields) throws IOException {
+    public Map<String, DocumentField> fetch(FetchSubPhase.HitContext hitContext, Set<String> ignoredFields) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts) {
             String field = context.fieldName;
@@ -79,7 +79,7 @@ public class FieldFetcher {
             }
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(source);
+            List<Object> parsedValues = valueFetcher.fetchValues(hitContext.docId(), hitContext.source());
 
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));

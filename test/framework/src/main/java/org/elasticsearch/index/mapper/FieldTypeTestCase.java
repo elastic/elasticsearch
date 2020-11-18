@@ -56,6 +56,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(queryShardContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(queryShardContext, null, format);
-        return fetcher.fetchValues(Source.fromMap(0, Collections.singletonMap(field, sourceValue), null));
+        return fetcher.fetchValues(0, Source.fromMap(Collections.singletonMap(field, sourceValue), null));
     }
 }

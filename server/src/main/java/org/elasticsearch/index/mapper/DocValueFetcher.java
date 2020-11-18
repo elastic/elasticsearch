@@ -48,8 +48,8 @@ public final class DocValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(Source source) throws IOException {
-        if (false == leaf.advanceExact(source.docId())) {
+    public List<Object> fetchValues(int doc, Source source) throws IOException {
+        if (false == leaf.advanceExact(doc)) {
             return emptyList();
         }
         List<Object> result = new ArrayList<Object>(leaf.docValueCount());

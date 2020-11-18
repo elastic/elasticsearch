@@ -96,7 +96,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                 new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
                                 percolatorLeafReaderContext,
                                 slot,
-                                Source.fromBytes(slot, document));
+                                Source.fromBytes(document));
                             // force source because MemoryIndex does not store fields
                             SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields(), true);
                             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext, highlight, query);

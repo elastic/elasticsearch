@@ -54,7 +54,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(Source source) {
+    public List<Object> fetchValues(int doc, Source source) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = source.extractValue(path, nullValue);

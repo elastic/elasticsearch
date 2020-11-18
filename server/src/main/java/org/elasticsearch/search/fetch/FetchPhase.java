@@ -322,8 +322,8 @@ public class FetchPhase {
             }
 
             Source source = fieldsVisitor.source() == null
-                ? Source.emptySource(hit.docId())
-                : Source.fromBytes(hit.docId(), fieldsVisitor.source());
+                ? Source.EMPTY_SOURCE
+                : Source.fromBytes(fieldsVisitor.source());
             return new HitContext(hit, subReaderContext, subDocId, source);
         }
     }
@@ -445,10 +445,10 @@ public class FetchPhase {
                 hit,
                 subReaderContext,
                 nestedDocId,
-                Source.fromMap(hit.docId(), nestedSourceAsMap, rootSourceContentType)
+                Source.fromMap(nestedSourceAsMap, rootSourceContentType)
             );
         }
-        return new HitContext(hit, subReaderContext, nestedDocId, Source.emptySource(hit.docId()));
+        return new HitContext(hit, subReaderContext, nestedDocId, Source.EMPTY_SOURCE);
     }
 
     private static SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context,

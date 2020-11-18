@@ -95,7 +95,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (hasDocValues() == false) {
-                return lookup -> List.of();
+                return (doc, lookup) -> List.of();
             }
             return new DocValueFetcher(docValueFormat(format, null), searchLookup.doc().getForField(this));
         }

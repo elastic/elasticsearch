@@ -35,38 +35,26 @@ import java.util.Map;
  */
 public interface Source {
 
-    static Source emptySource(int docId) {
-        return new Source() {
-            @Override
-            public int docId() {
-                return docId;
-            }
+    Source EMPTY_SOURCE = new Source() {
+        @Override
+        public Map<String, Object> source() {
+            return null;
+        }
 
-            @Override
-            public Map<String, Object> source() {
-                return null;
-            }
+        @Override
+        public BytesReference internalSourceRef() {
+            return null;
+        }
 
-            @Override
-            public BytesReference internalSourceRef() {
-                return null;
-            }
-
-            @Override
-            public XContentType sourceContentType() {
-                return null;
-            }
-        };
-    }
+        @Override
+        public XContentType sourceContentType() {
+            return null;
+        }
+    };
 
     // TODO used in upserts, would be nice to remove this entirely
-    static Source fromMap(int docId, Map<String, Object> map, XContentType xContentType) {
+    static Source fromMap(Map<String, Object> map, XContentType xContentType) {
         return new Source() {
-            @Override
-            public int docId() {
-                return docId;
-            }
-
             @Override
             public Map<String, Object> source() {
                 return map;
@@ -84,15 +72,10 @@ public interface Source {
         };
     }
 
-    static Source fromBytes(int docId, BytesReference bytes) {
+    static Source fromBytes(BytesReference bytes) {
         return new Source() {
             Map<String, Object> parsedSource = null;
             XContentType xContentType;
-
-            @Override
-            public int docId() {
-                return docId;
-            }
 
             @Override
             public Map<String, Object> source() {
@@ -117,11 +100,6 @@ public interface Source {
             }
         };
     }
-
-    /**
-     * The per-segment id of the document pertaining to this source object
-     */
-    int docId();
 
     /**
      * The source represented as a map of maps

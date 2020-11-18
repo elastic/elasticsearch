@@ -57,8 +57,6 @@ public class TumblingWindow implements Executable {
     private final int maxStages;
     private final int windowSize;
 
-    private final boolean hasKeys;
-
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
     private boolean restartWindowFromTailQuery;
@@ -91,7 +89,6 @@ public class TumblingWindow implements Executable {
 
         Criterion<BoxedQueryRequest> baseRequest = criteria.get(0);
         this.windowSize = baseRequest.queryRequest().searchSource().size();
-        this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
         this.earlyUntil = baseRequest.descending();
     }
@@ -170,7 +167,7 @@ public class TumblingWindow implements Executable {
     }
 
     /**
-     * Start the base query but, to account for until, do not match the results right away.
+     * Execute the base query.
      */
     private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
@@ -190,18 +187,19 @@ public class TumblingWindow implements Executable {
             // always create an ASC window
             info = new WindowInfo(baseStage, begin, end);
 
-            log.trace("Found {}base [{}] window {}->{}", base.descending() ? "tail ": "", base.stage(), begin, end);
+            log.trace("Found {}base [{}] window {}->{}", base.descending() ? "tail " : "", base.stage(), begin, end);
 
             // update current query for the next request
             base.queryRequest().nextAfter(end);
 
-            // early until check if dealing with a TAIL sequence
             // execute UNTIL *before* matching the results
+            // but after the window has been created
+            //
             // this is needed for TAIL sequences since the base of the window
             // is called once with the DESC query, then with the ASC one
             // thus UNTIL needs to be executed before matching the second query
             // that is the ASC base of the window
-            if (earlyUntil && until != null && baseStage == 1) {
+            if (until != null && baseStage > 0) {
                 // find "until" ordinals - early on to discard data in-flight to avoid matching
                 // hits that can occur in other documents
                 untilCriterion(info, listener, () -> completeBaseCriterion(baseStage, hits, info, listener));
@@ -210,8 +208,6 @@ public class TumblingWindow implements Executable {
         } else {
             info = null;
         }
-
-        // match the results
         completeBaseCriterion(baseStage, hits, info, listener);
     }
 
@@ -269,8 +265,7 @@ public class TumblingWindow implements Executable {
                         if (restartWindowFromTailQuery == false) {
                             shouldTerminate = true;
                         } else {
-                            tumbleWindow(0, listener);
-                            return;
+                            next = () -> tumbleWindow(0, listener);
                         }
                     }
                 }
@@ -293,7 +288,7 @@ public class TumblingWindow implements Executable {
             }
 
             // until check for HEAD queries
-            if (earlyUntil == false && until != null && info != null) {
+            if (until != null && info != null && info.baseStage == 0) {
                 untilCriterion(info, listener, next);
             } else {
                 next.run();
@@ -318,12 +313,17 @@ public class TumblingWindow implements Executable {
 
     private void untilCriterion(WindowInfo window, ActionListener<Payload> listener, Runnable next) {
         final BoxedQueryRequest request = until.queryRequest();
-
-        // before doing a new query, clean all previous until hits
-        // including dropping any in-flight sequences that were not dropped (because they did not match)
-        matcher.dropUntil();
-
         boxQuery(window, until);
+
+        // in case the base query returns less results than the fetch window
+        // the rebase query might take a while to catch up to the until limit
+        // the query can be executed but will return 0 results so avoid this case
+        // by checking for it explicitly
+        if (request.after().after(window.end)) {
+            log.trace("Skipping until stage {}", request);
+            next.run();
+            return;
+        }
 
         log.trace("Querying until stage {}", request);
 

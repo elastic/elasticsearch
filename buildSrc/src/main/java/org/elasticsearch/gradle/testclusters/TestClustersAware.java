@@ -39,9 +39,7 @@ public interface TestClustersAware extends Task {
         cluster.getNodes()
             .stream()
             .flatMap(node -> node.getDistributions().stream())
-            .forEach(distro ->
-                dependsOn(getProject().provider(() -> distro.maybeFreeze()))
-            );
+            .forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze())));
         cluster.getNodes().forEach(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -23,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutRequest;
-import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -77,7 +77,7 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
             return channel -> client.execute(SamlCompleteLogoutAction.INSTANCE, samlCompleteLogoutRequest,
                 new RestBuilderListener<>(channel) {
                     @Override
-                    public RestResponse buildResponse(SamlCompleteLogoutResponse response, XContentBuilder builder) throws Exception {
+                    public RestResponse buildResponse(ActionResponse.Empty response, XContentBuilder builder) throws Exception {
                         builder.startObject().endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }

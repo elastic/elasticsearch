@@ -9,14 +9,19 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -28,29 +33,81 @@ import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermsQuery;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
+
+    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
+        private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
+            "format",
+            true,
+            initializerNotSupported(),
+            null
+        ).setSerializer((b, n, v) -> {
+            if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
+                b.field(n, v);
+            }
+        }, Object::toString).acceptsNull();
+
+        private final FieldMapper.Parameter<Locale> locale = new FieldMapper.Parameter<>(
+            "locale",
+            true,
+            () -> null,
+            (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
+            initializerNotSupported()
+        ).setSerializer((b, n, v) -> {
+            if (v != null && false == v.equals(Locale.ROOT)) {
+                b.field(n, v.toString());
+            }
+        }, Object::toString).acceptsNull();
+
+        @Override
+        protected List<FieldMapper.Parameter<?>> getParameters() {
+            List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
+            parameters.add(format);
+            parameters.add(locale);
+            return Collections.unmodifiableList(parameters);
+        }
+
+        @Override
+        protected AbstractScriptFieldType<?> buildFieldType() {
+            DateFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), DateFieldScript.CONTEXT);
+            String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
+            Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
+            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
+            return new DateScriptFieldType(name, factory, dateTimeFormatter, this);
+        }
+    });
+
     private final DateFormatter dateTimeFormatter;
+
+    private DateScriptFieldType(String name, DateFieldScript.Factory scriptFactory, DateFormatter dateTimeFormatter, Builder builder) {
+        super(name, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), builder);
+        this.dateTimeFormatter = dateTimeFormatter;
+    }
 
     DateScriptFieldType(
         String name,
-        Script script,
         DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
-        Map<String, String> meta
+        Script script,
+        Map<String, String> meta,
+        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
     ) {
-        super(name, script, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), meta);
+        super(name, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), script, meta, toXContent);
         this.dateTimeFormatter = dateTimeFormatter;
     }
 
     @Override
-    protected String runtimeType() {
+    public String typeName() {
         return DateFieldMapper.CONTENT_TYPE;
     }
 
@@ -172,15 +229,5 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             checkAllowExpensiveQueries(context);
             return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
         });
-    }
-
-    @Override
-    protected String format() {
-        return dateTimeFormatter.pattern();
-    }
-
-    @Override
-    protected Locale formatLocale() {
-        return dateTimeFormatter.locale();
     }
 }

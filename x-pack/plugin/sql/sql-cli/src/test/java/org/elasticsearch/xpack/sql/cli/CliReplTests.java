@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.command.CliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 
@@ -15,7 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class CliReplTests extends ESTestCase {
+public class CliReplTests extends SqlCliTestCase {
 
     public void testBasicCliFunctionality() throws Exception {
         CliTerminal cliTerminal = new TestTerminal(

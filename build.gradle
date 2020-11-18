@@ -389,7 +389,7 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-wrapper {
+tasks.named("wrapper").configure {
   distributionType = 'ALL'
   doLast {
     final DistributionLocator locator = new DistributionLocator()
@@ -417,6 +417,9 @@ gradle.projectsEvaluated {
         it.enabled = false
       }
       maybeConfigure(project.tasks, 'dependenciesInfo') {
+        it.enabled = false
+      }
+      maybeConfigure(project.tasks, 'dependenciesGraph') {
         it.enabled = false
       }
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,7 +48,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -113,7 +113,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
 
     public void testClearsVotingConfigExclusions() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<ClearVotingConfigExclusionsResponse> responseHolder = new SetOnce<>();
+        final SetOnce<ActionResponse.Empty> responseHolder = new SetOnce<>();
 
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
@@ -155,7 +155,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
 
     public void testSucceedsIfNodesAreRemovedWhileWaiting() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<ClearVotingConfigExclusionsResponse> responseHolder = new SetOnce<>();
+        final SetOnce<ActionResponse.Empty> responseHolder = new SetOnce<>();
 
         transportService.sendRequest(localNode, ClearVotingConfigExclusionsAction.NAME,
             new ClearVotingConfigExclusionsRequest(),
@@ -173,24 +173,24 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
     }
 
-    private TransportResponseHandler<ClearVotingConfigExclusionsResponse> expectSuccess(
-        Consumer<ClearVotingConfigExclusionsResponse> onResponse) {
+    private TransportResponseHandler<ActionResponse.Empty> expectSuccess(
+        Consumer<ActionResponse.Empty> onResponse) {
         return responseHandler(onResponse, e -> {
             throw new AssertionError("unexpected", e);
         });
     }
 
-    private TransportResponseHandler<ClearVotingConfigExclusionsResponse> expectError(Consumer<TransportException> onException) {
+    private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {
         return responseHandler(r -> {
             assert false : r;
         }, onException);
     }
 
-    private TransportResponseHandler<ClearVotingConfigExclusionsResponse> responseHandler(
-        Consumer<ClearVotingConfigExclusionsResponse> onResponse, Consumer<TransportException> onException) {
-        return new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
+    private TransportResponseHandler<ActionResponse.Empty> responseHandler(
+        Consumer<ActionResponse.Empty> onResponse, Consumer<TransportException> onException) {
+        return new TransportResponseHandler<ActionResponse.Empty>() {
             @Override
-            public void handleResponse(ClearVotingConfigExclusionsResponse response) {
+            public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
             }
 
@@ -200,8 +200,8 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             }
 
             @Override
-            public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-                return new ClearVotingConfigExclusionsResponse(in);
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
             }
         };
     }

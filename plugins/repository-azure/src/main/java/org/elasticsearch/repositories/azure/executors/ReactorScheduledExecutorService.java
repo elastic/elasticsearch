@@ -19,8 +19,12 @@
 
 package org.elasticsearch.repositories.azure.executors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -44,6 +48,7 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
     private final ThreadPool threadPool;
     private final String executorName;
     private final ExecutorService delegate;
+    private final Logger logger = LogManager.getLogger(ReactorScheduledExecutorService.class);
 
     public ReactorScheduledExecutorService(ThreadPool threadPool, String executorName) {
         this.threadPool = threadPool;
@@ -74,12 +79,19 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
         Runnable decoratedCommand = decorateRunnable(command);
 
-        Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedRate(decoratedCommand,
-            new TimeValue(initialDelay, unit),
-            new TimeValue(period, unit),
-            executorName);
-
-        return new ReactorFuture<>(cancellable);
+        return threadPool.scheduler().scheduleAtFixedRate(() -> {
+            try {
+                delegate.execute(decoratedCommand);
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.debug(new ParameterizedMessage(
+                        "could not schedule execution of [{}] on [{}] as executor is shut down",
+                        decoratedCommand, executorName), e);
+                } else {
+                    throw e;
+                }
+            }
+        }, initialDelay, period, unit);
     }
 
     @Override

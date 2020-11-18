@@ -101,6 +101,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 // Add mixed cluster test after backported
                 break;
             case UPGRADED:
+                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -120,13 +121,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
         assertThat(modelSnapshots.snapshots(), hasSize(2));
-        if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
-            assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte)6));
-            assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte)6));
-        } else {
-            assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte)7));
-            assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte)7));
-        }
 
         ModelSnapshot snapshot = modelSnapshots.snapshots()
             .stream()
@@ -203,13 +197,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
         assertThat(modelSnapshots.snapshots(), hasSize(2));
-        if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
-            assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 6));
-            assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 6));
-        } else {
-            assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 7));
-            assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 7));
-        }
     }
 
     private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {

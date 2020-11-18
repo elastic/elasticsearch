@@ -22,6 +22,7 @@ package org.elasticsearch.gradle.precommit;
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
@@ -29,7 +30,7 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.nio.file.Path;
 
-public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
+public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
 
     public static final String JDK_JAR_HELL_CONFIG_NAME = "jdkJarHell";
     public static final String LIBS_ELASTICSEARCH_CORE_PROJECT_PATH = ":libs:elasticsearch-core";
@@ -39,7 +40,6 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
         project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:2.7");
-
         Configuration jdkJarHellConfig = project.getConfigurations().create(JDK_JAR_HELL_CONFIG_NAME);
         if (BuildParams.isInternal() && project.getPath().equals(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH) == false) {
             // External plugins will depend on this already via transitive dependencies.

@@ -164,7 +164,7 @@ public class BuildParams {
     }
 
     public enum InternalMarker {
-        INTERNAL(false),
+        INTERNAL(true),
         EXTERNAL(false);
 
         private final boolean internal;

@@ -30,6 +30,5 @@ public class PrecommitTasks {
      */
     public static void create(Project project) {
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
-        project.getPluginManager().apply(ThirdPartyAuditPrecommitPlugin.class);
     }
 }

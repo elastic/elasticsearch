@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.List;
 import java.util.function.Function;
+
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentileRanks;
 
 public class PercentileRanksAgg extends DefaultAggSourceLeafAgg {
 
@@ -25,7 +26,7 @@ public class PercentileRanksAgg extends DefaultAggSourceLeafAgg {
 
     @Override
     Function<String, ValuesSourceAggregationBuilder<?>> builder() {
-        return s -> AggregationBuilders.percentileRanks(s, values.stream().mapToDouble(Double::doubleValue).toArray())
+        return s -> percentileRanks(s, values.stream().mapToDouble(Double::doubleValue).toArray())
             .percentilesConfig(percentilesConfig);
     }
 }

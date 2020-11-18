@@ -486,9 +486,9 @@ PERCENTILE(
 *Input*:
 
 <1> a numeric field
-<2> a numeric literal
-<3> optional string literal to indicate the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
-<4> optional numeric literal for configuring the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
+<2> a numeric expression (must be a constant and not based on a field)
+<3> optional string literal for the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+<4> optional numeric literal that configures the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
 
 *Output*: `double` numeric value
 
@@ -528,9 +528,9 @@ PERCENTILE_RANK(
 *Input*:
 
 <1> a numeric field
-<2> a numeric literal
-<3> optional string literal to indicate the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
-<4> optional numeric literal for configuring the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
+<2> a numeric expression (must be a constant and not based on a field)
+<3> optional string literal for the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+<4> optional numeric literal that configures the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
 
 
 *Output*: `double` numeric value

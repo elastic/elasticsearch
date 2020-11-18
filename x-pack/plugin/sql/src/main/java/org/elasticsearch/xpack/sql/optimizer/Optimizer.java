@@ -1011,7 +1011,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     private static class PercentileAggKey extends Tuple<Expression, PercentilesConfig> {
         PercentileAggKey(HasPercentilesConfig per) {
-            super(per.field(), per.percentileConfig());
+            super(per.field(), per.percentilesConfig());
         }
         
         public Expression field() {

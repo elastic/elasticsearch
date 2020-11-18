@@ -20,8 +20,8 @@ public class PercentileRanks extends CompoundNumericAggregate {
 
     public PercentileRanks(Source source, Expression field, List<Expression> values, PercentilesConfig percentilesConfig) {
         super(source, field, values);
-        this.percentilesConfig = percentilesConfig;
         this.values = values;
+        this.percentilesConfig = percentilesConfig;
     }
 
     @Override
@@ -47,9 +47,15 @@ public class PercentileRanks extends CompoundNumericAggregate {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
 
         PercentileRanks that = (PercentileRanks) o;
 
@@ -58,7 +64,7 @@ public class PercentileRanks extends CompoundNumericAggregate {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), children(), percentilesConfig);
+        return Objects.hash(super.hashCode(), percentilesConfig);
     }
 
 }

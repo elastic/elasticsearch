@@ -30,6 +30,18 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 
 public abstract class HasPercentilesConfig extends NumericAggregate implements EnclosedAgg, TwoOptionalArguments {
+
+    // extensive list of all the possible PercentilesMethods (all can be used with default method parameters)
+    private static final Map<String, PercentilesMethod> NAME_TO_METHOD = stream(PercentilesMethod.values()).collect(toMap(
+        pm -> pm.getParseField().getPreferredName(),
+        pm -> pm
+    ));
+
+    // list of all the possible PercentileMethods that can we are capable of parameterizing as of now
+    private static final Map<PercentilesMethod, MethodParameterResolver> METHOD_TO_RESOLVER = Map.of(
+        PercentilesMethod.TDIGEST, TypeResolutions::isNumeric,
+        PercentilesMethod.HDR, TypeResolutions::isInteger
+    );
     
     private final Expression method;
     private final Expression methodParameter;
@@ -41,23 +53,34 @@ public abstract class HasPercentilesConfig extends NumericAggregate implements E
         this.method = method;
         this.methodParameter = methodParameter;
     }
-    
+
+    @Override 
+    protected TypeResolution resolveType() {
+        TypeResolution resolution = super.resolveType();
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return resolvePercentileConfiguration(sourceText(), method, Expressions.ParamOrdinal.fromIndex(parameters().size()+1), 
+            methodParameter, Expressions.ParamOrdinal.fromIndex(parameters().size()+2));
+    }
+
+    public Expression method() {
+        return method;
+    }
+
+    public Expression methodParameter() {
+        return methodParameter;
+    }
+
+    public PercentilesConfig percentilesConfig() {
+        return asPercentilesConfig(method, methodParameter);
+    }
+
     @FunctionalInterface
     interface MethodParameterResolver {
         Expression.TypeResolution resolve(Expression methodParameter, String sourceText, Expressions.ParamOrdinal methodParameterOrdinal);
-    } 
-
-    // extensive list of all the possible PercentilesMethods (all can be used with default method parameters)
-    private static final Map<String, PercentilesMethod> NAME_TO_METHOD = stream(PercentilesMethod.values()).collect(toMap(
-            pm -> pm.getParseField().getPreferredName(),
-            pm -> pm
-        ));
-    
-    // list of all the possible PercentileMethods that can we are capable of parameterizing as of now
-    private static final Map<PercentilesMethod, MethodParameterResolver> METHOD_TO_RESOLVER = Map.of(
-        PercentilesMethod.TDIGEST, TypeResolutions::isNumeric,
-        PercentilesMethod.HDR, TypeResolutions::isInteger
-    );
+    }
 
     private static Expression.TypeResolution resolvePercentileConfiguration(
         String sourceText, Expression method, Expressions.ParamOrdinal methodOrdinal,
@@ -87,12 +110,12 @@ public abstract class HasPercentilesConfig extends NumericAggregate implements E
                 if (resolution.unresolved()) {
                     return resolution;
                 }
-                
+
                 MethodParameterResolver resolver = METHOD_TO_RESOLVER.get(percentilesMethod);
                 if (resolver == null) {
                     // so in the future if a new method is added, at least the users will be able to use it with 
                     // the default parameters, but won't be able to configure it until the resolver is added
-                    return new Expression.TypeResolution(format(null, 
+                    return new Expression.TypeResolution(format(null,
                         "the [{}] method can only be used with the default method parameters, please omit the {} argument of [{}]",
                         methodParameterOrdinal.name().toLowerCase(Locale.ROOT), sourceText, methodName));
                 }
@@ -104,21 +127,7 @@ public abstract class HasPercentilesConfig extends NumericAggregate implements E
         return Expression.TypeResolution.TYPE_RESOLVED;
     }
 
-    @Override protected TypeResolution resolveType() {
-        TypeResolution resolution = super.resolveType();
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return resolvePercentileConfiguration(sourceText(), method, Expressions.ParamOrdinal.fromIndex(parameters().size()+1), 
-            methodParameter, Expressions.ParamOrdinal.fromIndex(parameters().size()+2));
-    }
-
-    public PercentilesConfig percentileConfig() {
-        return asPercentileConfig(method, methodParameter);
-    }
-
-    private static PercentilesConfig asPercentileConfig(Expression method, Expression methodParameter) {
+    private static PercentilesConfig asPercentilesConfig(Expression method, Expression methodParameter) {
         if (method == null) {
             // sadly we had to set the default here, the PercentilesConfig does not provide a default
             return new PercentilesConfig.TDigest();
@@ -154,19 +163,17 @@ public abstract class HasPercentilesConfig extends NumericAggregate implements E
         return (T) SqlDataTypeConverter.convert(Foldables.valueOf(e), dataType);
     }
 
-    public Expression method() {
-        return method;
-    }
-    
-    public Expression methodParameter() {
-        return methodParameter;
-    }
-
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
 
         HasPercentilesConfig that = (HasPercentilesConfig) o;
 
@@ -176,7 +183,7 @@ public abstract class HasPercentilesConfig extends NumericAggregate implements E
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), children(), method, methodParameter);
+        return Objects.hash(super.hashCode(), method, methodParameter);
     }
 
 }

@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
-import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
@@ -25,7 +25,7 @@ public class Percentile extends HasPercentilesConfig {
     private final Expression percent;
 
     public Percentile(Source source, Expression field, Expression percent, Expression method, Expression methodParameter) {
-        super(source, field, Collections.singletonList(percent), method, methodParameter);
+        super(source, field, singletonList(percent), method, methodParameter);
         this.percent = percent;
     }
 
@@ -36,7 +36,7 @@ public class Percentile extends HasPercentilesConfig {
 
     @Override
     public Percentile replaceChildren(List<Expression> newChildren) {
-        if (children().size() != 2) {
+        if (newChildren.size() != 2) {
             throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
         }
         return new Percentile(source(), newChildren.get(0), newChildren.get(1), method(), methodParameter());

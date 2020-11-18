@@ -13,7 +13,6 @@ POST stackoverflow/_terms/list
 }
 --------------------------------------------------
 // TEST[setup:stackoverflow]
-// TEST[continued]
 
 
 The API returns the following response:

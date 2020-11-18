@@ -27,8 +27,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -3106,21 +3107,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private class UpdateSnapshotStatusAction
-            extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
+            extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, ActionResponse.Empty> {
         UpdateSnapshotStatusAction(TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver) {
             super(UPDATE_SNAPSHOT_STATUS_ACTION_NAME, false, transportService, clusterService, threadPool,
                     actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver,
-                    in -> UpdateIndexShardSnapshotStatusResponse.INSTANCE, ThreadPool.Names.SAME
+                    in -> ActionResponse.Empty.INSTANCE, ThreadPool.Names.SAME
             );
         }
 
         @Override
         protected void masterOperation(UpdateIndexShardSnapshotStatusRequest request, ClusterState state,
-                                       ActionListener<UpdateIndexShardSnapshotStatusResponse> listener) throws Exception {
+                                       ActionListener<ActionResponse.Empty> listener) throws Exception {
             innerUpdateSnapshotState(new ShardSnapshotUpdate(request.snapshot(), request.shardId(), request.status()),
-                    ActionListener.delegateFailure(listener, (l, v) -> l.onResponse(UpdateIndexShardSnapshotStatusResponse.INSTANCE)));
+                    ActionListener.delegateFailure(listener, (l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
         }
 
         @Override

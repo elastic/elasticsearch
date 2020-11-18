@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
@@ -103,7 +103,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
 
-        ChangePasswordResponse response = securityClient()
+        ActionResponse.Empty response = securityClient()
             .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length), hasher)
                 .get();
         assertThat(response, notNullValue());

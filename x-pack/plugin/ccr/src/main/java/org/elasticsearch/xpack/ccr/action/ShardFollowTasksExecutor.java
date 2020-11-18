@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -47,7 +48,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -427,7 +427,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                  * again. If that fails, it had better not be because the retention lease already exists. Either way, we will attempt to
                  * renew again on the next scheduled execution.
                  */
-                final ActionListener<RetentionLeaseActions.Response> listener = ActionListener.wrap(
+                final ActionListener<ActionResponse.Empty> listener = ActionListener.wrap(
                         r -> {},
                         e -> {
                             /*
@@ -451,7 +451,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                         params.getFollowShardId(),
                                         retentionLeaseId);
                                 try {
-                                    final ActionListener<RetentionLeaseActions.Response> wrappedListener = ActionListener.wrap(
+                                    final ActionListener<ActionResponse.Empty> wrappedListener = ActionListener.wrap(
                                         r -> {},
                                         inner -> {
                                             /*

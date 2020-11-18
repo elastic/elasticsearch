@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 
-public class ClearVotingConfigExclusionsAction extends ActionType<ClearVotingConfigExclusionsResponse> {
+public class ClearVotingConfigExclusionsAction extends ActionType<ActionResponse.Empty> {
     public static final ClearVotingConfigExclusionsAction INSTANCE = new ClearVotingConfigExclusionsAction();
     public static final String NAME = "cluster:admin/voting_config/clear_exclusions";
 
     private ClearVotingConfigExclusionsAction() {
-        super(NAME, ClearVotingConfigExclusionsResponse::new);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 }

@@ -104,6 +104,7 @@ Example usage configuring `my_location` as the point field:
   "field": "my_location"
 }
 ----
+// NOTCONSOLE
 
 `sort`::
 (Required)
@@ -119,6 +120,7 @@ Example usage configuring `@timestamp` as the sort key:
   "field": "@timestamp"
 }
 ----
+// NOTCONSOLE
 
 `include_sort`::
 (Optional, boolean, default: `false`)

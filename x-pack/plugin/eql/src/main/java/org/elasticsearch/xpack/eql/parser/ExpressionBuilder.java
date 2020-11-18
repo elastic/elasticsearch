@@ -163,7 +163,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         EqlBaseParser.SeqPredicateContext seq = predicate.seqPredicate();
         if (seq != null) {
             Expression literal = expression(seq);
-            return new InsensitiveEquals(source, expr, literal);
+            return new InsensitiveEquals(source, expr, literal, zoneId);
         }
         // in expression
         List<Expression> container = expressions(predicate.expression());

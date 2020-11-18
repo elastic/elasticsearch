@@ -26,12 +26,14 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -60,9 +62,11 @@ import java.time.Clock;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -266,5 +270,39 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             assertNotNull(sourceMap.get("access_token"));
             assertNotNull(sourceMap.get("refresh_token"));
         }
+    }
+
+    public void testKerberosGrantTypeWillFailOnBase64DecodeError() throws Exception {
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license, securityContext,
+            securityIndex, securityIndex, clusterService);
+        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        authentication.writeToContext(threadPool.getThreadContext());
+
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
+            mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
+            authenticationService, securityContext);
+        final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
+        createTokenRequest.setGrantType("_kerberos");
+        final char[] invalidBase64Chars = "!\"#$%&\\'()*,./:;<>?@[]^_`{|}~\t\n\r".toCharArray();
+        final String kerberosTicketValue = Strings.arrayToDelimitedString(
+            randomArray(1, 10, Character[]::new,
+                () -> invalidBase64Chars[randomIntBetween(0, invalidBase64Chars.length - 1)]), "");
+        createTokenRequest.setKerberosTicket(new SecureString(kerberosTicketValue.toCharArray()));
+
+        PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();
+        action.doExecute(null, createTokenRequest, assertListenerIsOnlyCalledOnce(tokenResponseFuture));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> tokenResponseFuture.actionGet());
+        assertThat(e.getMessage(), containsString("could not decode base64 kerberos ticket"));
+        // The code flow should stop after above failure and never reach authenticationService
+        Mockito.verifyZeroInteractions(authenticationService);
+    }
+
+    private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {
+        final AtomicInteger callCount = new AtomicInteger(0);
+        return ActionListener.runBefore(delegate, () -> {
+            if (callCount.incrementAndGet() != 1) {
+                fail("Listener was called twice");
+            }
+        });
     }
 }

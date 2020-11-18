@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -110,7 +109,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             new AggregationSpec(
                     GeoLineAggregationBuilder.NAME,
                     GeoLineAggregationBuilder::new,
-                    usage.track(SpatialStatsAction.Item.GEOLINE, checkLicense(GeoLineAggregationBuilder.PARSER)))
+                    usage.track(SpatialStatsAction.Item.GEOLINE,
+                        checkLicense(GeoLineAggregationBuilder.PARSER, XPackLicenseState.Feature.SPATIAL_GEO_LINE)))
                 .addResultReader(InternalGeoLine::new)
                 .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage));
     }
@@ -196,10 +196,10 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
     }
 
-    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
+    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser, XPackLicenseState.Feature feature) {
         return (parser, name) -> {
-            if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL) == false) {
-                throw LicenseUtils.newComplianceException(XPackField.SPATIAL);
+            if (getLicenseState().checkFeature(feature) == false) {
+                throw LicenseUtils.newComplianceException(feature.name());
             }
             return realParser.parse(parser, name);
         };

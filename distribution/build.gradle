@@ -259,7 +259,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
       licensesDir licenses
       source module.file('src/main/java')
     }
-    buildOssNotice.configure {
+    buildOssNoticeTaskProvider.configure {
       licensesDir licenses
       source module.file('src/main/java')
     }
@@ -335,7 +335,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
-    libs project(':libs:elasticsearch-plugin-classloader')
     libs project(':distribution:tools:java-version-checker')
     libs project(':distribution:tools:launchers')
 

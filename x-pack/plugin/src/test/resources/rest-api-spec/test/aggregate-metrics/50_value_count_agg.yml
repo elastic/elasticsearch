@@ -1,0 +1,68 @@
+setup:
+  - do:
+      indices.create:
+        index:  aggregate_metric_test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [sum, value_count]
+                default_metric: value_count
+
+  - do:
+      bulk:
+        index: aggregate_metric_test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"metric": {"sum": 10000, "value_count": 100} }'
+          - '{"index": {}}'
+          - '{"metric": {"sum": 60, "value_count": 20} }'
+          - '{"index": {}}'
+          - '{"metric": {"sum": -400, "value_count": 780} }'
+          - '{"index": {}}'
+          - '{"metric": {"sum": 40, "value_count": 20} }'
+          - '{"index": {}}'
+          - '{"metric": {"sum": -100, "value_count": 40} }'
+---
+"Test value_count agg":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      search:
+        index: aggregate_metric_test
+        size: 0
+        body:
+          aggs:
+            value_count_agg:
+              value_count:
+                field: metric
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.value_count_agg.value: 960}
+
+---
+"Test value_count agg with query":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      search:
+        index: aggregate_metric_test
+        size: 0
+        body:
+          query:
+            term:
+              metric:
+                value: 20
+          aggs:
+            value_count_agg:
+              value_count:
+                field: metric
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.value_count_agg.value: 40}

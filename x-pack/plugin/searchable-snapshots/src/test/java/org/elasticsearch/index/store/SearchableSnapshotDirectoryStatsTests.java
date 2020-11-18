@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,9 +33,7 @@ import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
@@ -48,7 +45,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
-import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
@@ -63,7 +59,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase {
+public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSnapshotsTestCase {
 
     private static final int MAX_FILE_LENGTH = 10_000;
 
@@ -72,7 +68,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
      */
     private static final long FAKE_CLOCK_ADVANCE_NANOS = TimeValue.timeValueMillis(100).nanos();
 
-    public void testOpenCount() {
+    public void testOpenCount() throws Exception {
         executeTestCase((fileName, fileContent, directory) -> {
             try {
                 for (long i = 0L; i < randomLongBetween(1L, 20L); i++) {
@@ -90,7 +86,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testCloseCount() {
+    public void testCloseCount() throws Exception {
         executeTestCase((fileName, fileContent, directory) -> {
             try {
                 for (long i = 0L; i < randomLongBetween(1L, 20L); i++) {
@@ -109,9 +105,9 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testCachedBytesReadsAndWrites() {
+    public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
+        final ByteSizeValue rangeSize = randomCacheRangeSize();
         final ByteSizeValue cacheSize = new ByteSizeValue(1, ByteSizeUnit.GB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
@@ -164,7 +160,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testCachedBytesReadsAndWritesNoCache() {
+    public void testCachedBytesReadsAndWritesNoCache() throws Exception {
         final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
@@ -188,9 +184,9 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testDirectBytesReadsWithCache() {
+    public void testDirectBytesReadsWithCache() throws Exception {
         // Cache service always evicts files
-        executeTestCaseWithCache(ByteSizeValue.ZERO, ByteSizeValue.ZERO, (fileName, fileContent, directory) -> {
+        executeTestCaseWithCache(ByteSizeValue.ZERO, randomCacheRangeSize(), (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
 
             final IOContext ioContext = newIOContext(random());
@@ -241,7 +237,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testDirectBytesReadsWithoutCache() {
+    public void testDirectBytesReadsWithoutCache() throws Exception {
         final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
@@ -277,7 +273,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testOptimizedBytesReads() {
+    public void testOptimizedBytesReads() throws Exception {
         // use a large uncached chunk size that allows to read the file in a single operation
         final ByteSizeValue uncachedChunkSize = new ByteSizeValue(1, ByteSizeUnit.GB);
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
@@ -314,7 +310,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testReadBytesContiguously() {
+    public void testReadBytesContiguously() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
 
@@ -365,7 +361,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testReadBytesNonContiguously() {
+    public void testReadBytesNonContiguously() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
 
@@ -416,7 +412,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testForwardSeeks() {
+    public void testForwardSeeks() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
             try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
@@ -474,7 +470,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    public void testBackwardSeeks() {
+    public void testBackwardSeeks() throws Exception {
         executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
             try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
@@ -536,9 +532,9 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         });
     }
 
-    private static void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) {
+    private void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
-            createCacheService(random()),
+            randomCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
@@ -547,12 +543,12 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         );
     }
 
-    private static void executeTestCaseWithoutCache(
+    private void executeTestCaseWithoutCache(
         final ByteSizeValue uncachedChunkSize,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
-    ) {
+    ) throws Exception {
         executeTestCase(
-            createCacheService(random()),
+            defaultCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(), uncachedChunkSize)
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
@@ -561,7 +557,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         );
     }
 
-    private static void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) {
+    private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCaseWithCache(
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getDefault(Settings.EMPTY),
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getDefault(Settings.EMPTY),
@@ -569,13 +565,13 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         );
     }
 
-    private static void executeTestCaseWithCache(
+    private void executeTestCaseWithCache(
         final ByteSizeValue cacheSize,
         final ByteSizeValue cacheRangeSize,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
-    ) {
+    ) throws Exception {
         executeTestCase(
-            new CacheService(TestUtils::noOpCacheCleaner, cacheSize, cacheRangeSize),
+            createCacheService(cacheSize, cacheRangeSize),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
@@ -584,11 +580,11 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         );
     }
 
-    private static void executeTestCase(
+    private void executeTestCase(
         final CacheService cacheService,
         final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
-    ) {
+    ) throws Exception {
 
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
         final String fileExtension = randomAlphaOfLength(3);
@@ -598,7 +594,6 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
         final LongSupplier statsCurrentTimeNanos = () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
-        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName(), SearchableSnapshots.executorBuilders());
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
@@ -614,7 +609,6 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
             throw new UncheckedIOException(e);
         }
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-        final DiscoveryNode discoveryNode = new DiscoveryNode("_id", buildNewFakeTransportAddress(), Version.CURRENT);
         final Path cacheDir = createTempDir();
 
         try (
@@ -667,7 +661,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
 
             test.apply(fileName, fileContent, directory);
         } finally {
-            terminate(threadPool);
+            assertThreadPoolNotBusy(threadPool);
         }
     }
 }

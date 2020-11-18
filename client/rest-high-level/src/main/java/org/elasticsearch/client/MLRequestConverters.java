@@ -86,6 +86,7 @@ import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -426,6 +427,29 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(updateModelSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request upgradeJobSnapshot(UpgradeJobModelSnapshotRequest upgradeJobModelSnapshotRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(upgradeJobModelSnapshotRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .addPathPart(upgradeJobModelSnapshotRequest.getSnapshotId())
+            .addPathPartAsIs("_upgrade")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (upgradeJobModelSnapshotRequest.getTimeout() != null) {
+            params.putParam(UpgradeJobModelSnapshotRequest.TIMEOUT.getPreferredName(),
+                upgradeJobModelSnapshotRequest.getTimeout().getStringRep());
+        }
+        if (upgradeJobModelSnapshotRequest.getWaitForCompletion() != null) {
+            params.putParam(UpgradeJobModelSnapshotRequest.WAIT_FOR_COMPLETION.getPreferredName(),
+                upgradeJobModelSnapshotRequest.getWaitForCompletion().toString());
+        }
+        request.addParameters(params.asMap());
         return request;
     }
 

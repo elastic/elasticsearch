@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.snapshots.AbortedSnapshotException;
+
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -95,7 +97,10 @@ public class IndexShardSnapshotStatus {
             this.totalFileCount = totalFileCount;
             this.incrementalSize = incrementalSize;
             this.totalSize = totalSize;
+        } else if (isAborted()) {
+            throw new AbortedSnapshotException();
         } else {
+            assert false : "Should not try to move stage [" + stage.get() + "] to [STARTED]";
             throw new IllegalStateException("Unable to move the shard snapshot status to [STARTED]: " +
                 "expecting [INIT] but got [" + stage.get() + "]");
         }
@@ -105,7 +110,10 @@ public class IndexShardSnapshotStatus {
     public synchronized Copy moveToFinalize(final long indexVersion) {
         if (stage.compareAndSet(Stage.STARTED, Stage.FINALIZE)) {
             this.indexVersion = indexVersion;
+        } else if (isAborted()) {
+            throw new AbortedSnapshotException();
         } else {
+            assert false : "Should not try to move stage [" + stage.get() + "] to [FINALIZE]";
             throw new IllegalStateException("Unable to move the shard snapshot status to [FINALIZE]: " +
                 "expecting [STARTED] but got [" + stage.get() + "]");
         }
@@ -118,6 +126,7 @@ public class IndexShardSnapshotStatus {
             this.totalTime = Math.max(0L, endTime - startTime);
             this.generation.set(newGeneration);
         } else {
+            assert false : "Should not try to move stage [" + stage.get() + "] to [DONE]";
             throw new IllegalStateException("Unable to move the shard snapshot status to [DONE]: " +
                 "expecting [FINALIZE] but got [" + stage.get() + "]");
         }

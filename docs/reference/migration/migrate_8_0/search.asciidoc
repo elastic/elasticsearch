@@ -6,6 +6,20 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[id-field-data]]
+.Aggregating and sorting on `_id` is disallowed by default.
+[%collapsible]
+====
+*Details* +
+Previously, it was possible to aggregate and sort on the built-in `_id` field
+by loading an expensive data structure called fielddata. This was deprecated
+in 7.6 and is now disallowed by default in 8.0.
+
+*Impact* +
+Aggregating and sorting on `_id` should be avoided. As an alternative, the
+`_id` field's contents can be duplicated into another field with docvalues
+enabled (note that this does not apply to auto-generated IDs).
+====
 //end::notable-breaking-changes[]
 
 .Search-related REST API endpoints containing mapping types have been removed.
@@ -82,7 +96,7 @@ suggestions around sparse vector functionality, please let us know through
 GitHub or the 'discuss' forums.
 
 *Impact* +
-Discontinue use of the `sparse_vector` field data type. Requests containing 
+Discontinue use of the `sparse_vector` field data type. Requests containing
 a mapping for this field data type will return an error.
 ====
 

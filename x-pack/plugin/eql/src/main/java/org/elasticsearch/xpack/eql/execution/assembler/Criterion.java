@@ -23,33 +23,37 @@ public class Criterion<Q extends QueryRequest> {
     private final HitExtractor timestamp;
     private final HitExtractor tiebreaker;
 
-    private final boolean reverse;
+    private final boolean descending;
 
-    Criterion(int stage,
+    public Criterion(int stage,
               Q queryRequest,
               List<HitExtractor> keys,
               HitExtractor timestamp,
               HitExtractor tiebreaker,
-              boolean reverse) {
+              boolean descending) {
         this.stage = stage;
         this.queryRequest = queryRequest;
         this.keys = keys;
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
 
-        this.reverse = reverse;
+        this.descending = descending;
     }
 
     public int stage() {
         return stage;
     }
 
-    public boolean reverse() {
-        return reverse;
+    public boolean descending() {
+        return descending;
     }
 
     public Q queryRequest() {
         return queryRequest;
+    }
+
+    public int keySize() {
+        return keys.size();
     }
 
     public SequenceKey key(SearchHit hit) {
@@ -79,7 +83,7 @@ public class Criterion<Q extends QueryRequest> {
 
         if (tiebreaker != null) {
             Object tb = tiebreaker.extract(hit);
-            if (tb instanceof Comparable == false) {
+            if (tb != null && tb instanceof Comparable == false) {
                 throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
             }
             tbreaker = (Comparable<Object>) tb;
@@ -89,6 +93,6 @@ public class Criterion<Q extends QueryRequest> {
 
     @Override
     public String toString() {
-        return "[" + stage + "][" + reverse + "]";
+        return "[" + stage + "][" + descending + "]";
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -66,7 +65,7 @@ public class MetaJoinFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + NAME + "].");
         }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -59,20 +60,50 @@ public class DocumentParserTests extends MapperServiceTestCase {
         return List.of(new DocumentParserTestsPlugin(), new TestRuntimeField.Plugin());
     }
 
-    public void testDynamicUpdateWithRuntimeField() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "test")));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("test", "value")));
-        RootObjectMapper root = doc.dynamicMappingsUpdate().root;
-        assertEquals(0, root.runtimeFieldTypes().size());
-        assertNotNull(root.getMapper("test"));
-    }
-
-    public void testDynamicUpdateWithRuntimeFieldSameName() throws Exception {
+    public void testParseWithRuntimeField() throws Exception {
         DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "test")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
-        RootObjectMapper root = doc.dynamicMappingsUpdate().root;
-        assertEquals(0, root.runtimeFieldTypes().size());
-        assertNotNull(root.getMapper("field"));
+        //field defined as runtime field but not under properties: no dynamic updates, the field does not get indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testParseWithShadowedField() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+                .startObject("runtime")
+                  .startObject("field").field("type", "test").endObject()
+                .endObject()
+                .startObject("properties")
+                  .startObject("field").field("type", "keyword").endObject()
+                .endObject()
+            .endObject().endObject();
+
+        DocumentMapper mapper = createDocumentMapper(builder);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        //field defined as runtime field as well as under properties: no dynamic updates, the field gets indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testParseWithRuntimeFieldDottedNameDisabledObject() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+                .startObject("runtime")
+                    .startObject("path1.path2.path3.field").field("type", "test").endObject()
+                .endObject()
+                .startObject("properties")
+                    .startObject("path1").field("type", "object").field("enabled", false).endObject()
+                .endObject()
+            .endObject().endObject();
+        MapperService mapperService = createMapperService(builder);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("path1").startObject("path2").startObject("path3");
+            b.field("field", "value");
+            b.endObject().endObject().endObject();
+        }));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNull(doc.rootDoc().getField("path1.path2.path3.field"));
     }
 
     public void testFieldDisabled() throws Exception {

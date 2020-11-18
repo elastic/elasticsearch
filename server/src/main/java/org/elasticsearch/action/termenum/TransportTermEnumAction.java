@@ -197,7 +197,7 @@ public class TransportTermEnumAction extends TransportBroadcastAction<
 
     static class TermCountPriorityQueue extends PriorityQueue<TermCount> {
 
-        public TermCountPriorityQueue(int maxSize) {
+        TermCountPriorityQueue(int maxSize) {
             super(maxSize);
         }
 

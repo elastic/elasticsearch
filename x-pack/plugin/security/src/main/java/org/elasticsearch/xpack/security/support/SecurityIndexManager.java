@@ -162,7 +162,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         final State previousState = indexState;
         final IndexMetadata indexMetadata = resolveConcreteIndex(aliasName, event.state().metadata());
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
-        final boolean isIndexUpToDate = indexMetadata == null || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == internalIndexFormat;
+        final boolean isIndexUpToDate = indexMetadata == null
+            || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == internalIndexFormat;
         final boolean indexAvailable = checkIndexAvailable(event.state());
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final Version mappingVersion = oldestIndexMappingVersion(event.state());

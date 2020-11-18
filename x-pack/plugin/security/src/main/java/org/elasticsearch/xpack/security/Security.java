@@ -415,20 +415,23 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         securityIndex.set(SecurityIndexManager.buildSecurityMainIndexManager(clusterService));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(), securityContext.get(), securityIndex
-            .get(), SecurityIndexManager.buildSecurityTokensIndexManager(clusterService), clusterService);
+        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(), securityContext.get(),
+            securityIndex.get(), SecurityIndexManager.buildSecurityTokensIndexManager(clusterService), clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-        final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(), scriptService);
+        final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
+            scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
-        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, securityIndex.get(), threadPool);
-        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(environment, client, clusterService, resourceWatcherService, nativeRoleMappingStore);
-        Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService, getSslService(), nativeUsersStore, nativeRoleMappingStore, securityIndex
-            .get()));
+        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore,
+            anonymousUser, securityIndex.get(), threadPool);
+        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(environment, client, clusterService,
+            resourceWatcherService, nativeRoleMappingStore);
+        Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
+            getSslService(), nativeUsersStore, nativeRoleMappingStore, securityIndex.get()));
         for (SecurityExtension extension : securityExtensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(extensionComponents);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {

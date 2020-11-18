@@ -16,16 +16,16 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class UrlPartsProcessor extends AbstractProcessor {
+public class UriPartsProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "url_parts";
+    public static final String TYPE = "uri_parts";
 
     private final String field;
     private final String targetField;
     private final boolean removeIfSuccessful;
     private final boolean keepOriginal;
 
-    UrlPartsProcessor(String tag, String description, String field, String targetField, boolean removeIfSuccessful, boolean keepOriginal) {
+    UriPartsProcessor(String tag, String description, String field, String targetField, boolean removeIfSuccessful, boolean keepOriginal) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -57,45 +57,45 @@ public class UrlPartsProcessor extends AbstractProcessor {
         try {
             uri = new URI(value);
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("unable to parse URL [" + value + "]");
+            throw new IllegalArgumentException("unable to parse URI [" + value + "]");
         }
-        var urlParts = new HashMap<String, Object>();
-        urlParts.put("domain", uri.getHost());
+        var uriParts = new HashMap<String, Object>();
+        uriParts.put("domain", uri.getHost());
         if (uri.getFragment() != null) {
-            urlParts.put("fragment", uri.getFragment());
+            uriParts.put("fragment", uri.getFragment());
         }
         if (keepOriginal) {
-            urlParts.put("original", value);
+            uriParts.put("original", value);
         }
         final String path = uri.getPath();
         if (path != null) {
-            urlParts.put("path", path);
+            uriParts.put("path", path);
             if (path.contains(".")) {
                 int periodIndex = path.lastIndexOf('.');
-                urlParts.put("extension", periodIndex < path.length() ? path.substring(periodIndex + 1) : "");
+                uriParts.put("extension", periodIndex < path.length() ? path.substring(periodIndex + 1) : "");
             }
         }
         if (uri.getPort() != -1) {
-            urlParts.put("port", uri.getPort());
+            uriParts.put("port", uri.getPort());
         }
         if (uri.getQuery() != null) {
-            urlParts.put("query", uri.getQuery());
+            uriParts.put("query", uri.getQuery());
         }
-        urlParts.put("scheme", uri.getScheme());
+        uriParts.put("scheme", uri.getScheme());
         final String userInfo = uri.getUserInfo();
         if (userInfo != null) {
-            urlParts.put("user_info", userInfo);
+            uriParts.put("user_info", userInfo);
             if (userInfo.contains(":")) {
                 int colonIndex = userInfo.indexOf(":");
-                urlParts.put("username", userInfo.substring(0, colonIndex));
-                urlParts.put("password", colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
+                uriParts.put("username", userInfo.substring(0, colonIndex));
+                uriParts.put("password", colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
             }
         }
 
         if (removeIfSuccessful && targetField.equals(field) == false) {
             ingestDocument.removeField(field);
         }
-        ingestDocument.setFieldValue(targetField, urlParts);
+        ingestDocument.setFieldValue(targetField, uriParts);
         return ingestDocument;
     }
 
@@ -107,7 +107,7 @@ public class UrlPartsProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public UrlPartsProcessor create(
+        public UriPartsProcessor create(
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
@@ -117,7 +117,7 @@ public class UrlPartsProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "url");
             boolean removeIfSuccessful = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "remove_if_successful", false);
             boolean keepOriginal = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "keep_original", true);
-            return new UrlPartsProcessor(processorTag, description, field, targetField, removeIfSuccessful, keepOriginal);
+            return new UriPartsProcessor(processorTag, description, field, targetField, removeIfSuccessful, keepOriginal);
         }
     }
 }

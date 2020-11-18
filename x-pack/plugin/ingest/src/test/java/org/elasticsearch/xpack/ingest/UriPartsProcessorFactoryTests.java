@@ -15,13 +15,13 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class UrlPartsProcessorFactoryTests extends ESTestCase {
+public class UriPartsProcessorFactoryTests extends ESTestCase {
 
-    private UrlPartsProcessor.Factory factory;
+    private UriPartsProcessor.Factory factory;
 
     @Before
     public void init() {
-        factory = new UrlPartsProcessor.Factory();
+        factory = new UriPartsProcessor.Factory();
     }
 
     public void testCreate() throws Exception {
@@ -39,12 +39,12 @@ public class UrlPartsProcessorFactoryTests extends ESTestCase {
         config.put("keep_original", keepOriginal);
 
         String processorTag = randomAlphaOfLength(10);
-        UrlPartsProcessor urlPartsProcessor = factory.create(null, processorTag, null, config);
-        assertThat(urlPartsProcessor.getTag(), equalTo(processorTag));
-        assertThat(urlPartsProcessor.getField(), equalTo(field));
-        assertThat(urlPartsProcessor.getTargetField(), equalTo(targetField));
-        assertThat(urlPartsProcessor.getRemoveIfSuccessful(), equalTo(removeIfSuccessful));
-        assertThat(urlPartsProcessor.getKeepOriginal(), equalTo(keepOriginal));
+        UriPartsProcessor uriPartsProcessor = factory.create(null, processorTag, null, config);
+        assertThat(uriPartsProcessor.getTag(), equalTo(processorTag));
+        assertThat(uriPartsProcessor.getField(), equalTo(field));
+        assertThat(uriPartsProcessor.getTargetField(), equalTo(targetField));
+        assertThat(uriPartsProcessor.getRemoveIfSuccessful(), equalTo(removeIfSuccessful));
+        assertThat(uriPartsProcessor.getKeepOriginal(), equalTo(keepOriginal));
     }
 
     public void testCreateNoFieldPresent() throws Exception {

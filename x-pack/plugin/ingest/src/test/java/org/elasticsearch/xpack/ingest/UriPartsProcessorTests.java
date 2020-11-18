@@ -15,42 +15,42 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
-public class UrlPartsProcessorTests extends ESTestCase {
+public class UriPartsProcessorTests extends ESTestCase {
 
-    public void testUrlParts() throws Exception {
+    public void testUriParts() throws Exception {
 
-        // simple URL
-        testUrlParsing("http://www.google.com", Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
+        // simple URI
+        testUriParsing("http://www.google.com", Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
 
         // custom port
-        testUrlParsing("http://www.google.com:88", Map.of("scheme", "http", "domain", "www.google.com", "path", "", "port", 88));
+        testUriParsing("http://www.google.com:88", Map.of("scheme", "http", "domain", "www.google.com", "path", "", "port", 88));
 
         // file
-        testUrlParsing(
+        testUriParsing(
             "http://www.google.com:88/google.png",
             Map.of("scheme", "http", "domain", "www.google.com", "extension", "png", "path", "/google.png", "port", 88)
         );
 
         // fragment
-        testUrlParsing(
+        testUriParsing(
             "https://www.google.com:88/foo#bar",
             Map.of("scheme", "https", "domain", "www.google.com", "fragment", "bar", "path", "/foo", "port", 88)
         );
 
         // path, extension
-        testUrlParsing(
+        testUriParsing(
             "https://www.google.com:88/foo.jpg",
             Map.of("scheme", "https", "domain", "www.google.com", "path", "/foo.jpg", "extension", "jpg", "port", 88)
         );
 
         // query
-        testUrlParsing(
+        testUriParsing(
             "https://www.google.com:88/foo?key=val",
             Map.of("scheme", "https", "domain", "www.google.com", "path", "/foo", "query", "key=val", "port", 88)
         );
 
         // user_info
-        testUrlParsing(
+        testUriParsing(
             "https://user:pw@www.google.com:88/foo",
             Map.of(
                 "scheme",
@@ -71,7 +71,7 @@ public class UrlPartsProcessorTests extends ESTestCase {
         );
 
         // everything!
-        testUrlParsing(
+        testUriParsing(
             "https://user:pw@testing.google.com:8080/foo/bar?foo1=bar1&foo2=bar2#anchorVal",
             Map.of(
                 "scheme",
@@ -95,20 +95,20 @@ public class UrlPartsProcessorTests extends ESTestCase {
             )
         );
 
-        testUrlParsing(
+        testUriParsing(
             "ftp://ftp.is.co.za/rfc/rfc1808.txt",
             Map.of("scheme", "ftp", "path", "/rfc/rfc1808.txt", "extension", "txt", "domain", "ftp.is.co.za")
         );
 
-        testUrlParsing("telnet://192.0.2.16:80/", Map.of("scheme", "telnet", "path", "/", "port", 80, "domain", "192.0.2.16"));
+        testUriParsing("telnet://192.0.2.16:80/", Map.of("scheme", "telnet", "path", "/", "port", 80, "domain", "192.0.2.16"));
 
-        testUrlParsing(
+        testUriParsing(
             "ldap://[2001:db8::7]/c=GB?objectClass?one",
             Map.of("scheme", "ldap", "path", "/c=GB", "query", "objectClass?one", "domain", "[2001:db8::7]")
         );
 
         // keep original
-        testUrlParsing(
+        testUriParsing(
             true,
             false,
             "http://www.google.com:88/foo#bar",
@@ -116,7 +116,7 @@ public class UrlPartsProcessorTests extends ESTestCase {
         );
 
         // remove if successful
-        testUrlParsing(
+        testUriParsing(
             false,
             true,
             "http://www.google.com:88/foo#bar",
@@ -126,7 +126,7 @@ public class UrlPartsProcessorTests extends ESTestCase {
 
     public void testRemoveIfSuccessfulDoesNotRemoveTargetField() throws Exception {
         String field = "field";
-        UrlPartsProcessor processor = new UrlPartsProcessor(null, null, field, field, true, false);
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, field, field, true, false);
 
         Map<String, Object> source = new HashMap<>();
         source.put(field, "http://www.google.com");
@@ -138,41 +138,41 @@ public class UrlPartsProcessorTests extends ESTestCase {
         assertThat(output.getSourceAndMetadata().entrySet(), containsInAnyOrder(expectedSourceAndMetadata.entrySet().toArray()));
     }
 
-    public void testInvalidUrl() {
-        String url = "not:\\/_a_valid_url";
-        UrlPartsProcessor processor = new UrlPartsProcessor(null, null, "field", "url", true, false);
+    public void testInvalidUri() {
+        String uri = "not:\\/_a_valid_uri";
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false);
 
         Map<String, Object> source = new HashMap<>();
-        source.put("field", url);
+        source.put("field", uri);
         IngestDocument input = new IngestDocument(source, Map.of());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(input));
-        assertThat(e.getMessage(), containsString("unable to parse URL [" + url + "]"));
+        assertThat(e.getMessage(), containsString("unable to parse URI [" + uri + "]"));
     }
 
-    private void testUrlParsing(String url, Map<String, Object> expectedValues) throws Exception {
-        testUrlParsing(false, false, url, expectedValues);
+    private void testUriParsing(String uri, Map<String, Object> expectedValues) throws Exception {
+        testUriParsing(false, false, uri, expectedValues);
     }
 
-    private void testUrlParsing(boolean keepOriginal, boolean removeIfSuccessful, String url, Map<String, Object> expectedValues)
+    private void testUriParsing(boolean keepOriginal, boolean removeIfSuccessful, String uri, Map<String, Object> expectedValues)
         throws Exception {
-        UrlPartsProcessor processor = new UrlPartsProcessor(null, null, "field", "url", removeIfSuccessful, keepOriginal);
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", removeIfSuccessful, keepOriginal);
 
         Map<String, Object> source = new HashMap<>();
-        source.put("field", url);
+        source.put("field", uri);
         IngestDocument input = new IngestDocument(source, Map.of());
         IngestDocument output = processor.execute(input);
 
         Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
 
         if (removeIfSuccessful == false) {
-            expectedSourceAndMetadata.put("field", url);
+            expectedSourceAndMetadata.put("field", uri);
         }
 
         Map<String, Object> values;
         if (keepOriginal) {
             values = new HashMap<>(expectedValues);
-            values.put("original", url);
+            values.put("original", uri);
         } else {
             values = expectedValues;
         }

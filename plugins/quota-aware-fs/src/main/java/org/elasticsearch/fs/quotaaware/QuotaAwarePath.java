@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.ProviderMismatchException;
@@ -179,7 +180,11 @@ public final class QuotaAwarePath implements Path {
     @SuppressForbidden(reason = "Implementation required by super type")
     @Override
     public File toFile() {
-        return delegate.toFile();
+        if (getFileSystem() == FileSystems.getDefault()) {
+            return new File(toString());
+        } else {
+            throw new UnsupportedOperationException("Path not associated with default file system.");
+        }
     }
 
     @Override

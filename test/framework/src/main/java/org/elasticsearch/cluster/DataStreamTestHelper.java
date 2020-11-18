@@ -55,7 +55,7 @@ public final class DataStreamTestHelper {
     }
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation) {
-        return createBackingIndex(dataStreamName, 1, System.currentTimeMillis());
+        return createBackingIndex(dataStreamName, generation, System.currentTimeMillis());
     }
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation, long epochMillis) {

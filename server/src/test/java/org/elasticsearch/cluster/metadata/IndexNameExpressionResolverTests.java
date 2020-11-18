@@ -1915,9 +1915,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesPreservesOrdering() {
-        final String dataStreamName = "my-data-stream-2020-02-27";
-        IndexMetadata index1 = createBackingIndex(dataStreamName, 1).build();
-        IndexMetadata index2 = createBackingIndex(dataStreamName, 2).build();
+        epochMillis = 1582761600L; // set to a date known to fail without #65027
+        dateString = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName()).formatMillis(epochMillis);
+        final String dataStreamName = "my-data-stream";
+        IndexMetadata index1 = createBackingIndex(dataStreamName, 1, epochMillis).build();
+        IndexMetadata index2 = createBackingIndex(dataStreamName, 2, epochMillis).build();
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
@@ -1929,8 +1931,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamName);
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
         }
     }
 

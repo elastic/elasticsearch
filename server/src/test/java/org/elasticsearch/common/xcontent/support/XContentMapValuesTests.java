@@ -205,7 +205,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("test", map).get(0).toString(), equalTo("value"));
-        assertThat(XContentMapValues.extractRawValues("test.dummy", map), hasSize(0));
+        assertThat(XContentMapValues.extractRawValues("test.dummy", map), contains("value"));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .field("test.me", "value")

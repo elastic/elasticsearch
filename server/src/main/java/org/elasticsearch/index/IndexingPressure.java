@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 
@@ -49,6 +51,8 @@ public class IndexingPressure {
 
     private final long primaryAndCoordinatingLimits;
     private final long replicaLimits;
+
+    private final ExponentiallyWeightedMovingAverage writeQueueLag = new ExponentiallyWeightedMovingAverage(0.1, 0);
 
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();

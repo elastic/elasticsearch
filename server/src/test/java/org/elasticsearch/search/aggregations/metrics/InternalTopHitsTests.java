@@ -118,7 +118,12 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             sortFieldsComparator(sortFields));
     }
 
-    private InternalTopHits createTestInstanceSortedScore(String name, int requestedSize, Map<String, Object> metadata, Supplier<Float> scoreSupplier) {
+    private InternalTopHits createTestInstanceSortedScore(
+        String name,
+        int requestedSize,
+        Map<String, Object> metadata,
+        Supplier<Float> scoreSupplier
+    ) {
         return createTestInstance(name, metadata, scoreSupplier, requestedSize, ScoreDoc::new, TopDocs::new, scoreComparator());
     }
 

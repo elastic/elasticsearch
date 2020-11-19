@@ -195,7 +195,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         });
 
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient)
-            .disableBufferCopy(false)
+            .disableBufferCopy(true)
             .proxy(proxyOptions)
             .build();
 

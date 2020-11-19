@@ -20,6 +20,8 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.core.http.rest.Response;
+import com.azure.core.http.rest.ResponseBase;
+import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
@@ -34,10 +36,11 @@ import com.azure.storage.blob.models.BlobItemProperties;
 import com.azure.storage.blob.models.BlobListDetails;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.models.ParallelTransferOptions;
-import com.azure.storage.blob.options.BlobInputStreamOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
+import com.azure.storage.common.StorageInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -61,6 +64,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -68,6 +72,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -323,18 +328,21 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    public InputStream getInputStream(String blob, long position, @Nullable Long length) throws IOException {
+    public InputStream getInputStream(String blob, long position, final @Nullable Long length) throws IOException {
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
         final BlobServiceClient client = client();
 
         return SocketAccess.doPrivilegedException(() ->{
             final BlobContainerClient blobContainerClient = client.getBlobContainerClient(container);
             final BlobClient blobClient = blobContainerClient.getBlobClient(blob);
-            final BlobRange range = new BlobRange(position, length);
-            final BlobInputStreamOptions blobInputStreamOptions = new BlobInputStreamOptions()
-                .setRange(range)
-                .setBlockSize((int) getReadChunkSize());
-            return blobClient.openInputStream(blobInputStreamOptions);
+            final long totalSize;
+            if (length == null) {
+                totalSize = blobClient.getProperties().getBlobSize();
+            } else {
+                totalSize = length;
+            }
+            BlobAsyncClient blobAsyncClient = asyncClient().getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
+            return new AzureInputStream(blobAsyncClient, position, totalSize, (int) getReadChunkSize(), totalSize);
         });
     }
 
@@ -476,6 +484,46 @@ public class AzureBlobStore implements BlobStore {
                 "PutBlob", putOperations.get(),
                 "PutBlock", putBlockOperations.get(),
                 "PutBlockList", putBlockListOperations.get());
+        }
+    }
+
+    private static class AzureInputStream extends StorageInputStream {
+        private final BlobAsyncClient client;
+        private final ByteBuffer buffer;
+
+        private AzureInputStream(final BlobAsyncClient client,
+                                 long rangeOffset,
+                                 Long rangeLength,
+                                 int chunkSize,
+                                 long contentLength) {
+            super(rangeOffset, rangeLength, chunkSize, contentLength);
+            this.client = client;
+            this.buffer = ByteBuffer.allocate(chunkSize);
+        }
+
+        @Override
+        protected ByteBuffer dispatchRead(int readLength, long offset) throws IOException {
+            try {
+                buffer.clear();
+                final BlobRange range = new BlobRange(offset, (long) readLength);
+                DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions()
+                    .setMaxRetryRequests(3);
+                client.downloadWithResponse(range, downloadRetryOptions, null, false)
+                    .flux()
+                    .flatMap(ResponseBase::getValue)
+                    .filter(Objects::nonNull)
+                    .collect(() -> buffer, ByteBuffer::put)
+                    .block();
+            } catch (Exception e) {
+                this.streamFaulted = true;
+                this.lastError = new IOException(e);
+                throw this.lastError;
+            }
+
+            buffer.flip();
+            this.bufferSize = buffer.remaining();
+            this.bufferStartOffset = offset;
+            return buffer;
         }
     }
 

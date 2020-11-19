@@ -7,12 +7,15 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
+import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -23,12 +26,14 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
@@ -45,7 +50,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -67,6 +71,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
+                new ReplaceWildcards(),
                 new ReplaceSurrogateFunction(),
                 new ReplaceRegexMatch());
 
@@ -105,6 +110,47 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new SetAsOptimized());
 
         return asList(substitutions, syntactic, operators, constraints, operators, ordering, local, label);
+    }
+
+    private static class ReplaceWildcards extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            return filter.transformExpressionsUp(e -> {
+                // expr : "wildcard*phrase" || expr !: "wildcard*phrase"
+                if (e instanceof InsensitiveBinaryComparison) {
+                    InsensitiveBinaryComparison cmp = (InsensitiveBinaryComparison) e;
+
+                    Expression target = null;
+                    String wildString = null;
+
+                    // check only the right side
+                    if (isWildcard(cmp.right())) {
+                        wildString = (String) cmp.right().fold();
+                        target = cmp.left();
+                    }
+
+                    if (target != null) {
+                        Expression like = new Like(e.source(), target, StringUtils.toLikePattern(wildString), true);
+                        if (e instanceof InsensitiveNotEquals) {
+                            like = new Not(e.source(), like);
+                        }
+
+                        e = like;
+                    }
+                }
+
+                return e;
+            });
+        }
+
+        private static boolean isWildcard(Expression expr) {
+            if (expr instanceof Literal) {
+                Object value = expr.fold();
+                return value instanceof String && ((String) value).contains("*");
+            }
+            return false;
+        }
     }
 
     private static class AddMissingEquals extends OptimizerRule<Filter> {
@@ -402,7 +448,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Join join = (Join) child;
                     List<KeyedFilter> queries = join.queries();
 
-                    // the main reason ASC is used is the lack of search_before (which is emulated through search_after + ASC)
+                    // the main reason DESC is used is the lack of search_before (which is emulated through search_after + ASC)
+                    // see https://github.com/elastic/elasticsearch/issues/62118
                     List<Order> ascendingOrders = changeOrderDirection(orderBy.order(), OrderDirection.ASC);
                     // preserve the order direction as is (can be DESC) for the base query
                     List<KeyedFilter> orderedQueries = new ArrayList<>(queries.size());
@@ -430,7 +477,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             LogicalPlan child = orderBy.child();
             // the default order by is the first pipe
             // so it has to be on top of a event query or join/sequence
-            return child instanceof Project || child instanceof Join;
+            return child instanceof Filter || child instanceof Join;
         }
 
         private static List<Order> changeOrderDirection(List<Order> orders, Order.OrderDirection direction) {

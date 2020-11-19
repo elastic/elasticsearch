@@ -26,7 +26,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
@@ -55,6 +54,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -79,8 +79,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
@@ -111,32 +109,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final Map<String, MappedFieldType> runtimeMappings;
 
     /**
-     * Build a {@linkplain QueryShardContext} without any information from the search request.
-     */
-    public QueryShardContext(int shardId,
-                             IndexSettings indexSettings,
-                             BigArrays bigArrays,
-                             BitsetFilterCache bitsetFilterCache,
-                             TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                             MapperService mapperService,
-                             SimilarityService similarityService,
-                             ScriptService scriptService,
-                             NamedXContentRegistry xContentRegistry,
-                             NamedWriteableRegistry namedWriteableRegistry,
-                             Client client,
-                             IndexSearcher searcher,
-                             LongSupplier nowInMillis,
-                             String clusterAlias,
-                             Predicate<String> indexNameMatcher,
-                             BooleanSupplier allowExpensiveQueries,
-                             ValuesSourceRegistry valuesSourceRegistry) {
-        this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
-                scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-                indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, emptyMap());
-    }
-
-    /**
-     * Build a {@linkplain QueryShardContext} with information from the search request.
+     * Build a {@linkplain QueryShardContext}.
      */
     public QueryShardContext(
         int shardId,
@@ -179,7 +152,7 @@ public class QueryShardContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService, indexSettings)
+            parseRuntimeMappings(runtimeMappings, mapperService)
         );
     }
 
@@ -363,21 +336,12 @@ public class QueryShardContext extends QueryRewriteContext {
      * Generally used to handle unmapped fields in the context of sorting.
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
-        return buildFieldType(type, "__anonymous_" + type, Collections.emptyMap(), mapperService.parserContext(), indexSettings);
-    }
-
-    private static MappedFieldType buildFieldType(
-        String type,
-        String field,
-        Map<String, Object> node,
-        Mapper.TypeParser.ParserContext parserContext,
-        IndexSettings indexSettings
-    ) {
+        Mapper.TypeParser.ParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
-        Mapper.Builder builder = typeParser.parse(field, node, parserContext);
+        Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
         Mapper mapper = builder.build(new ContentPath(0));
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper)mapper).fieldType();
@@ -620,25 +584,14 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     private static Map<String, MappedFieldType> parseRuntimeMappings(
-        Map<String, Object> mappings,
-        MapperService mapperService,
-        IndexSettings indexSettings
+        Map<String, Object> runtimeMappings,
+        MapperService mapperService
     ) {
-        Map<String, MappedFieldType> runtimeMappings = new HashMap<>();
-        for (Map.Entry<String, Object> entry : mappings.entrySet()) {
-            String field = entry.getKey();
-            if (entry.getValue() instanceof Map == false) {
-                throw new ElasticsearchParseException("runtime mappings must be a map type");
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> node = new HashMap<>((Map<String, Object>) entry.getValue());
-            // Replace the type until we have native support for the runtime section 
-            Object oldRuntimeType = node.put("runtime_type", node.remove("type"));
-            if (oldRuntimeType != null) {
-                throw new ElasticsearchParseException("use [type] in [runtime_mappings] instead of [runtime_type]");
-            }
-            runtimeMappings.put(field, buildFieldType("runtime", field, node, mapperService.parserContext(), indexSettings));
+        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
+        if (runtimeMappings.isEmpty() == false) {
+            RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(),
+                runtimeFieldType -> runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType));
         }
-        return runtimeMappings;
+        return Collections.unmodifiableMap(runtimeFieldTypes);
     }
 }

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -50,6 +49,8 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
+import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTask;
 import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
@@ -90,6 +92,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -120,6 +123,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private final AnomalyDetectionAuditor auditor;
 
     private volatile boolean upgradeInProgress;
+    private volatile boolean nodeDying;
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
                                     NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor, ClusterService clusterService,
@@ -151,6 +155,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     public synchronized void closeAllJobsOnThisNode(String reason) {
+        // Note, snapshot upgrader processes could still be running, but those are short lived
+        // Leaving them running is OK.
         int numJobs = processByAllocation.size();
         if (numJobs != 0) {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
@@ -186,14 +192,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     public void killAllProcessesOnThisNode() {
+        // For snapshot upgrade tasks, they don't exist in `processByAllocation`
+        // They are short lived, but once they are marked as "started" they cannot be restarted as the snapshot could be corrupted
+        // Consequently, just let them die with the node. But try not to move forward with saving the upgraded state if the node
+        // is dying
+        nodeDying = true;
         Iterator<ProcessContext> iterator = processByAllocation.values().iterator();
         while (iterator.hasNext()) {
             ProcessContext processContext = iterator.next();
             processContext.newKillBuilder()
-                    .setAwaitCompletion(false)
-                    .setFinish(false)
-                    .setSilent(true)
-                    .kill();
+                .setAwaitCompletion(false)
+                .setFinish(false)
+                .setSilent(true)
+                .kill();
             iterator.remove();
         }
     }
@@ -376,6 +387,67 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
     }
 
+    public void upgradeSnapshot(SnapshotUpgradeTask task, Consumer<Exception> closeHandler) {
+        final String jobId = task.getJobId();
+        final String snapshotId = task.getSnapshotId();
+        final Function<String, SnapshotUpgradeTaskState> failureBuilder =
+            (reason) -> new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, task.getAllocationId(), reason);
+        // Start the process
+        jobManager.getJob(jobId, ActionListener.wrap(
+            job -> {
+                if (job.getJobVersion() == null) {
+                    closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
+                        + "] because jobs created prior to version 5.5 are not supported"));
+                    return;
+                }
+                jobResultsProvider.getAutodetectParams(job, snapshotId, params -> {
+                    if (params.modelSnapshot() == null) {
+                        closeHandler.accept(new ElasticsearchStatusException(
+                            "cannot find snapshot [{}] for job [{}] to upgrade",
+                            RestStatus.NOT_FOUND,
+                            jobId,
+                            snapshotId));
+                        return;
+                    }
+                    // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            closeHandler.accept(e);
+                        }
+
+                        @Override
+                        protected void doRun() {
+                            if (nodeDying) {
+                                logger.info(() -> new ParameterizedMessage(
+                                    "Aborted upgrading snapshot [{}] for job [{}] as node is dying",
+                                    snapshotId,
+                                    jobId));
+                                closeHandler.accept(null);
+                                return;
+                            }
+                            runSnapshotUpgrade(task, job, params, closeHandler);
+                        }
+                    });
+                }, e1 -> {
+                    logger.warn(() -> new ParameterizedMessage(
+                            "[{}] [{}] Failed to gather information required to upgrade snapshot job",
+                            jobId,
+                            snapshotId),
+                        e1);
+                    task.updatePersistentTaskState(failureBuilder.apply(e1.getMessage()), ActionListener.wrap(
+                        t -> closeHandler.accept(e1),
+                        e2 -> {
+                            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId), e2);
+                            closeHandler.accept(e1);
+                        }
+                    ));
+                });
+            },
+            closeHandler
+        ));
+    }
+
     public void openJob(JobTask jobTask, ClusterState clusterState, BiConsumer<Exception, Boolean> closeHandler) {
         String jobId = jobTask.getJobId();
         logger.info("Opening job [{}]", jobId);
@@ -471,6 +543,20 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
         AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, annotationsIndexUpdateHandler);
+    }
+
+    private void runSnapshotUpgrade(SnapshotUpgradeTask task, Job job, AutodetectParams params, Consumer<Exception> handler) {
+        JobModelSnapshotUpgrader jobModelSnapshotUpgrader = new JobModelSnapshotUpgrader(task,
+            job,
+            params,
+            threadPool,
+            autodetectProcessFactory,
+            jobResultsPersister,
+            client,
+            nativeStorageProvider,
+            handler,
+            () -> nodeDying == false);
+        jobModelSnapshotUpgrader.start();
     }
 
     private boolean createProcessAndSetRunning(ProcessContext processContext,
@@ -715,17 +801,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<>() {
-            @Override
-            public void onResponse(PersistentTask<?> persistentTask) {
-                logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Could not set job state to [" + state + "] for job [" + jobTask.getJobId() + "]", e);
-            }
-        });
+        jobTask.updatePersistentTaskState(jobTaskState, ActionListener.wrap(
+            persistentTask -> logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId()),
+            e -> logger.error(
+                () -> new ParameterizedMessage("Could not set job state to [{}] for job [{}]", state, jobTask.getJobId()),
+                e)
+        ));
     }
 
     void setJobState(JobTask jobTask, JobState state) {
@@ -734,25 +815,21 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<>() {
-            @Override
-            public void onResponse(PersistentTask<?> persistentTask) {
+        jobTask.updatePersistentTaskState(jobTaskState, ActionListener.wrap(
+            persistentTask -> {
                 try {
                     handler.accept(null);
                 } catch (IOException e1) {
                     logger.warn("Error while delegating response", e1);
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+            },
+            e -> {
                 try {
                     handler.accept(e);
                 } catch (IOException e1) {
                     logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
                 }
-            }
-        });
+            }));
     }
 
     public Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> getStatistics(JobTask jobTask) {

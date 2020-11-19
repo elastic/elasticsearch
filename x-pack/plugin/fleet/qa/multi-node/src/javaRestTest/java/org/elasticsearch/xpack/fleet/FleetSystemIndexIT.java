@@ -45,25 +45,25 @@ public class FleetSystemIndexIT extends ESRestTestCase {
     public void testCreateIndex() throws IOException {
         Request request = new Request("PUT", "/_fleet/" + indexName);
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
     }
 
     public void testBulkToFleetIndex() throws IOException {
         Request request = new Request("POST", "/_fleet/_bulk");
         request.setJsonEntity("{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
     }
 
     public void testRefresh() throws IOException {
         Request request = new Request("POST", "/_fleet/_bulk");
         request.setJsonEntity("{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
 
         request = new Request("GET", "/_fleet/" + indexName + "/_refresh");
         response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
 
         Request getRequest = new Request("GET", "/_fleet/" + indexName + "/_doc/1");
         Response getResponse = client().performRequest(getRequest);
@@ -79,7 +79,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
 
         Request getRequest = new Request("GET", "/_fleet/" + indexName + "/_doc/1");
         Response getResponse = client().performRequest(getRequest);
@@ -102,7 +102,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
 
         Request searchRequest = new Request("GET", "/_fleet/" + indexName + "/_search");
         searchRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
@@ -128,7 +128,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
 
         Request deleteRequest = new Request("DELETE", "/_fleet/" + indexName + "/_doc/1");
         Response deleteResponse = client().performRequest(deleteRequest);
@@ -148,7 +148,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
 
         Request dbqRequest = new Request("POST", "/_fleet/" + indexName + "/_delete_by_query");
         dbqRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
@@ -174,12 +174,12 @@ public class FleetSystemIndexIT extends ESRestTestCase {
 
         request = new Request("GET", "/_fleet/" + indexName + "/_refresh");
         response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
 
         request = new Request("POST", "/_fleet/" + indexName + "/_update/1");
         request.setJsonEntity("{ \"doc\" : { \"foo\" : \"baz\" } }");
         response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
     }
 
     public void testScrollingDocs() throws IOException {
@@ -197,13 +197,13 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         );
         request.addParameter("refresh", "true");
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
 
         Request searchRequest = new Request("GET", "/_fleet/" + indexName + "/_search");
         searchRequest.setJsonEntity("{ \"size\" : 1,\n\"query\" : { \"match_all\" : {} } }\n");
         searchRequest.addParameter("scroll", "1m");
         response = client().performRequest(searchRequest);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
         Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
         assertNotNull(map.get("_scroll_id"));
         String scrollId = (String) map.get("_scroll_id");
@@ -212,7 +212,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         scrollRequest.addParameter("scroll_id", scrollId);
         scrollRequest.addParameter("scroll", "1m");
         response = client().performRequest(scrollRequest);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
         map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
         assertNotNull(map.get("_scroll_id"));
         scrollId = (String) map.get("_scroll_id");
@@ -220,6 +220,6 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         Request clearScrollRequest = new Request("DELETE", "/_fleet/_search/scroll");
         clearScrollRequest.addParameter("scroll_id", scrollId);
         response = client().performRequest(clearScrollRequest);
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertOK(response);
     }
 }

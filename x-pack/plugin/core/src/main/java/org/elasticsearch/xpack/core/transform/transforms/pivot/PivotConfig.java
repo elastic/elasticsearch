@@ -110,16 +110,12 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public void toCompositeAggXContent(XContentBuilder builder, boolean forChangeDetection) throws IOException {
+    public void toCompositeAggXContent(XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
         builder.startArray();
 
         for (Entry<String, SingleGroupSource> groupBy : groups.getGroups().entrySet()) {
-            // some group source do not implement change detection or not makes no sense, skip those
-            if (forChangeDetection && groupBy.getValue().supportsIncrementalBucketUpdate() == false) {
-                continue;
-            }
             builder.startObject();
             builder.startObject(groupBy.getKey());
             builder.field(groupBy.getValue().getType().value(), groupBy.getValue());

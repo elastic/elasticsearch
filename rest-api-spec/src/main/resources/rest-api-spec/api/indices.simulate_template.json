@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
       "description": "Simulate resolving the given template name or body"
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url":{
       "paths":[
         {

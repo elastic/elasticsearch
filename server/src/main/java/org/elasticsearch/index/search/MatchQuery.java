@@ -249,7 +249,7 @@ public class MatchQuery {
         // if it doesn't, we can bail out early without doing any further parsing.
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             IllegalArgumentException iae = new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" +
-                fieldType.typeName() + " does not support match queries");
+                fieldType.typeName() + "] does not support match queries");
             if (lenient) {
                 return newLenientFieldQuery(fieldName, iae);
             }

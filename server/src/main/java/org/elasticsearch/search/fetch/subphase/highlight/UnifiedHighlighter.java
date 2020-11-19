@@ -33,11 +33,10 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -62,7 +61,7 @@ public class UnifiedHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         @SuppressWarnings("unchecked")
-        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.hitContext.cache()
+        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache
             .computeIfAbsent(UnifiedHighlighter.class.getName(), k -> new HashMap<>());
         if (cache.containsKey(fieldContext.fieldName) == false) {
             cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));
@@ -73,8 +72,8 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
 
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
-            List<Object> fieldValues = loadFieldValues(highlighter, fieldType,
-                fieldContext.context.mapperService(), hitContext, fieldContext.forceSource == false);
+            List<Object> fieldValues = loadFieldValues(highlighter, fieldContext.context.getQueryShardContext(), fieldType,
+                hitContext, fieldContext.forceSource == false);
             if (fieldValues.size() == 0) {
                 return null;
             }
@@ -112,9 +111,9 @@ public class UnifiedHighlighter implements Highlighter {
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
-        int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
+        int maxAnalyzedOffset = fieldContext.context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
+        Analyzer analyzer = wrapAnalyzer(fieldContext.context.getQueryShardContext().getFieldNameIndexAnalyzer());
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -158,19 +157,18 @@ public class UnifiedHighlighter implements Highlighter {
             field.fieldOptions().postTags()[0], encoder);
     }
 
-
-    protected Analyzer getAnalyzer(DocumentMapper docMapper) {
-        return docMapper.mappers().indexAnalyzer();
+    protected Analyzer wrapAnalyzer(Analyzer analyzer) {
+        return analyzer;
     }
 
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
+        QueryShardContext qsc,
         MappedFieldType fieldType,
-        MapperService mapperService,
         FetchSubPhase.HitContext hitContext,
         boolean storedFieldsAvailable
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, mapperService, hitContext, storedFieldsAvailable);
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, qsc, hitContext, storedFieldsAvailable);
         fieldValues = fieldValues.stream()
             .map((s) -> convertFieldValue(fieldType, s))
             .collect(Collectors.toList());

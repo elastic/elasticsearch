@@ -33,6 +33,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.process.ExecOperations;
 
 import java.io.File;
 import java.io.IOException;
@@ -67,6 +68,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final ReaperService reaper;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
+    private final ExecOperations execOperations;
     private int nodeIndex = 0;
 
     public ElasticsearchCluster(
@@ -76,6 +78,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         ReaperService reaper,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
+        ExecOperations execOperations,
         File workingDirBase
     ) {
         this.path = path;
@@ -84,10 +87,20 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.reaper = reaper;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
+        this.execOperations = execOperations;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
-            new ElasticsearchNode(path, clusterName + "-0", project, reaper, fileSystemOperations, archiveOperations, workingDirBase)
+            new ElasticsearchNode(
+                path,
+                clusterName + "-0",
+                project,
+                reaper,
+                fileSystemOperations,
+                archiveOperations,
+                execOperations,
+                workingDirBase
+            )
         );
         // configure the cluster name eagerly so nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
@@ -110,7 +123,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
         for (int i = nodes.size(); i < numberOfNodes; i++) {
             this.nodes.add(
-                new ElasticsearchNode(path, clusterName + "-" + i, project, reaper, fileSystemOperations, archiveOperations, workingDirBase)
+                new ElasticsearchNode(
+                    path,
+                    clusterName + "-" + i,
+                    project,
+                    reaper,
+                    fileSystemOperations,
+                    archiveOperations,
+                    execOperations,
+                    workingDirBase
+                )
             );
         }
     }

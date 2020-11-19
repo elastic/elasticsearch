@@ -425,9 +425,9 @@ public class ModelLoadingService implements ClusterStateListener {
                     "model cache entry evicted." +
                         "current cache [{}] current max [{}] model size [{}]. " +
                         "If this is undesired, consider updating setting [{}] or [{}].",
-                    new ByteSizeValue(localModelCache.weight()).getStringRep(),
+                    ByteSizeValue.ofBytes(localModelCache.weight()).getStringRep(),
                     maxCacheSize.getStringRep(),
-                    new ByteSizeValue(notification.getValue().model.ramBytesUsed()).getStringRep(),
+                    ByteSizeValue.ofBytes(notification.getValue().model.ramBytesUsed()).getStringRep(),
                     INFERENCE_MODEL_CACHE_SIZE.getKey(),
                     INFERENCE_MODEL_CACHE_TTL.getKey());
                 auditIfNecessary(notification.getKey(), msg);

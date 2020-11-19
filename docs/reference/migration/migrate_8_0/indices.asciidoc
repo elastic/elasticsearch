@@ -8,6 +8,17 @@
 //tag::notable-breaking-changes[]
 //end::notable-breaking-changes[]
 
+.The deprecated `_upgrade` API has been removed.
+[%collapsible]
+====
+*Details* +
+Previously, the `_upgrade` API upgraded indices from the previous major
+version to the current version. The `_reindex` API should be used
+instead for that purpose.
+
+*Impact* +
+Requests made to the old `_upgrade` API will return an error.
+====
 
 .The force merge API's `max_num_segments` and `only_expunge_deletes` parameters cannot both be specified in the same request.
 [%collapsible]
@@ -70,7 +81,7 @@ Use the {ref}/indices-flush.html[flush API]. Requests to the
 *Details* +
 Creating indices with soft deletes disabled was deprecated in 7.6 and
 is no longer supported in 8.0. The `index.soft_deletes.enabled` setting
-can no longer be set to `false`. 
+can no longer be set to `false`.
 
 *Impact* +
 Discontinue use of the `index.soft_deletes.enabled` index setting. Requests that

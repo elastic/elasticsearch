@@ -39,8 +39,8 @@ import static org.hamcrest.Matchers.containsString;
 public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("::1");
+    protected Object getSampleValueForDocument() {
+        return "::1";
     }
 
     @Override

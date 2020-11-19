@@ -10,10 +10,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -22,18 +25,38 @@ import org.elasticsearch.xpack.runtimefields.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldTermQuery;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
-    BooleanScriptFieldType(String name, Script script, BooleanFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, scriptFactory::newFactory, meta);
+public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
+
+    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
+        @Override
+        protected AbstractScriptFieldType<?> buildFieldType() {
+            BooleanFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), BooleanFieldScript.CONTEXT);
+            return new BooleanScriptFieldType(name, factory, this);
+        }
+    });
+
+    private BooleanScriptFieldType(String name, BooleanFieldScript.Factory scriptFactory, Builder builder) {
+        super(name, scriptFactory::newFactory, builder);
+    }
+
+    BooleanScriptFieldType(
+        String name,
+        BooleanFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+    ) {
+        super(name, scriptFactory::newFactory, script, meta, toXContent);
     }
 
     @Override
-    protected String runtimeType() {
+    public String typeName() {
         return BooleanFieldMapper.CONTENT_TYPE;
     }
 

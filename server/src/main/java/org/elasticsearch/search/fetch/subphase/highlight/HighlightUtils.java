@@ -23,8 +23,8 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ public final class HighlightUtils {
      * Load field values for highlighting.
      */
     public static List<Object> loadFieldValues(MappedFieldType fieldType,
-                                               MapperService mapperService,
+                                               QueryShardContext qsc,
                                                FetchSubPhase.HitContext hitContext,
                                                boolean storedFieldsAvailable) throws IOException {
         if (storedFieldsAvailable && fieldType.isStored()) {
@@ -57,7 +57,7 @@ public final class HighlightUtils {
             List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
             return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
         }
-        ValueFetcher fetcher = fieldType.valueFetcher(mapperService, null, null);
+        ValueFetcher fetcher = fieldType.valueFetcher(qsc, null, null);
         return fetcher.fetchValues(hitContext.sourceLookup());
     }
 

@@ -573,7 +573,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         MultiMatchQueryBuilder query = new MultiMatchQueryBuilder("test", BINARY_FIELD_NAME);
         QueryShardContext context = createShardContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
-        assertEquals("Field [mapped_binary] of type [binary does not support match queries", e.getMessage());
+        assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
         query.lenient(true);
         assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }

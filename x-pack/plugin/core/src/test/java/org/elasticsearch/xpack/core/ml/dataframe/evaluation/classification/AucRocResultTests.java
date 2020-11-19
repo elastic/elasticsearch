@@ -9,8 +9,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AbstractAucRoc.AucRocPoint;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AbstractAucRoc.Result;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.common.AbstractAucRoc.AucRocPoint;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.common.AbstractAucRoc.Result;
 
 import java.util.List;
 import java.util.stream.Collectors;

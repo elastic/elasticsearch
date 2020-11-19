@@ -20,7 +20,6 @@ package org.elasticsearch.gradle;
 
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
-import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.logging.Logger;
@@ -117,15 +116,11 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
         setErrorOutput(out);
     }
 
-    public static ExecResult exec(Project project, Action<ExecSpec> action) {
-        return genericExec(project::exec, action);
-    }
-
     public static ExecResult exec(ExecOperations execOperations, Action<ExecSpec> action) {
         return genericExec(execOperations::exec, action);
     }
 
-    public static ExecResult javaexec(Project project, Action<JavaExecSpec> action) {
+    public static ExecResult javaexec(ExecOperations project, Action<JavaExecSpec> action) {
         return genericExec(project::javaexec, action);
     }
 

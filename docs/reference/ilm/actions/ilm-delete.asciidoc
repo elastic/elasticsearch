@@ -11,7 +11,7 @@ Permanently removes the index.
 
 `delete_searchable_snapshot`::
 beta:[]
-(Optional, boolean)
+(Optional, Boolean)
 Deletes the searchable snapshot created in the cold phase. 
 Defaults to `true`.
 This option is applicable when the <<ilm-searchable-snapshot-action,searchable

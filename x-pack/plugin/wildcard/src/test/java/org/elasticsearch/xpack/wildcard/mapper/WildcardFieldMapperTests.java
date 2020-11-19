@@ -44,6 +44,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -52,30 +53,33 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 //import org.apache.lucene.util.automaton.RegExp;
 
-public class WildcardFieldMapperTests extends ESTestCase {
+public class WildcardFieldMapperTests extends MapperTestCase {
 
     static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries, Version version) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
@@ -95,36 +99,23 @@ public class WildcardFieldMapperTests extends ESTestCase {
     static KeywordFieldMapper keywordFieldType;
 
     @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return Collections.singleton(new Wildcard());
+    }
+
+    @Override
     @Before
     public void setUp() throws Exception {
-        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME);
+        Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(
-            new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0))
-        );
-        wildcardFieldType79 = builder.build(
-            new Mapper.BuilderContext(createIndexSettings(Version.V_7_9_0).getSettings(), new ContentPath(0))
-        );
+        wildcardFieldType = builder.build(new ContentPath(0));
+
+        Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
+        wildcardFieldType79 = builder79.build(new ContentPath(0));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
-        keywordFieldType = kwBuilder.build(
-            new Mapper.BuilderContext(createIndexSettings(Version.CURRENT).getSettings(), new ContentPath(0))
-        );
+        keywordFieldType = kwBuilder.build(new ContentPath(0));
         super.setUp();
-    }
-
-    public void testIllegalDocValuesArgument() {
-        Builder ft = new WildcardFieldMapper.Builder("test");
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> ft.docValues(false));
-        assertEquals("The field [test] cannot have doc values = false", e.getMessage());
-    }
-
-    public void testIllegalIndexedArgument() {
-        Builder ft = new WildcardFieldMapper.Builder("test");
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> ft.index(false));
-        assertEquals("The field [test] cannot have index = false", e.getMessage());
     }
 
     public void testTooBigKeywordField() throws IOException {
@@ -575,6 +566,24 @@ public class WildcardFieldMapperTests extends ESTestCase {
 
     }
 
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "wildcard");
+    }
+
+    @Override
+    protected Object getSampleValueForDocument() {
+        return "test";
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
+        checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((WildcardFieldMapper)m).ignoreAbove()));
+
+    }
+
     static class FuzzyTest {
         String pattern;
         int prefixLength;
@@ -890,7 +899,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, xContentRegistry(), null, null, null,
-                () -> randomNonNegativeLong(), null, null, () -> true, null) {
+                () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
 
             @Override
             public MappedFieldType getFieldType(String name) {

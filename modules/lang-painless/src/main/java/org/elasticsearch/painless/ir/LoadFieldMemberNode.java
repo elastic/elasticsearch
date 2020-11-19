@@ -20,11 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents reading a value from a member field from
@@ -71,16 +67,4 @@ public class LoadFieldMemberNode extends ExpressionNode {
         super(location);
     }
 
-    @Override
-    public void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeDebugInfo(getLocation());
-
-        if (isStatic) {
-            methodWriter.getStatic(CLASS_TYPE, name, MethodWriter.getType(getExpressionType()));
-        } else {
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, name, MethodWriter.getType(getExpressionType()));
-        }
-    }
 }

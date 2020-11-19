@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -43,7 +42,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -99,7 +98,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      * and the <code>normalize</code> process is not instrumented at all.)  But this overhead does NOT
      * include the memory used by loading the executable code.
      */
-    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(10, ByteSizeUnit.MB);
+    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = ByteSizeValue.ofMb(10);
 
     public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 10;
     public static final long DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS = 1;
@@ -516,8 +515,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final String humanReadableSuffix = "_string";
-        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
-            builder.field(ID.getPreferredName(), jobId);
+        builder.field(ID.getPreferredName(), jobId);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(JOB_TYPE.getPreferredName(), jobType);
             if (jobVersion != null) {
                 builder.field(JOB_VERSION.getPreferredName(), jobVersion);

@@ -46,6 +46,30 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
 
+    public static ByteSizeValue ofBytes(long size) {
+        return new ByteSizeValue(size);
+    }
+
+    public static ByteSizeValue ofKb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.KB);
+    }
+
+    public static ByteSizeValue ofMb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.MB);
+    }
+
+    public static ByteSizeValue ofGb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.GB);
+    }
+
+    public static ByteSizeValue ofTb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.TB);
+    }
+
+    public static ByteSizeValue ofPb(long size) {
+        return new ByteSizeValue(size, ByteSizeUnit.PB);
+    }
+
     private final long size;
     private final ByteSizeUnit unit;
 

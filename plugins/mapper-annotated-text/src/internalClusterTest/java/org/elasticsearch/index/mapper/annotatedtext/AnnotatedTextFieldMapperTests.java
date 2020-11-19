@@ -80,8 +80,8 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("some text");
+    protected Object getSampleValueForDocument() {
+        return "some text";
     }
 
     @Override

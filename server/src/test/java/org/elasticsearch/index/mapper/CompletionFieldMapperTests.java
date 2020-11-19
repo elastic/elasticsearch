@@ -64,8 +64,8 @@ import static org.hamcrest.Matchers.is;
 public class CompletionFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("value");
+    protected Object getSampleValueForDocument() {
+        return "value";
     }
 
     @Override
@@ -126,7 +126,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
+        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
         assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
@@ -155,7 +155,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
+        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
         assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();

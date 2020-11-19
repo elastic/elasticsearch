@@ -38,6 +38,7 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.process.ExecOperations;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -63,14 +64,16 @@ public class TestClustersPlugin implements Plugin<Project> {
         throw new UnsupportedOperationException();
     }
 
+    @Inject
+    protected ExecOperations getExecOperations() {
+        throw new UnsupportedOperationException();
+    }
+
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        if (BuildParams.isInternal()) {
-            project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
-        } else {
-            project.getPlugins().apply(DistributionDownloadPlugin.class);
-        }
+        BuildParams.withInternalBuild(() -> project.getPlugins().apply(InternalDistributionDownloadPlugin.class))
+            .orElse(() -> project.getPlugins().apply(DistributionDownloadPlugin.class));
 
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
@@ -109,6 +112,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 reaper,
                 getFileSystemOperations(),
                 getArchiveOperations(),
+                getExecOperations(),
                 new File(project.getBuildDir(), "testclusters")
             )
         );

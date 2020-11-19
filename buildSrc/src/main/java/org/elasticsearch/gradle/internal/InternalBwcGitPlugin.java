@@ -132,7 +132,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                 String effectiveRefSpec = maybeAlignedRefSpec(logger, refspec);
 
                 logger.lifecycle("Performing checkout of {}...", refspec);
-                LoggedExec.exec(project, spec -> {
+                LoggedExec.exec(execOperations, spec -> {
                     spec.workingDir(checkoutDir);
                     spec.commandLine("git", "checkout", effectiveRefSpec);
                 });

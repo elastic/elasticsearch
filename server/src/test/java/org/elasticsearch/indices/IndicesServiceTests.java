@@ -458,8 +458,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
-        assertNotNull(mapperService.documentMapperParser().parserContext().typeParser("fake-mapper"));
-        Similarity sim = mapperService.documentMapperParser().parserContext().getSimilarity("test").get();
+        assertNotNull(mapperService.parserContext().typeParser("fake-mapper"));
+        Similarity sim = mapperService.parserContext().getSimilarity("test").get();
         assertThat(sim, instanceOf(NonNegativeScoresSimilarity.class));
         sim = ((NonNegativeScoresSimilarity) sim).getDelegate();
         assertThat(sim, instanceOf(BM25Similarity.class));

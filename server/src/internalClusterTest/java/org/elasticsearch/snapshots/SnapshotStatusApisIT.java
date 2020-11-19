@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,7 +66,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .build();
     }
 
-    public void testStatusApiConsistency() {
+    public void testStatusApiConsistency() throws Exception {
         createRepository("test-repo", "fs");
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -90,7 +89,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
 
         final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots();
+            new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).get().getSnapshots();
         assertThat(snapshotStatus.size(), equalTo(1));
         final SnapshotStatus snStatus = snapshotStatus.get(0);
         assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
@@ -113,7 +112,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
 
         logger.info("--> wait for data nodes to get blocked");
-        waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
+        waitForBlockOnAnyDataNode("test-repo");
         awaitNumberOfSnapshotsInProgress(1);
         assertEquals(SnapshotsInProgress.State.STARTED, client().admin().cluster().prepareSnapshotStatus("test-repo")
                 .setSnapshots("test-snap").get().getSnapshots().get(0).getState());
@@ -121,8 +120,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> unblock all data nodes");
         unblockAllDataNodes("test-repo");
 
-        logger.info("--> wait for snapshot to finish");
-        createSnapshotResponseActionFuture.actionGet();
+        assertSuccessful(createSnapshotResponseActionFuture);
     }
 
     public void testExceptionOnMissingSnapBlob() throws IOException {
@@ -247,7 +245,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> responseSnapshotTwo =
             client().admin().cluster().prepareCreateSnapshot(repoName, snapshotTwo).setWaitForCompletion(true).execute();
 
-        waitForBlock(dataNodeTwo, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(dataNodeTwo, repoName);
 
         assertBusy(() -> {
             final SnapshotStatus snapshotStatusOne = getSnapshotStatus(repoName, snapshotOne);
@@ -419,7 +417,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(false)
                 .setIndices(indexName)
                 .get();
-        waitForBlock(initialBlockedNode, repositoryName, TimeValue.timeValueSeconds(60)); // wait for block to kick in
+        waitForBlock(initialBlockedNode, repositoryName); // wait for block to kick in
         getSnapshotsResponse = client.admin().cluster()
                 .prepareGetSnapshots("test-repo")
                 .setSnapshots(randomFrom("_all", "_current", "snap-on-*", "*-on-empty-repo", "snap-on-empty-repo"))
@@ -458,7 +456,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(false)
                 .setIndices(indexName)
                 .get();
-        waitForBlock(blockedNode, repositoryName, TimeValue.timeValueSeconds(60)); // wait for block to kick in
+        waitForBlock(blockedNode, repositoryName); // wait for block to kick in
 
         logger.info("--> get all snapshots with a current in-progress");
         // with ignore unavailable set to true, should not throw an exception
@@ -513,7 +511,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .collect(Collectors.toList()), equalTo(sortedNames));
 
         unblockNode(repositoryName, blockedNode); // unblock node
-        waitForCompletion(repositoryName, inProgressSnapshot, TimeValue.timeValueSeconds(60));
+        awaitNoMoreRunningOperations();
     }
 
     private static SnapshotIndexShardStatus stateFirstShard(SnapshotStatus snapshotStatus, String indexName) {

@@ -17,27 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.InternalPlugin;
+import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.TaskProvider;
 
-public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
+public class LoggerUsagePrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        Object dependency = BuildParams.isInternal()
-            ? project.project(":test:logger-usage")
-            : ("org.elasticsearch.test:logger-usage:" + VersionProperties.getElasticsearch());
-
         Configuration loggerUsageConfig = project.getConfigurations().create("loggerUsagePlugin");
-        project.getDependencies().add("loggerUsagePlugin", dependency);
+        project.getDependencies().add("loggerUsagePlugin", project.project(":test:logger-usage"));
         TaskProvider<LoggerUsageTask> loggerUsage = project.getTasks().register("loggerUsageCheck", LoggerUsageTask.class);
         loggerUsage.configure(t -> t.setClasspath(loggerUsageConfig));
-
         return loggerUsage;
     }
 }

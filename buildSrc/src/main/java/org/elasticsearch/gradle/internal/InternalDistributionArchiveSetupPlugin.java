@@ -22,7 +22,6 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.EmptyDirTask;
 import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar;
 import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.plugins.BasePlugin;
@@ -52,7 +51,7 @@ import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORM
  * - the unpacked variant is used by consumers like test cluster definitions
  * 4. Having per-distribution sub-projects means we can build them in parallel.
  */
-public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
+public class InternalDistributionArchiveSetupPlugin implements InternalPlugin {
 
     public static final String DEFAULT_CONFIGURATION_NAME = "default";
     public static final String EXTRACTED_CONFIGURATION_NAME = "extracted";

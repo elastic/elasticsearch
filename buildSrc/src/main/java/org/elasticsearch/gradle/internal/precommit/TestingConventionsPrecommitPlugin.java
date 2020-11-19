@@ -17,36 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.util.GradleUtils;
+import org.elasticsearch.gradle.internal.InternalPlugin;
+import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskProvider;
 
-import javax.inject.Inject;
-import java.util.stream.Collectors;
-
-public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin {
-
-    private final ProviderFactory providerFactory;
-
-    @Inject
-    public ForbiddenPatternsPrecommitPlugin(ProviderFactory providerFactory) {
-        this.providerFactory = providerFactory;
-    }
-
+public class TestingConventionsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        return project.getTasks().register("forbiddenPatterns", ForbiddenPatternsTask.class, forbiddenPatternsTask -> {
-            forbiddenPatternsTask.getSourceFolders()
-                .addAll(
-                    providerFactory.provider(
-                        () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
-                    )
-                );
-            forbiddenPatternsTask.getRootDir().set(project.getRootDir());
+        TaskProvider<TestingConventionsTasks> testingConventions = project.getTasks()
+            .register("testingConventions", TestingConventionsTasks.class);
+        testingConventions.configure(t -> {
+            TestingConventionRule testsRule = t.getNaming().maybeCreate("Tests");
+            testsRule.baseClass("org.apache.lucene.util.LuceneTestCase");
+            TestingConventionRule itRule = t.getNaming().maybeCreate("IT");
+            itRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
+            itRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");
         });
+        return testingConventions;
     }
 }

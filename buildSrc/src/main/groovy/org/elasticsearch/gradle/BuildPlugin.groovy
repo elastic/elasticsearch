@@ -42,6 +42,8 @@ import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.elasticsearch.gradle.internal.InternalPlugin
+import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -61,6 +63,7 @@ class BuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
         project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
+        checkExternalInternalPluginUsages(project);
 
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
             throw new InvalidUserDataException('elasticsearch.standalone-test, '
@@ -72,7 +75,19 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('elasticsearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
 
-        PrecommitTasks.create(project, true)
+        BuildParams.withInternalBuild {
+            InternalPrecommitTasks.create(project, true)
+        }.orElse {
+            PrecommitTasks.create(project)
+        }
+    }
+
+    private static void checkExternalInternalPluginUsages(Project project) {
+        if (BuildParams.isInternal() == false) {
+            project.getPlugins().withType(InternalPlugin.class) { InternalPlugin internalPlugin ->
+                throw new GradleException(internalPlugin.getExternalUseErrorMessage())
+            }
+        }
     }
 
     static void configureLicenseAndNotice(Project project) {

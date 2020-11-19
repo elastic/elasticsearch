@@ -274,6 +274,10 @@ public class RootObjectMapper extends ObjectMapper {
         return runtimeFieldTypes.values();
     }
 
+    RuntimeFieldType getRuntimeFieldType(String name) {
+        return runtimeFieldTypes.get(name);
+    }
+
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
         return findTemplateBuilder(context, name, matchType, null);
     }

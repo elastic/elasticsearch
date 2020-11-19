@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.sql.jdbc.EsType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -36,13 +37,14 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.INTEGER;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
-import static org.elasticsearch.xpack.sql.jdbc.EsType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isUnsignedLongSupported;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase {
 
     static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+    EsType UNSIGNED_LONG = isUnsignedLongSupported() ? EsType.valueOf("UNSIGNED_LONG") : null;
 
     public void testSupportedTypes() throws SQLException {
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
@@ -89,7 +91,6 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 statement.setByte(index ++, byteVal);
                 statement.setShort(index ++, shortVal);
                 statement.setBigDecimal(index ++, bigDecimalVal);
-                statement.setObject(index ++, bigIntegerVal);
                 statement.setTimestamp(index ++, timestampVal);
                 statement.setTimestamp(index ++, timestampVal, calendarVal);
                 statement.setDate(index ++, dateVal);
@@ -99,6 +100,9 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 statement.setObject(index ++, calendarVal);
                 statement.setObject(index ++, utilDateVal);
                 statement.setObject(index ++, localDateTimeVal);
+                if (isUnsignedLongSupported()) {
+                    statement.setObject(index++, bigIntegerVal);
+                }
 
                 try (ResultSet results = statement.executeQuery()) {
                     ResultSetMetaData resultSetMetaData = results.getMetaData();
@@ -120,7 +124,6 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                     assertEquals(byteVal, results.getByte(index ++));
                     assertEquals(shortVal, results.getShort(index ++));
                     assertEquals(bigDecimalVal, results.getBigDecimal(index ++));
-                    assertEquals(bigIntegerVal, results.getObject(index ++));
                     assertEquals(timestampVal, results.getTimestamp(index ++));
                     assertEquals(timestampValWithCal, results.getTimestamp(index ++));
                     assertEquals(dateVal, results.getDate(index ++));
@@ -130,6 +133,9 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                     assertEquals(new Timestamp(calendarVal.getTimeInMillis()), results.getObject(index ++));
                     assertEquals(timestampVal, results.getObject(index ++));
                     assertEquals(timestampVal, results.getObject(index ++));
+                    if (isUnsignedLongSupported()) {
+                        assertEquals(bigIntegerVal, results.getObject(index++));
+                    }
                     assertFalse(results.next());
                 }
             }
@@ -364,8 +370,6 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 assertEquals(new Tuple<>(INTEGER.getName(), intVal), execute(statement));
                 statement.setLong(1, longVal);
                 assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
-                statement.setObject(1, bigIntegerVal);
-                assertEquals(new Tuple<>(UNSIGNED_LONG.getName(), bigIntegerVal), execute(statement));
                 statement.setFloat(1, floatVal);
                 assertEquals(new Tuple<>(FLOAT.getName(), floatVal), execute(statement));
                 statement.setDouble(1, doubleVal);
@@ -379,10 +383,15 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 statement.setShort(1, shortVal);
                 assertEquals(new Tuple<>(SHORT.getName(), shortVal), execute(statement));
 
-                statement.setObject(1, longVal, JDBCType.BIGINT, 19);
-                assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
-                statement.setObject(1, Math.abs(longVal), JDBCType.BIGINT, 20);
-                assertEquals(new Tuple<>(UNSIGNED_LONG.getName(), BigInteger.valueOf(Math.abs(longVal))), execute(statement));
+                if (isUnsignedLongSupported()) {
+                    statement.setObject(1, bigIntegerVal);
+                    assertEquals(new Tuple<>(UNSIGNED_LONG.getName(), bigIntegerVal), execute(statement));
+
+                    statement.setObject(1, longVal, JDBCType.BIGINT, 19);
+                    assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
+                    statement.setObject(1, Math.abs(longVal), JDBCType.BIGINT, 20);
+                    assertEquals(new Tuple<>(UNSIGNED_LONG.getName(), BigInteger.valueOf(Math.abs(longVal))), execute(statement));
+                }
             }
         }
     }

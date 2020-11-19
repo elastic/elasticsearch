@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
@@ -24,6 +25,8 @@ import java.util.GregorianCalendar;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.elasticsearch.Version.V_7_11_0;
+
 final class JdbcTestUtils {
 
     private JdbcTestUtils() {}
@@ -32,16 +35,25 @@ final class JdbcTestUtils {
 
     static final ZoneId UTC = ZoneId.of("Z");
     static final String JDBC_TIMEZONE = "timezone";
+    private static final String DRIVER_VERSION_PROPERTY_NAME = "jdbc.driver.version";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
+    static final Version JDBC_DRIVER_VERSION;
+
     static {
+        // master's version is x.0.0-SNAPSHOT, tho Version#fromString() won't accept that back for recent versions
+        String jdbcDriverVersion = System.getProperty(DRIVER_VERSION_PROPERTY_NAME, "").replace("-SNAPSHOT", "");
+        JDBC_DRIVER_VERSION = Version.fromString(jdbcDriverVersion); // takes empty and null strings, resolves them to CURRENT
+
         Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
         aMap.put(Boolean.class, EsType.BOOLEAN);
         aMap.put(Byte.class, EsType.BYTE);
         aMap.put(Short.class, EsType.SHORT);
         aMap.put(Integer.class, EsType.INTEGER);
         aMap.put(Long.class, EsType.LONG);
-        aMap.put(BigInteger.class, EsType.UNSIGNED_LONG);
+        if (isUnsignedLongSupported()) {
+            aMap.put(BigInteger.class, EsType.UNSIGNED_LONG);
+        }
         aMap.put(Float.class, EsType.FLOAT);
         aMap.put(Double.class, EsType.DOUBLE);
         aMap.put(String.class, EsType.KEYWORD);
@@ -95,5 +107,9 @@ final class JdbcTestUtils {
             .withZoneSameLocal(ZoneOffset.UTC);
 
         return convertedDateTime.toInstant().toEpochMilli();
+    }
+
+    public static boolean isUnsignedLongSupported() {
+        return V_7_11_0.compareTo(JDBC_DRIVER_VERSION) <= 0;
     }
 }

@@ -14,20 +14,32 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isUnsignedLongSupported;
 
 public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
 
-    private final String[] fieldsNames = new String[] {
-        "test_byte",
-        "test_integer",
-        "test_long",
-        "test_unsigned_long",
-        "test_short",
-        "test_double",
-        "test_float",
-        "test_keyword",
-        "test_boolean",
-        "test_date" };
+    private static final List<String> fieldsNames = new ArrayList<>();
+
+    static {
+        fieldsNames.addAll(List.of(
+            "test_byte",
+            "test_integer",
+            "test_long",
+            "test_short",
+            "test_double",
+            "test_float",
+            "test_keyword",
+            "test_boolean",
+            "test_date"
+        ));
+        if (isUnsignedLongSupported()) {
+            fieldsNames.add("test_unsigned_long");
+        }
+    }
 
     public void testValidGetObjectCalls() throws IOException, SQLException {
         ResultSetTestCase.createIndex("test");
@@ -37,31 +49,30 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
             }
         });
 
-        String q = "SELECT test_byte, test_integer, test_long, test_unsigned_long, test_short, test_double, test_float, test_keyword, "
-            + "test_boolean, test_date FROM test";
+        String q = "SELECT " + String.join(", ", fieldsNames) + " FROM test";
         doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames));
 
-        q = "SELECT test_byte AS b, test_integer AS i, test_long AS l, test_unsigned_long AS ul, test_short AS s, test_double AS d, "
-            + "test_float AS f, test_keyword AS k, test_boolean AS bool, test_date AS dt FROM test";
-        doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(),
-            new String[] { "b", "i", "l", "ul", "s", "d", "f", "k", "bool", "dt" }));
+
+        q = "SELECT " + fieldsNames.stream().map(x -> x + " AS " + x.replace("_", "")).collect(Collectors.joining(", ")) + " FROM test";
+        doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames.stream()
+            .map(x -> x.replace("_", "")).collect(Collectors.toList())));
     }
 
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
                 try (ResultSet results = statement.executeQuery()) {
-                    assertEquals(fieldsNames.length, results.getMetaData().getColumnCount());
+                    assertEquals(fieldsNames.size(), results.getMetaData().getColumnCount());
                     consumer.accept(results);
                 }
             }
         }
     }
 
-    private void assertColumnNamesAndLabels(ResultSetMetaData metaData, String[] names) throws SQLException {
-        for (int i = 0; i < fieldsNames.length; i++) {
-            assertEquals(names[i], metaData.getColumnName(i + 1));
-            assertEquals(names[i], metaData.getColumnLabel(i + 1));
+    private void assertColumnNamesAndLabels(ResultSetMetaData metaData, List<String> names) throws SQLException {
+        for (int i = 0; i < fieldsNames.size(); i++) {
+            assertEquals(names.get(i), metaData.getColumnName(i + 1));
+            assertEquals(names.get(i), metaData.getColumnLabel(i + 1));
         }
     }
 }

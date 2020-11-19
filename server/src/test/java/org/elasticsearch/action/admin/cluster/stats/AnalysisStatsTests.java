@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -173,7 +174,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
 
     }
 
-    public void testAccountsRegularIndices() {
+    public void testAccountsRegularIndices() throws IOException {
         String mapping = "{\"properties\":{\"bar\":{\"type\":\"text\",\"analyzer\":\"german\"}}}";
         Settings settings = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -182,7 +183,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 .build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
                 .settings(settings)
-                .putMapping(mapping);
+                .putMapping(MapperService.SINGLE_MAPPING_NAME, mapping);
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
@@ -195,7 +196,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 analysisStats.getUsedBuiltInAnalyzers());
     }
 
-    public void testIgnoreSystemIndices() {
+    public void testIgnoreSystemIndices() throws IOException {
         String mapping = "{\"properties\":{\"bar\":{\"type\":\"text\",\"analyzer\":\"german\"}}}";
         Settings settings = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -204,7 +205,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 .build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
                 .settings(settings)
-                .putMapping(mapping)
+                .putMapping(MapperService.SINGLE_MAPPING_NAME, mapping)
                 .system(true);
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)

@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -315,17 +315,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             boolean success = false;
             try {
                 recoveryRef.target().handoffPrimaryContext(request.primaryContext(),
-                        ActionListener.runBefore(
-                                ActionListener.wrap(
-                                        v -> channel.sendResponse(TransportResponse.Empty.INSTANCE),
-                                        exception -> {
-                                            try {
-                                                channel.sendResponse(exception);
-                                            } catch (IOException e) {
-                                                logger.warn(new ParameterizedMessage(
-                                                        "Failed to send error response for request [{}]", request), e);
-                                            }
-                                        }), recoveryRef::close));
+                        ActionListener.runBefore(ActionListener.map(
+                                new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request),
+                                v -> TransportResponse.Empty.INSTANCE), recoveryRef::close));
                 success = true;
             } finally {
                 if (success == false) {

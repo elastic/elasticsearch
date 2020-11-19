@@ -691,7 +691,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         final ReplicationTracker.PrimaryContext primaryContext =
                                 replicationTracker.startRelocationHandoff(targetAllocationId);
                         // make sure we release all permits before we resolve the final listener
-                        final ActionListener<Void> wrappedInnerListener = ActionListener.runBefore(listener, releasable::close);
+                        final ActionListener<Void> wrappedInnerListener =
+                                ActionListener.runBefore(listener, Releasables.releaseOnce(releasable)::close);
                         final ActionListener<Void> wrappedListener = new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
@@ -746,7 +747,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         listener.onFailure(e);
                     }
                 }
-            }, 30L, TimeUnit.SECONDS);
+            }, 30L, TimeUnit.MINUTES);
         }
     }
 

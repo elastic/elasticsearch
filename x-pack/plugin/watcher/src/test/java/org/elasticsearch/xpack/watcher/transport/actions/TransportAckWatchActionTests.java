@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.transport.actions.ack;
+package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
@@ -63,8 +62,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         action = new TransportAckWatchAction(transportService, new ActionFilters(Collections.emptySet()),
-            new ClockHolder(Clock.systemUTC()), TestUtils.newTestLicenseState(),
-            watchParser, client, createClusterService(threadPool));
+            new ClockHolder(Clock.systemUTC()), TestUtils.newTestLicenseState(), watchParser, client);
     }
 
     public void testWatchNotFound() {

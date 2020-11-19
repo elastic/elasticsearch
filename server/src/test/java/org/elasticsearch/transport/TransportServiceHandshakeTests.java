@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 public class TransportServiceHandshakeTests extends ESTestCase {
 
     private static ThreadPool threadPool;
-    private static final long timeout = Long.MAX_VALUE;
+    private static final TimeValue timeout = TimeValue.MAX_VALUE;
 
     @BeforeClass
     public static void startThreadPool() {

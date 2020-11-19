@@ -436,18 +436,6 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterSeqValue(EqlBaseParser.SeqValueContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSeqValue(EqlBaseParser.SeqValueContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterComparisonOperator(EqlBaseParser.ComparisonOperatorContext ctx) { }
   /**
    * {@inheritDoc}

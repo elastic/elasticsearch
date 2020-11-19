@@ -56,7 +56,7 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
 
     @Override
     public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
-        target.handoffPrimaryContext(primaryContext, listener);
+        executor.execute(() -> target.handoffPrimaryContext(primaryContext, listener));
     }
 
     @Override

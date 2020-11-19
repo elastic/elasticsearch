@@ -43,7 +43,7 @@ public class MlDeprecationCheckerTests extends ESTestCase {
         DatafeedConfig.Builder goodDatafeed = new DatafeedConfig.Builder("good-df", "job-id");
         goodDatafeed.setIndices(Collections.singletonList("some-index"));
         goodDatafeed.setParsedQuery(QueryBuilders.termQuery("foo", "bar"));
-        assertNull(MlDeprecationChecker.checkDataFeedQuery(goodDatafeed.build(), xContentRegistry()));
+        assertThat(MlDeprecationChecker.checkDataFeedQuery(goodDatafeed.build(), xContentRegistry()).isPresent(), is(false));
 
         DatafeedConfig.Builder deprecatedDatafeed = new DatafeedConfig.Builder("df-with-deprecated-query", "job-id");
         deprecatedDatafeed.setIndices(Collections.singletonList("some-index"));

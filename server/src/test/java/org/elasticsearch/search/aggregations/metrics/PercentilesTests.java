@@ -84,7 +84,13 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         // throws in 8.x, deprecated in 7.x
         builder.percentiles(5, 42, 10, 99, 42, 87);
 
-        assertWarnings("percent [42.0] has been specified twice, percents must be unique");
+        assertWarnings("percent [42.0] has been specified more than once, percents must be unique");
+
+        builder.percentiles(5, 42, 42, 43, 43, 87);
+        assertWarnings(
+            "percent [42.0] has been specified more than once, percents must be unique",
+            "percent [43.0] has been specified more than once, percents must be unique"
+        );
     }
 
     public void testExceptionMultipleMethods() throws IOException {

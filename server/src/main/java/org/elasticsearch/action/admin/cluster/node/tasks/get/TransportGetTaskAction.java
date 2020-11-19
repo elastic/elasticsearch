@@ -111,7 +111,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
-        transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, TransportRequestOptions.of(request.getTimeout()),
+        transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, TransportRequestOptions.timeout(request.getTimeout()),
             new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME));
     }
 

@@ -246,7 +246,7 @@ public abstract class TransportTasksAction<
                     listener.onFailure(e);
                 }
             } else {
-                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.of(request.getTimeout());
+                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.getTimeout());
                 for (int i = 0; i < nodesIds.length; i++) {
                     final String nodeId = nodesIds[i];
                     final int idx = i;

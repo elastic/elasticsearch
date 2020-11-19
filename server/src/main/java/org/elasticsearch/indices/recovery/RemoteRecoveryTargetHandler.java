@@ -94,7 +94,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 TransportRequestOptions.of(recoverySettings.internalActionLongTimeout(), TransportRequestOptions.Type.RECOVERY);
         this.fileChunkRequestOptions =
                 TransportRequestOptions.of(recoverySettings.internalActionTimeout(), TransportRequestOptions.Type.RECOVERY);
-        this.standardTimeoutRequestOptions = TransportRequestOptions.of(recoverySettings.internalActionTimeout());
+        this.standardTimeoutRequestOptions = TransportRequestOptions.timeout(recoverySettings.internalActionTimeout());
         this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_7_9_0);
     }
 
@@ -121,8 +121,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             new RecoveryFinalizeRecoveryRequest(recoveryId, requestSeqNo, shardId, globalCheckpoint, trimAboveSeqNo);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, TransportRequestOptions.of(recoverySettings.internalActionLongTimeout()), responseListener,
-                reader);
+        executeRetryableAction(action, request, TransportRequestOptions.timeout(recoverySettings.internalActionLongTimeout()),
+                responseListener, reader);
     }
 
     @Override

@@ -878,7 +878,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutNoResponse",
-            new StringMessageRequest("moshe"), TransportRequestOptions.of(HUNDRED_MS),
+            new StringMessageRequest("moshe"), TransportRequestOptions.timeout(HUNDRED_MS),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
@@ -942,7 +942,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
         final CountDownLatch latch = new CountDownLatch(1);
         TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutDelayedResponse",
-            new StringMessageRequest("forever"), TransportRequestOptions.of(HUNDRED_MS),
+            new StringMessageRequest("forever"), TransportRequestOptions.timeout(HUNDRED_MS),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
@@ -980,7 +980,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
             TransportFuture<StringMessageResponse> result = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutDelayedResponse",
-                new StringMessageRequest(counter + "ms"), TransportRequestOptions.of(TimeValue.timeValueSeconds(3)),
+                new StringMessageRequest(counter + "ms"), TransportRequestOptions.timeout(TimeValue.timeValueSeconds(3)),
                 new TransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse read(StreamInput in) throws IOException {
@@ -1492,7 +1492,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.addUnresponsiveRule(serviceA);
 
         TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHello",
-            new StringMessageRequest("moshe"), TransportRequestOptions.of(HUNDRED_MS),
+            new StringMessageRequest("moshe"), TransportRequestOptions.timeout(HUNDRED_MS),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {

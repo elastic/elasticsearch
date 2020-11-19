@@ -28,7 +28,7 @@ public class TransportRequestOptions {
     private final TimeValue timeout;
     private final Type type;
 
-    public static TransportRequestOptions of(@Nullable TimeValue timeout) {
+    public static TransportRequestOptions timeout(@Nullable TimeValue timeout) {
         return of(timeout, Type.REG);
     }
 

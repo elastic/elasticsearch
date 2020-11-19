@@ -434,7 +434,7 @@ public abstract class PeerFinder {
             };
             transportService.sendRequest(discoveryNode, REQUEST_PEERS_ACTION_NAME,
                 new PeersRequest(getLocalNode(), knownNodes),
-                TransportRequestOptions.of(requestPeersTimeout),
+                TransportRequestOptions.timeout(requestPeersTimeout),
                 peersResponseHandler);
         }
 

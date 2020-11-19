@@ -196,7 +196,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
                 return;
             }
-            final TransportRequestOptions transportRequestOptions = TransportRequestOptions.of(request.timeout());
+            final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
             for (int i = 0; i < nodes.length; i++) {
                 final int idx = i;
                 final DiscoveryNode node = nodes[i];

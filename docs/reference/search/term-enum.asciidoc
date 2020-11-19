@@ -70,7 +70,7 @@ To search all data streams or indices in a cluster, omit this parameter or use
 (Mandatory, string)
 Which field to match
 
-[[term-enum-field-param]]
+[[term-enum-pattern-param]]
 `field`::
 (Mandatory, string)
 The string pattern to match in indexed terms

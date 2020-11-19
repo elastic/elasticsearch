@@ -101,8 +101,9 @@ PUT _ilm/policy/my_policy
 [[ilm-allocate-assign-index-multi-attribute-ex]]
 ===== Assign index to nodes based on multiple attributes
 
-You can also allocate indices based on multiple node attributes. The following
-action allocates indices based on the `box_type` and `storage` node attributes.
+The allocate action can also assign indices to nodes based on multiple node
+attributes. The following action assigns indices based on the `box_type` and
+`storage` node attributes.
 
 [source,console]
 ----
@@ -110,11 +111,11 @@ PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
-      "warm": {
+      "cold": {
         "actions": {
           "allocate" : {
             "include" : {
-              "box_type": "hot,warm",
+              "box_type": "cold",
               "storage": "high"
             }
           }

@@ -110,6 +110,7 @@ final class JdbcTestUtils {
     }
 
     public static boolean isUnsignedLongSupported() {
-        return V_7_11_0.compareTo(JDBC_DRIVER_VERSION) <= 0;
+        // TODO: add equality only once actually ported to 7.11
+        return V_7_11_0.compareTo(JDBC_DRIVER_VERSION) < 0;
     }
 }

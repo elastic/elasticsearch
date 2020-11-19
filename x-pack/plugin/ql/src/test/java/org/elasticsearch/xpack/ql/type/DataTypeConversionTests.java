@@ -74,7 +74,7 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);
             assertNull(conversion.convert(null));
-            BigInteger bi = randomBigInteger();
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
             assertEquals(bi.longValue(), conversion.convert(bi));
 
             BigInteger longPlus = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
@@ -123,7 +123,7 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);
             assertNull(conversion.convert(null));
-            BigInteger bi = randomBigInteger();
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
             assertEquals(asDateTime(bi.longValue()), conversion.convert(bi));
 
             BigInteger longPlus = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
@@ -352,8 +352,8 @@ public class DataTypeConversionTests extends ESTestCase {
             Converter conversion = converterFor(LONG, to);
             assertNull(conversion.convert(null));
 
-            BigInteger bi = randomBigInteger();
-            assertEquals(bi, conversion.convert(bi));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(bi, conversion.convert(bi.longValue()));
 
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(bi.negate()));
             assertEquals("[" + bi.negate() + "] out of [unsigned_long] range", e.getMessage());

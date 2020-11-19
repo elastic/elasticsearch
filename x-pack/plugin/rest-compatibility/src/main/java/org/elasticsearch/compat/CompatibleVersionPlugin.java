@@ -30,25 +30,34 @@ public class CompatibleVersionPlugin extends Plugin implements RestCompatibility
         // accept version must be current or prior
         if (acceptVersion > Version.CURRENT.major || acceptVersion < Version.CURRENT.minimumRestCompatibilityVersion().major) {
             throw new ElasticsearchStatusException(
-                "Accept version must be either version {} or {}, but found {}. Accept={}" ,RestStatus.BAD_REQUEST,
-                Version.CURRENT.major, Version.CURRENT.minimumRestCompatibilityVersion() , acceptVersion, acceptHeader);
+                "Accept version must be either version {} or {}, but found {}. Accept={}",
+                RestStatus.BAD_REQUEST,
+                Version.CURRENT.major,
+                Version.CURRENT.minimumRestCompatibilityVersion().major,
+                acceptVersion,
+                acceptHeader
+            );
         }
         if (hasContent) {
 
             // content-type version must be current or prior
-            if (contentTypeVersion > Version.CURRENT.major ||
-                contentTypeVersion < Version.CURRENT.minimumRestCompatibilityVersion().major) {
+            if (contentTypeVersion > Version.CURRENT.major
+                || contentTypeVersion < Version.CURRENT.minimumRestCompatibilityVersion().major) {
                 throw new ElasticsearchStatusException(
-                    "Content-Type version must be either version {} or {}, but found {}. Content-Type={}" ,RestStatus.BAD_REQUEST,
-                    Version.CURRENT.major, Version.CURRENT.minimumRestCompatibilityVersion() , acceptVersion, contentTypeHeader
+                    "Content-Type version must be either version {} or {}, but found {}. Content-Type={}",
+                    RestStatus.BAD_REQUEST,
+                    Version.CURRENT.major,
+                    Version.CURRENT.minimumRestCompatibilityVersion().major,
+                    contentTypeVersion,
+                    contentTypeHeader
                 );
             }
             // if both accept and content-type are sent, the version must match
             if (contentTypeVersion != acceptVersion) {
                 throw new ElasticsearchStatusException(
-                    "A compatible version is required on both Content-Type and Accept headers " +
-                        "if either one has requested a compatible version " +
-                        "and the compatible versions must match. Accept={}, Content-Type={}",
+                    "A compatible version is required on both Content-Type and Accept headers "
+                        + "if either one has requested a compatible version "
+                        + "and the compatible versions must match. Accept={}, Content-Type={}",
                     RestStatus.BAD_REQUEST,
                     acceptHeader,
                     contentTypeHeader
@@ -57,8 +66,8 @@ public class CompatibleVersionPlugin extends Plugin implements RestCompatibility
             // both headers should be versioned or none
             if ((cVersion == null && aVersion != null) || (aVersion == null && cVersion != null)) {
                 throw new ElasticsearchStatusException(
-                    "A compatible version is required on both Content-Type and Accept headers " +
-                    "if either one has requested a compatible version. Accept={}, Content-Type={}",
+                    "A compatible version is required on both Content-Type and Accept headers "
+                        + "if either one has requested a compatible version. Accept={}, Content-Type={}",
                     RestStatus.BAD_REQUEST,
                     acceptHeader,
                     contentTypeHeader

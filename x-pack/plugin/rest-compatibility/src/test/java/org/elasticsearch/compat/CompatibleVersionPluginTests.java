@@ -29,9 +29,20 @@ public class CompatibleVersionPluginTests extends ESTestCase {
 
         assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent()), isCompatible());
 
-        expectThrows(
+        ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(CURRENT_VERSION), bodyPresent())
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "A compatible version is required on both Content-Type and Accept headers "
+                    + "if either one has requested a compatible version and the compatible versions must match. "
+                    + "Accept="
+                    + acceptHeader(PREVIOUS_VERSION)
+                    + ", Content-Type="
+                    + contentTypeHeader(CURRENT_VERSION)
+            )
         );
 
         // no body - content-type is ignored
@@ -39,9 +50,20 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         // no body - content-type is ignored
         assertThat(requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyNotPresent()), not(isCompatible()));
 
-        expectThrows(
+        e = expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent())
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "A compatible version is required on both Content-Type and Accept headers "
+                    + "if either one has requested a compatible version and the compatible versions must match. "
+                    + "Accept="
+                    + acceptHeader(CURRENT_VERSION)
+                    + ", Content-Type="
+                    + contentTypeHeader(PREVIOUS_VERSION)
+            )
         );
 
         assertThat(requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(CURRENT_VERSION), bodyPresent()), not(isCompatible()));
@@ -49,24 +71,68 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         assertThat(requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(CURRENT_VERSION), bodyNotPresent()), not(isCompatible()));
 
         // tests when body present and one of the headers missing - versioning is required on both when body is present
-        expectThrows(
+        e = expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(null), bodyPresent())
         );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "A compatible version is required on both Content-Type and Accept headers "
+                    + "if either one has requested a compatible version and the compatible versions must match. "
+                    + "Accept="
+                    + acceptHeader(PREVIOUS_VERSION)
+                    + ", Content-Type="
+                    + contentTypeHeader(null)
+            )
+        );
 
-        expectThrows(
+        e = expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(CURRENT_VERSION), contentTypeHeader(null), bodyPresent())
         );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "A compatible version is required on both Content-Type and Accept headers "
+                    + "if either one has requested a compatible version. "
+                    + "Accept="
+                    + acceptHeader(CURRENT_VERSION)
+                    + ", Content-Type="
+                    + contentTypeHeader(null)
+            )
+        );
 
-        expectThrows(
+        e = expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyPresent())
         );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "A compatible version is required on both Content-Type and Accept headers "
+                    + "if either one has requested a compatible version. "
+                    + "Accept="
+                    + acceptHeader(null)
+                    + ", Content-Type="
+                    + contentTypeHeader(CURRENT_VERSION)
+            )
+        );
 
-        expectThrows(
+        e = expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(null), contentTypeHeader(PREVIOUS_VERSION), bodyPresent())
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "A compatible version is required on both Content-Type and Accept headers "
+                    + "if either one has requested a compatible version and the compatible versions must match. "
+                    + "Accept="
+                    + acceptHeader(null)
+                    + ", Content-Type="
+                    + contentTypeHeader(PREVIOUS_VERSION)
+            )
         );
 
         // tests when body NOT present and one of the headers missing
@@ -93,14 +159,61 @@ public class CompatibleVersionPluginTests extends ESTestCase {
     }
 
     public void testObsoleteVersion() {
-        expectThrows(
+        ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(OBSOLETE_VERSION), bodyPresent())
         );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Accept version must be either version "
+                    + CURRENT_VERSION
+                    + " or "
+                    + PREVIOUS_VERSION
+                    + ", but found "
+                    + OBSOLETE_VERSION
+                    + ". "
+                    + "Accept="
+                    + acceptHeader(OBSOLETE_VERSION)
+            )
+        );
 
-        expectThrows(
+        e = expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(acceptHeader(OBSOLETE_VERSION), contentTypeHeader(null), bodyNotPresent())
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Accept version must be either version "
+                    + CURRENT_VERSION
+                    + " or "
+                    + PREVIOUS_VERSION
+                    + ", but found "
+                    + OBSOLETE_VERSION
+                    + ". "
+                    + "Accept="
+                    + acceptHeader(OBSOLETE_VERSION)
+            )
+        );
+
+        e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(OBSOLETE_VERSION), bodyPresent())
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Content-Type version must be either version "
+                    + CURRENT_VERSION
+                    + " or "
+                    + PREVIOUS_VERSION
+                    + ", but found "
+                    + OBSOLETE_VERSION
+                    + ". "
+                    + "Content-Type="
+                    + contentTypeHeader(OBSOLETE_VERSION)
+            )
         );
     }
 

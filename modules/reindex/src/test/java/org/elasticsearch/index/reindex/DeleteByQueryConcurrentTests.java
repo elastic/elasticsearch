@@ -35,7 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DeleteByQueryConcurrentTests extends ReindexTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62609")
     public void testConcurrentDeleteByQueriesOnDifferentDocs() throws Throwable {
         final Thread[] threads =  new Thread[scaledRandomIntBetween(2, 5)];
         final long docs = randomIntBetween(1, 50);

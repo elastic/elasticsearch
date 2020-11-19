@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -31,8 +32,8 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -56,13 +57,13 @@ public class IndicesModuleTests extends ESTestCase {
 
     private static class FakeMapperParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             return null;
         }
     }
 
-    private static MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
+    private static final MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
 
     private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
         @Override
@@ -76,8 +77,9 @@ public class IndicesModuleTests extends ESTestCase {
     });
 
     private static final String[] EXPECTED_METADATA_FIELDS = new String[]{ IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
-            NestedPathFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME };
+            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME,
+            NestedPathFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, DocCountFieldMapper.NAME,
+            FieldNamesFieldMapper.NAME };
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
@@ -171,6 +173,14 @@ public class IndicesModuleTests extends ESTestCase {
                 return Collections.singletonMap("foo", PARSER);
             }
         };
+        List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("already registered"));
+    }
+
+    public void testDuplicateRuntimeFieldPlugin() {
+        TestRuntimeField.Plugin plugin = new TestRuntimeField.Plugin();
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));

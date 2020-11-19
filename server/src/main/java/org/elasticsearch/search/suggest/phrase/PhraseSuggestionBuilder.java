@@ -32,10 +32,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -606,10 +606,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     @Override
     public SuggestionContext build(QueryShardContext context) throws IOException {
         PhraseSuggestionContext suggestionContext = new PhraseSuggestionContext(context);
-        MapperService mapperService = context.getMapperService();
         // copy over common settings to each suggestion builder
-        populateCommonFields(mapperService, suggestionContext);
-
+        populateCommonFields(context, suggestionContext);
         suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
         suggestionContext.setRealWordErrorLikelihood(this.realWordErrorLikelihood);
         suggestionContext.setConfidence(this.confidence);
@@ -625,7 +623,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
         for (List<CandidateGenerator> candidateGenerators : this.generators.values()) {
             for (CandidateGenerator candidateGenerator : candidateGenerators) {
-                suggestionContext.addGenerator(candidateGenerator.build(mapperService));
+                suggestionContext.addGenerator(candidateGenerator.build(context.getIndexAnalyzers()));
             }
         }
 
@@ -730,6 +728,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     public interface CandidateGenerator extends Writeable, ToXContentObject {
         String getType();
 
-        PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException;
+        PhraseSuggestionContext.DirectCandidateGenerator build(IndexAnalyzers indexAnalyzers) throws IOException;
     }
 }

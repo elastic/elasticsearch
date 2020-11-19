@@ -13,7 +13,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -33,7 +32,7 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public LongScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+        public LongScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             return new LongScriptFieldData(name, leafFactory);
         }
     }

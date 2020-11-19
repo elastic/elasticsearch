@@ -213,7 +213,6 @@ public class EnsembleInferenceModel implements InferenceModel {
                     classificationLabel(topClasses.v1().getValue(), classificationLabels),
                     topClasses.v2(),
                     transformFeatureImportanceClassification(decodedFeatureImportance,
-                        value.getValue(),
                         classificationLabels,
                         classificationConfig.getPredictionFieldType()),
                     config,

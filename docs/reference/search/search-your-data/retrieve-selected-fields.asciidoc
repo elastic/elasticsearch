@@ -60,6 +60,7 @@ following sections:
 [discrete]
 [[search-fields-param]]
 === Fields
+beta::[]
 
 The `fields` parameter allows for retrieving a list of document fields in
 the search response. It consults both the document `_source` and the index

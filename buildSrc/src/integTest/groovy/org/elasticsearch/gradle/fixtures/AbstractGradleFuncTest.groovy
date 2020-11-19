@@ -43,9 +43,13 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(String... arguments) {
+        return gradleRunner(testProjectDir.root, arguments)
+    }
+
+    GradleRunner gradleRunner(File projectDir, String... arguments) {
         GradleRunner.create()
                 .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-                .withProjectDir(testProjectDir.root)
+                .withProjectDir(projectDir)
                 .withArguments(arguments)
                 .withPluginClasspath()
                 .forwardOutput()
@@ -84,5 +88,43 @@ abstract class AbstractGradleFuncTest extends Specification {
         }
 
         return jarFile;
+    }
+
+    File internalBuild(File buildScript = buildFile) {
+        buildScript << """plugins {
+          id 'elasticsearch.global-build-info'
+        }
+        import org.elasticsearch.gradle.Architecture
+        import org.elasticsearch.gradle.info.BuildParams
+
+        BuildParams.init { it.setIsInternal(true) }
+
+        import org.elasticsearch.gradle.BwcVersions
+        import org.elasticsearch.gradle.Version
+
+        Version currentVersion = Version.fromString("9.0.0")
+        BwcVersions versions = new BwcVersions(new TreeSet<>(
+        Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
+            currentVersion)
+
+        BuildParams.init { it.setBwcVersions(versions) }
+        """
+    }
+
+    void setupLocalGitRepo() {
+        execute("git init")
+        execute('git config user.email "build-tool@elastic.co"')
+        execute('git config user.name "Build tool"')
+        execute("git add .")
+        execute('git commit -m "Initial"')
+    }
+
+    void execute(String command, File workingDir = testProjectDir.root) {
+        def proc = command.execute(Collections.emptyList(), workingDir)
+        proc.waitFor()
+        if(proc.exitValue()) {
+            System.err.println("Error running command ${command}:")
+            System.err.println("Syserr: " + proc.errorStream.text)
+        }
     }
 }

@@ -24,8 +24,11 @@ testClusters.all {
   // processors are being used that are in ingest-common module.
   testDistribution = 'DEFAULT'
 
-  setting 'xpack.security.authc.realms.custom.custom.order', '0'
-  setting 'xpack.security.authc.realms.custom.custom.filtered_setting', 'should be filtered'
+  setting 'xpack.security.authc.realms.custom.my_realm.order', '0'
+  setting 'xpack.security.authc.realms.custom.my_realm.filtered_setting', 'should be filtered'
+  setting 'xpack.security.authc.realms.custom.my_realm.username', 'test_user'
+  keystore 'xpack.security.authc.realms.custom.my_realm.password', 'secret_password'
+
   setting 'xpack.security.authc.realms.file.esusers.order', '1'
   setting 'xpack.security.authc.realms.native.native.order', '2'
   setting 'xpack.security.authc.realms.custom_role_mapping.role_map.order', '3'

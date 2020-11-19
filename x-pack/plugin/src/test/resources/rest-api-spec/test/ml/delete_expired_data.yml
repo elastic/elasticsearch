@@ -71,6 +71,8 @@ setup:
         job_id: not-a-job
 ---
 "Test delete expired data with job id":
+  - skip:
+      features: warnings
   - do:
       headers:
         Content-Type: application/json
@@ -153,6 +155,8 @@ setup:
         job_id: delete-expired-data-a
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.ml-config], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       indices.refresh: {}

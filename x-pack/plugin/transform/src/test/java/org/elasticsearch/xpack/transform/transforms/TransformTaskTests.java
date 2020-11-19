@@ -71,7 +71,7 @@ public class TransformTaskTests extends ESTestCase {
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
-        TransformAuditor auditor = new MockTransformAuditor();
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
         TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
             Settings.EMPTY,
@@ -159,7 +159,7 @@ public class TransformTaskTests extends ESTestCase {
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
-        TransformAuditor auditor = new MockTransformAuditor();
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
 
         TransformState transformState = new TransformState(
             TransformTaskState.FAILED,

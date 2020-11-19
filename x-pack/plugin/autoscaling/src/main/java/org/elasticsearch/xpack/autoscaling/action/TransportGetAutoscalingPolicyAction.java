@@ -16,14 +16,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
-
-import java.io.IOException;
 
 public class TransportGetAutoscalingPolicyAction extends TransportMasterNodeAction<
     GetAutoscalingPolicyAction.Request,
@@ -44,18 +41,10 @@ public class TransportGetAutoscalingPolicyAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             GetAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            GetAutoscalingPolicyAction.Response::new,
+            ThreadPool.Names.SAME
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetAutoscalingPolicyAction.Response read(final StreamInput in) throws IOException {
-        return new GetAutoscalingPolicyAction.Response(in);
     }
 
     @Override

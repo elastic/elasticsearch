@@ -111,8 +111,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build();
@@ -127,7 +126,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("warm"));
             assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         logger.info("starting a warm data node");
         internalCluster().startNode(warmNode(Settings.EMPTY));
@@ -139,7 +138,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
             assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         logger.info("starting a cold data node");
         internalCluster().startNode(coldNode(Settings.EMPTY));
@@ -153,7 +152,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
             assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testUserOptsOutOfTierMigration() throws Exception {
@@ -172,8 +171,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build();

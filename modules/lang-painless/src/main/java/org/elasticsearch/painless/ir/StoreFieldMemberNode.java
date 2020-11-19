@@ -19,12 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents a member field assignment on the main class.
@@ -68,20 +64,8 @@ public class StoreFieldMemberNode extends StoreNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        if (isStatic == false) {
-            methodWriter.loadThis();
-        }
-
-        getChildNode().write(classWriter, methodWriter, writeScope);
-
-        methodWriter.writeDebugInfo(location);
-
-        if (isStatic) {
-            methodWriter.putStatic(CLASS_TYPE, name, MethodWriter.getType(getStoreType()));
-        } else {
-            methodWriter.putField(CLASS_TYPE, name, MethodWriter.getType(getStoreType()));
-        }
+    public StoreFieldMemberNode(Location location) {
+        super(location);
     }
+
 }

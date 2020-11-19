@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiTerms;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -52,7 +50,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 
 import java.io.IOException;
@@ -82,7 +79,6 @@ public class TermVectorsService  {
     static TermVectorsResponse getTermVectors(IndexShard indexShard, TermVectorsRequest request, LongSupplier nanoTimeSupplier) {
         final long startTime = nanoTimeSupplier.getAsLong();
         final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(indexShard.shardId().getIndex().getName(), request.id());
-        final Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
 
         Fields termVectorsByField = null;
         TermVectorsFilter termVectorsFilter = null;
@@ -92,7 +88,7 @@ public class TermVectorsService  {
             handleFieldWildcards(indexShard, request);
         }
 
-        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.id(), uidTerm)
+        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.id())
                 .version(request.version()).versionType(request.versionType()));
                 Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")) {
             Fields topLevelFields = fields(get.searcher() != null ? get.searcher().getIndexReader() : searcher.getIndexReader());
@@ -222,17 +218,11 @@ public class TermVectorsService  {
 
     private static Analyzer getAnalyzerAtField(IndexShard indexShard, String field, @Nullable Map<String, String> perFieldAnalyzer) {
         MapperService mapperService = indexShard.mapperService();
-        Analyzer analyzer;
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
-            analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field));
+            return mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field));
         } else {
-            MappedFieldType fieldType = mapperService.fieldType(field);
-            analyzer = fieldType.indexAnalyzer();
+            return mapperService.indexAnalyzer();
         }
-        if (analyzer == null) {
-            analyzer = mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer();
-        }
-        return analyzer;
     }
 
     private static Set<String> getFieldsToGenerate(Map<String, String> perAnalyzerField, Fields fieldsObject) {

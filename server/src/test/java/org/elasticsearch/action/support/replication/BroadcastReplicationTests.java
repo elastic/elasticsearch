@@ -42,6 +42,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -103,7 +104,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver());
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
     }
 
     @Override

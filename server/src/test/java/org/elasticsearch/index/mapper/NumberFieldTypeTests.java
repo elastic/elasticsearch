@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -131,12 +132,15 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
     }
 
+    private static MappedFieldType unsearchable() {
+        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap());
+    }
+
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
 
-        MappedFieldType unsearchable
-            = new NumberFieldType("field", NumberType.LONG, false, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("42", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -253,7 +257,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3));
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
 
-        MappedFieldType unsearchable = new NumberFieldType("field", NumberType.LONG, false, false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -452,7 +456,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         NumberFieldType fieldType = new NumberFieldType("field", type);
         IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder("index", () -> {
             throw new UnsupportedOperationException();
-        }).build(null, null, null);
+        }).build(null, null);
         SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
@@ -471,7 +475,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         QueryShardContext context = new QueryShardContext(0, indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> 0L, null, null, () -> true, null);
+            null, null, () -> 0L, null, null, () -> true, null, emptyMap());
 
         final int iters = 10;
         for (int iter = 0; iter < iters; ++iter) {
@@ -638,5 +642,20 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             HalfFloatPoint.encodeDimension(value, bytes, 0);
             assertThat(NumberType.HALF_FLOAT.parsePoint(bytes), equalTo(value));
         }
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true)
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
+        assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
+
+        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
+            .nullValue(2.71f)
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
+        assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 }

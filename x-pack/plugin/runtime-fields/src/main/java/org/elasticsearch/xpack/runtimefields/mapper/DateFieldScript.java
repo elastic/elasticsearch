@@ -14,8 +14,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.time.temporal.ChronoField;
-import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Map;
 
@@ -50,13 +48,6 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         this.formatter = formatter;
     }
 
-    public static long toEpochMilli(TemporalAccessor v) {
-        // TemporalAccessor is a nanos API so we have to convert.
-        long millis = Math.multiplyExact(v.getLong(ChronoField.INSTANT_SECONDS), 1000);
-        millis = Math.addExact(millis, v.get(ChronoField.NANO_OF_SECOND) / 1_000_000);
-        return millis;
-    }
-
     public static class Emit {
         private final DateFieldScript script;
 
@@ -69,6 +60,10 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         }
     }
 
+    /**
+     * Temporary parse method that takes into account the date format. We'll
+     * remove this when we have "native" source parsing fields.
+     */
     public static class Parse {
         private final DateFieldScript script;
 

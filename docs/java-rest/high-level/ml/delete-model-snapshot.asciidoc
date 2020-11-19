@@ -5,10 +5,12 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Delete model snapshot API
+=== Delete model snapshots API
+
+Deletes an existing model snapshot.
 
 [id="{upid}-{api}-request"]
-==== Delete model snapshot request
+==== Delete model snapshots request
 
 A +{request}+ object requires both a non-null `jobId` and a non-null `snapshotId`.
 
@@ -21,7 +23,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Delete model snapshot response
+==== Delete model snapshots response
 
 The returned +{response}+ object indicates the acknowledgement of the request:
 ["source","java",subs="attributes,callouts,macros"]

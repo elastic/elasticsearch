@@ -96,7 +96,6 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         assertFalse(response.isTimeout());
         assertNotNull(response.hits());
         assertNull(response.hits().sequences());
-        assertNull(response.hits().counts());
         assertNotNull(response.hits().events());
         assertThat(response.hits().events().size(), equalTo(count));
     }

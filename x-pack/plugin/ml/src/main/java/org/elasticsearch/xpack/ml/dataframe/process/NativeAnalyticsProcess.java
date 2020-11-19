@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ml.process.StateToProcessWriterHelper;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -37,10 +36,10 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
 
     protected NativeAnalyticsProcess(String jobId, NativeController nativeController, ProcessPipes processPipes,
                                      int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
-                                     Duration processConnectTimeout, AnalyticsProcessConfig config,
+                                     AnalyticsProcessConfig config,
                                      NamedXContentRegistry namedXContentRegistry) {
         super(NAME, AnalyticsResult.PARSER, jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash,
-            processConnectTimeout, namedXContentRegistry);
+            namedXContentRegistry);
         this.config = Objects.requireNonNull(config);
     }
 
@@ -52,6 +51,10 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     @Override
     public void persistState() {
         // Nothing to persist
+    }
+
+    @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
     }
 
     @Override

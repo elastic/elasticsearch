@@ -40,7 +40,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
         // Disable native ML autodetect_process as the c++ controller won't be available
         newSettings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
-        newSettings.put(MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey(), new ByteSizeValue(1024));
+        newSettings.put(MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey(), ByteSizeValue.ofBytes(1024));
         newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Disable security otherwise delete-by-query action fails to get authorized
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);

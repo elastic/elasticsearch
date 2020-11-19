@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logstash.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -18,9 +19,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -35,6 +38,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
+
 public class TransportGetPipelineAction extends HandledTransportAction<GetPipelineRequest, GetPipelineResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetPipelineAction.class);
@@ -43,7 +48,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
     @Inject
     public TransportGetPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(GetPipelineAction.NAME, transportService, actionFilters, GetPipelineRequest::new);
-        this.client = client;
+        this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 
     @Override
@@ -78,7 +83,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                         }
                     };
                     handleSearchResponse(searchResponse, pipelineSources, clearScroll, listener);
-                }, listener::onFailure));
+                }, e -> handleFailure(e, listener)));
         } else if (request.ids().size() == 1) {
             client.prepareGet(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids().get(0))
                 .setFetchSource(true)
@@ -88,7 +93,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                     } else {
                         listener.onResponse(new GetPipelineResponse(Map.of()));
                     }
-                }, listener::onFailure));
+                }, e -> handleFailure(e, listener)));
         } else {
             client.prepareMultiGet()
                 .addIds(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids())
@@ -103,7 +108,16 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                                 .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
                         )
                     );
-                }, listener::onFailure));
+                }, e -> handleFailure(e, listener)));
+        }
+    }
+
+    private void handleFailure(Exception e, ActionListener<GetPipelineResponse> listener) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof IndexNotFoundException) {
+            listener.onResponse(new GetPipelineResponse(Map.of()));
+        } else {
+            listener.onFailure(e);
         }
     }
 

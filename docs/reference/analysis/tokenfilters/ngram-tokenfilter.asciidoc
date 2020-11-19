@@ -186,7 +186,7 @@ Maximum length of characters in a gram. Defaults to `2`.
 Minimum length of characters in a gram. Defaults to `1`.
 
 `preserve_original`::
-(Optional, boolean)
+(Optional, Boolean)
 Emits original token when set to `true`. Defaults to `false`.
 
 You can use the <<index-max-ngram-diff,`index.max_ngram_diff`>> index-level

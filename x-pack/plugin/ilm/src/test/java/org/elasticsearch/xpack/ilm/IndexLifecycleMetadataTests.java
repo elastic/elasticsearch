@@ -50,8 +50,8 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
-import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
+import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
+import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
 
 public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
 

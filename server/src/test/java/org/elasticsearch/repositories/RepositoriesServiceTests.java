@@ -41,6 +41,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -332,6 +333,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             super(metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,
+                MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.cleanPath(),
                 Map.of("bucket", "bucket-a"));
@@ -356,6 +358,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             super(metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,
+                MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.cleanPath(),
                 Map.of("bucket", "bucket-b"));

@@ -66,7 +66,7 @@ public class ShowColumns extends Command {
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         boolean withFrozen = includeFrozen || session.configuration().includeFrozen();
-        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, session.configuration().filter(), ActionListener.wrap(
+        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, ActionListener.wrap(
                 indexResult -> {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {

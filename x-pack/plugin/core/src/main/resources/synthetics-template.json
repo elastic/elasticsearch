@@ -6,6 +6,7 @@
     "synthetics-mappings",
     "synthetics-settings"
   ],
+  "allow_auto_create": true,
   "_meta": {
     "description": "default synthetics template installed by x-pack",
     "managed": true

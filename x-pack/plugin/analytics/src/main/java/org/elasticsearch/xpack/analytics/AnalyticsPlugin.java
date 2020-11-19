@@ -114,7 +114,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
-                .addResultReader(InternalTopMetrics::new),
+                .addResultReader(InternalTopMetrics::new)
+                .setAggregatorRegistrar(TopMetricsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TTestAggregationBuilder.NAME,
                 TTestAggregationBuilder::new,
@@ -145,7 +146,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, new HistogramFieldMapper.TypeParser());
+        return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
     }
 
     @Override

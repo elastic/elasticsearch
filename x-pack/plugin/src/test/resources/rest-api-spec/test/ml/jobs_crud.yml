@@ -554,6 +554,7 @@
 
   - do:
       indices.refresh:
+        index: ".ml-anomalies*"
         expand_wildcards: all
 
   - do:

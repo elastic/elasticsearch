@@ -19,12 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 public class FlipArrayIndexNode extends UnaryNode {
 
@@ -42,17 +38,8 @@ public class FlipArrayIndexNode extends UnaryNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getChildNode().write(classWriter, methodWriter, writeScope);
-
-        Label noFlip = new Label();
-        methodWriter.dup();
-        methodWriter.ifZCmp(Opcodes.IFGE, noFlip);
-        methodWriter.swap();
-        methodWriter.dupX1();
-        methodWriter.arrayLength();
-        methodWriter.visitInsn(Opcodes.IADD);
-        methodWriter.mark(noFlip);
+    public FlipArrayIndexNode(Location location) {
+        super(location);
     }
+
 }

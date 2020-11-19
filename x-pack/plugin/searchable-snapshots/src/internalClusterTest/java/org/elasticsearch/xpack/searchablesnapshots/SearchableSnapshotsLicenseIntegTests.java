@@ -27,14 +27,11 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -47,7 +44,6 @@ import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -59,7 +55,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.junit.Before;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -78,18 +73,9 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
 
     @Before
     public void createAndMountSearchableSnapshot() throws Exception {
-        createRepo(repoName);
-
+        createRepository(repoName, "fs");
         createIndex(indexName);
-
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, snapshotName)
-            .setWaitForCompletion(true)
-            .get();
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        createFullSnapshot(repoName, snapshotName);
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
@@ -173,27 +159,11 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
         // add a valid license again
         // This is a bit of a hack in tests, as we can't readd a trial license
         // We force this by clearing the existing basic license first
-        CountDownLatch latch = new CountDownLatch(1);
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitStateUpdateTask("remove license", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata()).removeCustom(LicensesMetadata.TYPE).build())
-                        .build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    throw new AssertionError(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    latch.countDown();
-                }
-            });
-        latch.await();
+        updateClusterState(
+            currentState -> ClusterState.builder(currentState)
+                .metadata(Metadata.builder(currentState.metadata()).removeCustom(LicensesMetadata.TYPE).build())
+                .build()
+        );
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName())
             .acknowledge(true);
         PostStartTrialResponse resp = client().execute(PostStartTrialAction.INSTANCE, startTrialRequest).get();

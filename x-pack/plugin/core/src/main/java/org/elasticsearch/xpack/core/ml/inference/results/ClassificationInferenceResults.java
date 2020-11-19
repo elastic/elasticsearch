@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -84,14 +83,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.featureImportance = in.readList(ClassificationFeatureImportance::new);
-        } else {
-            this.featureImportance = in.readList(LegacyFeatureImportance::new)
-                .stream()
-                .map(LegacyFeatureImportance::forClassification)
-                .collect(Collectors.toList());
-        }
+        this.featureImportance = in.readList(ClassificationFeatureImportance::new);
         this.classificationLabel = in.readOptionalString();
         this.topClasses = Collections.unmodifiableList(in.readList(TopClassEntry::new));
         this.topNumClassesField = in.readString();
@@ -120,11 +112,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeList(featureImportance);
-        } else {
-            out.writeList(featureImportance.stream().map(LegacyFeatureImportance::fromClassification).collect(Collectors.toList()));
-        }
+        out.writeList(featureImportance);
         out.writeOptionalString(classificationLabel);
         out.writeCollection(topClasses);
         out.writeString(topNumClassesField);

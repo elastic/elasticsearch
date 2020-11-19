@@ -8,12 +8,17 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType;
+
+import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm;
+import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm;
+import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseUpperRangeTerm;
 
 public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
@@ -47,7 +52,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long", true, false, false, null);
+        UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long", true, false, false, null, null);
 
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
@@ -147,5 +152,18 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
         // wrongly formatted numbers
         expectThrows(NumberFormatException.class, () -> parseUpperRangeTerm("18incorrectnumber", true));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = new UnsignedLongFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
+        assertEquals(List.of(0L), fetchSourceValue(mapper, 0L));
+        assertEquals(List.of(9223372036854775807L), fetchSourceValue(mapper, 9223372036854775807L));
+        assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(mapper, "18446744073709551615"));
+        assertEquals(List.of(), fetchSourceValue(mapper, ""));
+
+        MappedFieldType nullValueMapper = new UnsignedLongFieldMapper.Builder("field", false).nullValue("18446744073709551615")
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
     }
 }

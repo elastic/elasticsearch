@@ -7,11 +7,11 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
-In {es}, EQL assumes each document in a data stream or index corresponds to an
+EQL assumes each document in a data stream or index corresponds to an
 event.
 
 [source,console]
@@ -56,15 +56,33 @@ To search all data streams and indices in a cluster, use
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+`allow_no_indices`::
+(Optional, Boolean)
 +
-Defaults to `false`.
+NOTE: This parameter's behavior differs from the `allow_no_indices` parameter
+used in other <<multi-index,multi-target APIs>>.
++
+If `false`, the request returns an error if any wildcard expression,
+<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
+indices. This behavior applies even if the request targets other open indices.
+For example, a request targeting `foo*,bar*` returns an error if an index
+starts with `foo` but no index starts with `bar`.
++
+If `true`, only requests that exclusively target missing or closed indices
+return an error. For example, a request targeting `foo*,bar*` does not return an
+error if an index starts with `foo` but no index starts with `bar`. However, a
+request that targets only `bar*` still returns an error.
++
+Defaults to `true`.
+
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`ignore_unavailable`::
+(Optional, Boolean) If `true`, missing or closed indices are not included in the
+response. Defaults to `true`.
 
 `keep_alive`::
 +
@@ -92,7 +110,7 @@ If both parameters are specified, only the query parameter is used.
 `keep_on_completion`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the search and its results are stored on the cluster.
 
 If `false`, the search and its results are stored on the cluster only if the
@@ -128,13 +146,9 @@ used.
 ====
 --
 
+[role="child_attributes"]
 [[eql-search-api-request-body]]
 ==== {api-request-body-title}
-
-`case_sensitive`::
-(Optional, boolean)
-If `true`, matching for the <<eql-search-api-request-query-param,EQL query>> is
-case sensitive. Defaults to `false`.
 
 `event_category_field`::
 (Required*, string)
@@ -145,7 +159,7 @@ Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
 Common Schema (ECS)]. If a data stream or index does not contain the
 `event.category` field, this value is required.
 +
-The event category field is typically mapped as a field type in the
+The event category field must be mapped as a field type in the
 <<keyword,`keyword`>> family.
 
 `fetch_size`::
@@ -196,7 +210,7 @@ If both parameters are specified, only the query parameter is used.
 `keep_on_completion`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the search and its results are stored on the cluster.
 
 If `false`, the search and its results are stored on the cluster only if the
@@ -215,9 +229,26 @@ If both parameters are specified, only the query parameter is used.
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.
+
+`result_position`::
+(Optional, enum)
+Set of matching events or sequences to return.
 +
-IMPORTANT: This parameter supports a subset of EQL syntax. See
-<<eql-unsupported-syntax>>.
+.Valid values for `result_position`
+[%collapsible%open]
+====
+`head`::
+(Default)
+Return the earliest matches, similar to the {wikipedia}/Head_(Unix)[Unix head
+command].
+
+`tail`::
+Return the most recent matches, similar to the {wikipedia}/Tail_(Unix)[Unix tail
+command].
+====
++
+NOTE: This parameter may change the set of returned hits. However, it does not
+change the sort order of hits in the response.
 
 `size`::
 (Optional, integer or float)
@@ -235,15 +266,9 @@ this value.
 [[eql-search-api-tiebreaker-field]]
 `tiebreaker_field`::
 (Optional, string)
-Field used to sort events with the same
-<<eql-search-api-timestamp-field,timestamp field>> value. Defaults to
-`event.sequence`, as defined in the {ecs-ref}/ecs-event.html[Elastic Common
-Schema (ECS)].
-+
-By default, matching events in the search response are sorted by timestamp,
-converted to milliseconds since the {wikipedia}/Unix_time[Unix
-epoch], in ascending order. If two or more events share the same timestamp, this
-field is used to sort the events in ascending, lexicographic order.
+Field used to sort hits with the same
+<<eql-search-api-timestamp-field,timestamp>> in ascending order. See
+<<eql-search-specify-a-sort-tiebreaker>>.
 
 [[eql-search-api-timestamp-field]]
 `timestamp_field`::
@@ -260,8 +285,8 @@ Events in the API response are sorted by this field's value, converted to
 milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
 
-The timestamp field is typically mapped as a <<date,`date`>> or
-<<date_nanos,`date_nanos`>> field.
+The timestamp field should be mapped as a <<date,`date`>>. The
+<<date_nanos,`date_nanos`>> field type is not supported.
 --
 
 [[eql-search-api-wait-for-completion-timeout]]
@@ -301,7 +326,7 @@ This search ID is only provided if one of the following conditions is met:
 * A search request does not return complete results during the
   <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
   parameter's timeout period, becoming an <<eql-search-async,async search>>.
-  
+
 * The search request's <<eql-search-api-keep-on-completion,`keep_on_completion`>>
   parameter is `true`.
 
@@ -310,13 +335,13 @@ API>> to get the current status and available results for the search.
 --
 
 `is_partial`::
-(boolean)
+(Boolean)
 If `true`, the response does not contain complete search results.
 
 `is_running`::
 +
 --
-(boolean)
+(Boolean)
 If `true`, the search request is still executing.
 
 [IMPORTANT]
@@ -356,7 +381,7 @@ Took time does *not* include:
 --
 
 `timed_out`::
-(boolean)
+(Boolean)
 If `true`, the request timed out before completion.
 
 `hits`::
@@ -487,7 +512,7 @@ in ascending order.
 
 If two or more events share the same timestamp, the
 <<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
-the events in ascending, lexicographic order.
+the events in ascending order.
 
 [source,console-result]
 ----

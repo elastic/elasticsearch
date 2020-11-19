@@ -31,7 +31,6 @@ import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
 
@@ -44,7 +43,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.projectDependency;
  * distribution resolution strategies to the 'elasticsearch.download-distribution' plugin
  * to resolve distributions from a local snapshot or a locally built bwc snapshot.
  */
-public class InternalDistributionDownloadPlugin implements Plugin<Project> {
+public class InternalDistributionDownloadPlugin implements InternalPlugin {
 
     private BwcVersions bwcVersions = null;
 
@@ -52,11 +51,9 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
     public void apply(Project project) {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        if (!BuildParams.isInternal()) {
-            throw new GradleException(
-                "Plugin 'elasticsearch.internal-distribution-download' is not supported. "
-                    + "Use 'elasticsearch.distribution-download' plugin instead."
-            );
+        // might be used without the general build plugin so we keep this check for now.
+        if (BuildParams.isInternal() == false) {
+            throw new GradleException(getExternalUseErrorMessage());
         }
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         this.bwcVersions = BuildParams.getBwcVersions();
@@ -94,12 +91,29 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                             + "without a bundled JDK is not supported."
                     );
                 }
+                String projectConfig = getProjectConfig(distribution, unreleasedInfo);
                 return new ProjectBasedDistributionDependency(
-                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution))
+                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, projectConfig)
                 );
             }
             return null;
         }));
+    }
+
+    /**
+     * Will be removed once this is backported to all unreleased branches.
+     */
+    private static String getProjectConfig(ElasticsearchDistribution distribution, BwcVersions.UnreleasedVersionInfo info) {
+        String distributionProjectName = distributionProjectName(distribution);
+        if (distribution.getType().shouldExtract()) {
+            return (info.gradleProjectPath.equals(":distribution") || info.version.before("7.10.0"))
+                ? distributionProjectName
+                : "expanded-" + distributionProjectName;
+        } else {
+            return distributionProjectName;
+
+        }
+
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
@@ -121,6 +135,12 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 break;
         }
         return projectPath;
+    }
+
+    @Override
+    public String getExternalUseErrorMessage() {
+        return "Plugin 'elasticsearch.internal-distribution-download' is not supported. "
+            + "Use 'elasticsearch.distribution-download' plugin instead.";
     }
 
     /**
@@ -168,7 +188,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         return projectName;
     }
 
-    private class ProjectBasedDistributionDependency implements DistributionDependency {
+    private static class ProjectBasedDistributionDependency implements DistributionDependency {
 
         private Function<String, Dependency> function;
 

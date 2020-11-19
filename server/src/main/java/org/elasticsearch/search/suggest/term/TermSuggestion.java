@@ -43,9 +43,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    @Deprecated
-    public static final int TYPE = 1;
-
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
 
@@ -98,11 +95,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             // third criteria: term text
             return first.getText().compareTo(second.getText());
         }
-    }
-
-    @Override
-    public int getWriteableType() {
-        return TYPE;
     }
 
     public void setSort(SortBy sort) {

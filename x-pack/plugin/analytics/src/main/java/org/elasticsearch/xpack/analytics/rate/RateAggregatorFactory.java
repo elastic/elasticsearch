@@ -6,53 +6,64 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Rounding.DateTimeUnit rateUnit;
 
+    private final RateMode rateMode;
+
     RateAggregatorFactory(
         String name,
         ValuesSourceConfig config,
         Rounding.DateTimeUnit rateUnit,
-        QueryShardContext queryShardContext,
+        RateMode rateMode,
+        AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.rateUnit = rateUnit;
+        this.rateMode = rateMode;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             RateAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            RateAggregator::new,
+            Collections.singletonList(CoreValuesSourceType.NUMERIC),
+            NumericRateAggregator::new,
+            true
+        );
+        builder.register(
+            RateAggregationBuilder.REGISTRY_KEY,
+            Collections.singletonList(AnalyticsValuesSourceType.HISTOGRAM),
+            HistogramRateAggregator::new,
             true
         );
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new RateAggregator(name, config, rateUnit, searchContext, parent, metadata) {
+        return new AbstractRateAggregator(name, config, rateUnit, rateMode, searchContext, parent, metadata) {
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
@@ -67,8 +78,8 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
+        return context.getValuesSourceRegistry()
             .getAggregator(RateAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, rateUnit, searchContext, parent, metadata);
+            .build(name, config, rateUnit, rateMode, searchContext, parent, metadata);
     }
 }

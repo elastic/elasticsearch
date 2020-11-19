@@ -123,6 +123,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
             // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
             .setAbortOnVersionConflict(false)
+            .setTimeout(DEFAULT_MAX_DURATION)
             .setRequestsPerSecond(requestsPerSec);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));

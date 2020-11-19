@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.List;
 import java.util.Set;
@@ -120,7 +121,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             // if we don't yet know the actual path of the incoming shard then conservatively assume it's going to the path with the least
             // free space
             if (actualPath == null || actualPath.equals(dataPath)) {
-                totalSize += getExpectedShardSize(routing, 0L, clusterInfo, metadata, routingTable);
+                totalSize += getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
             }
         }
 
@@ -132,7 +133,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     actualPath = clusterInfo.getDataPath(routing.cancelRelocation());
                 }
                 if (dataPath.equals(actualPath)) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, metadata, routingTable);
+                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
                 }
             }
         }
@@ -140,11 +141,12 @@ public class DiskThresholdDecider extends AllocationDecider {
         return totalSize;
     }
 
+    private static final Decision YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS = Decision.single(Decision.Type.YES, NAME, "the node " +
+            "is above the low watermark, but less than the high watermark, and this primary shard has never been allocated before");
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        ClusterInfo clusterInfo = allocation.clusterInfo();
-        ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+        ImmutableOpenMap<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
@@ -153,7 +155,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         final double usedDiskThresholdLow = 100.0 - diskThresholdSettings.getFreeDiskThresholdLow();
         final double usedDiskThresholdHigh = 100.0 - diskThresholdSettings.getFreeDiskThresholdHigh();
 
-        // subtractLeavingShards is passed as false here, because they still use disk space, and therefore should we should be extra careful
+        // subtractLeavingShards is passed as false here, because they still use disk space, and therefore we should be extra careful
         // and take the size into account
         final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
         // First, check that the node currently over the low watermark
@@ -205,9 +207,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                                     "but allowing allocation because primary has never been allocated",
                             diskThresholdSettings.getFreeBytesThresholdLow(), freeBytesValue, node.nodeId());
                 }
-                return allocation.decision(Decision.YES, NAME,
-                        "the node is above the low watermark, but less than the high watermark, and this primary shard has " +
-                        "never been allocated before");
+                return YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS;
             } else {
                 // Even though the primary has never been allocated, the node is
                 // above the high watermark, so don't allow allocating the shard
@@ -248,9 +248,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                             Strings.format1Decimals(usedDiskThresholdLow, "%"),
                             Strings.format1Decimals(usedDiskPercentage, "%"), node.nodeId());
                 }
-                return allocation.decision(Decision.YES, NAME,
-                    "the node is above the low watermark, but less than the high watermark, and this primary shard has " +
-                    "never been allocated before");
+                return YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS;
             } else {
                 // Even though the primary has never been allocated, the node is
                 // above the high watermark, so don't allow allocating the shard
@@ -270,7 +268,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
         final long shardSize = getExpectedShardSize(shardRouting, 0L,
-            allocation.clusterInfo(), allocation.metadata(), allocation.routingTable());
+            allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
         assert shardSize >= 0 : shardSize;
         double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
@@ -306,6 +304,9 @@ public class DiskThresholdDecider extends AllocationDecider {
                 new ByteSizeValue(freeBytesAfterShard));
     }
 
+    private static final Decision YES_NOT_MOST_UTILIZED_DISK = Decision.single(Decision.Type.YES, NAME,
+            "this shard is not allocated on the most utilized disk and can remain");
+
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.currentNodeId().equals(node.nodeId()) == false) {
@@ -329,8 +330,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             logger.trace("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
         }
         if (dataPath == null || usage.getPath().equals(dataPath) == false) {
-            return allocation.decision(Decision.YES, NAME,
-                    "this shard is not allocated on the most utilized disk and can remain");
+            return YES_NOT_MOST_UTILIZED_DISK;
         }
         if (freeBytes < 0L) {
             final long sizeOfRelocatingShards = sizeOfRelocatingShards(node, true, usage.getPath(),
@@ -424,35 +424,29 @@ public class DiskThresholdDecider extends AllocationDecider {
         return newUsage.getFreeDiskAsPercentage();
     }
 
+    private static final Decision YES_DISABLED = Decision.single(Decision.Type.YES, NAME, "the disk threshold decider is disabled");
+
+    private static final Decision YES_SINGLE_DATA_NODE =
+            Decision.single(Decision.Type.YES, NAME, "there is only a single data node present");
+
+    private static final Decision YES_USAGES_UNAVAILABLE = Decision.single(Decision.Type.YES, NAME, "disk usages are unavailable");
+
     private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
-            return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");
+            return YES_DISABLED;
         }
 
         // Allow allocation regardless if only a single data node is available
         if (enableForSingleDataNode == false && allocation.nodes().getDataNodes().size() <= 1) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("only a single data node is present, allowing allocation");
-            }
-            return allocation.decision(Decision.YES, NAME, "there is only a single data node present");
-        }
-
-        // Fail open there is no info available
-        final ClusterInfo clusterInfo = allocation.clusterInfo();
-        if (clusterInfo == null) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("cluster info unavailable for disk threshold decider, allowing allocation.");
-            }
-            return allocation.decision(Decision.YES, NAME, "the cluster info is unavailable");
+            logger.trace("only a single data node is present, allowing allocation");
+            return YES_SINGLE_DATA_NODE;
         }
 
         // Fail open if there are no disk usages available
         if (usages.isEmpty()) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("unable to determine disk usages for disk-aware allocation, allowing allocation");
-            }
-            return allocation.decision(Decision.YES, NAME, "disk usages are unavailable");
+            logger.trace("unable to determine disk usages for disk-aware allocation, allowing allocation");
+            return YES_USAGES_UNAVAILABLE;
         }
         return null;
     }
@@ -461,8 +455,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      * Returns the expected shard size for the given shard or the default value provided if not enough information are available
      * to estimate the shards size.
      */
-    public static long getExpectedShardSize(ShardRouting shard, long defaultValue, ClusterInfo clusterInfo, Metadata metadata,
-                                            RoutingTable routingTable) {
+    public static long getExpectedShardSize(ShardRouting shard, long defaultValue, ClusterInfo clusterInfo,
+                                            SnapshotShardSizeInfo snapshotShardSizeInfo,
+                                            Metadata metadata, RoutingTable routingTable) {
         final IndexMetadata indexMetadata = metadata.getIndexSafe(shard.index());
         if (indexMetadata.getResizeSourceIndex() != null && shard.active() == false &&
             shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
@@ -482,6 +477,9 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
             return targetShardSize == 0 ? defaultValue : targetShardSize;
         } else {
+            if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+                return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
+            }
             return clusterInfo.getShardSize(shard, defaultValue);
         }
     }

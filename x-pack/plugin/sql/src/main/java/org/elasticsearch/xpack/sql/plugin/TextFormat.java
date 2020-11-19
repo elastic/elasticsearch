@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -25,7 +24,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
@@ -84,7 +85,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String queryParameter() {
             return FORMAT_TEXT;
         }
 
@@ -104,10 +105,13 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String subtype() {
-            return "plain";
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_TXT,
+                    Map.of("header", "present|absent")),
+                new HeaderValue(VENDOR_CONTENT_TYPE_TXT,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
-
 
     },
 
@@ -133,7 +137,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String queryParameter() {
             return FORMAT_CSV;
         }
 
@@ -225,10 +229,15 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String subtype() {
-            return "csv";
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_CSV,
+                    Map.of("header", "present|absent","delimiter", ".+")),// more detailed parsing is in TextFormat.CSV#delimiter
+                new HeaderValue(VENDOR_CONTENT_TYPE_CSV,
+                    Map.of("header", "present|absent","delimiter", ".+", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
+
 
     TSV() {
         @Override
@@ -243,7 +252,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String queryParameter() {
             return FORMAT_TSV;
         }
 
@@ -279,8 +288,11 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String subtype() {
-            return "tab-separated-values";
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_TSV, Map.of("header", "present|absent")),
+                new HeaderValue(VENDOR_CONTENT_TYPE_TSV,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     };
 
@@ -288,13 +300,14 @@ enum TextFormat implements MediaType {
     private static final String FORMAT_CSV = "csv";
     private static final String FORMAT_TSV = "tsv";
     private static final String CONTENT_TYPE_TXT = "text/plain";
+    private static final String VENDOR_CONTENT_TYPE_TXT = "text/vnd.elasticsearch+plain";
     private static final String CONTENT_TYPE_CSV = "text/csv";
+    private static final String VENDOR_CONTENT_TYPE_CSV = "text/vnd.elasticsearch+csv";
     private static final String CONTENT_TYPE_TSV = "text/tab-separated-values";
+    private static final String VENDOR_CONTENT_TYPE_TSV = "text/vnd.elasticsearch+tab-separated-values";
     private static final String URL_PARAM_HEADER = "header";
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
-
-    private static final MediaTypeParser<TextFormat> parser = new MediaTypeParser<>(TextFormat.values());
 
     String format(RestRequest request, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
@@ -314,18 +327,6 @@ enum TextFormat implements MediaType {
 
     boolean hasHeader(RestRequest request) {
         return true;
-    }
-
-    static TextFormat fromMediaTypeOrFormat(String accept) {
-        TextFormat textFormat = parser.fromFormat(accept);
-        if (textFormat != null) {
-            return textFormat;
-        }
-        textFormat = parser.fromMediaType(accept);
-        if (textFormat != null) {
-            return textFormat;
-        }
-        throw new IllegalArgumentException("invalid format [" + accept + "]");
     }
 
     /**
@@ -372,16 +373,5 @@ enum TextFormat implements MediaType {
      */
     String maybeEscape(String value, Character delimiter) {
         return value;
-    }
-
-
-    @Override
-    public String type() {
-        return "text";
-    }
-
-    @Override
-    public String typeWithSubtype() {
-        return contentType();
     }
 }

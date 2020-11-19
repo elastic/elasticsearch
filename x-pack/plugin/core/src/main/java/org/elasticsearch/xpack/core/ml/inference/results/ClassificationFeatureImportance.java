@@ -10,8 +10,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -118,7 +120,16 @@ public class ClassificationFeatureImportance extends AbstractFeatureImportance {
             );
 
         static {
-            PARSER.declareString(constructorArg(), new ParseField(CLASS_NAME));
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return p.text();
+                } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                    return p.numberValue();
+                } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                    return p.booleanValue();
+                }
+                throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
+            }, new ParseField(CLASS_NAME), ObjectParser.ValueType.VALUE);
             PARSER.declareDouble(constructorArg(), new ParseField(IMPORTANCE));
         }
 

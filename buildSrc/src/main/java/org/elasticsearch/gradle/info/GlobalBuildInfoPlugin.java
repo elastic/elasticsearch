@@ -391,6 +391,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                             .orElseThrow(() -> new IOException("Packed reference not found for refName " + refName));
                     }
                 } else {
+                    File refsDir = gitDir.resolve("refs").toFile();
+                    if (refsDir.exists()) {
+                        String foundRefs = Arrays.stream(refsDir.listFiles()).map(f -> f.getName()).collect(Collectors.joining("\n"));
+                        Logging.getLogger(GlobalBuildInfoPlugin.class).error("Found git refs\n" + foundRefs);
+                    } else {
+                        Logging.getLogger(GlobalBuildInfoPlugin.class).error("No git refs dir found");
+                    }
                     throw new GradleException("Can't find revision for refName " + refName);
                 }
             } else {
@@ -443,7 +450,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return firstLine;
     }
 
-    private static class GitInfo {
+    public static class GitInfo {
         private final String revision;
         private final String origin;
 

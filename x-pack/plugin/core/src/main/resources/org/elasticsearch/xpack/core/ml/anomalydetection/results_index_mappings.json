@@ -333,6 +333,9 @@
       "missing_field_count" : {
         "type" : "long"
       },
+      "mlcategory": {
+        "type": "keyword"
+      },
       "model_bytes" : {
         "type" : "long"
       },

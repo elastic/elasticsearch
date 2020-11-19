@@ -24,8 +24,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,6 +50,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
@@ -81,12 +86,14 @@ public class SearchTransportService {
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
 
     private final TransportService transportService;
+    private final NodeClient client;
     private final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public SearchTransportService(TransportService transportService,
+    public SearchTransportService(TransportService transportService, NodeClient client,
                                   BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper) {
         this.transportService = transportService;
+        this.client = client;
         this.responseWrapper = responseWrapper;
     }
 
@@ -422,5 +429,13 @@ public class SearchTransportService {
             // can be skipped when assertions are not enabled
             return true;
         }
+    }
+
+    public void cancelSearchTask(SearchTask task, String reason) {
+        CancelTasksRequest req = new CancelTasksRequest()
+            .setTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
+            .setReason("Fatal failure during search: " + reason);
+        // force the origin to execute the cancellation as a system user
+        new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }
 }

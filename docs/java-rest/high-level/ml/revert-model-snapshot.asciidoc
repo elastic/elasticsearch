@@ -6,14 +6,14 @@
 [role="xpack"]
 
 [id="{upid}-{api}"]
-=== Revert model snapshot API
+=== Revert model snapshots API
 
-The revert model snapshot API provides the ability to revert to a previous {ml} model snapshot.
+Reverts to a previous {ml} model snapshot.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Revert model snapshot request
+==== Revert model snapshots request
 
 A +{request}+ requires the following arguments:
 

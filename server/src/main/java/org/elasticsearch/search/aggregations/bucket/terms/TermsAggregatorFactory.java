@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -37,6 +36,7 @@ import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator.ResultStrategy;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -181,11 +181,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                            SubAggCollectionMode collectMode,
                            TermsAggregator.BucketCountThresholds bucketCountThresholds,
                            boolean showTermDocCountError,
-                           QueryShardContext queryShardContext,
+                           AggregationContext context,
                            AggregatorFactory parent,
                            AggregatorFactories.Builder subFactoriesBuilder,
                            Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
@@ -229,7 +229,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        TermsAggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+        TermsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry()
             .getAggregator(TermsAggregationBuilder.REGISTRY_KEY, config);
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false

@@ -95,17 +95,13 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
-    private List<String> dataStreamNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        String[] requestIndices = request.indices();
-        if (requestIndices == null || requestIndices.length == 0) {
-            requestIndices = new String[] { "*" };
-        }
-        return indexNameExpressionResolver.dataStreamNames(clusterState, request.indicesOptions(), requestIndices);
-    }
-
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
-        List<String> abstractionNames = dataStreamNames(clusterState, request);
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
+        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
+            clusterState,
+            request.indicesOptions(),
+            request.indices()
+        );
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
         String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
@@ -119,7 +115,12 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                 return Stream.empty();
             }
         }).toArray(String[]::new);
-        return clusterState.getRoutingTable().allShards(concreteDatastreamIndices);
+        return concreteDatastreamIndices;
+    }
+
+    @Override
+    protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
+        return clusterState.getRoutingTable().allShards(concreteIndices);
     }
 
     @Override
@@ -171,7 +172,11 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         // Collect the number of backing indices from the cluster state. If every shard operation for an index fails,
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used
         // shard results to calculate.
-        List<String> abstractionNames = dataStreamNames(clusterState, request);
+        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
+            clusterState,
+            request.indicesOptions(),
+            request.indices()
+        );
         for (String abstractionName : abstractionNames) {
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
             assert indexAbstraction != null;

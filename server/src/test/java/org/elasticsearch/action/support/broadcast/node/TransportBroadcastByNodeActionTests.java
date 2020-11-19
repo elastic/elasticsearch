@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -177,6 +178,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     class MyResolver extends IndexNameExpressionResolver {
+        MyResolver() {
+            super(new ThreadContext(Settings.EMPTY));
+        }
+
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();

@@ -80,8 +80,8 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 new UnresolvedAttribute(synthetic("<tiebreaker>"), params.fieldTiebreaker()) : UNSPECIFIED_FIELD;
     }
 
-    private OrderDirection defaultDirection() {
-        return OrderDirection.ASC;
+    private OrderDirection resultPosition() {
+        return params.resultPosition();
     }
 
     @Override
@@ -94,16 +94,16 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         // the first pipe will be the implicit order
         // declared here for resolving any possible tie-breakers
-        boolean asc = defaultDirection() == OrderDirection.ASC;
+        boolean asc = resultPosition() == OrderDirection.ASC;
         NullsPosition position = asc ? NullsPosition.FIRST : NullsPosition.LAST;
 
         List<Order> orders = new ArrayList<>(2);
         Source defaultOrderSource = synthetic("<default-order>");
-        orders.add(new Order(defaultOrderSource, fieldTimestamp(), defaultDirection(), position));
+        orders.add(new Order(defaultOrderSource, fieldTimestamp(), resultPosition(), position));
         // make sure to add the tiebreaker as well
         Attribute tiebreaker = fieldTiebreaker();
         if (Expressions.isPresent(tiebreaker)) {
-            orders.add(new Order(defaultOrderSource, tiebreaker, defaultDirection(), position));
+            orders.add(new Order(defaultOrderSource, tiebreaker, resultPosition(), position));
         }
         plan = new OrderBy(defaultOrderSource, plan, orders);
 
@@ -152,7 +152,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (ctx.event != null) {
             Source eventSource = source(ctx.event);
-            String eventName = visitIdentifier(ctx.event);
+            String eventName = ctx.event.getText();
+            if (eventName.startsWith("\"") || eventName.startsWith("'") || eventName.startsWith("?")) {
+                eventName = unquoteString(source(ctx.event));
+            }
             Literal eventValue = new Literal(eventSource, eventName, DataTypes.KEYWORD);
 
             UnresolvedAttribute eventField = new UnresolvedAttribute(eventSource, params.fieldEventCategory());
@@ -199,7 +202,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
-        return new Join(source, queries, until, fieldTimestamp(), fieldTiebreaker(), defaultDirection());
+        return new Join(source, queries, until, fieldTimestamp(), fieldTiebreaker(), resultPosition());
     }
 
     private KeyedFilter defaultUntil(Source source) {
@@ -257,14 +260,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
-        return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), defaultDirection());
+        return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), resultPosition());
     }
 
     public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
-        if (ctx.FORK() != null) {
-            throw new ParsingException(source(ctx.FORK()), "sequence fork is unsupported");
-        }
-
         return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
     }
 
@@ -278,18 +277,18 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (numberCtx instanceof IntegerLiteralContext) {
             Number number = (Number) visitIntegerLiteral((IntegerLiteralContext) numberCtx).fold();
             long value = number.longValue();
-            
+
             if (value <= 0) {
                 throw new ParsingException(source(numberCtx), "A positive maxspan value is required; found [{}]", value);
             }
-            
+
             String timeString = text(ctx.timeUnit().IDENTIFIER());
-            
+
             if (timeString == null) {
                 throw new ParsingException(source(ctx.timeUnit()), "No time unit specified, did you mean [s] as in [{}s]?", text(ctx
                         .timeUnit()));
             }
-            
+
             TimeUnit timeUnit = null;
             switch (timeString) {
                 case "ms":
@@ -326,7 +325,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (SUPPORTED_PIPES.contains(name) == false) {
             List<String> potentialMatches = StringUtils.findSimilar(name, SUPPORTED_PIPES);
-            
+
             String msg = "Unrecognized pipe [{}]";
             if (potentialMatches.isEmpty() == false) {
                 String matchString = potentialMatches.toString();

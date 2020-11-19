@@ -61,6 +61,7 @@ import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.NettyByteBufSizer;
 import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
@@ -283,6 +284,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
+        private final NettyByteBufSizer byteBufSizer;
         private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
         private final Netty4HttpResponseCreator responseCreator;
@@ -291,6 +293,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
+            this.byteBufSizer =  new NettyByteBufSizer();
             this.requestCreator =  new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
             this.responseCreator = new Netty4HttpResponseCreator();
@@ -300,6 +303,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         protected void initChannel(Channel ch) throws Exception {
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
+            ch.pipeline().addLast("byte_buf_sizer", byteBufSizer);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 handlingSettings.getMaxInitialLineLength(),

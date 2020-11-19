@@ -144,20 +144,35 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     // workaround for https://github.com/elastic/elasticsearch/issues/62204
     protected StartTransformResponse startTransformWithRetryOnConflict(String id, RequestOptions options) throws Exception {
+        final int totalRetries = 10;
+        long totalSleepTime = 0;
         ElasticsearchStatusException lastConflict = null;
-        for (int retries = 10; retries > 0; --retries) {
+        for (int retries = totalRetries; retries > 0; --retries) {
             try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
                 return restClient.transform().startTransform(new StartTransformRequest(id), options);
             } catch (ElasticsearchStatusException e) {
+                logger.warn(
+                    "Failed to start transform [{}], remaining retries [{}], error: [{}], status: [{}]",
+                    id,
+                    retries,
+                    e.getDetailedMessage(),
+                    e.status()
+                );
+
                 if (RestStatus.CONFLICT.equals(e.status()) == false) {
                     throw e;
                 }
 
                 lastConflict = e;
-                Thread.sleep(5);
+
+                // wait between some ms max 5s, between a check,
+                // with 10 retries the total retry should not be longer than 10s
+                final long sleepTime = 5 * Math.round((Math.min(Math.pow(2, 1 + totalRetries - retries), 1000)));
+                totalSleepTime += sleepTime;
+                Thread.sleep(sleepTime);
             }
         }
-        throw lastConflict;
+        throw new AssertionError("startTransformWithRetryOnConflict timed out after " + totalSleepTime + "ms", lastConflict);
     }
 
     protected AcknowledgedResponse deleteTransform(String id) throws IOException {

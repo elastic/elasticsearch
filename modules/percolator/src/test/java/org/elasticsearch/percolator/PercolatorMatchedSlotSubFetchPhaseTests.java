@@ -43,7 +43,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.stream.IntStream;
 
 import static org.mockito.Mockito.mock;
@@ -65,7 +64,11 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 // A match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, new SourceLookup(), new HashMap<>());
+                    HitContext hit = new HitContext(
+                        new SearchHit(0),
+                        context,
+                        0,
+                        new SourceLookup());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -86,7 +89,11 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, new SourceLookup(), new HashMap<>());
+                    HitContext hit = new HitContext(
+                        new SearchHit(0),
+                        context,
+                        0,
+                        new SourceLookup());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
@@ -106,7 +113,11 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No query:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0, new SourceLookup(), new HashMap<>());
+                    HitContext hit = new HitContext(
+                        new SearchHit(0),
+                        context,
+                        0,
+                        new SourceLookup());
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());

@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,7 +32,7 @@ import java.util.function.Function;
 /**
  * A mapper for a builtin field containing metadata about a document.
  */
-public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
+public abstract class MetadataFieldMapper extends FieldMapper {
 
     public interface TypeParser extends Mapper.TypeParser {
 
@@ -113,7 +113,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public abstract static class Builder extends ParametrizedFieldMapper.Builder {
+    public abstract static class Builder extends FieldMapper.Builder {
 
         protected Builder(String name) {
             super(name);
@@ -129,15 +129,23 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public abstract MetadataFieldMapper build(BuilderContext context);
+        public final MetadataFieldMapper build(ContentPath path) {
+            return build();
+        }
+
+        public abstract MetadataFieldMapper build();
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
         super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
+    protected MetadataFieldMapper(MappedFieldType mappedFieldType, NamedAnalyzer indexAnalyzer) {
+        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, MultiFields.empty(), CopyTo.empty());
+    }
+
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return null;    // by default, things can't be configured so we have no builder
     }
 
@@ -173,8 +181,4 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         // do nothing
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
-        throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
-    }
 }

@@ -50,7 +50,7 @@ public class BytesRestResponse extends RestResponse {
 
     private final RestStatus status;
     private final BytesReference content;
-    private final String contentType;
+    private final String responseMediaType;
 
     /**
      * Creates a new response based on {@link XContentBuilder}.
@@ -69,24 +69,24 @@ public class BytesRestResponse extends RestResponse {
     /**
      * Creates a new plain text response.
      */
-    public BytesRestResponse(RestStatus status, String contentType, String content) {
-        this(status, contentType, new BytesArray(content));
+    public BytesRestResponse(RestStatus status, String responseMediaType, String content) {
+        this(status, responseMediaType, new BytesArray(content));
     }
 
     /**
      * Creates a binary response.
      */
-    public BytesRestResponse(RestStatus status, String contentType, byte[] content) {
-        this(status, contentType, new BytesArray(content));
+    public BytesRestResponse(RestStatus status, String responseMediaType, byte[] content) {
+        this(status, responseMediaType, new BytesArray(content));
     }
 
     /**
      * Creates a binary response.
      */
-    public BytesRestResponse(RestStatus status, String contentType, BytesReference content) {
+    public BytesRestResponse(RestStatus status, String responseMediaType, BytesReference content) {
         this.status = status;
         this.content = content;
-        this.contentType = contentType;
+        this.responseMediaType = responseMediaType;
     }
 
     public BytesRestResponse(RestChannel channel, Exception e) throws IOException {
@@ -109,7 +109,7 @@ public class BytesRestResponse extends RestResponse {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
-            this.contentType = builder.contentType().mediaType();
+            this.responseMediaType = builder.contentType().mediaType();
         }
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));
@@ -118,7 +118,7 @@ public class BytesRestResponse extends RestResponse {
 
     @Override
     public String contentType() {
-        return this.contentType;
+        return this.responseMediaType;
     }
 
     @Override

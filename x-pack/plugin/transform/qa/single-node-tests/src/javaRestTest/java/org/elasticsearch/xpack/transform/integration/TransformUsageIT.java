@@ -62,6 +62,9 @@ public class TransformUsageIT extends TransformRestTestCase {
                 + ":"
                 + TransformStoredDoc.NAME
         );
+        statsExistsRequest.setOptions(expectWarnings("this request accesses system indices: [" +
+            TransformInternalIndexConstants.LATEST_INDEX_NAME + "], but in a future major version, direct access to system indices will " +
+            "be prevented by default"));
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
@@ -120,7 +123,7 @@ public class TransformUsageIT extends TransformRestTestCase {
                 }
             }
             // Refresh the index so that statistics are searchable
-            refreshIndex(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+            refreshAllIndices();
         }, 60, TimeUnit.SECONDS);
 
         stopTransform("test_usage_continuous", false);

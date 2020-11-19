@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -36,10 +35,10 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     protected final DocValueFormat format;
 
     public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
-                                              DocValueFormat format, QueryShardContext queryShardContext,
+                                              DocValueFormat format, AggregationContext context,
                                               AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, context, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
         this.format = format;
     }

@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -50,7 +49,6 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.function.Predicate;
 
 /**
@@ -66,29 +64,31 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected final ClusterService clusterService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private final String executor;
+    private final Writeable.Reader<Response> responseReader;
+
+    protected final String executor;
 
     protected TransportMasterNodeAction(String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
-        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+                                        Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver,
+                                        Writeable.Reader<Response> response, String executor) {
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver,
+                response, executor);
     }
 
     protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+                                        IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Response> response,
+                                        String executor) {
         super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = executor();
+        this.executor = executor;
+        this.responseReader = response;
     }
-
-    protected abstract String executor();
-
-    protected abstract Response read(StreamInput in) throws IOException;
 
     protected abstract void masterOperation(Task task, Request request, ClusterState state,
                                             ActionListener<Response> listener) throws Exception;
@@ -169,7 +169,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
                         transportService.sendRequest(masterNode, actionName, request,
-                            new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
+                            new ActionListenerResponseHandler<Response>(listener, responseReader) {
                                 @Override
                                 public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();

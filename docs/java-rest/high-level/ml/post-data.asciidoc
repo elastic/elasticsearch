@@ -7,8 +7,7 @@
 [id="{upid}-{api}"]
 === Post data API
 
-The post data API provides the ability to post data to an open
- {ml} job in the cluster.
+Posts data to an open {ml} job in the cluster.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 

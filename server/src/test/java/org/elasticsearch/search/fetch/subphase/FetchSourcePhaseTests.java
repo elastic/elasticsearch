@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -159,7 +158,11 @@ public class FetchSourcePhaseTests extends ESTestCase {
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
-        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, new SourceLookup(), new HashMap<>());
+        HitContext hitContext = new HitContext(
+            searchHit,
+            leafReaderContext,
+            1,
+            new SourceLookup());
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();

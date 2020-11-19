@@ -133,7 +133,7 @@ public final class FieldAliasMapper extends Mapper {
         }
     }
 
-    public static class Builder extends Mapper.Builder<FieldAliasMapper.Builder> {
+    public static class Builder extends Mapper.Builder {
         private String name;
         private String path;
 
@@ -151,8 +151,8 @@ public final class FieldAliasMapper extends Mapper {
             return this;
         }
 
-        public FieldAliasMapper build(BuilderContext context) {
-            String fullName = context.path().pathAsText(name);
+        public FieldAliasMapper build(ContentPath contentPath) {
+            String fullName = contentPath.pathAsText(name);
             return new FieldAliasMapper(name, fullName, path);
         }
     }

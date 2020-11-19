@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.ExceptionsHelper;
@@ -95,7 +94,12 @@ public class SequenceSpecTests extends ESTestCase {
 
         TestCriterion(final int ordinal) {
             super(ordinal,
-                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()).size(ordinal), "timestamp", null),
+                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource()
+                      // set a non-negative size
+                      .size(10)
+                      .query(matchAllQuery())
+                      // pass the ordinal through terminate after
+                      .terminateAfter(ordinal), "timestamp"),
                   keyExtractors,
                   tsExtractor, tbExtractor, false);
             this.ordinal = ordinal;
@@ -166,9 +170,9 @@ public class SequenceSpecTests extends ESTestCase {
 
         @Override
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
-            int ordinal = r.searchSource().size();
+            int ordinal = r.searchSource().terminateAfter();
             if (ordinal != Integer.MAX_VALUE) {
-                r.searchSource().size(Integer.MAX_VALUE);
+                r.searchSource().terminateAfter(Integer.MAX_VALUE);
             }
             Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
 

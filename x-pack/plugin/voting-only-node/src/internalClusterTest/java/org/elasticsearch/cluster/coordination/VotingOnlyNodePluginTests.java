@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
@@ -197,9 +198,10 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                               ClusterService clusterService, BigArrays bigArrays,
+                                                               RecoverySettings recoverySettings) {
             return Collections.singletonMap("verifyaccess-fs", (metadata) ->
-                new AccessVerifyingRepo(metadata, env, namedXContentRegistry, clusterService, recoverySettings));
+                new AccessVerifyingRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
         }
 
         private static class AccessVerifyingRepo extends FsRepository {
@@ -207,8 +209,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             private final ClusterService clusterService;
 
             private AccessVerifyingRepo(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
-                                       ClusterService clusterService, RecoverySettings recoverySettings) {
-                super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
+                                       ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
+                super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
                 this.clusterService = clusterService;
             }
 

@@ -22,19 +22,15 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -74,8 +70,13 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field(getFromField(), getFrom("long_range")).field(getToField(), getTo("long_range")).endObject();
+    protected Object getSampleValueForDocument() {
+        return Map.of(getFromField(), getFrom("long_range"), getToField(), getTo("long_range"));
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return 6;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -353,37 +354,5 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             () -> createMapperService(fieldMapping(b -> b.field("type", "date_range").array("format", "test_format")))
         );
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(context);
-        Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
-
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
-            .format("yyyy/MM/dd||epoch_millis")
-            .build(context);
-        Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
-        assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
-            fetchSourceValue(dateMapper, dateRange));
-    }
-
-    public void testParseSourceValueWithFormat() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(context);
-        Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
-
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
-            .format("strict_date_time")
-            .build(context);
-        Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
-        assertEquals(List.of(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
-        assertEquals(List.of(Map.of("lt", "662428800000")), fetchSourceValue(dateMapper, dateRange,"epoch_millis"));
     }
 }

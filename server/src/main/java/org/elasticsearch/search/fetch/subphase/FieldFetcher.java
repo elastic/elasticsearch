@@ -21,12 +21,9 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.FieldAliasMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -43,31 +40,23 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldFetcher {
-    public static FieldFetcher create(MapperService mapperService,
+    public static FieldFetcher create(QueryShardContext context,
                                       SearchLookup searchLookup,
                                       Collection<FieldAndFormat> fieldAndFormats) {
-        MappingLookup fieldMappers = mapperService.documentMapper().mappers();
+
         List<FieldContext> fieldContexts = new ArrayList<>();
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
             String format = fieldAndFormat.format;
 
-            Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
+            Collection<String> concreteFields = context.simpleMatchToIndexNames(fieldPattern);
             for (String field : concreteFields) {
-                Mapper mapper = fieldMappers.getMapper(field);
-                if (mapper == null || mapperService.isMetadataField(field)) {
+                MappedFieldType ft = context.getFieldType(field);
+                if (ft == null || context.isMetadataField(field)) {
                     continue;
                 }
-
-                if (mapper instanceof FieldAliasMapper) {
-                    String target = ((FieldAliasMapper) mapper).path();
-                    mapper = fieldMappers.getMapper(target);
-                    assert mapper instanceof FieldMapper;
-                }
-
-                FieldMapper fieldMapper = (FieldMapper) mapper;
-                ValueFetcher valueFetcher = fieldMapper.valueFetcher(mapperService, searchLookup, format);
+                ValueFetcher valueFetcher = ft.valueFetcher(context, searchLookup, format);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }

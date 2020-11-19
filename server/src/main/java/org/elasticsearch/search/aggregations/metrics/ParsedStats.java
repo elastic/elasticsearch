@@ -26,10 +26,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalStats.Fields;
+import org.elasticsearch.search.aggregations.metrics.InternalStats.Metrics;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.search.aggregations.metrics.InternalStats.metricNames;
 
 public class ParsedStats extends ParsedAggregation implements Stats {
 
@@ -84,6 +87,25 @@ public class ParsedStats extends ParsedAggregation implements Stats {
     @Override
     public String getSumAsString() {
         return valueAsString.getOrDefault(Fields.SUM_AS_STRING, Double.toString(sum));
+    }
+
+    @Override
+    public double value(String name) {
+        Metrics metrics = Metrics.valueOf(name);
+        switch (metrics) {
+            case min: return min;
+            case max: return max;
+            case avg: return avg;
+            case count: return count;
+            case sum: return sum;
+            default:
+                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+        }
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return metricNames;
     }
 
     @Override

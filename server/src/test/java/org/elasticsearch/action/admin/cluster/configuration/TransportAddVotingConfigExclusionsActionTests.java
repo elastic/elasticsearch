@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,11 +42,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +54,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -131,7 +131,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         new TransportAddVotingConfigExclusionsAction(nodeSettings, clusterSettings, transportService, clusterService, threadPool,
-            new ActionFilters(emptySet()), new IndexNameExpressionResolver()); // registers action
+            new ActionFilters(emptySet()), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))); // registers action
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -413,24 +413,24 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         assertThat(rootCause.getMessage(), startsWith("timed out waiting for voting config exclusions [{other1}"));
     }
 
-    private TransportResponseHandler<AddVotingConfigExclusionsResponse> expectSuccess(
-        Consumer<AddVotingConfigExclusionsResponse> onResponse) {
+    private TransportResponseHandler<ActionResponse.Empty> expectSuccess(
+        Consumer<ActionResponse.Empty> onResponse) {
         return responseHandler(onResponse, e -> {
             throw new AssertionError("unexpected", e);
         });
     }
 
-    private TransportResponseHandler<AddVotingConfigExclusionsResponse> expectError(Consumer<TransportException> onException) {
+    private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {
         return responseHandler(r -> {
             assert false : r;
         }, onException);
     }
 
-    private TransportResponseHandler<AddVotingConfigExclusionsResponse> responseHandler(
-        Consumer<AddVotingConfigExclusionsResponse> onResponse, Consumer<TransportException> onException) {
-        return new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
+    private TransportResponseHandler<ActionResponse.Empty> responseHandler(
+        Consumer<ActionResponse.Empty> onResponse, Consumer<TransportException> onException) {
+        return new TransportResponseHandler<>() {
             @Override
-            public void handleResponse(AddVotingConfigExclusionsResponse response) {
+            public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
             }
 
@@ -440,13 +440,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             }
 
             @Override
-            public String executor() {
-                return Names.SAME;
-            }
-
-            @Override
-            public AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-                return new AddVotingConfigExclusionsResponse(in);
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
             }
         };
     }

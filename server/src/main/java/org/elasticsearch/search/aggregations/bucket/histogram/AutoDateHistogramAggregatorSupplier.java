@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -29,7 +28,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.Function;
 
 @FunctionalInterface
 public interface AutoDateHistogramAggregatorSupplier {
@@ -39,7 +37,6 @@ public interface AutoDateHistogramAggregatorSupplier {
         int numBuckets,
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundingInfos,
         @Nullable
-        Function<Rounding, Rounding.Prepared> roundingPreparer,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,

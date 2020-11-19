@@ -56,6 +56,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThan;
@@ -124,7 +125,10 @@ public class TransformContinuousIT extends ESRestTestCase {
     @Before
     public void registerTestCases() {
         addTestCaseIfNotDisabled(new TermsGroupByIT());
+        addTestCaseIfNotDisabled(new TermsOnDateGroupByIT());
         addTestCaseIfNotDisabled(new DateHistogramGroupByIT());
+        addTestCaseIfNotDisabled(new DateHistogramGroupByOtherTimeFieldIT());
+        addTestCaseIfNotDisabled(new HistogramGroupByIT());
     }
 
     @Before
@@ -174,18 +178,31 @@ public class TransformContinuousIT extends ESRestTestCase {
             }
         }
 
+        // generate date id's to group on
+        List<String> dates = new ArrayList<>();
+        dates.add(null);
+        for (int i = 0; i < 100; i++) {
+            dates.add(
+                // create a random date between 1/1/2001 and 1/1/2006
+                ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(Instant.ofEpochMilli(randomLongBetween(978307200000L, 1136073600000L)))
+            );
+        }
+
         putIndex(sourceIndexName, dateType, isDataStream);
         // create all transforms to test
         createTransforms();
 
         for (int run = 0; run < runs; run++) {
             Instant runDate = Instant.now();
+
             createOrUpdatePipeline(ContinuousTestCase.INGEST_RUN_FIELD, run);
 
             // shuffle the list to draw randomly from the first x entries (that way we do not update all entities in 1 run)
             Collections.shuffle(events, random());
             Collections.shuffle(metric_bucket, random());
             Collections.shuffle(locations, random());
+            Collections.shuffle(dates, random());
 
             final StringBuilder source = new StringBuilder();
             BulkRequest bulkRequest = new BulkRequest(sourceIndexName);
@@ -193,6 +210,7 @@ public class TransformContinuousIT extends ESRestTestCase {
             int numDocs = randomIntBetween(1000, 20000);
             for (int numDoc = 0; numDoc < numDocs; numDoc++) {
                 source.append("{");
+
                 String event = events.get((numDoc + randomIntBetween(0, 50)) % 50);
                 if (event != null) {
                     source.append("\"event\":\"").append(event).append("\",");
@@ -214,12 +232,22 @@ public class TransformContinuousIT extends ESRestTestCase {
                     source.append("\"location\":\"").append(randomizedLat + "," + randomizedLon).append("\",");
                 }
 
-                String date_string = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                String date = dates.get((numDoc + randomIntBetween(0, 50)) % 50);
+                if (date != null) {
+                    source.append("\"some-timestamp\":\"").append(date).append("\",");
+                }
+
+                // simulate a different timestamp that is off from the timestamp used for sync, so it can fall into the previous bucket
+                String metricDateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(runDate.minusSeconds(randomIntBetween(0, 2)).plusNanos(randomIntBetween(0, 999999)));
+                source.append("\"metric-timestamp\":\"").append(metricDateString).append("\",");
+
+                String dateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
                     .format(runDate.plusNanos(randomIntBetween(0, 999999)));
 
-                source.append("\"timestamp\":\"").append(date_string).append("\",");
+                source.append("\"timestamp\":\"").append(dateString).append("\",");
                 // for data streams
-                source.append("\"@timestamp\":\"").append(date_string).append("\",");
+                source.append("\"@timestamp\":\"").append(dateString).append("\",");
                 source.append("\"run\":").append(run);
                 source.append("}");
 
@@ -237,7 +265,10 @@ public class TransformContinuousIT extends ESRestTestCase {
 
             // start all transforms, wait until the processed all data and stop them
             startTransforms();
-            waitUntilTransformsReachedUpperBound(runDate.getEpochSecond() * 1000 + 1);
+
+            // at random we added between 0 and 999_999ns == (1ms - 1ns) to every data point, so we add 1ms, so every data point is before
+            // the checkpoint
+            waitUntilTransformsReachedUpperBound(runDate.toEpochMilli() + 1, run);
             stopTransforms();
 
             // TODO: the transform dest index requires a refresh, see gh#51154
@@ -307,13 +338,19 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .field("type", "keyword")
                     .endObject()
                     .startObject("metric")
-                    .field("type", "integer")
+                    .field("type", randomFrom("integer", "long", "unsigned_long"))
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")
                     .endObject()
                     .startObject("run")
                     .field("type", "integer")
+                    .endObject()
+                    .startObject("metric-timestamp")
+                    .field("type", dateType)
+                    .endObject()
+                    .startObject("some-timestamp")
+                    .field("type", dateType)
                     .endObject()
                     .endObject()
                     .endObject();
@@ -387,7 +424,13 @@ public class TransformContinuousIT extends ESRestTestCase {
         }
     }
 
-    private void waitUntilTransformsReachedUpperBound(long timeStampUpperBoundMillis) throws Exception {
+    private void waitUntilTransformsReachedUpperBound(long timeStampUpperBoundMillis, int iteration) throws Exception {
+        logger.info(
+            "wait until transform reaches timestamp_millis: {} iteration: {}",
+            ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                .format(Instant.ofEpochMilli(timeStampUpperBoundMillis)),
+            iteration
+        );
         for (ContinuousTestCase testCase : transformTestCases) {
             assertBusy(() -> {
                 TransformStats stats = getTransformStats(testCase.getName()).getTransformsStats().get(0);
@@ -401,7 +444,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                     stats.getCheckpointingInfo().getLast().getTimeUpperBoundMillis(),
                     greaterThan(timeStampUpperBoundMillis)
                 );
-            });
+            }, 20, TimeUnit.SECONDS);
         }
     }
 

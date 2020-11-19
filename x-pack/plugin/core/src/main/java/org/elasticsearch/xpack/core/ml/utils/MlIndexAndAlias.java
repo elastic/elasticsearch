@@ -262,7 +262,35 @@ public final class MlIndexAndAlias {
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName)
             .source(templateConfig.loadBytes(), XContentType.JSON);
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+
+        installIndexTemplateIfRequired(clusterState, client, request, listener);
+    }
+
+    /**
+     * See {@link #installIndexTemplateIfRequired(ClusterState, Client, IndexTemplateConfig, ActionListener)}.
+     *
+     * Overload takes a {@code PutIndexTemplateRequest} instead of {@code IndexTemplateConfig}
+     *
+     * @param clusterState The cluster state
+     * @param client For putting the template
+     * @param templateRequest The Put template request
+     * @param listener Async listener
+     */
+    public static void installIndexTemplateIfRequired(
+        ClusterState clusterState,
+        Client client,
+        PutIndexTemplateRequest templateRequest,
+        ActionListener<Boolean> listener
+    ) {
+        String templateName = templateRequest.name();
+
+        // The check for existence of the template is against the cluster state, so very cheap
+        if (hasIndexTemplate(clusterState, templateRequest.name())) {
+            listener.onResponse(true);
+            return;
+        }
+
+        templateRequest.masterNodeTimeout(TimeValue.timeValueMinutes(1));
 
         ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(
             response ->  {
@@ -273,11 +301,11 @@ public final class MlIndexAndAlias {
             },
             listener::onFailure);
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, innerListener,
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, templateRequest, innerListener,
             client.admin().indices()::putTemplate);
     }
 
-    private static boolean hasIndexTemplate(ClusterState state, String templateName) {
+    public static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().getTemplates().containsKey(templateName);
     }
 }

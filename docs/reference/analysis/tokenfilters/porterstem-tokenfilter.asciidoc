@@ -5,7 +5,7 @@
 ++++
 
 Provides <<algorithmic-stemmers,algorithmic stemming>> for the English language,
-based on the http://snowball.tartarus.org/algorithms/porter/stemmer.html[Porter
+based on the https://snowballstem.org/algorithms/porter/stemmer.html[Porter
 stemming algorithm].
 
 This filter tends to stem more aggressively than other English

@@ -49,7 +49,7 @@ refresh operation completes.
 ====
 Refreshes are resource-intensive.
 To ensure good cluster performance,
-we recommend waiting for {es}'s periodic refresh 
+we recommend waiting for {es}'s periodic refresh
 rather than performing an explicit refresh
 when possible.
 

@@ -142,6 +142,7 @@ public class UnusedStateRemover implements MlDataRemover {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRequestsPerSecond(requestsPerSec)
+            .setTimeout(DEFAULT_MAX_DURATION)
             .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));
 
         // _doc is the most efficient sort order and will also disable scoring

@@ -20,35 +20,27 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
+
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MAX_PRECISION;
-import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MIN_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MAX_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
-
-    public void testBasic()  {
-        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        HyperLogLogPlusPlusSparse sparse  = new HyperLogLogPlusPlusSparse(p, BigArrays.NON_RECYCLING_INSTANCE, 10, 1);
-        AbstractLinearCounting.HashesIterator iterator = sparse.getLinearCounting(randomIntBetween(1, 10));
-        assertEquals(0, iterator.size());
-        IllegalArgumentException ex =
-            expectThrows(IllegalArgumentException.class, () -> sparse.getHyperLogLog(randomIntBetween(1, 10)));
-        assertThat(ex.getMessage(), Matchers.containsString("Implementation does not support HLL structures"));
-    }
 
     public void testEquivalence() throws IOException {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
@@ -120,7 +112,7 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
         final int p = randomIntBetween(AbstractCardinalityAlgorithm.MIN_PRECISION, AbstractCardinalityAlgorithm.MAX_PRECISION);
         try {
             for (int i = 0; i < whenToBreak + 1; ++i) {
-                final HyperLogLogPlusPlusSparse subject = new HyperLogLogPlusPlusSparse(p, bigArrays, 1, 1);
+                final HyperLogLogPlusPlusSparse subject = new HyperLogLogPlusPlusSparse(p, bigArrays, 1);
                 subject.close();
             }
             fail("Must fail");
@@ -129,6 +121,15 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
         }
 
         assertThat(total.get(), CoreMatchers.equalTo(0L));
+    }
+
+    public void testAllocation() {
+        int precision = between(MIN_PRECISION, MAX_PRECISION);
+        long initialBucketCount = between(0, 100);
+        MockBigArrays.assertFitsIn(
+            ByteSizeValue.ofBytes(Math.max(256, initialBucketCount * 32)),
+            bigArrays -> new HyperLogLogPlusPlusSparse(precision, bigArrays, initialBucketCount)
+        );
     }
 
 }

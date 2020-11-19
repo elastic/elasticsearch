@@ -99,6 +99,7 @@ public class UnusedStatsRemover implements MlDataRemover {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRequestsPerSecond(requestsPerSec)
+            .setTimeout(DEFAULT_MAX_DURATION)
             .setQuery(dbq);
         deleteByQueryRequest.setParentTask(parentTaskId);
 

@@ -28,7 +28,7 @@ public class GeoTileGroupSourceTests extends AbstractSerializingTestCase<GeoTile
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
         boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
         return new GeoTileGroupSource(
-            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
             missingBucket,
             randomBoolean() ? null : randomIntBetween(1, GeoTileUtils.MAX_ZOOM),
             randomBoolean()

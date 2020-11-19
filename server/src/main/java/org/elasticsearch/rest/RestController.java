@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -53,6 +54,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
@@ -64,6 +66,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    private static final String ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -88,11 +91,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private CompatibleVersion compatibleVersion;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
+                          CompatibleVersion compatibleVersion) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
+        this.compatibleVersion = compatibleVersion;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -166,6 +172,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
+        final Version version = maybeWrappedHandler.compatibleWithVersion();
+        assert Version.CURRENT.minimumRestCompatibilityVersion() == version || Version.CURRENT == version
+            : "REST API compatibility is only supported for version " + Version.CURRENT.minimumRestCompatibilityVersion().major;
+
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
@@ -218,7 +228,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
+    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler, Version compatibleVersion)
+        throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();
@@ -240,11 +251,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, compatibleVersion);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
             }
+            if (handler.allowSystemIndexAccessByDefault() == false && request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER) == null) {
+                // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product with a plan
+                // to move away from direct access to system indices, and thus deprecation warnings should not be emitted.
+                // This header is intended for internal use only.
+                client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+            }
+
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
@@ -309,6 +327,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String rawPath = request.rawPath();
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
+
+        Version compatibleVersion = this.compatibleVersion.
+            get(request.getParsedAccept(), request.getParsedContentType(), request.hasContent());
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -320,14 +341,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod);
+                    handler = handlers.getHandler(requestMethod, compatibleVersion);
                 }
                 if (handler == null) {
                   if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
                       return;
                   }
                 } else {
-                    dispatchRequest(request, channel, handler);
+                    dispatchRequest(request, channel, handler, compatibleVersion);
                     return;
                 }
             }
@@ -445,33 +466,40 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        private final Version compatibleVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
+                                    Version compatibleVersion) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.compatibleVersion = compatibleVersion;
         }
 
         @Override
         public XContentBuilder newBuilder() throws IOException {
-            return delegate.newBuilder();
+            return delegate.newBuilder()
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
-            return delegate.newErrorBuilder();
+            return delegate.newErrorBuilder()
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering);
+            return delegate.newBuilder(xContentType, useFiltering)
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
                 throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering)
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override

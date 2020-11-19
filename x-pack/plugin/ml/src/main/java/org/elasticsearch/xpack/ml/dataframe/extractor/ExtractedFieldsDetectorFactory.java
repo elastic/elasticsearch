@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -44,6 +45,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * A factory that retrieves all the parts necessary to build a {@link ExtractedFieldsDetector}.
@@ -138,7 +142,7 @@ public class ExtractedFieldsDetectorFactory {
         }
         SearchRequest searchRequest = new SearchRequest(index).source(searchSourceBuilder);
         ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
+            config.getHeaders(), ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
     }
 
     private void buildFieldCardinalitiesMap(DataFrameAnalyticsConfig config, SearchResponse searchResponse,
@@ -168,7 +172,7 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.fields("*");
         LOGGER.debug(() -> new ParameterizedMessage(
             "[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
-        ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
+        ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, listener);
             // This response gets discarded - the listener handles the real response
             return null;
@@ -205,6 +209,6 @@ public class ExtractedFieldsDetectorFactory {
         getSettingsRequest.indices(index);
         getSettingsRequest.includeDefaults(true);
         getSettingsRequest.names(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
-        client.admin().indices().getSettings(getSettingsRequest, settingsListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetSettingsAction.INSTANCE, getSettingsRequest, settingsListener);
     }
 }

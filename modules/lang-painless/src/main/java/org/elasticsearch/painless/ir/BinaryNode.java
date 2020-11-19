@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Location;
+
 public abstract class BinaryNode extends ExpressionNode {
 
     /* ---- begin tree structure ---- */
@@ -42,6 +44,10 @@ public abstract class BinaryNode extends ExpressionNode {
         return rightNode;
     }
 
-    /* ---- end tree structure, begin visitor ---- */
+    /* ---- end tree structure ---- */
+
+    public BinaryNode(Location location) {
+        super(location);
+    }
 
 }

@@ -132,6 +132,6 @@ public class StringContains extends CaseSensitiveScalarFunction {
 
     @Override
     public boolean isCaseSensitive() {
-        return eqlConfiguration().isCaseSensitive();
+        return true;
     }
 }

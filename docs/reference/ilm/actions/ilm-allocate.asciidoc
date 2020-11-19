@@ -114,7 +114,7 @@ PUT _ilm/policy/my_policy
       "cold": {
         "actions": {
           "allocate" : {
-            "include" : {
+            "require" : {
               "box_type": "cold",
               "storage": "high"
             }

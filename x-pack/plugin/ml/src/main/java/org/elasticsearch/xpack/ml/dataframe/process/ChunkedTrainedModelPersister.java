@@ -186,16 +186,17 @@ public class ChunkedTrainedModelPersister {
                 LOGGER.error(new ParameterizedMessage(
                     "[{}] error storing trained model definition chunk [{}] with id [{}]",
                         analytics.getId(),
-                        trainedModelDefinitionDoc.getModelId(),
-                        trainedModelDefinitionDoc.getDocNum()
+                        trainedModelDefinitionDoc.getDocNum(),
+                        trainedModelDefinitionDoc.getModelId()
                     ),
                     e);
                 this.readyToStoreNewModel.set(true);
                 failureHandler.accept(ExceptionsHelper.serverError(
                     "error storing trained model definition chunk [{}] with id [{}]",
                     e,
-                    trainedModelDefinitionDoc.getModelId(),
-                    trainedModelDefinitionDoc.getDocNum()));
+                    trainedModelDefinitionDoc.getDocNum(),
+                    trainedModelDefinitionDoc.getModelId()
+                ));
                 refreshListener.onResponse(null);
             }
         );

@@ -47,7 +47,7 @@ functions, set the interval to the same value as the bucket span.
 
 If your <<aggs-dfeeds,{dfeed} uses aggregations with nested `terms`>> and model 
 plot is not enabled for the {anomaly-job}, then neither the **Single Metric 
-Viewer** nor the ***Anomaly Explorer** in {kib} can plot and display an anomaly 
+Viewer** nor the **Anomaly Explorer** in {kib} can plot and display an anomaly 
 chart for the job. Single Metric Viewer don't support configurations where 
 the aggregation interval and the bucket span in Single Metric Viewer don't 
 match. To avoid this case, make sure that the aggregation interval in the 

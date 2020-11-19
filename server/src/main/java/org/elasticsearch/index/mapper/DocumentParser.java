@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -29,15 +30,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
@@ -209,7 +214,7 @@ final class DocumentParser {
         // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
         // will be processed in a contiguous block. When the prefix is no longer seen, we pop the extra elements
         // off the stack, merging them upwards into the existing mappers.
-        Collections.sort(dynamicMappers, (Mapper o1, Mapper o2) -> o1.name().compareTo(o2.name()));
+        dynamicMappers.sort(Comparator.comparing(Mapper::name));
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
@@ -814,14 +819,14 @@ final class DocumentParser {
         int pathsAdded = 0;
         ObjectMapper parent = mapper;
         for (int i = 0; i < paths.length-1; i++) {
-        String currentPath = context.path().pathAsText(paths[i]);
-        Mapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);
-        if (existingFieldMapper != null) {
-            throw new MapperParsingException(
+            String currentPath = context.path().pathAsText(paths[i]);
+            Mapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);
+            if (existingFieldMapper != null) {
+                throw new MapperParsingException(
                     "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
                     null, String.join(".", paths), currentPath, existingFieldMapper.typeName());
-        }
-        mapper = context.docMapper().mappers().objectMappers().get(currentPath);
+            }
+            mapper = context.docMapper().mappers().objectMappers().get(currentPath);
             if (mapper == null) {
                 // One mapping is missing, check if we are allowed to create a dynamic one.
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
@@ -890,7 +895,7 @@ final class DocumentParser {
 
         for (int i = 0; i < subfields.length - 1; ++i) {
             mapper = objectMapper.getMapper(subfields[i]);
-            if (mapper == null || (mapper instanceof ObjectMapper) == false) {
+            if (mapper instanceof ObjectMapper == false) {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;
@@ -900,6 +905,93 @@ final class DocumentParser {
                         + mapper.name() + "]");
             }
         }
-        return objectMapper.getMapper(subfields[subfields.length - 1]);
+        String leafName = subfields[subfields.length - 1];
+        mapper = objectMapper.getMapper(leafName);
+        if (mapper != null) {
+            return mapper;
+        }
+        //concrete fields take the precedence over runtime fields when parsing documents, though when a field is defined as runtime field
+        //only, and not under properties, it is ignored when it is sent as part of _source
+        RuntimeFieldType runtimeFieldType = context.docMapper().mapping().root.getRuntimeFieldType(fieldPath);
+        if (runtimeFieldType != null) {
+            return new NoOpFieldMapper(leafName, runtimeFieldType);
+        }
+        return null;
+    }
+
+    private static class NoOpFieldMapper extends FieldMapper {
+        NoOpFieldMapper(String simpleName, RuntimeFieldType runtimeField) {
+            super(simpleName, new MappedFieldType(runtimeField.name(), false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+                @Override
+                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public String typeName() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Query termQuery(Object value, QueryShardContext context) {
+                    throw new UnsupportedOperationException();
+                }
+            }, MultiFields.empty(), CopyTo.empty());
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context) throws IOException {
+            //field defined as runtime field, don't index anything
+        }
+
+        @Override
+        public String name() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String typeName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public MappedFieldType fieldType() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public MultiFields multiFields() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterator<Mapper> iterator() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void doValidate(MappingLookup mappers) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void checkIncomingMergeType(FieldMapper mergeWith) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Builder getMergeBuilder() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected String contentType() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

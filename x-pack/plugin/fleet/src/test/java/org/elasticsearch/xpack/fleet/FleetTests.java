@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -19,30 +20,22 @@ public class FleetTests extends ESTestCase {
     public void testFleetIndexNames() {
         Fleet module = new Fleet();
 
+        final Collection<SystemIndexDescriptor> fleetDescriptors = module.getSystemIndexDescriptors(Settings.EMPTY);
+
         assertThat(
-            module.getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .map(SystemIndexDescriptor::getIndexPattern)
-                .collect(Collectors.toList()),
-            containsInAnyOrder(".fleet-outputs*", ".fleet-policies*", ".fleet-agents*")
+            fleetDescriptors.stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toList()),
+            containsInAnyOrder(".fleet-servers*", ".fleet-policies*", ".fleet-agents*", ".fleet-actions*")
         );
 
-        assertTrue(module.getSystemIndexDescriptors(Settings.EMPTY).stream().anyMatch(d -> d.matchesIndexPattern(".fleet-outputs")));
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-servers")));
 
-        assertTrue(module.getSystemIndexDescriptors(Settings.EMPTY).stream().anyMatch(d -> d.matchesIndexPattern(".fleet-policies")));
-        assertTrue(
-            module.getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .anyMatch(d -> d.matchesIndexPattern(".fleet-policies-enrollment-keys"))
-        );
-        assertTrue(
-            module.getSystemIndexDescriptors(Settings.EMPTY).stream().anyMatch(d -> d.matchesIndexPattern(".fleet-policies-inputs"))
-        );
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-policies")));
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-policies-leader")));
 
-        assertTrue(module.getSystemIndexDescriptors(Settings.EMPTY).stream().anyMatch(d -> d.matchesIndexPattern(".fleet-agents")));
-        assertTrue(
-            module.getSystemIndexDescriptors(Settings.EMPTY).stream().anyMatch(d -> d.matchesIndexPattern(".fleet-agents-checkins"))
-        );
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-agents")));
+
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-actions")));
+        assertTrue(fleetDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".fleet-actions-results")));
 
     }
 }

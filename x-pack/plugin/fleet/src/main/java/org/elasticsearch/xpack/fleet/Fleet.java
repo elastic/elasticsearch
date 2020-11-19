@@ -42,9 +42,10 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
-            new SystemIndexDescriptor(".fleet-outputs*", "Configuration of fleet outputs"),
+            new SystemIndexDescriptor(".fleet-servers*", "Configuration of fleet servers"),
             new SystemIndexDescriptor(".fleet-policies*", "Policies and enrollment keys"),
-            new SystemIndexDescriptor(".fleet-agents*", "Agents and agent checkins")
+            new SystemIndexDescriptor(".fleet-agents*", "Agents and agent checkins"),
+            new SystemIndexDescriptor(".fleet-actions*", "Fleet actions")
         );
     }
 

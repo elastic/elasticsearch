@@ -33,12 +33,12 @@ public class FleetSystemIndexIT extends ESRestTestCase {
     @ParametersFactory
     public static Iterable<Object[]> data() {
         return Arrays.asList(
-            new Object[] { ".fleet-outputs" },
+            new Object[] { ".fleet-servers" },
             new Object[] { ".fleet-policies" },
-            new Object[] { ".fleet-policies-enrollment-keys" },
-            new Object[] { ".fleet-policies-inputs" },
-            new Object[] { ".fleet-agents" },
-            new Object[] { ".fleet-agents-checkins" }
+            new Object[] { ".fleet-policies-leader" },
+            new Object[] { ".fleet-actions" },
+            new Object[] { ".fleet-actions-results" },
+            new Object[] { ".fleet-agents" }
         );
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -157,7 +158,12 @@ public class BinaryFieldMapper extends FieldMapper {
             if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
                 return;
             } else {
-                value = context.parser().binaryValue();
+                if (context.parser().contentType() == XContentType.SMILE &&
+                    context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
+                    value = Base64.getDecoder().decode(context.parser().text());
+                } else {
+                    value = context.parser().binaryValue();
+                }
             }
         }
         if (value == null) {

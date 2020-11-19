@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.HasPercentilesConfig;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
@@ -1009,16 +1008,20 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class PercentileAggKey extends Tuple<Expression, PercentilesConfig> {
-        PercentileAggKey(HasPercentilesConfig per) {
+    private static class PercentileKey extends Tuple<Expression, PercentilesConfig> {
+        PercentileKey(Percentile per) {
+            super(per.field(), per.percentilesConfig());
+        }
+
+        PercentileKey(PercentileRank per) {
             super(per.field(), per.percentilesConfig());
         }
         
-        public Expression field() {
+        private Expression field() {
             return v1();
         }
         
-        public PercentilesConfig percentilesConfig() {
+        private PercentilesConfig percentilesConfig() {
             return v2();
         }
     }
@@ -1027,18 +1030,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan p) {
-            Map<PercentileAggKey, Set<Expression>> percentsPerAggKey = new LinkedHashMap<>();
+            Map<PercentileKey, Set<Expression>> percentsPerAggKey = new LinkedHashMap<>();
 
             p.forEachExpressionsUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
-                    percentsPerAggKey.computeIfAbsent(new PercentileAggKey(per), v -> new LinkedHashSet<>())
+                    percentsPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>())
                         .add(per.percent());
                 }
             });
 
             // create a Percentile agg for each agg key
-            Map<PercentileAggKey, Percentiles> percentilesPerAggKey = new LinkedHashMap<>();
+            Map<PercentileKey, Percentiles> percentilesPerAggKey = new LinkedHashMap<>();
             percentsPerAggKey.forEach((aggKey, percents) -> percentilesPerAggKey.put(
                     aggKey,
                     new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents), 
@@ -1047,7 +1050,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return p.transformExpressionsUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
-                    PercentileAggKey a = new PercentileAggKey(per);
+                    PercentileKey a = new PercentileKey(per);
                     Percentiles percentiles = percentilesPerAggKey.get(a);
                     return new InnerAggregate(per, percentiles);
                 }
@@ -1061,18 +1064,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan p) {
-            final Map<PercentileAggKey, Set<Expression>> valuesPerAggKey = new LinkedHashMap<>();
+            final Map<PercentileKey, Set<Expression>> valuesPerAggKey = new LinkedHashMap<>();
 
             p.forEachExpressionsUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
-                    valuesPerAggKey.computeIfAbsent(new PercentileAggKey(per), v -> new LinkedHashSet<>())
+                    valuesPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>())
                         .add(per.value());
                 }
             });
 
             // create a PercentileRank agg for each agg key
-            Map<PercentileAggKey, PercentileRanks> ranksPerAggKey = new LinkedHashMap<>();
+            Map<PercentileKey, PercentileRanks> ranksPerAggKey = new LinkedHashMap<>();
             valuesPerAggKey.forEach((aggKey, values) -> ranksPerAggKey.put(
                 aggKey,
                 new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values), 
@@ -1081,7 +1084,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return p.transformExpressionsUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
-                    PercentileRanks ranks = ranksPerAggKey.get(new PercentileAggKey(per));
+                    PercentileRanks ranks = ranksPerAggKey.get(new PercentileKey(per));
                     return new InnerAggregate(per, ranks);
                 }
 

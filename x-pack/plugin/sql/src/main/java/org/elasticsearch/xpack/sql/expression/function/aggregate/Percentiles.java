@@ -46,6 +46,11 @@ public class Percentiles extends CompoundNumericAggregate {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), percentilesConfig);
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -57,13 +62,6 @@ public class Percentiles extends CompoundNumericAggregate {
             return false;
         }
 
-        Percentiles that = (Percentiles) o;
-
-        return Objects.equals(percentilesConfig, that.percentilesConfig);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), percentilesConfig);
+        return Objects.equals(percentilesConfig, ((Percentiles) o).percentilesConfig);
     }
 }

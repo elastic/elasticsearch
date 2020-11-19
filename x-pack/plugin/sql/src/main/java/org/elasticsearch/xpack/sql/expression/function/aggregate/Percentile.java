@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
@@ -20,7 +19,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Percentile extends HasPercentilesConfig {
+public class Percentile extends PercentileAggregate {
 
     private final Expression percent;
 
@@ -62,15 +61,8 @@ public class Percentile extends HasPercentilesConfig {
     }
 
     @Override
-    public DataType dataType() {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
     public String innerName() {
         Double value = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(percent), DataTypes.DOUBLE);
         return Double.toString(value);
     }
-
-
 }

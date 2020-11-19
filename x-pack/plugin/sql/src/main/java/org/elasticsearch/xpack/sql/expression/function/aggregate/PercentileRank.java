@@ -19,7 +19,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class PercentileRank extends HasPercentilesConfig {
+public class PercentileRank extends PercentileAggregate {
 
     private final Expression value;
 
@@ -35,8 +35,8 @@ public class PercentileRank extends HasPercentilesConfig {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
+        if (newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
         }
         return new PercentileRank(source(), newChildren.get(0), newChildren.get(1), method(), methodParameter());
     }

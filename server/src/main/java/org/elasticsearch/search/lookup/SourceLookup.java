@@ -55,7 +55,7 @@ public class SourceLookup implements Map<String, Object>, Source {
 
     @Override
     public Map<String, Object> source() {
-        return source;
+        return loadSourceIfNeeded();
     }
 
     public XContentType sourceContentType() {

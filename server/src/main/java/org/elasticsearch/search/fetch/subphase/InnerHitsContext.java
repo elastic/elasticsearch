@@ -49,6 +49,7 @@ import java.util.Objects;
  * Context used for inner hits retrieval
  */
 public final class InnerHitsContext {
+
     private final Map<String, InnerHitSubContext> innerHits;
 
     public InnerHitsContext() {
@@ -137,9 +138,10 @@ public final class InnerHitsContext {
          */
         public Source getRootSource() {
             if (rootSource == Source.EMPTY_SOURCE) {
+                // If loading source has been disabled on the root but asked for on an inner
+                // hit, then we need to load it here
                 SourceLookup lookup = new SourceLookup();
                 lookup.setSegmentAndDocument(parentHit.readerContext(), parentHit.docId());
-                lookup.loadSourceIfNeeded();
                 rootSource = lookup;
             }
             return rootSource;

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -102,6 +103,11 @@ public class BasicTokenizerTests extends ESTestCase {
             BasicTokenizer.cleanText("change\tthese chars\rto\nspaces"));
         assertEquals("filter control chars",
             BasicTokenizer.cleanText("\u0000filter \uFFFDcontrol chars\u0005"));
+    }
+
+    public void testWhiteSpaceTokenize() {
+        assertThat(BasicTokenizer.whiteSpaceTokenize("nochange"), arrayContaining("nochange"));
+        assertThat(BasicTokenizer.whiteSpaceTokenize(" some  change "), arrayContaining("some", "", "change"));
     }
 
     public void testIsWhitespace() {

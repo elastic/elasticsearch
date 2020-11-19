@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Basic tokenization of text by whitespace with optional extras:
@@ -171,22 +172,21 @@ public class BasicTokenizer {
      */
     static String tokenizeCjkChars(String text) {
         StringBuilder sb = new StringBuilder(text.length());
-        boolean cjkCharFound = false;
+        AtomicBoolean cjkCharFound = new AtomicBoolean(false);
 
-        int[] codePoints = text.codePoints().toArray();
-        for (int cp : codePoints) {
+        text.codePoints().forEach(cp -> {
             if (isCjkChar(cp)) {
                 sb.append(' ');
                 sb.appendCodePoint(cp);
                 sb.append(' ');
-                cjkCharFound = true;
+                cjkCharFound.set(true);
             } else {
                 sb.appendCodePoint(cp);
             }
-        }
+        });
 
         // no change
-        if (cjkCharFound == false) {
+        if (cjkCharFound.get() == false) {
             return text;
         }
 

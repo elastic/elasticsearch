@@ -305,6 +305,18 @@ public final class ConfigurationUtils {
         return value;
     }
 
+    public static String readMimeTypeProperty(String processorType, String processorTag, Map<String, Object> configuration,
+        String propertyName, String defaultValue) {
+        String mimeType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
+
+        if (List.of("application/json", "text/plain", "application/x-www-form-urlencoded").contains(mimeType) == false) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "property does not contain a supported MIME type [" + mimeType + "]");
+        }
+
+        return mimeType;
+    }
+
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, String reason) {
         String msg;

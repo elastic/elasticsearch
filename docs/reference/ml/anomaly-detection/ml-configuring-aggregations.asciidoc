@@ -45,6 +45,13 @@ finer, more granular time buckets, which are ideal for this type of analysis. If
 your detectors use <<ml-count-functions,count>> or <<ml-rare-functions,rare>>
 functions, set the interval to the same value as the bucket span.
 
+If your {dfeed} uses aggregations, then the **Anomaly Explorer** in {kib} cannot 
+plot and display an anomaly chart for the job. If model plot is disabled, then 
+neither can the **Single Metric Viewer** plot and display the chart for the 
+{anomaly-job}. This limitation does not apply to single metric jobs that have 
+aggregations with names that match the fields that they operate on. Refer to 
+<<aggs-in-dfeed, this snippet>> for an example.
+
 
 [discrete]
 [[aggs-include-jobs]]
@@ -82,6 +89,7 @@ the job expects to receive aggregated input. The property must be set to the
 name of the field that contains the count of raw data points that have been
 aggregated. It applies to all detectors in the job.
 
+[[aggs-in-dfeed]]
 The aggregations are defined in the {dfeed} as follows:
 
 [source,console]

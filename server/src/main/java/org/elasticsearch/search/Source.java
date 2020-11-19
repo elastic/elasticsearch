@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -38,7 +39,7 @@ public interface Source {
     Source EMPTY_SOURCE = new Source() {
         @Override
         public Map<String, Object> source() {
-            return null;
+            return Collections.emptyMap();
         }
 
         @Override

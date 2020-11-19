@@ -480,7 +480,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     public List<SnapshotFeatureInfo> featureStates() {
-        return List.copyOf(featureStates);
+        return featureStates;
     }
 
     /**

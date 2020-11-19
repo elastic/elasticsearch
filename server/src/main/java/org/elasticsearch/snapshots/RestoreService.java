@@ -68,7 +68,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -81,7 +80,6 @@ import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -275,9 +273,10 @@ public class RestoreService implements ClusterStateApplier {
                 Set<String> requestedFeatureStateIndexes = new HashSet<>();
                 Set<String> nonRequestedFeatureStateIndexes = new HashSet<>();
 
+                Set<String> requestedFeatureStates = Set.of(request.featureStates());
                 if (request.includeGlobalState() == false) {
                     for (SnapshotFeatureInfo snapshotFeatureInfo : snapshotInfo.featureStates()) {
-                        if (Set.of(request.featureStates()).contains(snapshotFeatureInfo.getPluginName())) {
+                        if (requestedFeatureStates.contains(snapshotFeatureInfo.getPluginName())) {
                             requestedFeatureStateIndexes.addAll(snapshotFeatureInfo.getIndices());
                         } else {
                             nonRequestedFeatureStateIndexes.addAll(snapshotFeatureInfo.getIndices());
@@ -291,7 +290,7 @@ public class RestoreService implements ClusterStateApplier {
                     .filter(index -> nonRequestedFeatureStateIndexes.contains(index) == false)
                     .collect(Collectors.toList());
 
-                List<Index> systemIndicesToDelete = new ArrayList<>();
+                Set<Index> systemIndicesToDelete = new HashSet<>();
                 final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(requestedIndicesIncludingSystem);
                 for (IndexId indexId : indexIdsInSnapshot) {
                     IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
@@ -326,7 +325,7 @@ public class RestoreService implements ClusterStateApplier {
                                     deletionsInProgress.getEntries().get(0) + "]");
                         }
 
-                        currentState = metadataDeleteIndexService.deleteIndices(currentState, new HashSet<>(systemIndicesToDelete));
+                        currentState = metadataDeleteIndexService.deleteIndices(currentState, systemIndicesToDelete);
 
                         // Updating cluster state
                         ClusterState.Builder builder = ClusterState.builder(currentState);

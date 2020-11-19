@@ -308,6 +308,7 @@ public class FetchPhase {
         int subDocId = docId - subReaderContext.docBase;
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
+            lookup.source().setSegmentAndDocument(subReaderContext, subDocId);
             return new HitContext(hit, subReaderContext, subDocId, lookup.source());
         } else {
             SearchHit hit;

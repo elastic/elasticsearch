@@ -34,8 +34,10 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.Source;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -83,6 +85,7 @@ public final class InnerHitsContext {
 
         private String rootId;
         private Source rootSource;
+        private FetchSubPhase.HitContext parentHit;
 
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
@@ -127,21 +130,25 @@ public final class InnerHitsContext {
             return rootId;
         }
 
-        public void setRootId(String rootId) {
-            this.rootId = rootId;
-        }
-
         /**
          * A source lookup for the root document.
          *
          * This shared lookup allows inner hits to avoid re-loading the root _source.
          */
         public Source getRootSource() {
+            if (rootSource == Source.EMPTY_SOURCE) {
+                SourceLookup lookup = new SourceLookup();
+                lookup.setSegmentAndDocument(parentHit.readerContext(), parentHit.docId());
+                lookup.loadSourceIfNeeded();
+                rootSource = lookup;
+            }
             return rootSource;
         }
 
-        public void setRootSource(Source rootSource) {
-            this.rootSource = rootSource;
+        public void setRootHit(FetchSubPhase.HitContext parentHit) {
+            this.parentHit = parentHit;
+            this.rootSource = parentHit.source();
+            this.rootId = parentHit.hit().getId();
         }
     }
 

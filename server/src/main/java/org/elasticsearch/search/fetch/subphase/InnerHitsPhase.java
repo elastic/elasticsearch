@@ -25,7 +25,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -66,7 +65,6 @@ public final class InnerHitsPhase implements FetchSubPhase {
     private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, HitContext hitContext) throws IOException {
 
         SearchHit hit = hitContext.hit();
-        Source source = hitContext.source();
 
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
@@ -82,8 +80,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
             }
             innerHitsContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
-            innerHitsContext.setRootId(hit.getId());
-            innerHitsContext.setRootSource(source);
+            innerHitsContext.setRootHit(hitContext);
 
             fetchPhase.execute(innerHitsContext);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();

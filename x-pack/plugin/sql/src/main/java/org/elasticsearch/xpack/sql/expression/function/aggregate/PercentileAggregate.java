@@ -20,13 +20,14 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 
@@ -36,16 +37,19 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
 
     // preferred method name to configurator mapping (type resolution, method parameter -> config)
     // contains all the possible PercentilesMethods that we know of and are capable of parameterizing at the moment
-    private static final Map<String, MethodConfigurator> METHOD_CONFIGURATORS = Map.of(
-        PercentilesMethod.TDIGEST, new MethodConfigurator(TypeResolutions::isNumeric, methodParameter -> {
-            Double compression = foldNullSafe(methodParameter, DataTypes.DOUBLE);
-            return compression == null ? new PercentilesConfig.TDigest() : new PercentilesConfig.TDigest(compression);
-        }),
-        PercentilesMethod.HDR, new MethodConfigurator(TypeResolutions::isInteger, methodParameter -> {
-            Integer numOfDigits = foldNullSafe(methodParameter, DataTypes.INTEGER);
-            return numOfDigits == null ? new PercentilesConfig.Hdr() : new PercentilesConfig.Hdr(numOfDigits);
-        })
-    ).entrySet().stream().collect(toMap(c -> c.getKey().getParseField().getPreferredName(), Map.Entry::getValue));
+    private static final Map<String, MethodConfigurator> METHOD_CONFIGURATORS = new LinkedHashMap<>();
+    static {
+        Arrays.asList(
+            new MethodConfigurator(PercentilesMethod.TDIGEST, TypeResolutions::isNumeric, methodParameter -> {
+                Double compression = foldNullSafe(methodParameter, DataTypes.DOUBLE);
+                return compression == null ? new PercentilesConfig.TDigest() : new PercentilesConfig.TDigest(compression);
+            }), 
+            new MethodConfigurator(PercentilesMethod.HDR, TypeResolutions::isInteger, methodParameter -> {
+                Integer numOfDigits = foldNullSafe(methodParameter, DataTypes.INTEGER);
+                return numOfDigits == null ? new PercentilesConfig.Hdr() : new PercentilesConfig.Hdr(numOfDigits);
+            }))
+            .forEach(c -> METHOD_CONFIGURATORS.put(c.method.getParseField().getPreferredName(), c));
+    }
     
     private final Expression method;
     private final Expression methodParameter;
@@ -139,10 +143,13 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
             TypeResolution resolve(Expression methodParameter, String sourceText, ParamOrdinal methodParameterOrdinal);
         }
 
+        private final PercentilesMethod method;
         private final MethodParameterResolver resolver;
         private final Function<Expression, PercentilesConfig> parameterToConfig;
 
-        MethodConfigurator(MethodParameterResolver resolver, Function<Expression, PercentilesConfig> parameterToConfig) {
+        MethodConfigurator(
+            PercentilesMethod method, MethodParameterResolver resolver, Function<Expression, PercentilesConfig> parameterToConfig) {
+            this.method = method;
             this.resolver = resolver;
             this.parameterToConfig = parameterToConfig;
         }

@@ -166,14 +166,12 @@ public class SystemIndices implements ClusterStateListener {
     }
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
-        Optional<Automaton> automaton = descriptors.stream()
-            .map(descriptor -> {
-                if (descriptor.getAliasName() != null) {
-                    return Regex.simpleMatchToAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName());
-                }
-                return Regex.simpleMatchToAutomaton(descriptor.getIndexPattern());
-            })
-            .reduce(Operations::union);
+        Optional<Automaton> automaton = descriptors.stream().map(descriptor -> {
+            if (descriptor.getAliasName() != null) {
+                return Regex.simpleMatchToAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName());
+            }
+            return Regex.simpleMatchToAutomaton(descriptor.getIndexPattern());
+        }).reduce(Operations::union);
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
     }
 
@@ -250,16 +248,16 @@ public class SystemIndices implements ClusterStateListener {
         }
 
         for (SystemIndexDescriptor descriptor : this.systemIndexDescriptors) {
-            if (descriptor.isAutomaticallyManaged() == false) {
-                continue;
+            if (descriptor.isAutomaticallyManaged()) {
+                upgradeIndexMetadataIfNecessary(state, descriptor);
             }
-            upgradeIndexMetadataIfNecessary(state, descriptor);
         }
     }
 
     private void upgradeIndexMetadataIfNecessary(ClusterState state, SystemIndexDescriptor descriptor) {
         final Metadata metadata = state.metadata();
         final String indexName = descriptor.getIndexPattern();
+        final String aliasName = descriptor.getAliasName();
 
         if (metadata.hasIndex(indexName) == false) {
             // System indices are created on-demand
@@ -267,22 +265,18 @@ public class SystemIndices implements ClusterStateListener {
         }
 
         final State indexState = calculateIndexState(state, descriptor);
+        final String concreteIndexName = indexState.concreteIndexName;
 
         if (indexState.isIndexUpToDate == false) {
             logger.debug(
-                "Index [{}] is not on the current version. Features relying on the index will not be available until the index is upgraded",
-                indexState.concreteIndexName
+                "Index [{}] (alias [{}]) is not on the current version. "
+                    + "Features relying on the index will not be available until the index is upgraded",
+                concreteIndexName,
+                aliasName
             );
         } else if (indexState.mappingUpToDate == false) {
-            logger.info(
-                "Index [{}] (alias [{}]) is not up to date. Updating mapping",
-                indexState.concreteIndexName,
-                descriptor.getAliasName()
-            );
-            PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName).source(
-                descriptor.getMappings(),
-                XContentType.JSON
-            );
+            logger.info("Index [{}] (alias [{}]) is not up to date. Updating mapping", concreteIndexName, aliasName);
+            PutMappingRequest request = new PutMappingRequest(concreteIndexName).source(descriptor.getMappings(), XContentType.JSON);
 
             final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
 
@@ -290,17 +284,17 @@ public class SystemIndices implements ClusterStateListener {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged() == false) {
-                        logger.error("Put mapping request for [{}] was not acknowledged", indexState.concreteIndexName);
+                        logger.error("Put mapping request for [{}] was not acknowledged", concreteIndexName);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("Put mapping request for [" + indexState.concreteIndexName + "] failed", e);
+                    logger.error("Put mapping request for [" + concreteIndexName + "] failed", e);
                 }
             });
         } else {
-            logger.trace("Index [{}] is up-to-date, no action required", indexState.concreteIndexName);
+            logger.trace("Index [{}] (alias [{}]) is up-to-date, no action required", concreteIndexName, aliasName);
         }
     }
 
@@ -319,7 +313,11 @@ public class SystemIndices implements ClusterStateListener {
         final String concreteIndexName = indexMetadata.getIndex().getName();
 
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-            logger.warn("Index [{}] is closed. This is likely to prevent some features from functioning correctly", concreteIndexName);
+            logger.warn(
+                "Index [{}] (alias [{}]) is closed. This is likely to prevent some features from functioning correctly",
+                concreteIndexName,
+                descriptor.getAliasName()
+            );
         }
 
         return new State(isIndexUpToDate, isMappingIsUpToDate, concreteIndexName);

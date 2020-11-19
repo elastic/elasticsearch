@@ -157,7 +157,6 @@ public class SystemIndexDescriptor {
         return this.origin;
     }
 
-    // TODO: Index settings and mapping
     // TODO: getThreadpool()
     // TODO: Upgrade handling (reindex script?)
 

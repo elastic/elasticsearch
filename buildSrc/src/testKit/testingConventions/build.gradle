@@ -4,7 +4,7 @@ plugins {
 
 allprojects {
   apply plugin: 'java'
-  apply plugin: 'elasticsearch.build'
+  apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
 
   repositories {
     jcenter()

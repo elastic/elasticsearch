@@ -17,9 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.InternalPlugin;
+import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -38,7 +40,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
-public class CheckstylePrecommitPlugin extends PrecommitPlugin {
+public class CheckstylePrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         // Always copy the checkstyle configuration files to 'buildDir/checkstyle' since the resources could be located in a jar

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,35 +16,43 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.precommit
 
+package org.elasticsearch.gradle.internal.precommit
 
-import org.gradle.api.Project
+import groovy.transform.CompileStatic
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.gradle.precommit.ThirdPartyAuditPrecommitPlugin;
+import org.gradle.api.Project;
 
 /**
- * Validation tasks which should be run before committing. These run before tests.
- */
-class PrecommitTasks {
+ * Internal precommit plugins that adds elasticsearch project specific
+ * checks to the common precommit plugin.
+ * */
 
-    /** Adds a precommit task, which depends on non-test verification tasks. */
+@CompileStatic
+class InternalPrecommitTasks {
 
+    /**
+     * Adds a precommit task, which depends on non-test verification tasks.
+     */
     static void create(Project project, boolean includeDependencyLicenses) {
+        PrecommitTasks.create(project);
 
-        project.pluginManager.apply(CheckstylePrecommitPlugin)
-        project.pluginManager.apply(ForbiddenApisPrecommitPlugin)
-        project.pluginManager.apply(JarHellPrecommitPlugin)
-        project.pluginManager.apply(ForbiddenPatternsPrecommitPlugin)
-        project.pluginManager.apply(LicenseHeadersPrecommitPlugin)
-        project.pluginManager.apply(FilePermissionsPrecommitPlugin)
-        project.pluginManager.apply(ThirdPartyAuditPrecommitPlugin)
-        project.pluginManager.apply(TestingConventionsPrecommitPlugin)
+        project.getPluginManager().apply(ThirdPartyAuditPrecommitPlugin.class);
+        project.getPluginManager().apply(CheckstylePrecommitPlugin.class);
+        project.getPluginManager().apply(ForbiddenApisPrecommitPlugin.class);
+        project.getPluginManager().apply(ForbiddenPatternsPrecommitPlugin.class);
+        project.getPluginManager().apply(LicenseHeadersPrecommitPlugin.class);
+        project.getPluginManager().apply(FilePermissionsPrecommitPlugin.class);
+        project.getPluginManager().apply(TestingConventionsPrecommitPlugin.class);
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
         // the task optional
         if (includeDependencyLicenses) {
-            project.pluginManager.apply(DependencyLicensesPrecommitPlugin)
+            project.getPluginManager().apply(DependencyLicensesPrecommitPlugin.class);
         }
-        if (project.path != ':build-tools') {
+
+        if (project.getPath().equals(":build-tools") == false) {
             /*
              * Sadly, build-tools can't have logger-usage-check because that
              * would create a circular project dependency between build-tools
@@ -55,7 +63,8 @@ class PrecommitTasks {
              * use the NamingConventionsCheck we break the circular dependency
              * here.
              */
-            project.pluginManager.apply(LoggerUsagePrecommitPlugin)
+            project.getPluginManager().apply(LoggerUsagePrecommitPlugin.class);
         }
     }
+
 }

@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;

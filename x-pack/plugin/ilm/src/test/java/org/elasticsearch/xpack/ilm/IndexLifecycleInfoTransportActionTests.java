@@ -94,7 +94,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         usageAction.masterOperation(null, null, clusterState, future);
         IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get().getUsage();
         assertThat(ilmUsage.enabled(), equalTo(true));
-        assertThat(ilmUsage.available(), equalTo(false));
+        assertThat(ilmUsage.available(), equalTo(true));
 
         List<PolicyStats> policyStatsList = ilmUsage.getPolicyStats();
         assertThat(policyStatsList.size(), equalTo(policies.size()));

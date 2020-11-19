@@ -124,7 +124,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
                                                               securityIndex, clusterService,
                                                               mock(CacheInvalidatorRegistry.class),threadPool);
         authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
-            tokenService, apiKeyService);
+            tokenService, apiKeyService, null);
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
     }
 

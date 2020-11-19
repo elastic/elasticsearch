@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -118,6 +119,7 @@ public class AuthorizationService {
     private final AuthorizationEngine authorizationEngine;
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
+    private final OperatorPrivileges operatorPrivileges;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -125,7 +127,7 @@ public class AuthorizationService {
                                 AuditTrailService auditTrailService, AuthenticationFailureHandler authcFailureHandler,
                                 ThreadPool threadPool, AnonymousUser anonymousUser, @Nullable AuthorizationEngine authorizationEngine,
                                 Set<RequestInterceptor> requestInterceptors, XPackLicenseState licenseState,
-                                IndexNameExpressionResolver resolver) {
+                                IndexNameExpressionResolver resolver, OperatorPrivileges operatorPrivileges) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
@@ -139,6 +141,7 @@ public class AuthorizationService {
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
         this.licenseState = licenseState;
+        this.operatorPrivileges = operatorPrivileges;
     }
 
     public void checkPrivileges(Authentication authentication, HasPrivilegesRequest request,
@@ -183,6 +186,14 @@ public class AuthorizationService {
             // the originating action is the current action if no originating action has yet been set in the current thread context
             // if there is already an original action, that stays put (eg. the current action is a child action)
             putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
+
+            // Check operator privileges first if applicable
+            final ElasticsearchSecurityException operatorException = operatorPrivileges.check(action, originalRequest, threadContext);
+            if (operatorException != null) {
+                // TODO: audit
+                listener.onFailure(denialException(authentication, action, operatorException));
+                return;
+            }
 
             String auditId = AuditUtil.extractRequestId(threadContext);
             if (auditId == null) {

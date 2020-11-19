@@ -214,6 +214,9 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.operator.CompositeOperatorOnly;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.operator.OperatorUserDescriptor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
@@ -473,8 +476,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
+        final OperatorPrivileges operatorPrivileges = new OperatorPrivileges(settings, getLicenseState(),
+            new OperatorUserDescriptor(environment, resourceWatcherService), new CompositeOperatorOnly());
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
-                anonymousUser, tokenService, apiKeyService));
+                anonymousUser, tokenService, apiKeyService, operatorPrivileges));
         components.add(authcService.get());
         securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
 
@@ -492,7 +497,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors,
-            getLicenseState(), expressionResolver);
+            getLicenseState(), expressionResolver, operatorPrivileges);
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
@@ -673,6 +678,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(ApiKeyService.DOC_CACHE_TTL_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
+        settingsList.add(OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),

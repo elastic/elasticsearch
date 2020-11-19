@@ -69,15 +69,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testParseWithShadowedField() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-                .startObject("runtime")
-                  .startObject("field").field("type", "test").endObject()
-                .endObject()
-                .startObject("properties")
-                  .startObject("field").field("type", "keyword").endObject()
-                .endObject()
-            .endObject().endObject();
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        builder.startObject("runtime");
+        builder.startObject("field").field("type", "test").endObject();
+        builder.endObject();
+        builder.startObject("properties");
+        builder.startObject("field").field("type", "keyword").endObject();
+        builder.endObject().endObject().endObject();
 
         DocumentMapper mapper = createDocumentMapper(builder);
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
@@ -87,15 +85,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testParseWithRuntimeFieldDottedNameDisabledObject() throws Exception {
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-                .startObject("runtime")
-                    .startObject("path1.path2.path3.field").field("type", "test").endObject()
-                .endObject()
-                .startObject("properties")
-                    .startObject("path1").field("type", "object").field("enabled", false).endObject()
-                .endObject()
-            .endObject().endObject();
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        builder.startObject("runtime");
+        builder.startObject("path1.path2.path3.field").field("type", "test").endObject();
+        builder.endObject();
+        builder.startObject("properties");
+        builder.startObject("path1").field("type", "object").field("enabled", false).endObject();
+        builder.endObject().endObject().endObject();
         MapperService mapperService = createMapperService(builder);
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("path1").startObject("path2").startObject("path3");

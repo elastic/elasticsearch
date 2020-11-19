@@ -33,40 +33,19 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 abstract class PercentileAggregate extends NumericAggregate implements EnclosedAgg, TwoOptionalArguments {
 
     private static final PercentilesConfig.TDigest DEFAULT_PERCENTILES_CONFIG = new PercentilesConfig.TDigest();
-    
-    // all the possible PercentileMethods that we are capable of parameterizing at the moment
-    private static final Map<String, MethodConfigurator> METHODNAME_TO_CONFIGURATOR = List.of(
-        new MethodConfigurator(PercentilesMethod.TDIGEST, TypeResolutions::isNumeric, methodParameter -> {
+
+    // preferred method name to configurator mapping (type resolution, method parameter -> config)
+    // contains all the possible PercentilesMethods that we know of and are capable of parameterizing at the moment
+    private static final Map<String, MethodConfigurator> METHOD_CONFIGURATORS = Map.of(
+        PercentilesMethod.TDIGEST, new MethodConfigurator(TypeResolutions::isNumeric, methodParameter -> {
             Double compression = foldNullSafe(methodParameter, DataTypes.DOUBLE);
             return compression == null ? new PercentilesConfig.TDigest() : new PercentilesConfig.TDigest(compression);
         }),
-        new MethodConfigurator(PercentilesMethod.HDR, TypeResolutions::isInteger, methodParameter -> {
+        PercentilesMethod.HDR, new MethodConfigurator(TypeResolutions::isInteger, methodParameter -> {
             Integer numOfDigits = foldNullSafe(methodParameter, DataTypes.INTEGER);
             return numOfDigits == null ? new PercentilesConfig.Hdr() : new PercentilesConfig.Hdr(numOfDigits);
         })
-    ).stream().collect(toMap(
-        c -> c.method.getParseField().getPreferredName(),
-        Function.identity()
-    ));
-    
-    private static class MethodConfigurator {
-
-        @FunctionalInterface
-        private interface MethodParameterResolver {
-            TypeResolution resolve(Expression methodParameter, String sourceText, ParamOrdinal methodParameterOrdinal);
-        }
-        
-        private final PercentilesMethod method;
-        private final MethodParameterResolver resolver;
-        private final Function<Expression, PercentilesConfig> parameterToConfig;
-
-        MethodConfigurator(PercentilesMethod method, MethodParameterResolver resolver, 
-            Function<Expression, PercentilesConfig> parameterToConfig) {
-            this.method = method;
-            this.resolver = resolver;
-            this.parameterToConfig = parameterToConfig;
-        }
-    }
+    ).entrySet().stream().collect(toMap(c -> c.getKey().getParseField().getPreferredName(), Map.Entry::getValue));
     
     private final Expression method;
     private final Expression methodParameter;
@@ -85,8 +64,41 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
             return resolution;
         }
 
-        return resolvePercentileConfiguration(sourceText(), method, ParamOrdinal.fromIndex(parameters().size() + 1),
-            methodParameter, ParamOrdinal.fromIndex(parameters().size() + 2));
+        ParamOrdinal methodOrdinal = ParamOrdinal.fromIndex(parameters().size() + 1);
+        ParamOrdinal methodParameterOrdinal = ParamOrdinal.fromIndex(parameters().size() + 2);
+        
+        if (method != null) {
+            resolution = isFoldable(method, sourceText(), methodOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            resolution = TypeResolutions.isString(method, sourceText(), methodOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+
+            String methodName = (String) method.fold();
+
+            MethodConfigurator methodConfigurator = METHOD_CONFIGURATORS.get(methodName);
+            if (methodConfigurator == null) {
+                return new TypeResolution(format(null, "{}argument of [{}] must be one of {}, received [{}]",
+                    methodOrdinal.name().toLowerCase(Locale.ROOT) + " ", sourceText(),
+                    METHOD_CONFIGURATORS.keySet(), methodName));
+            }
+
+            // if method is null, the method parameter is not checked
+            if (methodParameter != null && Expressions.isNull(methodParameter) == false) {
+                resolution = isFoldable(methodParameter, sourceText(), methodParameterOrdinal);
+                if (resolution.unresolved()) {
+                    return resolution;
+                }
+
+                resolution = methodConfigurator.resolver.resolve(methodParameter, sourceText(), methodParameterOrdinal);
+                return resolution;
+            }
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     public Expression method() {
@@ -97,55 +109,18 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
         return methodParameter;
     }
 
+    @Override
+    public DataType dataType() {
+        return DataTypes.DOUBLE;
+    }
+
     public PercentilesConfig percentilesConfig() {
-        return asPercentilesConfig(method, methodParameter);
-    }
-
-    private static TypeResolution resolvePercentileConfiguration(
-        String sourceText, Expression method, ParamOrdinal methodOrdinal,
-        Expression methodParameter, ParamOrdinal methodParameterOrdinal) {
-
-        if (method != null) {
-            TypeResolution resolution = isFoldable(method, sourceText, methodOrdinal);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            resolution = TypeResolutions.isString(method, sourceText, methodOrdinal);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-
-            String methodName = (String) method.fold();
-
-            MethodConfigurator methodConfigurator = METHODNAME_TO_CONFIGURATOR.get(methodName);
-            if (methodConfigurator == null) {
-                return new TypeResolution(format(null, "{}argument of [{}] must be one of {}, received [{}]",
-                    methodOrdinal.name().toLowerCase(Locale.ROOT) + " ", sourceText, 
-                    METHODNAME_TO_CONFIGURATOR.keySet(), methodName));
-            }
-
-            // if method is null, the method parameter is not checked
-            if (methodParameter != null && Expressions.isNull(methodParameter) == false) {
-                resolution = isFoldable(methodParameter, sourceText, methodParameterOrdinal);
-                if (resolution.unresolved()) {
-                    return resolution;
-                }
-                
-                resolution = methodConfigurator.resolver.resolve(methodParameter, sourceText, methodParameterOrdinal);
-                return resolution;
-            }
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    private static PercentilesConfig asPercentilesConfig(Expression method, Expression methodParameter) {
         if (method == null) {
             // sadly we had to set the default here, the PercentilesConfig does not provide a default
             return DEFAULT_PERCENTILES_CONFIG;
         }
         String methodName = foldNullSafe(method, DataTypes.KEYWORD);
-        MethodConfigurator methodConfigurator = METHODNAME_TO_CONFIGURATOR.get(methodName);
+        MethodConfigurator methodConfigurator = METHOD_CONFIGURATORS.get(methodName);
         if (methodConfigurator == null) {
             throw new IllegalStateException("Not handled PercentilesMethod [" + methodName + "], type resolution needs fix");
         }
@@ -157,9 +132,26 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
         return e == null ? null : (T) SqlDataTypeConverter.convert(Foldables.valueOf(e), dataType);
     }
 
+    private static class MethodConfigurator {
+
+        @FunctionalInterface
+        private interface MethodParameterResolver {
+            TypeResolution resolve(Expression methodParameter, String sourceText, ParamOrdinal methodParameterOrdinal);
+        }
+
+        private final MethodParameterResolver resolver;
+        private final Function<Expression, PercentilesConfig> parameterToConfig;
+
+        MethodConfigurator(MethodParameterResolver resolver, Function<Expression, PercentilesConfig> parameterToConfig) {
+            this.resolver = resolver;
+            this.parameterToConfig = parameterToConfig;
+        }
+
+    }
+
     @Override
-    public DataType dataType() {
-        return DataTypes.DOUBLE;
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), method, methodParameter);
     }
 
     @Override
@@ -176,10 +168,5 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
 
         return Objects.equals(method, that.method)
             && Objects.equals(methodParameter, that.methodParameter);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), method, methodParameter);
     }
 }

@@ -54,10 +54,19 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -73,6 +82,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -166,8 +176,37 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         try {
             doInternalExecute(task, bulkRequest, executorName, releasingListener);
+            convertToSmile(bulkRequest);
         } catch (Exception e) {
             releasingListener.onFailure(e);
+        }
+    }
+
+    private void convertToSmile(BulkRequest bulkRequest) throws IOException {
+        for (DocWriteRequest<?> request : bulkRequest.requests) {
+            if (request instanceof IndexRequest) {
+                IndexRequest index = (IndexRequest) request;
+                BytesReference newSource = convertSource(index.source(), index.getContentType());
+                index.source(newSource, XContentType.SMILE);
+            } else if (request instanceof UpdateRequest) {
+                UpdateRequest update = (UpdateRequest) request;
+                IndexRequest upsert = update.upsertRequest();
+                if (upsert != null) {
+                    BytesReference newSource = convertSource(upsert.source(), upsert.getContentType());
+                    upsert.source(newSource, XContentType.SMILE);
+                }
+            }
+        }
+    }
+
+    private BytesReference convertSource(BytesReference source, XContentType xContentType) throws IOException {
+        try (BytesStreamOutput streamOutput = new BytesStreamOutput();
+             XContentGenerator generator = SmileXContent.smileXContent.createGenerator(streamOutput);
+            XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                source, xContentType)) {
+            generator.copyCurrentStructure(parser);
+            streamOutput.flush();
+            return streamOutput.bytes();
         }
     }
 

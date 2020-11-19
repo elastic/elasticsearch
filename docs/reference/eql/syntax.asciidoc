@@ -127,12 +127,13 @@ the value to the right. Otherwise returns `false`.
 
 `==` (equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`. For strings, matching is case-sensitive.
+Otherwise returns `false`. For strings, matching is case-sensitive. Wildcards
+are not supported.
 
 `:` (equal, case-insensitive)::
 Returns `true` if strings to the left and right of the operator are equal.
 Otherwise returns `false`. Matching is case-insensitive and can only be used to
-compare strings.
+compare strings. <<eql-syntax-wildcards,Wildcards>> are supported.
 
 [IMPORTANT]
 ====
@@ -150,6 +151,7 @@ DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
 `!=` (not equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are not
 equal. Otherwise returns `false`. For strings, matching is case-sensitive.
+Wildcards are not supported.
 
 `>=` (greater than or equal) ::
 Returns `true` if the value to the left of the operator is greater than or equal
@@ -368,6 +370,20 @@ use a regular string with the `\"` escape sequence.
 [source,eql]
 ----
 "String containing \"\"\" three double quotes"
+----
+
+[discrete]
+[[eql-syntax-wildcards]]
+===== Wildcards
+
+For string comparisons using the `:` operator, you can use wildcards (`*`) to
+match specific patterns:
+
+[source,eql]
+----
+field : "example*wildcard"
+field : "*example-wildcard"
+field : "example-wildcard*"
 ----
 
 [discrete]

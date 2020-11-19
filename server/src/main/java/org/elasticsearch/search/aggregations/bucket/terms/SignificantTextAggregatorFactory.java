@@ -31,6 +31,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -216,7 +217,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
                     try {
                         for (String sourceField : sourceFieldNames) {
-                            Iterator<String> itr = sourceLookup.extractRawValues(sourceField).stream()
+                            Iterator<String> itr = XContentMapValues.extractRawValues(sourceField, sourceLookup.source()).stream()
                                 .map(obj -> {
                                     if (obj == null) {
                                         return null;

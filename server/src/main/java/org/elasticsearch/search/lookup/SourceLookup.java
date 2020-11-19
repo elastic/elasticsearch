@@ -22,13 +22,11 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.Source;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -36,7 +34,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -139,16 +136,6 @@ public class SourceLookup implements Map<String, Object>, Source {
     @Override
     public BytesReference internalSourceRef() {
         return sourceAsBytes;
-    }
-
-    @Override
-    public List<Object> extractRawValues(String path) {
-        return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
-    }
-
-    @Override
-    public Object extractValue(String path, @Nullable Object nullValue) {
-        return XContentMapValues.extractValue(path, loadSourceIfNeeded(), nullValue);
     }
 
     @Override

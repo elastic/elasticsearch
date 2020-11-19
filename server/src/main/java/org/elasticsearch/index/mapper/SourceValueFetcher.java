@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.Source;
 
@@ -58,7 +59,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     public List<Object> fetchValues(int doc, Source source) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
-            Object sourceValue = source.extractValue(path, nullValue);
+            Object sourceValue = XContentMapValues.extractValue(path, source.source(), nullValue);
             if (sourceValue == null) {
                 return List.of();
             }

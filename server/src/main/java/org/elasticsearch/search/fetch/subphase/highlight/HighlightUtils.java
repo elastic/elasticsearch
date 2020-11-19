@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.Source;
@@ -60,9 +61,8 @@ public final class HighlightUtils {
             }
         } else {
             Source source = hitContext.source();
-            textsToHighlight = source.extractRawValues(fieldType.name());
+            textsToHighlight = XContentMapValues.extractRawValues(fieldType.name(), source.source());
         }
-        assert textsToHighlight != null;
         return textsToHighlight;
     }
 

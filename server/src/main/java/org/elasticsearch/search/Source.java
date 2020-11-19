@@ -19,16 +19,13 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -117,31 +114,7 @@ public interface Source {
      */
     XContentType sourceContentType();
 
-    /**
-     * For the provided path, return its value in the source.
-     *
-     * Note that in contrast with {@link #extractRawValues}, array and object values
-     * can be returned.
-     *
-     * @param path the value's path in the source.
-     * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
-     *                  in distinguishing between a path that doesn't exist vs. a value of 'null'.
-     *
-     * @return the value associated with the path in the source or 'null' if the path does not exist.
-     */
-    default Object extractValue(String path, @Nullable Object nullValue) {
-        return XContentMapValues.extractValue(path, source(), nullValue);
-    }
-
-    /**
-     * Returns the values associated with the path. Those are "low" level values, and it can
-     * handle path expression where an array/list is navigated within.
-     */
-    default List<Object> extractRawValues(String path) {
-        return XContentMapValues.extractRawValues(path, source());
-    }
-
-    // TODO make this return a BytesReference instead
+    // TODO make this return a BytesReference instead and merge with internalSourceRef()
     default Object filter(FetchSourceContext context) {
         return context.getFilter().apply(source());
     }

@@ -26,13 +26,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -66,27 +73,32 @@ public class DatafeedManager {
     private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
     private final AutodetectProcessManager autodetectProcessManager;
+    private final JobConfigProvider jobConfigProvider;
+    private final DatafeedConfigProvider datafeedConfigProvider;
+    private final JobResultsProvider resultsProvider;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
                            Supplier<Long> currentTimeSupplier, AnomalyDetectionAuditor auditor,
-                           AutodetectProcessManager autodetectProcessManager) {
+                           AutodetectProcessManager autodetectProcessManager, JobConfigProvider jobConfigProvider,
+                           DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider resultsProvider) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.threadPool = threadPool;
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.auditor = Objects.requireNonNull(auditor);
         this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
-        this.autodetectProcessManager = autodetectProcessManager;
+        this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
+        this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
+        this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
+        this.resultsProvider = Objects.requireNonNull(resultsProvider);
         clusterService.addListener(taskRunner);
     }
 
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
-        String datafeedId = task.getDatafeedId();
-
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
                 datafeedJob -> {
                     String jobId = datafeedJob.getJobId();
-                    Holder holder = new Holder(task, datafeedId, datafeedJob,
+                    Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob,
                             new ProblemTracker(auditor, jobId), finishHandler);
                     runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
                     task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
@@ -99,16 +111,57 @@ public class DatafeedManager {
                         public void onFailure(Exception e) {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 // The task was stopped in the meantime, no need to do anything
-                                logger.info("[{}] Aborting as datafeed has been stopped", datafeedId);
+                                logger.info("[{}] Aborting as datafeed has been stopped", task.getDatafeedId());
                             } else {
                                 finishHandler.accept(e);
                             }
                         }
                     });
-                }, finishHandler::accept
+                }, finishHandler
         );
 
-        datafeedJobBuilder.build(datafeedId, task.getParentTaskId(), datafeedJobHandler);
+        ActionListener<DatafeedContext> datafeedContextListener = ActionListener.wrap(
+            datafeedContext -> datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler),
+            finishHandler
+        );
+
+        buildDatafeedContext(task, datafeedContextListener);
+    }
+
+    private void buildDatafeedContext(TransportStartDatafeedAction.DatafeedTask task, ActionListener<DatafeedContext> listener) {
+        DatafeedContext.Builder context = new DatafeedContext.Builder();
+
+        Consumer<DatafeedTimingStats> timingStatsListener = timingStats -> {
+            context.setTimingStats(timingStats);
+            listener.onResponse(context.build());
+        };
+
+        ActionListener<RestartTimeInfo> restartTimeInfoListener = ActionListener.wrap(
+            restartTimeInfo -> {
+                context.setRestartTimeInfo(restartTimeInfo);
+                resultsProvider.datafeedTimingStats(context.getJob().getId(), timingStatsListener, listener::onFailure);
+            },
+            listener::onFailure
+        );
+
+        ActionListener<Job.Builder> jobConfigListener = ActionListener.wrap(
+            jobBuilder -> {
+                context.setJob(jobBuilder.build());
+                resultsProvider.getRestartTimeInfo(jobBuilder.getId(), restartTimeInfoListener);
+            },
+            listener::onFailure
+        );
+
+        ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(
+            datafeedConfigBuilder -> {
+                DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+                context.setDatafeedConfig(datafeedConfig);
+                jobConfigProvider.getJob(datafeedConfig.getJobId(), jobConfigListener);
+            },
+            listener::onFailure
+        );
+
+        datafeedConfigProvider.getDatafeedConfig(task.getDatafeedId(), datafeedListener);
     }
 
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {

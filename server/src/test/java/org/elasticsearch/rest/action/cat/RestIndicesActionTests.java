@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,8 +36,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.junit.Before;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,13 +49,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestIndicesActionTests extends ESTestCase {
-
-    private RestIndicesAction action;
-
-    @Before
-    public void setUpAction() {
-        action = new RestIndicesAction();
-    }
 
     public void testBuildTable() {
         final int numIndices = randomIntBetween(3, 20);
@@ -175,17 +165,5 @@ public class RestIndicesActionTests extends ESTestCase {
                 assertThat(row.get(5).value, nullValue());
             }
         }
-    }
-
-    public void testCatIndicesWithLocalDeprecationWarning() {
-        TestThreadPool threadPool = new TestThreadPool(RestIndicesActionTests.class.getName());
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        FakeRestRequest request = new FakeRestRequest();
-        request.params().put("local", randomFrom("", "true", "false"));
-
-        action.doCatRequest(request, client);
-        assertWarnings(RestIndicesAction.LOCAL_DEPRECATED_MESSAGE);
-
-        terminate(threadPool);
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -16,7 +17,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -63,10 +63,10 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         request.passwordHash(Hasher.resolve(hashingAlgorithm).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<ChangePasswordResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(ChangePasswordResponse changePasswordResponse) {
+            public void onResponse(ActionResponse.Empty changePasswordResponse) {
                 responseRef.set(changePasswordResponse);
             }
 
@@ -97,10 +97,10 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         request.passwordHash(Hasher.resolve(hashingAlgorithm).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<ChangePasswordResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(ChangePasswordResponse changePasswordResponse) {
+            public void onResponse(ActionResponse.Empty changePasswordResponse) {
                 responseRef.set(changePasswordResponse);
             }
 
@@ -138,10 +138,10 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
             mock(ActionFilters.class), usersStore);
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<ChangePasswordResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(ChangePasswordResponse changePasswordResponse) {
+            public void onResponse(ActionResponse.Empty changePasswordResponse) {
                 responseRef.set(changePasswordResponse);
             }
 
@@ -152,7 +152,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), is(notNullValue()));
-        assertThat(responseRef.get(), instanceOf(ChangePasswordResponse.class));
+        assertSame(responseRef.get(), ActionResponse.Empty.INSTANCE);
         assertThat(throwableRef.get(), is(nullValue()));
         verify(usersStore, times(1)).changePassword(eq(request), any(ActionListener.class));
     }
@@ -165,16 +165,16 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
             randomFrom("pbkdf2_50000", "pbkdf2_100000", "bcrypt11", "bcrypt8", "bcrypt")).build();
         TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
             mock(ActionFilters.class), usersStore);
-        action.doExecute(mock(Task.class), request, new ActionListener<ChangePasswordResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(ChangePasswordResponse changePasswordResponse) {
+            public void onResponse(ActionResponse.Empty changePasswordResponse) {
                 responseRef.set(changePasswordResponse);
             }
 
@@ -214,10 +214,10 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
             mock(ActionFilters.class), usersStore);
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<ChangePasswordResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(ChangePasswordResponse changePasswordResponse) {
+            public void onResponse(ActionResponse.Empty changePasswordResponse) {
                 responseRef.set(changePasswordResponse);
             }
 

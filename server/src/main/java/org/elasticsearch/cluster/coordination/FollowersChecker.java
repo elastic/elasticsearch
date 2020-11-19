@@ -316,7 +316,7 @@ public class FollowersChecker {
                 transportRequest = request;
             }
             transportService.sendRequest(discoveryNode, actionName, transportRequest,
-                TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
+                TransportRequestOptions.of(followerCheckTimeout, Type.PING),
                 new TransportResponseHandler.Empty() {
 
                     @Override

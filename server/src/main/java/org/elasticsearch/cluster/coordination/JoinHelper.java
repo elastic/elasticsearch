@@ -293,7 +293,7 @@ public class JoinHelper {
             if (Coordinator.isZen1Node(destination)) {
                 actionName = MembershipAction.DISCOVERY_JOIN_ACTION_NAME;
                 transportRequest = new MembershipAction.JoinRequest(transportService.getLocalNode());
-                transportRequestOptions = TransportRequestOptions.builder().withTimeout(joinTimeout).build();
+                transportRequestOptions = TransportRequestOptions.timeout(joinTimeout);
             } else {
                 actionName = JOIN_ACTION_NAME;
                 transportRequest = joinRequest;

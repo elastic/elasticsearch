@@ -175,8 +175,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         try {
-            doInternalExecute(task, bulkRequest, executorName, releasingListener);
             convertToSmile(bulkRequest);
+            doInternalExecute(task, bulkRequest, executorName, releasingListener);
         } catch (Exception e) {
             releasingListener.onFailure(e);
         }
@@ -200,11 +200,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     private BytesReference convertSource(BytesReference source, XContentType xContentType) throws IOException {
-        try (BytesStreamOutput streamOutput = new BytesStreamOutput();
-             XContentGenerator generator = SmileXContent.smileXContent.createGenerator(streamOutput);
-            XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                source, xContentType)) {
-            generator.copyCurrentStructure(parser);
+        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+            try (XContentGenerator generator = SmileXContent.smileXContent.createGenerator(streamOutput);
+                 XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                     source, xContentType)) {
+                generator.copyCurrentStructure(parser);
+            }
             streamOutput.flush();
             return streamOutput.bytes();
         }

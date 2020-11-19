@@ -338,7 +338,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     @Override
-
     protected final Class<T> categoryClass() {
         return (Class<T>) InternalAggregation.class;
     }

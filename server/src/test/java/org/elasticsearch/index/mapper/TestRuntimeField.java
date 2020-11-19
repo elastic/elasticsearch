@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,7 +38,7 @@ public class TestRuntimeField extends RuntimeFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
         return null;
     }
 

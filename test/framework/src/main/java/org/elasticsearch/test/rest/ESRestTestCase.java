@@ -1314,6 +1314,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
             case ".deprecation-indexing-template":
+            case "ilm-history":
                 return true;
             default:
                 return false;

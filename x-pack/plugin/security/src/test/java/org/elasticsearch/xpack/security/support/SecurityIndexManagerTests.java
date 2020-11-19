@@ -133,7 +133,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final ClusterState.Builder clusterStateBuilder = createClusterState(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
                 RestrictedIndicesNames.SECURITY_MAIN_ALIAS, TEMPLATE_NAME);
         markShardsAvailable(clusterStateBuilder);
-        manager.clusterChanged(event(clusterStateBuilder));
+        final ClusterState clusterState = clusterStateBuilder.build();
+        manager.clusterChanged(event(ClusterState.builder(clusterState)));
 
         assertTrue(listenerCalled.get());
         assertNull(previousState.get().indexHealth);
@@ -143,7 +144,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         listenerCalled.set(false);
         previousState.set(null);
         currentState.set(null);
-        ClusterChangedEvent event = new ClusterChangedEvent("same index health", clusterStateBuilder.build(), clusterStateBuilder.build());
+        ClusterChangedEvent event = new ClusterChangedEvent("same index health", clusterState, clusterState);
         manager.clusterChanged(event);
 
         assertFalse(listenerCalled.get());
@@ -154,9 +155,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         listenerCalled.set(false);
         previousState.set(null);
         currentState.set(null);
-        ClusterState previousClusterState = clusterStateBuilder.build();
-        Index prevIndex = previousClusterState.getRoutingTable().index(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
-        clusterStateBuilder.routingTable(RoutingTable.builder()
+        Index prevIndex = clusterState.getRoutingTable().index(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
+        final ClusterState newClusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.builder()
                 .add(IndexRoutingTable.builder(prevIndex)
                         .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(prevIndex, 0))
                                 .addShard(ShardRouting.newUnassigned(new ShardId(prevIndex, 0), true,
@@ -165,11 +165,9 @@ public class SecurityIndexManagerTests extends ESTestCase {
                                         .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
                                         .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "")))
                                 .build()))
-                .build());
+                .build()).build();
 
-
-
-        event = new ClusterChangedEvent("different index health", clusterStateBuilder.build(), previousClusterState);
+        event = new ClusterChangedEvent("different index health", newClusterState, clusterState);
         manager.clusterChanged(event);
         assertTrue(listenerCalled.get());
         assertEquals(ClusterHealthStatus.GREEN, previousState.get().indexHealth);
@@ -179,7 +177,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         listenerCalled.set(false);
         previousState.set(null);
         currentState.set(null);
-        event = new ClusterChangedEvent("different index health swapped", previousClusterState, clusterStateBuilder.build());
+        event = new ClusterChangedEvent("different index health swapped", clusterState, newClusterState);
         manager.clusterChanged(event);
         assertTrue(listenerCalled.get());
         assertEquals(ClusterHealthStatus.RED, previousState.get().indexHealth);

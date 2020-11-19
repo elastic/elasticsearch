@@ -96,10 +96,6 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * {@link #getFinishedTaskFromIndex(Task, GetTaskRequest, ActionListener)} on this node.
      */
     private void runOnNodeWithTaskIfPossible(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-        if (request.getTimeout() != null) {
-            builder.withTimeout(request.getTimeout());
-        }
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
@@ -115,7 +111,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
-        transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
+        transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, TransportRequestOptions.timeout(request.getTimeout()),
             new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME));
     }
 

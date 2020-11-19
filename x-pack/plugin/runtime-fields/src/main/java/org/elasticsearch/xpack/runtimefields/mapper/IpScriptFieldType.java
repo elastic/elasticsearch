@@ -11,13 +11,16 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -28,6 +31,7 @@ import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldTermQuery;
 import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldTermsQuery;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -37,12 +41,31 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
-    IpScriptFieldType(String name, Script script, IpFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, scriptFactory::newFactory, meta);
+
+    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
+        @Override
+        protected AbstractScriptFieldType<?> buildFieldType() {
+            IpFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), IpFieldScript.CONTEXT);
+            return new IpScriptFieldType(name, factory, this);
+        }
+    });
+
+    private IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Builder builder) {
+        super(name, scriptFactory::newFactory, builder);
+    }
+
+    IpScriptFieldType(
+        String name,
+        IpFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+    ) {
+        super(name, scriptFactory::newFactory, script, meta, toXContent);
     }
 
     @Override
-    protected String runtimeType() {
+    public String typeName() {
         return IpFieldMapper.CONTENT_TYPE;
     }
 
@@ -57,12 +80,12 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
         if (format != null) {
-            String message = "Field [%s] of type [%s] with runtime type [%s] does not support custom formats";
-            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName(), runtimeType()));
+            String message = "Runtime field [%s] of type [%s] does not support custom formats";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName()));
         }
         if (timeZone != null) {
-            String message = "Field [%s] of type [%s] with runtime type [%s] does not support custom time zones";
-            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName(), runtimeType()));
+            String message = "Runtime field [%s] of type [%s] does not support custom time zones";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName()));
         }
         return DocValueFormat.IP;
     }

@@ -30,10 +30,27 @@ include::install_remove.asciidoc[]
 | `ignore_missing`       | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
-For example, this:
+[discrete]
+[[ingest-attachment-json-ex]]
+==== Example
+
+If attaching files to JSON documents, you must first encode the file as a base64
+string. On Unix-like systems, you can do this using a `base64` command:
+
+[source,shell]
+----
+base64 -in myfile.rtf
+----
+
+The command returns the base64-encoded string for the file. The following base64
+string is for an `.rtf` file containing the text `Lorem ipsum dolor sit amet`:
+`e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=`.
+
+Use an attachment processor to decode the string and extract the file's
+properties:
 
 [source,console]
---------------------------------------------------
+----
 PUT _ingest/pipeline/attachment
 {
   "description" : "Extract attachment information",
@@ -50,12 +67,12 @@ PUT my-index-000001/_doc/my_id?pipeline=attachment
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
 }
 GET my-index-000001/_doc/my_id
---------------------------------------------------
+----
 
-Returns this:
+The document's `attachment` object contains extracted properties for the file:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "found": true,
   "_index": "my-index-000001",
@@ -73,14 +90,13 @@ Returns this:
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
-
-To specify only some fields to be extracted:
+To extract only certain `attachment` fields, specify the `properties` array:
 
 [source,console]
---------------------------------------------------
+----
 PUT _ingest/pipeline/attachment
 {
   "description" : "Extract attachment information",
@@ -93,7 +109,7 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
---------------------------------------------------
+----
 
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines

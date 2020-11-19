@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -438,5 +440,21 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherMetadata = (Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
         assertThat(watcherMetadata.get("key1"), equalTo(0));
         assertThat(watcherMetadata.get("key2"), equalTo(6));
+    }
+
+    public void testListWatchesNoWatches() {
+        ListWatchesAction.Request request = new ListWatchesAction.Request(null, null, null, null, null);
+        ListWatchesAction.Response response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo(0L));
+        assertThat(response.getWatches().size(), equalTo(0));
+
+        // Even if there is no .watches index this api should work and return 0 watches.
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("*");
+        deleteIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpenHidden());
+        client().admin().indices().delete(deleteIndexRequest).actionGet();
+        request = new ListWatchesAction.Request(null, null, null, null, null);
+        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo(0L));
+        assertThat(response.getWatches().size(), equalTo(0));
     }
 }

@@ -133,8 +133,8 @@ are not supported.
 `:` (equal, case-insensitive)::
 Returns `true` if strings to the left and right of the operator are equal.
 Otherwise returns `false`. Matching is case-insensitive and can only be used to
-compare strings. <<eql-syntax-wildcards,Wildcards>> and
-<<eql-syntax-lookup-operators,list lookups>> are supported.
+compare strings. Supports <<eql-syntax-wildcards,wildcards>> and
+<<eql-syntax-lookup-operators,list lookups>>.
 
 [IMPORTANT]
 ====

@@ -49,6 +49,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
@@ -81,6 +82,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
+    private CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter;
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
@@ -101,6 +103,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     public void setProfiler(QueryProfiler profiler) {
         this.profiler = profiler;
+    }
+
+    public void setLeafSorter(CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter) {
+        assert this.leafSorter == null;
+        this.leafSorter = leafSorter;
     }
 
     /**
@@ -198,7 +205,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        for (LeafReaderContext ctx : leaves) { // search each subreader
+        List<LeafReaderContext> sortedLeaves;
+        if (leafSorter != null && leaves.size() > 1) {
+            sortedLeaves = new ArrayList<>(leaves);
+            leafSorter.accept(sortedLeaves);
+        } else {
+            sortedLeaves = leaves;
+        }
+        for (LeafReaderContext ctx : sortedLeaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }
     }

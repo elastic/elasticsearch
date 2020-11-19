@@ -21,8 +21,10 @@ package org.elasticsearch.search.query;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.queries.MinDocQuery;
 import org.apache.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -39,6 +41,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
@@ -64,7 +67,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
@@ -225,8 +231,10 @@ public class QueryPhase {
             }
 
             if (SYS_PROP_REWRITE_SORT) {
-                optimizeNumericSort(searchContext, searcher.getIndexReader());
-                // TODO: sort leaves according to search sort when Lucene supports sharing bottom sort value between collectors
+                if (optimizeNumericSort(searchContext, searcher.getIndexReader())) {
+                    SortField firstSortField = searchContext.sort().sort.getSort()[0];
+                    searcher.setLeafSorter(createLeafSorter(firstSortField));
+                };
             }
 
             boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
@@ -317,29 +325,54 @@ public class QueryPhase {
         return topDocsFactory.shouldRescore();
     }
 
-    private static void optimizeNumericSort(SearchContext searchContext, IndexReader reader) {
-        if (searchContext.sort() == null) return;
+    private static boolean optimizeNumericSort(SearchContext searchContext, IndexReader reader) {
+        if (searchContext.sort() == null) return false;
         // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
-        if (canEarlyTerminate(reader, searchContext.sort())) return;
+        if (canEarlyTerminate(reader, searchContext.sort())) return false;
 
         SortField sortField = searchContext.sort().sort.getSort()[0];
         SortField.Type sortType = IndexSortConfig.getSortFieldType(sortField);
-        if (sortType != SortField.Type.LONG) return; // for now restrict sort optimization only to long sort
+        if (sortType != SortField.Type.LONG) return false; // for now restrict sort optimization only to long sort
         String fieldName = sortField.getField();
-        if (fieldName == null) return; // happens when _score or _doc is the 1st sort field
+        if (fieldName == null) return false; // happens when _score or _doc is the 1st sort field
         QueryShardContext queryShardContext = searchContext.getQueryShardContext();
         final MappedFieldType fieldType = queryShardContext.getFieldType(fieldName);
-        if (fieldType == null) return; // for unmapped fields, default behaviour depending on "unmapped_type" flag
-        if (fieldType.isSearchable() == false) return;
-        if (fieldType.hasDocValues() == false) return;
+        if (fieldType == null) return false; // for unmapped fields, default behaviour depending on "unmapped_type" flag
+        if (fieldType.isSearchable() == false) return false;
+        if (fieldType.hasDocValues() == false) return false;
 
         // For now restrict sort optimization only to long and date fields
         // For sort optimization SortField.Type must match with the type of indexed points (Type.LONG and LongPoint)
         // Some fields there is no match (e.g. integer field uses SortField.Type.LONG, but indexed as IntegerPoint)
-        if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldMapper.DateFieldType == false)) return;
+        if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldMapper.DateFieldType == false)) return false;
 
         sortField.setCanUsePoints();
-        return;
+        return true;
+    }
+
+    /**
+     * Creates a sorter of {@link LeafReaderContext} that orders leaves depending on the minimum
+     * value and the sort order of the provided <code>sortField</code>.
+     */
+    private static CheckedConsumer<List<LeafReaderContext>, IOException> createLeafSorter(SortField sortField) {
+        return leaves -> {
+            long[] sortValues = new long[leaves.size()];
+            long missingValue = (long) sortField.getMissingValue();
+            for (LeafReaderContext ctx : leaves) {
+                PointValues values = ctx.reader().getPointValues(sortField.getField());
+                if (values == null) {
+                    sortValues[ctx.ord] = missingValue;
+                } else {
+                    byte[] sortValue = sortField.getReverse() ? values.getMaxPackedValue(): values.getMinPackedValue();
+                    sortValues[ctx.ord] = sortValue == null ? missingValue : LongPoint.decodeDimension(sortValue, 0);
+                }
+            }
+            Comparator<LeafReaderContext> comparator = Comparator.comparingLong(l -> sortValues[l.ord]);
+            if (sortField.getReverse()) {
+                comparator = comparator.reversed();
+            }
+            Collections.sort(leaves, comparator);
+        };
     }
 
     /**
@@ -363,7 +396,7 @@ public class QueryPhase {
      * Returns whether collection within the provided <code>reader</code> can be early-terminated if it sorts
      * with <code>sortAndFormats</code>.
      **/
-    private static boolean canEarlyTerminate(IndexReader reader, SortAndFormats sortAndFormats) {
+    public static boolean canEarlyTerminate(IndexReader reader, SortAndFormats sortAndFormats) {
         if (sortAndFormats == null || sortAndFormats.sort == null) {
             return false;
         }

@@ -170,7 +170,7 @@ public abstract class TransportReplicationAction<
         transportService.registerRequestHandler(transportReplicaAction, executor, true, true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in), this::handleReplicaRequest);
 
-        this.transportOptions = transportOptions(settings);
+        this.transportOptions = transportOptions();
 
         this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
 
@@ -249,7 +249,7 @@ public abstract class TransportReplicationAction<
         return null;
     }
 
-    protected TransportRequestOptions transportOptions(Settings settings) {
+    protected TransportRequestOptions transportOptions() {
         return TransportRequestOptions.EMPTY;
     }
 

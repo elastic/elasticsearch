@@ -245,8 +245,7 @@ public class LeaderChecker {
             // In the PoC, the leader sent its current version to the follower in the response to a LeaderCheck, so the follower
             // could detect if it was lagging. We'd prefer this to be implemented on the leader, so the response is just
             // TransportResponse.Empty here.
-            transportService.sendRequest(leader, actionName, transportRequest,
-                TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
+            transportService.sendRequest(leader, actionName, transportRequest, TransportRequestOptions.of(leaderCheckTimeout, Type.PING),
                 new TransportResponseHandler.Empty() {
 
                     @Override

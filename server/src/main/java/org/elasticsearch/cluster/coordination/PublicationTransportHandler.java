@@ -88,8 +88,8 @@ public class PublicationTransportHandler {
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
     // -> no need to put a timeout on the options here, because we want the response to eventually be received
     //  and not log an error if it arrives after the timeout
-    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
-        .withType(TransportRequestOptions.Type.STATE).build();
+    private static final TransportRequestOptions STATE_REQUEST_OPTIONS =
+            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE);
 
     public PublicationTransportHandler(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
@@ -358,7 +358,7 @@ public class PublicationTransportHandler {
                     actionName = COMMIT_STATE_ACTION_NAME;
                     transportRequest = applyCommitRequest;
                 }
-                transportService.sendRequest(destination, actionName, transportRequest, stateRequestOptions,
+                transportService.sendRequest(destination, actionName, transportRequest, STATE_REQUEST_OPTIONS,
                 new TransportResponseHandler<TransportResponse.Empty>() {
 
                     @Override
@@ -454,7 +454,7 @@ public class PublicationTransportHandler {
                     actionName = PUBLISH_STATE_ACTION_NAME;
                     transportResponseHandler = responseHandler;
                 }
-                transportService.sendRequest(destination, actionName, request, stateRequestOptions, transportResponseHandler);
+                transportService.sendRequest(destination, actionName, request, STATE_REQUEST_OPTIONS, transportResponseHandler);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
                 listener.onFailure(e);

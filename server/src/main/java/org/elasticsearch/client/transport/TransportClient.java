@@ -223,7 +223,7 @@ public abstract class TransportClient extends AbstractClient {
             final List<? extends ActionType<?>> baseActions =
                     actionModule.getActions().values().stream().map(ActionPlugin.ActionHandler::getAction).collect(Collectors.toList());
             clientActions.addAll(baseActions);
-            final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService, clientActions);
+            final TransportProxyClient proxy = new TransportProxyClient(transportService, nodesService, clientActions);
 
             List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>(pluginsService.getGuiceServiceClasses().stream()
                 .map(injector::getInstance).collect(Collectors.toList()));

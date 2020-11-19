@@ -123,7 +123,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
         this.clusterNameValidator = (newConnection, actualProfile, listener) ->
-            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true,
+            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true,
                 ActionListener.map(listener, resp -> {
                     ClusterName remote = resp.getClusterName();
                     if (remoteClusterName.compareAndSet(null, remote)) {

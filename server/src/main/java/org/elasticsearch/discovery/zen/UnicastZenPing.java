@@ -295,7 +295,7 @@ public class UnicastZenPing implements ZenPing {
                     try {
                         Connection finalResult = result;
                         PlainActionFuture.get(fut ->
-                            transportService.handshake(finalResult, connectionProfile.getHandshakeTimeout().millis(),
+                            transportService.handshake(finalResult, connectionProfile.getHandshakeTimeout(),
                                 ActionListener.map(fut, x -> null)));
                         synchronized (this) {
                             // acquire lock and check if closed, to prevent leaving an open connection after closing
@@ -406,7 +406,7 @@ public class UnicastZenPing implements ZenPing {
 
                 logger.trace("[{}] sending to {}", pingingRound.id(), node);
                 transportService.sendRequest(connection, ACTION_NAME, pingRequest,
-                    TransportRequestOptions.builder().withTimeout((long) (timeout.millis() * 1.25)).build(),
+                    TransportRequestOptions.timeout(TimeValue.timeValueMillis((long) (timeout.millis() * 1.25))),
                     getPingResponseHandler(pingingRound, node));
             }
 

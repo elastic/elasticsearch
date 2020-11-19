@@ -324,7 +324,10 @@
       migration.deprecations:
         index: "simple-data-stream1"
   - length: { cluster_settings: 0 }
-  - length: { node_settings: 0 }
+  # We don't check this field because for ES <8.0 && Java < 11, a node-level deprecation warning is triggered
+  # and it isn't easy to codify this in the REST tests without extra test infrastructure. `MigrationIT.java`
+  # does check this, however.
+  # - length: { node_settings: 0 }
   - length: { index_settings: 0 }
   - length: { ml_settings: 0 }
 

@@ -144,8 +144,7 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::readDiffFrom);
         registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
 
-        if (Build.CURRENT.isSnapshot() ||
-                (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED)) {
+        if (RollupV2.isEnabled()) {
             registerMetadataCustom(entries, RollupMetadata.TYPE, RollupMetadata::new, RollupMetadata::readDiffFrom);
         }
         // Task Status (not Diffable)
@@ -172,8 +171,7 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::fromXContent));
         entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(DataStreamMetadata.TYPE),
             DataStreamMetadata::fromXContent));
-        if (Build.CURRENT.isSnapshot() ||
-                (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED)) {
+        if (RollupV2.isEnabled()) {
             entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(RollupMetadata.TYPE),
                 RollupMetadata::fromXContent));
         }

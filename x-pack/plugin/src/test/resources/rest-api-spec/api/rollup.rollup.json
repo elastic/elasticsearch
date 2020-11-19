@@ -1,14 +1,14 @@
 {
-  "rollup.rollup_vtwo":{
+  "rollup.rollup":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-vtwo.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup.html",
       "description":"Rollup an index"
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url": {
       "paths": [
         {
-          "path": "/_rollup_vtwo/{index}",
+          "path": "{index}/_rollup",
           "methods": [
             "POST"
           ],

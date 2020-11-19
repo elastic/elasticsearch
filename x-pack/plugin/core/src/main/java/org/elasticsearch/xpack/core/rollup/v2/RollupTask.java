@@ -18,13 +18,13 @@ import java.util.Map;
  * This class contains the high-level logic that drives the rollup job. The allocated task contains transient state
  * which drives the indexing, and periodically updates it's parent PersistentTask with the indexing's current position.
  */
-public class RollupV2Task extends CancellableTask {
-    private static final Logger logger = LogManager.getLogger(RollupV2Task.class.getName());
+public class RollupTask extends CancellableTask {
+    private static final Logger logger = LogManager.getLogger(RollupTask.class.getName());
 
     private RollupV2Config config;
     private RollupJobStatus status;
 
-    RollupV2Task(long id, String type, String action, TaskId parentTask, RollupV2Config config, Map<String, String> headers) {
+    RollupTask(long id, String type, String action, TaskId parentTask, RollupV2Config config, Map<String, String> headers) {
         super(id, type, action, RollupField.NAME + "_" + config.getRollupIndex(), parentTask, headers);
         this.config = config;
     }

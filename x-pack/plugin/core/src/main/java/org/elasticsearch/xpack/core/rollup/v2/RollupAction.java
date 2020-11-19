@@ -24,13 +24,13 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class RollupV2Action extends ActionType<RollupV2Action.Response> {
+public class RollupAction extends ActionType<RollupAction.Response> {
 
-    public static final RollupV2Action INSTANCE = new RollupV2Action();
+    public static final RollupAction INSTANCE = new RollupAction();
     public static final String NAME = "cluster:admin/xpack/rollupV2";
 
-    private RollupV2Action() {
-        super(NAME, RollupV2Action.Response::new);
+    private RollupAction() {
+        super(NAME, RollupAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -49,7 +49,7 @@ public class RollupV2Action extends ActionType<RollupV2Action.Response> {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupV2Task(id, type, action, parentTaskId, rollupConfig, headers);
+            return new RollupTask(id, type, action, parentTaskId, rollupConfig, headers);
         }
 
         @Override
@@ -95,7 +95,7 @@ public class RollupV2Action extends ActionType<RollupV2Action.Response> {
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
-        protected RequestBuilder(ElasticsearchClient client, RollupV2Action action) {
+        protected RequestBuilder(ElasticsearchClient client, RollupAction action) {
             super(client, action, new Request());
         }
     }

@@ -27,7 +27,5 @@ gradle.projectsEvaluated {
 }
 
 test {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.rollup_v2_feature_enabled', 'true'
-  }
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }

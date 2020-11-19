@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
@@ -152,7 +151,7 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.core.rollup.v2.RollupV2Action;
+import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -412,9 +411,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         ));
 
         // rollupV2
-        if (Build.CURRENT.isSnapshot() ||
-                (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED)) {
-            actions.add(RollupV2Action.INSTANCE);
+        if (RollupV2.isEnabled()) {
+            actions.add(RollupAction.INSTANCE);
         }
 
         return actions;

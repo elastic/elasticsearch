@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.rollup;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -46,7 +45,7 @@ import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
-import org.elasticsearch.xpack.core.rollup.v2.RollupV2Action;
+import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
@@ -65,8 +64,8 @@ import org.elasticsearch.xpack.rollup.rest.RestPutRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestRollupSearchAction;
 import org.elasticsearch.xpack.rollup.rest.RestStartRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
-import org.elasticsearch.xpack.rollup.v2.RestRollupV2Action;
-import org.elasticsearch.xpack.rollup.v2.TransportRollupV2Action;
+import org.elasticsearch.xpack.rollup.v2.RestRollupAction;
+import org.elasticsearch.xpack.rollup.v2.TransportRollupAction;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -130,9 +129,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new RestGetRollupCapsAction(),
             new RestGetRollupIndexCapsAction()));
 
-        if (Build.CURRENT.isSnapshot() ||
-                (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED)) {
-            handlers.add(new RestRollupV2Action());
+        if (RollupV2.isEnabled()) {
+            handlers.add(new RestRollupAction());
         }
 
         return handlers;
@@ -152,9 +150,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)));
 
-        if (Build.CURRENT.isSnapshot() ||
-                (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED)) {
-            actions.add(new ActionHandler<>(RollupV2Action.INSTANCE, TransportRollupV2Action.class));
+        if (RollupV2.isEnabled()) {
+            actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
         }
 
         return actions;

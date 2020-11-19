@@ -28,8 +28,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.v2.RollupV2Action;
-import org.elasticsearch.xpack.core.rollup.v2.RollupV2Task;
+import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
+import org.elasticsearch.xpack.core.rollup.v2.RollupTask;
 import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.ArrayList;
@@ -38,46 +38,46 @@ import java.util.List;
 import java.util.Map;
 
 // TODO(talevy): enforce that rollup-indices of indices backing a datastream must be hidden
-public class TransportRollupV2Action extends HandledTransportAction<RollupV2Action.Request, RollupV2Action.Response> {
+public class TransportRollupAction extends HandledTransportAction<RollupAction.Request, RollupAction.Response> {
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
     @Inject
-    public TransportRollupV2Action(
+    public TransportRollupAction(
             final Client client,
             final ClusterService clusterService,
             final ThreadPool threadPool,
             final TransportService transportService,
             final ActionFilters actionFilters
     ) {
-        super(RollupV2Action.NAME, transportService, actionFilters, RollupV2Action.Request::new);
+        super(RollupAction.NAME, transportService, actionFilters, RollupAction.Request::new);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(Task task, RollupV2Action.Request request, ActionListener<RollupV2Action.Response> listener) {
-        RollupV2Task rollupV2Task = (RollupV2Task) task;
+    protected void doExecute(Task task, RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
+        RollupTask rollupTask = (RollupTask) task;
         RollupV2Indexer indexer = new RollupV2Indexer(client, threadPool, Rollup.TASK_THREAD_POOL_NAME,
-            rollupV2Task.config(), rollupV2Task.headers(), ActionListener.wrap(c -> {
+            rollupTask.config(), rollupTask.headers(), ActionListener.wrap(c -> {
             // update Rollup metadata to include this index
             clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new RollupV2Action.Response(true));
+                    listener.onResponse(new RollupAction.Response(true));
                 }
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    String rollupIndexName = rollupV2Task.config().getRollupIndex();
+                    String rollupIndexName = rollupTask.config().getRollupIndex();
                     IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                     Index rollupIndex = rollupIndexMetadata.getIndex();
                     // TODO(talevy): find better spot to get the original index name
                     // extract created rollup index original index name to be used as metadata key
-                    String originalIndexName = rollupV2Task.config().getSourceIndex();
+                    String originalIndexName = rollupTask.config().getSourceIndex();
                     Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
                         .getCustomData(RollupMetadata.TYPE);
                     String rollupGroupKeyName = (idxMetadata == null) ?
@@ -91,7 +91,7 @@ public class TransportRollupV2Action extends HandledTransportAction<RollupV2Acti
                     } else {
                         rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
                     }
-                    DateHistogramGroupConfig dateConfig = rollupV2Task.config().getGroupConfig().getDateHistogram();
+                    DateHistogramGroupConfig dateConfig = rollupTask.config().getGroupConfig().getDateHistogram();
                     WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
                     if (rollupGroups.containsKey(rollupGroupKeyName)) {
                         RollupGroup group = rollupGroups.get(rollupGroupKeyName);
@@ -130,7 +130,7 @@ public class TransportRollupV2Action extends HandledTransportAction<RollupV2Acti
                 }
             });
         }, e -> listener.onFailure(
-            new ElasticsearchException("Failed to rollup index [" + rollupV2Task.config().getSourceIndex() + "]", e))));
+            new ElasticsearchException("Failed to rollup index [" + rollupTask.config().getSourceIndex() + "]", e))));
         if (indexer.start() == IndexerState.STARTED) {
             indexer.maybeTriggerAsyncJob(Long.MAX_VALUE);
         } else {

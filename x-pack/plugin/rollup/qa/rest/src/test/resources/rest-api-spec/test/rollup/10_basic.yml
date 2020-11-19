@@ -52,7 +52,7 @@ setup:
       version: " - 7.99.99"
       reason: "rolling up an index directly is only supported in 8.0+"
   - do:
-      rollup.rollup_vtwo:
+      rollup.rollup:
         index: docs
         body:  >
           {

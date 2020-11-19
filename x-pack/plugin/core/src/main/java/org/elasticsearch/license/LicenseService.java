@@ -81,6 +81,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     static final TimeValue GRACE_PERIOD_DURATION = days(7);
 
+    /**
+     * Period before the license expires when warning starts being added to the response header
+     */
+    static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = days(7);
+
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
         XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
 

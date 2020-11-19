@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +21,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -32,7 +34,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.license.LicenseService.GRACE_PERIOD_DURATION;
+import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -514,6 +516,7 @@ public class XPackLicenseState {
     /**
      * Checks whether the given feature is allowed, tracking the last usage time.
      */
+    @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
     public boolean checkFeature(Feature feature) {
         boolean allowed = isAllowed(feature);
         LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
@@ -523,9 +526,12 @@ public class XPackLicenseState {
         }
 
         if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 && isLicenseExpiring(now)) {
-            HeaderWarning.addWarning("Your license will expire in [{}] days. " +
-                    "Contact your administrator or update your license for continued use of features",
-                TimeUnit.MILLISECONDS.toDays(status.licenseExpiryDate - now));
+            final long days = TimeUnit.MILLISECONDS.toDays(status.licenseExpiryDate - now);
+            final String expiryMessage = days == 0? "expires today":
+                (days > 0? String.format(Locale.ROOT, "will expire in [%d] days", days):
+                String.format(Locale.ROOT, "has expired [%d] days ago", Math.abs(days)));
+            HeaderWarning.addWarning("Your license {}. " +
+                    "Contact your administrator or update your license for continued use of features", expiryMessage);
         }
 
         return allowed;
@@ -645,15 +651,15 @@ public class XPackLicenseState {
     }
 
     /**
-     * Test whether current license expires in less than {@code GRACE_PERIOD_DURATION}.
+     * Test whether current license expires in less than {@code LICENSE_EXPIRATION_WARNING_PERIOD}.
      *
      * @param now  Current time in milliseconds
      *
-     * @return true if current license expires in less than {@code GRACE_PERIOD_DURATION}, otherwise false
+     * @return true if current license expires in less than {@code LICENSE_EXPIRATION_WARNING_PERIOD}, otherwise false
      */
     public boolean isLicenseExpiring(long now) {
         return checkAgainstStatus(status -> {
-            if (now > status.licenseExpiryDate - GRACE_PERIOD_DURATION.getMillis()) {
+            if (now > status.licenseExpiryDate - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis()) {
                 return true;
             }
             return false;

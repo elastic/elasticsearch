@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
@@ -76,8 +75,7 @@ public class TransportEqlAsyncGetResultAction extends HandledTransportAction<Get
                 listener::onFailure
             ));
         } else {
-            TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-            transportService.sendRequest(node, EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME, request, builder.build(),
+            transportService.sendRequest(node, EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME, request,
                 new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, ThreadPool.Names.SAME));
         }
     }

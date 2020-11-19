@@ -209,15 +209,15 @@ public class BasicTokenizer {
 
     static boolean isCjkChar(int codePoint) {
         // https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
-        return (codePoint >= 0x3400 && codePoint <= 0x4DBF) || // CJK Unified Ideographs Extension A
-            (codePoint >= 0xF900 && codePoint <= 0xFAFF) ||   // CJK Compatibility Ideographs
-            (codePoint >= 0x4E00 && codePoint <= 0x9FFF) ||   // CJK unified Ideographs
-            // TODO extensions C, D, E look contiguous
-            (codePoint >= 0x20000 && codePoint <= 0x2A6DF) || // CJK Unified Ideographs Extension B
-            (codePoint >= 0x2A700 && codePoint <= 0x2B73F) || // CJK Unified Ideographs Extension C
-            (codePoint >= 0x2B740 && codePoint <= 0x2B81F) || // CJK Unified Ideographs Extension D
-            (codePoint >= 0x2B820 && codePoint <= 0x2CEAF) || // CJK Unified Ideographs Extension E
-            (codePoint >= 0x2F800 && codePoint <= 0x2FA1F);   // CJK Compatibility Ideographs Supplement
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        return Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS.equals(block) ||
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS.equals(block) ||
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A.equals(block) ||
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B.equals(block) ||
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C.equals(block) ||
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D.equals(block) ||
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E.equals(block) ||
+                Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT.equals(block);
     }
 
     /**

@@ -38,9 +38,6 @@ public class DeprecationChecks {
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
             List.of(IndexDeprecationChecks::oldIndicesCheck, IndexDeprecationChecks::translogRetentionSettingCheck);
 
-    static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =
-            List.of(MlDeprecationChecks::checkDataFeedAggregations, MlDeprecationChecks::checkDataFeedQuery);
-
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.
      *

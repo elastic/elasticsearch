@@ -83,7 +83,7 @@ WORKDIR /work
 RUN function retry_wget() { \\
       local URL="\$1" ; \\
       local DEST="\$2" ; \\
-      <%= retry_loop('wget', 'wget "\$URL\" -O "\$DEST"', 6) %> ; \\
+      <%= retry_loop('wget', 'wget "\$URL\" -O "\$DEST"', 6, 'return') %> ; \\
     } ; \\
     retry_wget "https://daniel.haxx.se/mykey.asc" "curl-gpg.pub" && \\
     retry_wget "\${TARBALL_URL}.asc" "\${TARBALL_PATH}.asc" && \\

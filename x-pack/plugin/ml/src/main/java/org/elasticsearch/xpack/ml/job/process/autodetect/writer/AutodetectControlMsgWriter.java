@@ -166,6 +166,9 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         if (params.getMaxModelMemory() != null) {
             builder.field("max_model_memory", params.getMaxModelMemory());
         }
+        if (params.getMinAvailableDiskSpace() != null) {
+            builder.field("min_available_disk_space", params.getMinAvailableDiskSpace());
+        }
         builder.endObject();
 
         writeMessage(FORECAST_MESSAGE_CODE + Strings.toString(builder));
@@ -238,6 +241,22 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
 
     public void writeStartBackgroundPersistMessage() throws IOException {
         writeMessage(BACKGROUND_PERSIST_MESSAGE_CODE);
+        fillCommandBuffer();
+        lengthEncodedWriter.flush();
+    }
+
+    /**
+     * @param snapshotTimestampMs The snapshot timestamp with MILLISECONDS resolution
+     * @param snapshotId The snapshot ID
+     * @param description The snapshot description
+     */
+    public void writeStartBackgroundPersistMessage(long snapshotTimestampMs, String snapshotId, String description) throws IOException {
+        StringBuilder stringBuilder = new StringBuilder(BACKGROUND_PERSIST_MESSAGE_CODE);
+        stringBuilder.append(snapshotTimestampMs / 1000).append(" ").append(snapshotId);
+        if (description != null) {
+            stringBuilder.append(" ").append(description);
+        }
+        writeMessage(stringBuilder.toString());
         fillCommandBuffer();
         lengthEncodedWriter.flush();
     }

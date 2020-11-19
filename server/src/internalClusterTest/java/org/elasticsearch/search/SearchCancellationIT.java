@@ -281,7 +281,6 @@ public class SearchCancellationIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63976")
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         final List<ScriptedBlockPlugin> plugins = initBlockFactory();
         int numberOfShards = between(2, 5);
@@ -325,8 +324,12 @@ public class SearchCancellationIT extends ESIntegTestCase {
             queryLatch.countDown();
             assertBusy(() -> {
                 final List<SearchTask> searchTasks = getSearchTasks();
-                assertThat(searchTasks, hasSize(1));
-                assertTrue(searchTasks.get(0).isCancelled());
+                // The search request can complete before the "cancelledLatch" is latched if the second shard request is sent
+                // after the request was cancelled (i.e., the child task is not allowed to start after the parent was cancelled).
+                if (searchTasks.isEmpty() == false) {
+                    assertThat(searchTasks, hasSize(1));
+                    assertTrue(searchTasks.get(0).isCancelled());
+                }
             }, 30, TimeUnit.SECONDS);
         } finally {
             for (ScriptedBlockPlugin plugin : plugins) {

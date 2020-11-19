@@ -56,7 +56,7 @@ public class RetentionLeaseActions {
 
     public static final long RETAIN_ALL = -1;
 
-    abstract static class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, Response> {
+    abstract static class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, ActionResponse.Empty> {
 
         private final IndicesService indicesService;
 
@@ -91,7 +91,7 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected void asyncShardOperation(T request, ShardId shardId, final ActionListener<Response> listener) {
+        protected void asyncShardOperation(T request, ShardId shardId, final ActionListener<ActionResponse.Empty> listener) {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
             indexShard.acquirePrimaryOperationPermit(
@@ -105,15 +105,15 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected Response shardOperation(final T request, final ShardId shardId) {
+        protected ActionResponse.Empty shardOperation(final T request, final ShardId shardId) {
             throw new UnsupportedOperationException();
         }
 
-        abstract void doRetentionLeaseAction(IndexShard indexShard, T request, ActionListener<Response> listener);
+        abstract void doRetentionLeaseAction(IndexShard indexShard, T request, ActionListener<ActionResponse.Empty> listener);
 
         @Override
-        protected Writeable.Reader<Response> getResponseReader() {
-            return Response::new;
+        protected final Writeable.Reader<ActionResponse.Empty> getResponseReader() {
+            return in -> ActionResponse.Empty.INSTANCE;
         }
 
         @Override
@@ -123,13 +123,13 @@ public class RetentionLeaseActions {
 
     }
 
-    public static class Add extends ActionType<Response> {
+    public static class Add extends ActionType<ActionResponse.Empty> {
 
         public static final Add INSTANCE = new Add();
         public static final String ACTION_NAME = "indices:admin/seq_no/add_retention_lease";
 
         private Add() {
-            super(ACTION_NAME, Response::new);
+            super(ACTION_NAME, in -> ActionResponse.Empty.INSTANCE);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<AddRequest> {
@@ -154,29 +154,24 @@ public class RetentionLeaseActions {
             }
 
             @Override
-            void doRetentionLeaseAction(final IndexShard indexShard, final AddRequest request, final ActionListener<Response> listener) {
+            void doRetentionLeaseAction(final IndexShard indexShard, final AddRequest request,
+                                        final ActionListener<ActionResponse.Empty> listener) {
                 indexShard.addRetentionLease(
                         request.getId(),
                         request.getRetainingSequenceNumber(),
                         request.getSource(),
-                        ActionListener.map(listener, r -> new Response()));
+                        ActionListener.map(listener, r -> ActionResponse.Empty.INSTANCE));
             }
-
-            @Override
-            protected Writeable.Reader<Response> getResponseReader() {
-                return Response::new;
-            }
-
         }
     }
 
-    public static class Renew extends ActionType<Response> {
+    public static class Renew extends ActionType<ActionResponse.Empty> {
 
         public static final Renew INSTANCE = new Renew();
         public static final String ACTION_NAME = "indices:admin/seq_no/renew_retention_lease";
 
         private Renew() {
-            super(ACTION_NAME, Response::new);
+            super(ACTION_NAME, in -> ActionResponse.Empty.INSTANCE);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<RenewRequest> {
@@ -202,21 +197,22 @@ public class RetentionLeaseActions {
 
 
             @Override
-            void doRetentionLeaseAction(final IndexShard indexShard, final RenewRequest request, final ActionListener<Response> listener) {
+            void doRetentionLeaseAction(final IndexShard indexShard, final RenewRequest request,
+                                        final ActionListener<ActionResponse.Empty> listener) {
                 indexShard.renewRetentionLease(request.getId(), request.getRetainingSequenceNumber(), request.getSource());
-                listener.onResponse(new Response());
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
 
         }
     }
 
-    public static class Remove extends ActionType<Response> {
+    public static class Remove extends ActionType<ActionResponse.Empty> {
 
         public static final Remove INSTANCE = new Remove();
         public static final String ACTION_NAME = "indices:admin/seq_no/remove_retention_lease";
 
         private Remove() {
-            super(ACTION_NAME, Response::new);
+            super(ACTION_NAME, in -> ActionResponse.Empty.INSTANCE);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<RemoveRequest> {
@@ -242,10 +238,11 @@ public class RetentionLeaseActions {
 
 
             @Override
-            void doRetentionLeaseAction(final IndexShard indexShard, final RemoveRequest request, final ActionListener<Response> listener) {
+            void doRetentionLeaseAction(final IndexShard indexShard, final RemoveRequest request,
+                                        final ActionListener<ActionResponse.Empty> listener) {
                 indexShard.removeRetentionLease(
                         request.getId(),
-                        ActionListener.map(listener, r -> new Response()));
+                        ActionListener.map(listener, r -> ActionResponse.Empty.INSTANCE));
             }
 
         }
@@ -364,17 +361,4 @@ public class RetentionLeaseActions {
         }
 
     }
-
-    public static class Response extends ActionResponse {
-
-        public Response() {}
-
-        Response(final StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
-    }
-
 }

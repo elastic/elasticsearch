@@ -86,7 +86,17 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                 JobState jobState = MlTasks.getJobState(request.getJobId(), tasks);
 
                 if (jobState.equals(JobState.CLOSED) == false) {
-                    throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
+                    listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
+                    return;
+                }
+
+                if (MlTasks.getSnapshotUpgraderTask(request.getJobId(), request.getSnapshotId(), tasks) != null) {
+                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                        "Cannot revert job [{}] to snapshot [{}] as it is being upgraded",
+                        request.getJobId(),
+                        request.getSnapshotId()
+                    ));
+                    return;
                 }
 
                 getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {

@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-adjacency-matrix-aggregation]]
-=== Adjacency Matrix Aggregation
+=== Adjacency matrix aggregation
+++++
+<titleabbrev>Adjacency matrix</titleabbrev>
+++++
 
 A bucket aggregation returning a form of {wikipedia}/Adjacency_matrix[adjacency matrix].
 The request provides a collection of named filter expressions, similar to the `filters` aggregation

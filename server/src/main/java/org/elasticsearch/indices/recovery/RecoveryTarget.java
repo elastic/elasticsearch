@@ -29,6 +29,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -120,6 +121,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return new RecoveryTarget(indexShard, sourceNode, listener);
     }
 
+    @Nullable
     public ActionListener<Void> markRequestReceivedAndCreateListener(long requestSeqNo, ActionListener<Void> listener) {
         return requestTracker.markReceivedAndCreateListener(requestSeqNo, listener);
     }

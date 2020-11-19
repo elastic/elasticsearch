@@ -62,30 +62,6 @@ teardown:
         policy: "my_moveable_timeseries_lifecycle"
 
 ---
-"Test Basic Move To Step":
-
-  - do:
-      ilm.move_to_step:
-        index: "my_index"
-        body:
-          current_step:
-            phase: "new"
-            action: "complete"
-            name: "complete"
-          next_step:
-            phase: "completed"
-            action: "completed"
-            name: "completed"
-
-  - do:
-        ilm.explain_lifecycle:
-          index: "my_index"
-  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index.step: "completed" }
-  - match: { indices.my_index.action: "completed" }
-  - match: { indices.my_index.phase: "completed" }
-
----
 "Test Invalid Move To Step With Incorrect Current Step":
 
   - do:
@@ -104,33 +80,6 @@ teardown:
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "index [my_index] is not on current step [{\"phase\":\"warm\",\"action\":\"forcemerge\",\"name\":\"forcemerge\"}], currently: [{\"phase\":\"new\",\"action\":\"complete\",\"name\":\"complete\"}]" }
 
-
-  - do:
-      ilm.explain_lifecycle:
-        index: "my_index"
-  - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index.step: "complete" }
-  - match: { indices.my_index.action: "complete" }
-  - match: { indices.my_index.phase: "new" }
-
----
-"Test Invalid Move To Step With Invalid Next Step":
-
-  - do:
-      catch: bad_request
-      ilm.move_to_step:
-        index: "my_index"
-        body:
-          current_step:
-            phase: "new"
-            action: "complete"
-            name: "complete"
-          next_step:
-            phase: "invalid"
-            action: "invalid"
-            name: "invalid"
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "step [{\"phase\":\"invalid\",\"action\":\"invalid\",\"name\":\"invalid\"}] for index [my_index] with policy [my_moveable_timeseries_lifecycle] does not exist" }
 
   - do:
       ilm.explain_lifecycle:

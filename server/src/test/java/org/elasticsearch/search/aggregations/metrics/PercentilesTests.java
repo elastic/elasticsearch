@@ -78,6 +78,15 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         assertEquals("percent must be in [0,100], got [104.0]: [testAgg]", ex.getMessage());
     }
 
+    public void testDuplicatePercentilesDeprecated() throws IOException {
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("testAgg");
+
+        // throws in 8.x, deprecated in 7.x
+        builder.percentiles(5, 42, 10, 99, 42, 87);
+
+        assertWarnings("percent [42.0] has been specified twice, percents must be unique");
+    }
+
     public void testExceptionMultipleMethods() throws IOException {
         final String illegalAgg = "{\n" +
             "       \"percentiles\": {\n" +

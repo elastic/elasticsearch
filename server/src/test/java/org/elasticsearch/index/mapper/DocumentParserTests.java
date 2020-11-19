@@ -102,6 +102,42 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField("path1.path2.path3.field"));
     }
 
+    public void testParseWithShadowedSubField() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        builder.startObject("runtime");
+        builder.startObject("field.keyword").field("type", "test").endObject();
+        builder.endObject();
+        builder.startObject("properties");
+        builder.startObject("field").field("type", "text");
+        builder.startObject("fields").startObject("keyword").field("type", "keyword").endObject().endObject();
+        builder.endObject().endObject().endObject().endObject();
+
+        DocumentMapper mapper = createDocumentMapper(builder);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        //field defined as runtime field as well as under properties: no dynamic updates, the field gets indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+        assertNotNull(doc.rootDoc().getField("field.keyword"));
+    }
+
+    public void testParseWithShadowedMultiField() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        builder.startObject("runtime");
+        builder.startObject("field").field("type", "test").endObject();
+        builder.endObject();
+        builder.startObject("properties");
+        builder.startObject("field").field("type", "text");
+        builder.startObject("fields").startObject("keyword").field("type", "keyword").endObject().endObject();
+        builder.endObject().endObject().endObject().endObject();
+
+        DocumentMapper mapper = createDocumentMapper(builder);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        //field defined as runtime field as well as under properties: no dynamic updates, the field gets indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+        assertNotNull(doc.rootDoc().getField("field.keyword"));
+    }
+
     public void testFieldDisabled() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("foo").field("enabled", false).endObject();

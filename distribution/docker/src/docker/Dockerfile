@@ -253,7 +253,7 @@ RUN for iter in {1..10}; do \\
     done; \\
     (exit \$exit_code)
 
-%> } else { %>
+<% } else { %>
 
 <%
 /* Reviews of the Iron Bank Dockerfile said that they preferred simpler */

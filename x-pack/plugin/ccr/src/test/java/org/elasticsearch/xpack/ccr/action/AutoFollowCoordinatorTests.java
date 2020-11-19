@@ -2043,9 +2043,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ShardRouting shardRouting =
             TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
-        csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
-
-        return csBuilder.build();
+        return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
 
     private static ClusterState createRemoteClusterState(final ClusterState previous, final String... indices) {
@@ -2118,9 +2116,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ShardRouting shardRouting =
             TestShardRouting.newShardRouting(dataStreamName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
-        csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
-
-        return csBuilder.build();
+        return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
 
 }

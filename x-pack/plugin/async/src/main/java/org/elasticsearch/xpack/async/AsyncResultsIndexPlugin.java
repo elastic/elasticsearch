@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -111,7 +110,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
             .build();
     }
 
-    private String getMappings() {
+    private XContentBuilder getMappings() {
         try {
             XContentBuilder builder = jsonBuilder();
             builder.startObject();
@@ -150,7 +149,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
                 builder.endObject();
             }
             builder.endObject();
-            return Strings.toString(builder);
+            return builder;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build " + XPackPlugin.ASYNC_RESULTS_INDEX + " index mappings", e);
         }

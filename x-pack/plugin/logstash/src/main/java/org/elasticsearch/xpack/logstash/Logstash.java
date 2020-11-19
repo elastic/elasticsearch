@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -99,7 +98,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private String getIndexMappings() {
+    private XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             {
@@ -168,7 +167,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
                 }
                 builder.endObject();
             }
-            return Strings.toString(builder);
+            return builder;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build " + LOGSTASH_CONCRETE_INDEX_NAME + " index mappings", e);
         }

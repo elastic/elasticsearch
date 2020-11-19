@@ -21,8 +21,10 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Objects;
 
@@ -166,7 +168,7 @@ public class SystemIndexDescriptor {
     public static class Builder {
         private String indexPattern;
         private String description;
-        private String mappings = null;
+        private XContentBuilder mappingsBuilder = null;
         private Settings settings = null;
         private String aliasName = null;
         private int indexFormat = 0;
@@ -183,8 +185,8 @@ public class SystemIndexDescriptor {
             return this;
         }
 
-        public Builder setMappings(String mappings) {
-            this.mappings = mappings;
+        public Builder setMappings(XContentBuilder mappingsBuilder) {
+            this.mappingsBuilder = mappingsBuilder;
             return this;
         }
 
@@ -214,6 +216,7 @@ public class SystemIndexDescriptor {
         }
 
         public SystemIndexDescriptor build() {
+            String mappings = Strings.toString(mappingsBuilder);
             return new SystemIndexDescriptor(indexPattern, description, mappings, settings, aliasName, indexFormat, versionMetaKey, origin);
         }
     }

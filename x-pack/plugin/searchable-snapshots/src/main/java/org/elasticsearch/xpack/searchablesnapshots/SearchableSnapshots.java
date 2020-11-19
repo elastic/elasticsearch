@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -353,7 +352,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .build();
     }
 
-    private String getIndexMappings() {
+    private XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             {
@@ -441,7 +440,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 }
                 builder.endObject();
             }
-            return Strings.toString(builder);
+            return builder;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build " + SNAPSHOT_BLOB_CACHE_INDEX + " index mappings", e);
         }

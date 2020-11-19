@@ -1199,7 +1199,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             .build();
     }
 
-    private String getIndexMappings() {
+    private XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
@@ -1574,7 +1574,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             }
             builder.endObject();
 
-            return Strings.toString(builder);
+            return builder;
         } catch (IOException e) {
             logger.fatal("Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings", e);
             throw new UncheckedIOException(
@@ -1594,7 +1594,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
 
-    private String getTokenIndexMappings() {
+    private XContentBuilder getTokenIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -1736,7 +1736,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             }
 
             builder.endObject();
-            return Strings.toString(builder);
+            return builder;
         } catch (IOException e) {
             throw new UncheckedIOException(
                 "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7 + " index mappings", e);

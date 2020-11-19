@@ -139,7 +139,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         private final Settings settings;
         private final Client client;
 
-        public StandardComponents(NamedXContentRegistry xContentRegistry, Settings settings, Client client) {
+        StandardComponents(NamedXContentRegistry xContentRegistry, Settings settings, Client client) {
             this.xContentRegistry = xContentRegistry;
             this.settings = settings;
             this.client = client;
@@ -177,7 +177,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
          * Each chainedTask is executed in order serially
          * @param executorService The service where to execute the tasks
          */
-        public NamedChainedExecutor(ExecutorService executorService) {
+        NamedChainedExecutor(ExecutorService executorService) {
             this.executorService = Objects.requireNonNull(executorService);
             this.collectedResponses = new HashMap<>();
         }

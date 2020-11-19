@@ -84,7 +84,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         private final List<DeprecationIssue> issues;
         private final boolean shouldFail;
 
-        public NamedChecker(String name, List<DeprecationIssue> issues, boolean shouldFail) {
+        NamedChecker(String name, List<DeprecationIssue> issues, boolean shouldFail) {
             this.name = name;
             this.issues = issues;
             this.shouldFail = shouldFail;

@@ -38,13 +38,13 @@ import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.security.URIParameter;
 import java.security.cert.Certificate;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 public class PolicyUtil {
@@ -79,8 +79,27 @@ public class PolicyUtil {
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     public static Policy readPolicy(URL policyFile, Map<String, URL> codebases) {
         try {
-            List<String> propertiesSet = new ArrayList<>();
+            Properties originalProps = System.getProperties();
+            // allow missing while still setting values
+            Set<String> unknownCodebases = new HashSet<>();
+            Map<String, String> codebaseProperties = new HashMap<>();
+            Properties tempProps = new Properties(originalProps) {
+                @Override
+                public String getProperty(String key) {
+                    if (key.startsWith("codebase.")) {
+                        String value = codebaseProperties.get(key);
+                        if (value == null) {
+                            unknownCodebases.add(key);
+                        }
+                        return value;
+                    } else {
+                        return super.getProperty(key);
+                    }
+                }
+            };
+
             try {
+                System.setProperties(tempProps);
                 // set codebase properties
                 for (Map.Entry<String,URL> codebase : codebases.entrySet()) {
                     String name = codebase.getKey();
@@ -92,26 +111,27 @@ public class PolicyUtil {
                     String property = "codebase." + name;
                     String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
                     if (aliasProperty.equals(property) == false) {
-                        propertiesSet.add(aliasProperty);
-                        String previous = System.setProperty(aliasProperty, url.toString());
+
+                        Object previous = codebaseProperties.put(aliasProperty, url.toString());
                         if (previous != null) {
                             throw new IllegalStateException("codebase property already set: " + aliasProperty + " -> " + previous +
-                                                            ", cannot set to " + url.toString());
+                                ", cannot set to " + url.toString());
                         }
                     }
-                    propertiesSet.add(property);
-                    String previous = System.setProperty(property, url.toString());
+                    Object previous = codebaseProperties.put(property, url.toString());
                     if (previous != null) {
                         throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
                                                         ", cannot set to " + url.toString());
                     }
                 }
-                return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
-            } finally {
-                // clear codebase properties
-                for (String property : propertiesSet) {
-                    System.clearProperty(property);
+                Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
+                if (unknownCodebases.isEmpty() == false) {
+                    throw new IllegalArgumentException("Unknown codebases " + unknownCodebases + " in policy file [" + policyFile + "]" +
+                        "\nAvailable codebases: " + codebaseProperties.keySet());
                 }
+                return policy;
+            } finally {
+                System.setProperties(originalProps);
             }
         } catch (NoSuchAlgorithmException | URISyntaxException e) {
             throw new IllegalArgumentException("unable to parse policy file `" + policyFile + "`", e);

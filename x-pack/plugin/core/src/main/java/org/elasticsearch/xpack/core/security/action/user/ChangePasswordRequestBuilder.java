@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
@@ -29,7 +30,7 @@ import java.nio.CharBuffer;
  * Request to change a user's password.
  */
 public class ChangePasswordRequestBuilder
-        extends ActionRequestBuilder<ChangePasswordRequest, ChangePasswordResponse>
+        extends ActionRequestBuilder<ChangePasswordRequest, ActionResponse.Empty>
         implements WriteRequestBuilder<ChangePasswordRequestBuilder> {
 
     public ChangePasswordRequestBuilder(ElasticsearchClient client) {

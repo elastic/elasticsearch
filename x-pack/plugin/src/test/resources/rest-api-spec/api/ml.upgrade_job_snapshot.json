@@ -27,7 +27,7 @@
     },
     "params":{
       "timeout":{
-        "type":"timevalue",
+        "type":"time",
         "required":false,
         "description":"How long should the API wait for the job to be opened and the old snapshot to be loaded."
       },

@@ -132,8 +132,6 @@ public class ExpressionBuilder extends IdentifierBuilder {
         ZoneId zoneId = params.zoneId();
 
         switch (op.getSymbol().getType()) {
-            case EqlBaseParser.SEQ:
-                return new InsensitiveEquals(source, left, right, zoneId);
             case EqlBaseParser.EQ:
                 return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:
@@ -163,10 +161,20 @@ public class ExpressionBuilder extends IdentifierBuilder {
             return expr;
         }
 
+        EqlBaseParser.SeqPredicateContext seq = predicate.seqPredicate();
+        if (seq != null) {
+            Expression literal = expression(seq);
+            return new InsensitiveEquals(source, expr, literal, zoneId);
+        }
+        // in expression
         List<Expression> container = expressions(predicate.expression());
         Expression checkInSet = new In(source, expr, container, zoneId);
-
         return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
+    }
+
+    @Override
+    public Expression visitSeqValue(EqlBaseParser.SeqValueContext ctx) {
+        return expression(ctx.constant());
     }
 
     @Override

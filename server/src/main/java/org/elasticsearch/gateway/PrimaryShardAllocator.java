@@ -178,9 +178,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         if (explain) {
             nodeResults = buildNodeDecisions(nodesToAllocate, shardState, inSyncAllocationIds);
         }
-        if (allocation.hasPendingAsyncFetch()) {
-            return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeResults);
-        } else if (node != null) {
+        assert !allocation.hasPendingAsyncFetch() : "Pending async fetch should be returned early.";
+        if (node != null) {
             return AllocateUnassignedDecision.yes(node, allocationId, nodeResults, false);
         } else if (throttled) {
             return AllocateUnassignedDecision.throttle(nodeResults);

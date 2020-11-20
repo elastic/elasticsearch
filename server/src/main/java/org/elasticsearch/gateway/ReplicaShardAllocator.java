@@ -195,9 +195,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
-        if (allocateDecision.type() != Decision.Type.YES) {
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
-        } else if (matchingNodes.getNodeWithHighestMatch() != null) {
+        assert allocateDecision.type() == Decision.Type.YES : "Decision no should be returned early.";
+        if (matchingNodes.getNodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before before on NO
             Decision decision = allocation.deciders().canAllocate(unassignedShard, nodeWithHighestMatch, allocation);

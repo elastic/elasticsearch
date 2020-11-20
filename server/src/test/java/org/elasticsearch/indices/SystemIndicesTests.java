@@ -59,10 +59,7 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
 
-        IllegalStateException constructorException = expectThrows(
-            IllegalStateException.class,
-            () -> new SystemIndices(descriptors)
-        );
+        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
@@ -85,10 +82,7 @@ public class SystemIndicesTests extends ESTestCase {
             "] from [" + source1 + "] overlaps with other system index descriptors:"));
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
-        IllegalStateException constructorException = expectThrows(
-            IllegalStateException.class,
-            () -> new SystemIndices(descriptors)
-        );
+        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 

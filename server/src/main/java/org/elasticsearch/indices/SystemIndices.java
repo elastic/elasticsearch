@@ -119,20 +119,13 @@ public class SystemIndices {
             return matchingDescriptors.get(0);
         } else {
             // This should be prevented by failing on overlapping patterns at startup time, but is here just in case.
-            StringBuilder errorMessage = new StringBuilder().append("index name [")
+            StringBuilder errorMessage = new StringBuilder()
+                .append("index name [")
                 .append(name)
                 .append("] is claimed as a system index by multiple system index patterns: [")
-                .append(
-                    matchingDescriptors.stream()
-                        .map(
-                            descriptor -> "pattern: ["
-                                + descriptor.getIndexPattern()
-                                + "], description: ["
-                                + descriptor.getDescription()
-                                + "]"
-                        )
-                        .collect(Collectors.joining("; "))
-                );
+                .append(matchingDescriptors.stream()
+                    .map(descriptor -> "pattern: [" + descriptor.getIndexPattern() +
+                        "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
             // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
             assert false : errorMessage.toString();
             throw new IllegalStateException(errorMessage.toString());
@@ -157,8 +150,7 @@ public class SystemIndices {
      * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
      */
     static void checkForOverlappingPatterns(Map<String, Collection<SystemIndexDescriptor>> sourceToDescriptors) {
-        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToDescriptors.entrySet()
-            .stream()
+        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToDescriptors.entrySet().stream()
             .flatMap(entry -> entry.getValue().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
             .collect(Collectors.toUnmodifiableList());
@@ -173,16 +165,11 @@ public class SystemIndices {
                 .filter(d -> overlaps(descriptorToCheck.v2(), d.v2()))
                 .collect(Collectors.toUnmodifiableList());
             if (descriptorsMatchingThisPattern.isEmpty() == false) {
-                throw new IllegalStateException(
-                    "a system index descriptor ["
-                        + descriptorToCheck.v2()
-                        + "] from ["
-                        + descriptorToCheck.v1()
-                        + "] overlaps with other system index descriptors: ["
-                        + descriptorsMatchingThisPattern.stream()
-                            .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
-                            .collect(Collectors.joining(", "))
-                );
+                throw new IllegalStateException("a system index descriptor [" + descriptorToCheck.v2() + "] from [" +
+                    descriptorToCheck.v1() + "] overlaps with other system index descriptors: [" +
+                    descriptorsMatchingThisPattern.stream()
+                        .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
+                        .collect(Collectors.joining(", ")));
             }
         });
     }
@@ -194,18 +181,15 @@ public class SystemIndices {
     }
 
     private static Map<String, Collection<SystemIndexDescriptor>> buildSystemIndexDescriptorMap(
-        Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesMap
-    ) {
-        final Map<String, Collection<SystemIndexDescriptor>> map = new HashMap<>(
-            pluginAndModulesMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size()
-        );
+        Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesMap) {
+        final Map<String, Collection<SystemIndexDescriptor>> map =
+            new HashMap<>(pluginAndModulesMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
         map.putAll(pluginAndModulesMap);
         // put the server items last since we expect less of them
         SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, descriptors) -> {
             if (map.putIfAbsent(source, descriptors) != null) {
-                throw new IllegalArgumentException(
-                    "plugin or module attempted to define the same source [" + source + "] as a built-in system index"
-                );
+                throw new IllegalArgumentException("plugin or module attempted to define the same source [" + source +
+                    "] as a built-in system index");
             }
         });
         return Map.copyOf(map);

@@ -30,12 +30,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportGetAliasesActionTests extends ESTestCase {
-    private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Map.of());
+    private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Collections.emptyMap());
 
     public void testPostProcess() {
         GetAliasesRequest request = new GetAliasesRequest();
@@ -163,9 +162,8 @@ public class TransportGetAliasesActionTests extends ESTestCase {
 
     public void testDeprecationWarningEmittedWhenRequestingNonExistingAliasInSystemPattern() {
         ClusterState state = systemIndexTestClusterState();
-        SystemIndices systemIndices = new SystemIndices(
-            Map.of(this.getTestName(), List.of(new SystemIndexDescriptor(".y", "an index that doesn't exist")))
-        );
+        SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(this.getTestName(),
+            Collections.singletonList(new SystemIndexDescriptor(".y", "an index that doesn't exist"))));
 
         GetAliasesRequest request = new GetAliasesRequest(".y");
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()

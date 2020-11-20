@@ -30,10 +30,10 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -210,8 +210,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract IndexShard indexShard();
 
-    public abstract MapperService mapperService();
-
     public abstract BigArrays bigArrays();
 
     public abstract BitsetFilterCache bitsetFilterCache();
@@ -315,6 +313,8 @@ public abstract class SearchContext implements Releasable {
     public abstract DfsSearchResult dfsResult();
 
     public abstract QuerySearchResult queryResult();
+
+    public abstract NestedDocuments getNestedDocuments();
 
     public abstract FetchPhase fetchPhase();
 

@@ -45,6 +45,19 @@ finer, more granular time buckets, which are ideal for this type of analysis. If
 your detectors use <<ml-count-functions,count>> or <<ml-rare-functions,rare>>
 functions, set the interval to the same value as the bucket span.
 
+If your <<aggs-dfeeds,{dfeed} uses aggregations with nested `terms` aggs>> and 
+model plot is not enabled for the {anomaly-job}, neither the **Single Metric 
+Viewer** nor the **Anomaly Explorer** can plot and display an anomaly 
+chart for the job. In this cases, the charts are not visible and an explanatory 
+message is shown.
+
+When the aggregation interval of the {dfeed} and the bucket span of the job 
+don't match, the values of the chart plotted in both the **Single Metric 
+Viewer** and the **Anomaly Explorer** differ from the actual values of the job. 
+To avoid this behavior, make sure that the aggregation interval in the {dfeed} 
+configuration and the bucket span in the {anomaly-job} configuration have the 
+same values.
+
 
 [discrete]
 [[aggs-include-jobs]]

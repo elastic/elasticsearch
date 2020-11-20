@@ -90,7 +90,7 @@ public class DanglingIndicesState implements ClusterStateListener {
         if (this.isAutoImportDanglingIndicesEnabled) {
             clusterService.addListener(this);
         } else {
-            logger.warn(
+            logger.info(
                 AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey()
                     + " is disabled, dangling indices will not be automatically detected or imported and must be managed manually"
             );

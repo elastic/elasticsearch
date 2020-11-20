@@ -22,7 +22,7 @@ public class RestRollupAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "{index}/_rollup"));
+        return List.of(new Route(POST, "/{index}/_rollup"));
     }
 
     @Override

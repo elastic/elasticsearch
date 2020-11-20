@@ -8,7 +8,7 @@
     "url": {
       "paths": [
         {
-          "path": "{index}/_rollup",
+          "path": "/{index}/_rollup",
           "methods": [
             "POST"
           ],

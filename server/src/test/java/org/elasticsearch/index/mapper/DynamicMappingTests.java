@@ -192,20 +192,43 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapping merged = mapperService.documentMapper().mapping();
         assertNotNull(merged.root.getMapper("test"));
         assertEquals(1, merged.root.runtimeFieldTypes().size());
-        assertEquals("field", merged.root.runtimeFieldTypes().iterator().next().name());
+        assertNotNull(merged.root.getRuntimeFieldType("field"));
     }
 
-    public void testDynamicUpdateWithRuntimeFieldSameName() throws Exception {
-        MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "test")));
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "value")));
-        assertEquals("{\"_doc\":{\"properties\":{" +
-            "\"field\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
-            Strings.toString(doc.dynamicMappingsUpdate().root));
+    public void testDynamicUpdateWithRuntimeFieldDottedName() throws Exception {
+        MapperService mapperService = createMapperService(runtimeMapping(
+            b -> b.startObject("path1.path2.path3.field").field("type", "test").endObject()));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("path1").startObject("path2").startObject("path3");
+            b.field("field", "value");
+            b.endObject().endObject().endObject();
+        }));
+        RootObjectMapper root = doc.dynamicMappingsUpdate().root;
+        assertEquals(0, root.runtimeFieldTypes().size());
+        {
+            //the runtime field is defined but the object structure is not, hence it is defined under properties
+            Mapper path1 = root.getMapper("path1");
+            assertThat(path1, instanceOf(ObjectMapper.class));
+            Mapper path2 = ((ObjectMapper) path1).getMapper("path2");
+            assertThat(path2, instanceOf(ObjectMapper.class));
+            Mapper path3 = ((ObjectMapper) path2).getMapper("path3");
+            assertThat(path3, instanceOf(ObjectMapper.class));
+            assertFalse(path3.iterator().hasNext());
+        }
+        assertNull(doc.rootDoc().getField("path1.path2.path3.field"));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         Mapping merged = mapperService.documentMapper().mapping();
-        assertNotNull(merged.root.getMapper("field"));
+        {
+            Mapper path1 = merged.root.getMapper("path1");
+            assertThat(path1, instanceOf(ObjectMapper.class));
+            Mapper path2 = ((ObjectMapper) path1).getMapper("path2");
+            assertThat(path2, instanceOf(ObjectMapper.class));
+            Mapper path3 = ((ObjectMapper) path2).getMapper("path3");
+            assertThat(path3, instanceOf(ObjectMapper.class));
+            assertFalse(path3.iterator().hasNext());
+        }
         assertEquals(1, merged.root.runtimeFieldTypes().size());
-        assertEquals("field", merged.root.runtimeFieldTypes().iterator().next().name());
+        assertNotNull(merged.root.getRuntimeFieldType("path1.path2.path3.field"));
     }
 
     public void testIncremental() throws Exception {

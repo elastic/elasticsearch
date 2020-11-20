@@ -40,7 +40,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -443,35 +442,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public final Dynamic dynamic() {
         return dynamic;
-    }
-
-    /**
-     * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
-     * isn't any.
-     */
-    public ObjectMapper getParentObjectMapper(Function<String, ObjectMapper> objectMapperLookup) {
-        int indexOfLastDot = fullPath().lastIndexOf('.');
-        if (indexOfLastDot != -1) {
-            String parentNestObjectPath = fullPath().substring(0, indexOfLastDot);
-            return objectMapperLookup.apply(parentNestObjectPath);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Returns whether all parent objects fields are nested too.
-     */
-    public boolean parentObjectMapperAreNested(Function<String, ObjectMapper> objectMapperLookup) {
-        for (ObjectMapper parent = getParentObjectMapper(objectMapperLookup);
-             parent != null;
-             parent = parent.getParentObjectMapper(objectMapperLookup)) {
-
-            if (parent.nested().isNested() == false) {
-                return false;
-            }
-        }
-        return true;
     }
 
     @Override

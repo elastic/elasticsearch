@@ -21,18 +21,16 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsAction;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsRequest;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsResponse;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final boolean enabled;
+
     private final Client client;
 
     @Inject
@@ -41,30 +39,25 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                                    Client client) {
         super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.enabled = EqlPlugin.isEnabled();
         this.client = client;
     }
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        if (enabled) {
-            EqlStatsRequest eqlRequest = new EqlStatsRequest();
-            eqlRequest.includeStats(true);
-            eqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-            client.execute(EqlStatsAction.INSTANCE, eqlRequest, ActionListener.wrap(r -> {
-                List<Counters> countersPerNode = r.getNodes()
-                    .stream()
-                    .map(EqlStatsResponse.NodeStatsResponse::getStats)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-                Counters mergedCounters = Counters.merge(countersPerNode);
-                EqlFeatureSetUsage usage = new EqlFeatureSetUsage(true, enabled, mergedCounters.toNestedMap());
-                listener.onResponse(new XPackUsageFeatureResponse(usage));
-            }, listener::onFailure));
-        } else {
-            EqlFeatureSetUsage usage = new EqlFeatureSetUsage(true, enabled, Collections.emptyMap());
+
+        EqlStatsRequest eqlRequest = new EqlStatsRequest();
+        eqlRequest.includeStats(true);
+        eqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        client.execute(EqlStatsAction.INSTANCE, eqlRequest, ActionListener.wrap(r -> {
+            List<Counters> countersPerNode = r.getNodes()
+                .stream()
+                .map(EqlStatsResponse.NodeStatsResponse::getStats)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+            Counters mergedCounters = Counters.merge(countersPerNode);
+            EqlFeatureSetUsage usage = new EqlFeatureSetUsage(mergedCounters.toNestedMap());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }
+        }, listener::onFailure));
     }
 }

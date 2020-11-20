@@ -11,16 +11,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
-import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
 public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
-
-    private final boolean enabled;
 
     @Inject
     public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.EQL.name(), transportService, actionFilters);
-        this.enabled = EqlPlugin.isEnabled();
     }
 
     @Override
@@ -35,7 +31,7 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
 }

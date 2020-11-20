@@ -121,6 +121,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         this.transportService = transportService;
     }
 
+    public DiscoveryNode getLocalNode() {
+        return transportService.getLocalNode();
+    }
+
     /**
      * Returns <code>true</code> if at least one remote cluster is configured
      */

@@ -28,7 +28,7 @@ import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
+import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;

@@ -306,7 +306,7 @@ public class FetchPhase {
                 hitContext.sourceLookup().setSource(fieldsVisitor.source());
 
                 SourceLookup scriptSourceLookup = context.getQueryShardContext().lookup().source();
-                scriptSourceLookup.setSegmentAndDocument(subReaderContext, docId);
+                scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
                 scriptSourceLookup.setSource(fieldsVisitor.source());
             }
             return hitContext;

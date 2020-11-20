@@ -54,7 +54,6 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -1641,7 +1640,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         public MetadataTimestampFieldMapper(boolean enabled) {
             super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
-                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(QueryShardContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 

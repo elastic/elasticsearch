@@ -246,7 +246,7 @@ activities.
 
 `fielddata`::
 (object)
-Contains statistics about the field data cache of selected nodes.
+Contains statistics about the <<modules-fielddata, field data cache>> of selected nodes.
 +
 .Properties of `fielddata`
 [%collapsible%open]

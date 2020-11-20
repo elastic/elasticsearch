@@ -1,0 +1,12 @@
+[[important-settings-snapshot]]
+[discrete]
+=== Snapshot configuration
+
+<<snapshot-restore,Snapshots>> are the last line of defence against data loss
+in the event of a disaster. You must not move to production without configuring
+{es} to take snapshots regularly. The simplest way to do this is using
+<<snapshot-lifecycle-management,{slm}>>. For more information on recovering
+from snapshots see <<backup-cluster>>.
+
+include::../snapshot-restore/index.asciidoc[tag=backup-warning]
+

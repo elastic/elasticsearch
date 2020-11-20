@@ -20,7 +20,13 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -38,6 +44,8 @@ import java.util.function.Function;
 public class NestedDocuments {
 
     private final Map<String, BitSetProducer> parentObjectFilters = new HashMap<>();
+    private final Map<String, Weight> childObjectFilters = new HashMap<>();
+    private final Map<String, ObjectMapper> childObjectMappers = new HashMap<>();
     private final BitSetProducer parentDocumentFilter;
     private final MapperService mapperService;
 
@@ -52,12 +60,13 @@ public class NestedDocuments {
             this.parentDocumentFilter = null;
         } else {
             this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());
-            for (ObjectMapper mapper : mapperService.documentMapper().mappers().objectMappers().values()) {
-                if (mapper.nested().isNested() == false) {
-                    continue;
-                }
+            for (ObjectMapper mapper : mapperService.documentMapper().getNestedParentMappers()) {
                 parentObjectFilters.put(mapper.name(),
                     filterProducer.apply(mapper.nestedTypeFilter()));
+            }
+            for (ObjectMapper mapper : mapperService.documentMapper().getNestedMappers()) {
+                childObjectFilters.put(mapper.name(), null);
+                childObjectMappers.put(mapper.name(), mapper);
             }
         }
     }
@@ -72,6 +81,19 @@ public class NestedDocuments {
         return new HasNestedDocuments(ctx);
     }
 
+    private Weight getNestedChildWeight(LeafReaderContext ctx, String path) throws IOException {
+        if (childObjectFilters.containsKey(path) == false || childObjectMappers.containsKey(path) == false) {
+            throw new IllegalStateException("Cannot find object mapper for path " + path);
+        }
+        if (childObjectFilters.get(path) == null) {
+            IndexSearcher searcher = new IndexSearcher(ReaderUtil.getTopLevelContext(ctx));
+            ObjectMapper childMapper = childObjectMappers.get(path);
+            childObjectFilters.put(path,
+                searcher.createWeight(searcher.rewrite(childMapper.nestedTypeFilter()), ScoreMode.COMPLETE_NO_SCORES, 1));
+        }
+        return childObjectFilters.get(path);
+    }
+
     /**
      * Given an object path, returns whether or not any of its parents are plain objects
      */
@@ -84,6 +106,7 @@ public class NestedDocuments {
         final LeafReaderContext ctx;
         final BitSet parentFilter;
         final Map<String, BitSet> objectFilters = new HashMap<>();
+        final Map<String, Scorer> childScorers = new HashMap<>();
 
         int doc = -1;
         int rootDoc = -1;
@@ -98,10 +121,16 @@ public class NestedDocuments {
                     objectFilters.put(filter.getKey(), bits);
                 }
             }
+            for (Map.Entry<String, Weight> childFilter : childObjectFilters.entrySet()) {
+                Scorer scorer = getNestedChildWeight(ctx, childFilter.getKey()).scorer(ctx);
+                if (scorer != null) {
+                    childScorers.put(childFilter.getKey(), scorer);
+                }
+            }
         }
 
         @Override
-        public SearchHit.NestedIdentity advance(int doc) {
+        public SearchHit.NestedIdentity advance(int doc) throws IOException {
             assert doc >= 0 && doc < ctx.reader().maxDoc();
             if (parentFilter.get(doc)) {
                 // parent doc, no nested identity
@@ -134,10 +163,11 @@ public class NestedDocuments {
             return nestedIdentity;
         }
 
-        private SearchHit.NestedIdentity loadNestedIdentity() {
+        private String findObjectPath(int doc) throws IOException {
             String path = null;
-            for (Map.Entry<String, BitSet> objectFilter : objectFilters.entrySet()) {
-                if (objectFilter.getValue().get(doc)) {
+            for (Map.Entry<String, Scorer> objectFilter : childScorers.entrySet()) {
+                DocIdSetIterator it = objectFilter.getValue().iterator();
+                if (it.docID() == doc || it.docID() < doc && it.advance(doc) == doc) {
                     if (path == null || path.length() > objectFilter.getKey().length()) {
                         path = objectFilter.getKey();
                     }
@@ -146,13 +176,20 @@ public class NestedDocuments {
             if (path == null) {
                 throw new IllegalStateException("Cannot find object path for document " + doc);
             }
+            return path;
+        }
+
+        private SearchHit.NestedIdentity loadNestedIdentity() throws IOException {
             SearchHit.NestedIdentity ni = null;
             int currentLevelDoc = doc;
             int parentNameLength;
+            String path = findObjectPath(doc);
             while (path != null) {
                 String parent = mapperService.documentMapper().getNestedParent(path);
-                BitSet childBitSet = objectFilters.get(path);
-                if (childBitSet == null) {
+                // We have to pull a new scorer for each document here, because we advance from
+                // the last parent which will be behind the doc
+                Scorer childScorer = getNestedChildWeight(ctx, path).scorer(ctx);
+                if (childScorer == null) {
                     throw new IllegalStateException("Cannot find object mapper for path " + path + " in doc " + doc);
                 }
                 BitSet parentBitSet;
@@ -168,7 +205,8 @@ public class NestedDocuments {
                 }
                 int lastParent = parentBitSet.prevSetBit(currentLevelDoc);
                 int offset = 0;
-                for (int i = childBitSet.nextSetBit(lastParent + 1); i < currentLevelDoc; i = childBitSet.nextSetBit(i + 1)) {
+                DocIdSetIterator childIt = childScorer.iterator();
+                for (int i = childIt.advance(lastParent + 1); i < currentLevelDoc; i = childIt.nextDoc()) {
                     offset++;
                 }
                 ni = new SearchHit.NestedIdentity(path.substring(parentNameLength), offset, ni);

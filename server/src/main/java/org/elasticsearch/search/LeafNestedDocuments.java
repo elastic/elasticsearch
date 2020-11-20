@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search;
 
+import java.io.IOException;
+
 /**
  * Manages loading information about nested documents for a single index segment
  */
@@ -27,7 +29,7 @@ public interface LeafNestedDocuments {
     /**
      * Advance to a specific doc, and return its NestedIdentity, or {@code null} if not a child
      */
-    SearchHit.NestedIdentity advance(int doc);
+    SearchHit.NestedIdentity advance(int doc) throws IOException;
 
     /**
      * The current doc

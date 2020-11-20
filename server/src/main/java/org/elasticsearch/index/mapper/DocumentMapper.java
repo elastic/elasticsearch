@@ -20,11 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -241,6 +235,20 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     /**
+     * Returns all nested object mappers
+     */
+    public List<ObjectMapper> getNestedMappers() {
+        List<ObjectMapper> childMappers = new ArrayList<>();
+        for (ObjectMapper mapper : mappers().objectMappers().values()) {
+            if (mapper.nested().isNested() == false) {
+                continue;
+            }
+            childMappers.add(mapper);
+        }
+        return childMappers;
+    }
+
+    /**
      * Returns all nested object mappers which contain further nested object mappers
      *
      * Used by BitSetProducerWarmer
@@ -288,41 +296,6 @@ public class DocumentMapper implements ToXContentFragment {
                 return null;
             }
         } while(true);
-    }
-
-    /**
-     * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
-     */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, LeafReaderContext context) throws IOException {
-        ObjectMapper nestedObjectMapper = null;
-        for (ObjectMapper objectMapper : mappers().objectMappers().values()) {
-            if (!objectMapper.nested().isNested()) {
-                continue;
-            }
-
-            Query filter = objectMapper.nestedTypeFilter();
-            if (filter == null) {
-                continue;
-            }
-            // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
-            // therefore is guaranteed to be a live doc.
-            final Weight nestedWeight = filter.createWeight(sc.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            Scorer scorer = nestedWeight.scorer(context);
-            if (scorer == null) {
-                continue;
-            }
-
-            if (scorer.iterator().advance(nestedDocId) == nestedDocId) {
-                if (nestedObjectMapper == null) {
-                    nestedObjectMapper = objectMapper;
-                } else {
-                    if (nestedObjectMapper.fullPath().length() < objectMapper.fullPath().length()) {
-                        nestedObjectMapper = objectMapper;
-                    }
-                }
-            }
-        }
-        return nestedObjectMapper;
     }
 
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {

@@ -101,6 +101,10 @@ public abstract class AbstractRestChannel implements RestChannel {
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
         String responseContentTypeString = null;
+        if (responseContentType!=null) {
+            responseContentTypeString = responseContentType.mediaType();
+        }
+
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
@@ -124,18 +128,6 @@ public abstract class AbstractRestChannel implements RestChannel {
 
             }
             responseContentTypeString = responseContentType.mediaType();
-        }
-        if (responseContentTypeString == null && responseContentType!=null) {
-            responseContentTypeString = responseContentType.mediaType();
-        }
-        if (responseContentTypeString == null ) {
-            if (Strings.hasText(format)) {
-                responseContentTypeString = XContentType.fromFormat(format).mediaType();
-            } else if( request.getParsedAccept()!=null){
-                responseContentTypeString = request.getParsedAccept().getOriginalHeaderValue();
-            }  else  {
-                responseContentTypeString  =  XContentType.JSON.mediaType();
-            }
         }
 
         Set<String> includes = Collections.emptySet();

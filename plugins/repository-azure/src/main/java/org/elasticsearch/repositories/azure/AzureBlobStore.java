@@ -339,10 +339,11 @@ public class AzureBlobStore implements BlobStore {
             if (length == null) {
                 totalSize = blobClient.getProperties().getBlobSize();
             } else {
-                totalSize = length;
+                totalSize = position + length;
             }
             BlobAsyncClient blobAsyncClient = asyncClient().getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
-            return new AzureInputStream(blobAsyncClient, position, totalSize, (int) getReadChunkSize(), totalSize);
+            int maxReadRetries = service.getMaxReadRetries(clientName);
+            return new AzureInputStream(blobAsyncClient, position, totalSize, (int) getReadChunkSize(), totalSize, maxReadRetries);
         });
     }
 
@@ -490,15 +491,18 @@ public class AzureBlobStore implements BlobStore {
     private static class AzureInputStream extends StorageInputStream {
         private final BlobAsyncClient client;
         private final ByteBuffer buffer;
+        private final int maxRetries;
 
         private AzureInputStream(final BlobAsyncClient client,
                                  long rangeOffset,
                                  Long rangeLength,
                                  int chunkSize,
-                                 long contentLength) {
+                                 long contentLength,
+                                 int maxRetries) {
             super(rangeOffset, rangeLength, chunkSize, contentLength);
             this.client = client;
             this.buffer = ByteBuffer.allocate(chunkSize);
+            this.maxRetries = maxRetries;
         }
 
         @Override
@@ -507,7 +511,7 @@ public class AzureBlobStore implements BlobStore {
                 buffer.clear();
                 final BlobRange range = new BlobRange(offset, (long) readLength);
                 DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions()
-                    .setMaxRetryRequests(3);
+                    .setMaxRetryRequests(maxRetries);
                 client.downloadWithResponse(range, downloadRetryOptions, null, false)
                     .flux()
                     .flatMap(ResponseBase::getValue)

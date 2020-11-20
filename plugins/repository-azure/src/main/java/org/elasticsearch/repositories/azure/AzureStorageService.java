@@ -66,14 +66,19 @@ public class AzureStorageService {
     }
 
     public AzureBlobServiceClient client(String clientName, LocationMode locationMode, BiConsumer<String, URL> successfulRequestConsumer) {
-        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
-        if (azureStorageSettings == null) {
-            throw new SettingsException("Unable to find client with name [" + clientName + "]");
-        }
+        final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
 
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
         return azureClientProvider.createClient(azureStorageSettings, locationMode, retryOptions, proxyOptions, successfulRequestConsumer);
+    }
+
+    private AzureStorageSettings getClientSettings(String clientName) {
+        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+        if (azureStorageSettings == null) {
+            throw new SettingsException("Unable to find client with name [" + clientName + "]");
+        }
+        return azureStorageSettings;
     }
 
     private static ProxyOptions getProxyOptions(AzureStorageSettings settings) {
@@ -105,6 +110,11 @@ public class AzureStorageService {
     // non-static, package private for testing
     int getMaxUploadParallelism() {
         return DEFAULT_MAX_PARALLELISM;
+    }
+
+    int getMaxReadRetries(String clientName) {
+        AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
+        return azureStorageSettings.getMaxRetries();
     }
 
     // non-static, package private for testing

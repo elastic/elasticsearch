@@ -224,7 +224,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         BlobServiceClient blobServiceClient = SocketAccess.doPrivilegedException(builder::buildClient);
         BlobServiceAsyncClient asyncClient = SocketAccess.doPrivilegedException(builder::buildAsyncClient);
-        return new AzureBlobServiceClient(blobServiceClient, asyncClient);
+        return new AzureBlobServiceClient(blobServiceClient, asyncClient, settings.getMaxRetries());
     }
 
     @Override

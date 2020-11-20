@@ -160,6 +160,11 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             int getMaxUploadParallelism() {
                 return 1;
             }
+
+            @Override
+            int getMaxReadRetries(String clientName) {
+                return maxRetries;
+            }
         };
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", AzureRepository.TYPE,

@@ -25,11 +25,14 @@ import com.azure.storage.blob.BlobServiceClient;
 class AzureBlobServiceClient {
     private final BlobServiceClient blobServiceClient;
     private final BlobServiceAsyncClient blobAsyncClient;
+    private final int maxRetries;
 
     AzureBlobServiceClient(BlobServiceClient blobServiceClient,
-                                  BlobServiceAsyncClient blobAsyncClient) {
+                           BlobServiceAsyncClient blobAsyncClient,
+                           int maxRetries) {
         this.blobServiceClient = blobServiceClient;
         this.blobAsyncClient = blobAsyncClient;
+        this.maxRetries = maxRetries;
     }
 
     BlobServiceClient getSyncClient() {
@@ -38,5 +41,9 @@ class AzureBlobServiceClient {
 
     BlobServiceAsyncClient getAsyncClient() {
         return blobAsyncClient;
+    }
+
+    int getMaxRetries() {
+        return maxRetries;
     }
 }

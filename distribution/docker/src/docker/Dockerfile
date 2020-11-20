@@ -27,7 +27,7 @@
 FROM ${base_image} AS builder
 
 # Install required packages to extract the Elasticsearch distribution
-RUN ${package_manager} install -y tar gzip
+RUN <%= retry_loop(package_manager, "${package_manager} install -y tar gzip") %>
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -42,8 +42,8 @@ RUN set -eux ; \\
         x86_64)  tini_bin='tini-amd64' ;; \\
         *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
     esac ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
     sha256sum -c \${tini_bin}.sha256sum ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
@@ -74,7 +74,7 @@ ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
 ENV TARBALL_PATH curl-\${VERSION}.tar.xz
 
 # Install dependencies
-RUN apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file
+RUN <%= retry_loop('apk', 'apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file') %>
 
 RUN mkdir /work
 WORKDIR /work
@@ -83,11 +83,7 @@ WORKDIR /work
 RUN function retry_wget() { \\
       local URL="\$1" ; \\
       local DEST="\$2" ; \\
-      for iter in {1..10}; do \\
-        wget "\$URL" -O "\$DEST" && \\
-        exit_code=0 && break || exit_code=\$? && echo "wget error fetching \$URL: retry \$iter in 10s" && sleep 10; \\
-      done; \\
-      return \$exit_code ; \\
+      <%= retry_loop('wget', 'wget "\$URL\" -O "\$DEST"', 6, 'return') %> ; \\
     } ; \\
     retry_wget "https://daniel.haxx.se/mykey.asc" "curl-gpg.pub" && \\
     retry_wget "\${TARBALL_URL}.asc" "\${TARBALL_PATH}.asc" && \\
@@ -162,8 +158,8 @@ RUN set -e ; \\
             ;; \\
         *) echo >&2 "Unsupported architecture \$(arch)" ; exit 1 ;; \\
     esac ; \\
-    curl --retry 8 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}" ; \\
-    curl --retry 8 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}.sha256sum" ; \\
+    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}" ; \\
+    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}.sha256sum" ; \\
     sha256sum -c "\${TINI_BIN}.sha256sum" ; \\
     rm "\${TINI_BIN}.sha256sum" ; \\
     mv "\${TINI_BIN}" /rootfs/bin/tini ; \\
@@ -243,15 +239,13 @@ FROM ${base_image}
 
 <% if (docker_base == "ubi") { %>
 
-RUN for iter in {1..10}; do \\
-      ${package_manager} update --setopt=tsflags=nodocs -y && \\
-      ${package_manager} install --setopt=tsflags=nodocs -y \\
-        nc shadow-utils zip unzip findutils procps-ng && \\
-      ${package_manager} clean all && \\
-      exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
-      sleep 10; \\
-    done; \\
-    (exit \$exit_code)
+RUN <%= retry_loop(
+    package_manager,
+      "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
+      "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
+      "      nc shadow-utils zip unzip findutils procps-ng && \n" +
+      "      ${package_manager} clean all"
+    ) %>
 
 <% } else { %>
 

@@ -550,7 +550,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
                                                        String scrollId, String searchContextId) {
-        return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
+        int numSuccess = successfulOps.get();
+        int numFailures = failures.length;
+        assert numSuccess + numFailures == getNumShards()
+            : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
+        return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), numSuccess,
             skippedOps.get(), buildTookInMillis(), failures, clusters, searchContextId);
     }
 

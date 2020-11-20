@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;

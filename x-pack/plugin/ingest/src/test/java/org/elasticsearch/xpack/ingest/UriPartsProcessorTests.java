@@ -70,6 +70,27 @@ public class UriPartsProcessorTests extends ESTestCase {
             )
         );
 
+        // user_info without password
+        testUriParsing(
+            "https://user:@www.google.com:88/foo",
+            Map.of(
+                "scheme",
+                "https",
+                "domain",
+                "www.google.com",
+                "path",
+                "/foo",
+                "port",
+                88,
+                "user_info",
+                "user:",
+                "username",
+                "user",
+                "password",
+                ""
+            )
+        );
+
         // everything!
         testUriParsing(
             "https://user:pw@testing.google.com:8080/foo/bar?foo1=bar1&foo2=bar2#anchorVal",
@@ -95,6 +116,7 @@ public class UriPartsProcessorTests extends ESTestCase {
             )
         );
 
+        // non-http schemes
         testUriParsing(
             "ftp://ftp.is.co.za/rfc/rfc1808.txt",
             Map.of("scheme", "ftp", "path", "/rfc/rfc1808.txt", "extension", "txt", "domain", "ftp.is.co.za")

@@ -41,7 +41,7 @@ public class SpatialUsageTransportAction extends XPackUsageFeatureTransportActio
         SpatialStatsAction.Request statsRequest = new SpatialStatsAction.Request();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.execute(SpatialStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
-                listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(true, true, r))),
+                listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(r))),
             listener::onFailure));
     }
 }

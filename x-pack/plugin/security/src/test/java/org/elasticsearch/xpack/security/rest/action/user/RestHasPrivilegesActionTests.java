@@ -62,8 +62,8 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         final RestHasPrivilegesAction action =
             new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
-        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
-            NodeClient client = new NoOpNodeClient(this.getTestName());
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject();
+            NodeClient client = new NoOpNodeClient(this.getTestName())) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withPath("/_security/user/_has_privileges/")
                 .withContent(new BytesArray(bodyBuilder.toString()), XContentType.JSON)

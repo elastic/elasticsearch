@@ -162,6 +162,7 @@ public class CacheService extends AbstractLifecycleComponent {
             if (acquired == false) {
                 logger.warn("failed to acquire cache sync lock in [{}], cache might be partially persisted", cacheSyncStopTimeout);
             }
+            cacheSyncTask.close();
             cache.invalidateAll();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

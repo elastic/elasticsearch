@@ -355,7 +355,8 @@ public class FetchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(queryShardContext::getFieldType, queryShardContext.getType(), storedFieldReader, rootFieldsVisitor, nestedInfo.rootDoc());
+            loadStoredFields(queryShardContext::getFieldType, queryShardContext.getType(),
+                storedFieldReader, rootFieldsVisitor, nestedInfo.rootDoc());
             rootFieldsVisitor.postProcess(queryShardContext::getFieldType, queryShardContext.getType());
             rootId = rootFieldsVisitor.uid();
 

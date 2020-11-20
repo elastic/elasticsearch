@@ -98,6 +98,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -486,7 +487,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),
+                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap())),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
     }
 
@@ -519,7 +520,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),
+                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap())),
             Collections.singletonList(templateName), metadataTransformer);
     }
 
@@ -565,7 +566,7 @@ public class MetadataCreateIndexService {
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                indexService.newQueryShardContext(0, null, () -> 0L, null)),
+                indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap())),
             List.of(), metadataTransformer);
     }
 

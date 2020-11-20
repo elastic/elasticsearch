@@ -81,7 +81,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
             }
-            innerHitsContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+            innerHitsContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
             innerHitsContext.setRootId(hit.getId());
             innerHitsContext.setRootLookup(sourceLookup);
 

@@ -63,7 +63,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
               }
             }
             tasks.register("setupDistro", Sync) {
-                from(elasticsearch_distributions.test_distro.extracted)
+                from(elasticsearch_distributions.test_distro)
                 into("build/distro")
             }
         """
@@ -93,7 +93,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
               }
             }
             tasks.register("setupDistro", Sync) {
-                from(elasticsearch_distributions.test_distro.extracted)
+                from(elasticsearch_distributions.test_distro)
                 into("build/distro")
             }
         """
@@ -124,7 +124,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
               }
             }
             tasks.register("createExtractedTestDistro") {
-                dependsOn elasticsearch_distributions.test_distro.extracted
+                dependsOn elasticsearch_distributions.test_distro
             }
         """
         when:

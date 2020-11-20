@@ -84,7 +84,6 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -138,6 +137,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
@@ -156,7 +156,6 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
-    private static final String TYPE_NAME = "type";
     protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
@@ -284,8 +283,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(queryShardContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
             String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
-                BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
-                return new ObjectMapper.Builder(fieldName).nested(Nested.newNested()).build(context);
+                return new ObjectMapper.Builder(fieldName, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
             }
             return null;
         });
@@ -338,7 +336,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true,
-            valuesSourceRegistry);
+            valuesSourceRegistry, emptyMap());
     }
 
     /**
@@ -626,7 +624,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
-            FieldMapper mapper = (FieldMapper) builder.build(new BuilderContext(settings, new ContentPath()));
+            FieldMapper mapper = (FieldMapper) builder.build(new ContentPath());
 
             MappedFieldType fieldType = mapper.fieldType();
 
@@ -787,7 +785,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null, null, null, null);
         }
 
         @Override

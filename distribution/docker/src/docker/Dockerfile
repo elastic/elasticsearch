@@ -3,6 +3,7 @@
 #
 # Beginning of multi stage Dockerfile
 ################################################################################
+
 <% /*
   This file is passed through Groovy's SimpleTemplateEngine, so dollars and backslashes
   have to be escaped in order for them to appear in the final Dockerfile. You
@@ -13,17 +14,20 @@
   We use control-flow tags in this file to conditionally render the content. The
   layout/presentation here has been adjusted so that it looks reasonable when rendered,
   at the slight expense of how it looks here.
+
+  Note that this file is also filtered to squash together newlines, so we can
+  add as many newlines here as necessary to improve legibility.
 */ %>
+
 <% if (docker_base == "ubi") { %>
 ################################################################################
 # Build stage 0 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
-
 FROM ${base_image} AS builder
 
 # Install required packages to extract the Elasticsearch distribution
-RUN ${package_manager} install -y tar gzip
+RUN <%= retry_loop(package_manager, "${package_manager} install -y tar gzip") %>
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -38,13 +42,27 @@ RUN set -eux ; \\
         x86_64)  tini_bin='tini-amd64' ;; \\
         *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
     esac ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
     sha256sum -c \${tini_bin}.sha256sum ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
     chmod +x /bin/tini
+
+<% } else if (docker_base == 'iron_bank') { %>
+${build_args}
+
+FROM ${base_image} AS builder
+
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+COPY tini /bin/tini
+RUN chmod 0755 /bin/tini
+
 <% } else { %>
+
+<% /* CentOS builds are actaully a custom base image with a minimal set of dependencies */ %>
+
 ################################################################################
 # Stage 1. Build curl statically. Installing it from RPM on CentOS pulls in too
 # many dependencies.
@@ -56,7 +74,7 @@ ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
 ENV TARBALL_PATH curl-\${VERSION}.tar.xz
 
 # Install dependencies
-RUN apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file
+RUN <%= retry_loop('apk', 'apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file') %>
 
 RUN mkdir /work
 WORKDIR /work
@@ -65,11 +83,7 @@ WORKDIR /work
 RUN function retry_wget() { \\
       local URL="\$1" ; \\
       local DEST="\$2" ; \\
-      for iter in {1..10}; do \\
-        wget "\$URL" -O "\$DEST" && \\
-        exit_code=0 && break || exit_code=\$? && echo "wget error fetching \$URL: retry \$iter in 10s" && sleep 10; \\
-      done; \\
-      return \$exit_code ; \\
+      <%= retry_loop('wget', 'wget "\$URL\" -O "\$DEST"', 6, 'return') %> ; \\
     } ; \\
     retry_wget "https://daniel.haxx.se/mykey.asc" "curl-gpg.pub" && \\
     retry_wget "\${TARBALL_URL}.asc" "\${TARBALL_PATH}.asc" && \\
@@ -144,8 +158,8 @@ RUN set -e ; \\
             ;; \\
         *) echo >&2 "Unsupported architecture \$(arch)" ; exit 1 ;; \\
     esac ; \\
-    curl --retry 8 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}" ; \\
-    curl --retry 8 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}.sha256sum" ; \\
+    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}" ; \\
+    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}.sha256sum" ; \\
     sha256sum -c "\${TINI_BIN}.sha256sum" ; \\
     rm "\${TINI_BIN}.sha256sum" ; \\
     mv "\${TINI_BIN}" /rootfs/bin/tini ; \\
@@ -194,6 +208,7 @@ COPY --from=curl /work/curl /rootfs/usr/bin/curl
 # Step 3. Fetch the Elasticsearch distribution and configure it for Docker
 ################################################################################
 FROM ${base_image} AS builder
+
 <% } %>
 
 RUN mkdir /usr/share/elasticsearch
@@ -202,16 +217,17 @@ WORKDIR /usr/share/elasticsearch
 # Fetch the appropriate Elasticsearch distribution for this architecture
 ${source_elasticsearch}
 
-RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
+RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
 # Configure the distribution for Docker
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
-RUN mkdir -p config config/jvm.options.d data logs
+RUN mkdir -p config config/jvm.options.d data logs plugins
 RUN chmod 0775 config config/jvm.options.d data logs plugins
-COPY config/elasticsearch.yml config/log4j2.properties config/
+COPY ${config_dir}/elasticsearch.yml ${config_dir}/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
-<% if (docker_base == "ubi") { %>
+<% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
+
 ################################################################################
 # Build stage 1 (the actual Elasticsearch image):
 #
@@ -221,21 +237,36 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 FROM ${base_image}
 
-RUN for iter in {1..10}; do \\
-      ${package_manager} update --setopt=tsflags=nodocs -y && \\
-      ${package_manager} install --setopt=tsflags=nodocs -y \\
-        nc shadow-utils zip unzip findutils procps-ng && \\
-      ${package_manager} clean all && \\
-      exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
-      sleep 10; \\
-    done; \\
-    (exit \$exit_code)
+<% if (docker_base == "ubi") { %>
+
+RUN <%= retry_loop(
+    package_manager,
+      "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
+      "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
+      "      nc shadow-utils zip unzip findutils procps-ng && \n" +
+      "      ${package_manager} clean all"
+    ) %>
+
+<% } else { %>
+
+<%
+/* Reviews of the Iron Bank Dockerfile said that they preferred simpler */
+/* scripting so this version doesn't have the retry loop featured above. */
+%>
+RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
+    ${package_manager} install --setopt=tsflags=nodocs -y \\
+      nc shadow-utils zip unzip && \\
+    ${package_manager} clean all
+
+<% } %>
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown -R 1000:0 /usr/share/elasticsearch
+
 <% } else { %>
+
 ################################################################################
 # Stage 4. Build the final image, using the rootfs above as the basis, and
 # copying in the Elasticsearch distribution
@@ -250,13 +281,15 @@ RUN addgroup -g 1000 elasticsearch && \\
     addgroup elasticsearch root && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chgrp 0 /usr/share/elasticsearch
+
 <% } %>
 
 ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
-<% if (docker_base == "ubi") { %>
+
+<% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 <% } %>
 
@@ -267,7 +300,7 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
-COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # 1. The JDK's directories' permissions don't allow `java` to be executed under a different
 #    group to the default. Fix this.
@@ -303,7 +336,8 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
-<% if (docker_base == 'ubi') { %>
+
+<% if (docker_base == 'ubi' || docker_base == 'iron_bank') { %>
 LABEL name="Elasticsearch" \\
   maintainer="infra@elastic.co" \\
   vendor="Elastic" \\
@@ -323,6 +357,10 @@ ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
+
+<% if (docker_base == 'iron_bank') { %>
+HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
+<% } %>
 
 ################################################################################
 # End of multi-stage Dockerfile

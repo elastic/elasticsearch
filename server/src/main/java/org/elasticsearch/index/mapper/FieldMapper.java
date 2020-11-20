@@ -26,7 +26,6 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -279,15 +278,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
-        return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name())));
-    }
-
-    private static ContentPath parentPath(String name) {
-        int endPos = name.lastIndexOf(".");
-        if (endPos == -1) {
-            return new ContentPath(0);
-        }
-        return new ContentPath(name.substring(0, endPos));
+        return builder.build(Builder.parentPath(name()));
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -330,7 +321,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public static class Builder {
 
-            private final Map<String, Function<BuilderContext, FieldMapper>> mapperBuilders = new HashMap<>();
+            private final Map<String, Function<ContentPath, FieldMapper>> mapperBuilders = new HashMap<>();
 
             public Builder add(FieldMapper.Builder builder) {
                 mapperBuilders.put(builder.name(), builder::build);
@@ -346,25 +337,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
                     add(toMerge);
                 } else {
-                    FieldMapper existing
-                        = mapperBuilders.get(toMerge.simpleName()).apply(new BuilderContext(Settings.EMPTY, contentPath));
+                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(contentPath);
                     add(existing.merge(toMerge));
                 }
                 return this;
             }
 
-            public MultiFields build(Mapper.Builder mainFieldBuilder, BuilderContext context) {
+            public MultiFields build(Mapper.Builder mainFieldBuilder, ContentPath contentPath) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
                     Map<String, FieldMapper> mappers = new HashMap<>();
-                    context.path().add(mainFieldBuilder.name());
-                    for (Map.Entry<String, Function<BuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
+                    contentPath.add(mainFieldBuilder.name());
+                    for (Map.Entry<String, Function<ContentPath, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         String key = entry.getKey();
-                        FieldMapper mapper = entry.getValue().apply(context);
+                        FieldMapper mapper = entry.getValue().apply(contentPath);
                         mappers.put(key, mapper);
                     }
-                    context.path().remove();
+                    contentPath.remove();
                     return new MultiFields(Collections.unmodifiableMap(mappers));
                 }
             }
@@ -484,7 +474,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Serializes a parameter
      */
-    protected interface Serializer<T> {
+    public interface Serializer<T> {
         void serialize(XContentBuilder builder, String name, T value) throws IOException;
     }
 
@@ -921,19 +911,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected abstract List<Parameter<?>> getParameters();
 
         @Override
-        public abstract FieldMapper build(BuilderContext context);
+        public abstract FieldMapper build(ContentPath context);
 
         /**
          * Builds the full name of the field, taking into account parent objects
          */
-        protected String buildFullName(BuilderContext context) {
-            return context.path().pathAsText(name);
+        protected String buildFullName(ContentPath contentPath) {
+            return contentPath.pathAsText(name);
         }
 
         /**
          * Writes the current builder parameter values as XContent
          */
-        protected final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
@@ -1011,6 +1001,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 iterator.remove();
             }
             validate();
+        }
+
+        protected static ContentPath parentPath(String name) {
+            int endPos = name.lastIndexOf(".");
+            if (endPos == -1) {
+                return new ContentPath(0);
+            }
+            return new ContentPath(name.substring(0, endPos));
         }
 
         // These parameters were previously *always* parsed by TypeParsers#parseField(), even if they

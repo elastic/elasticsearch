@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -384,8 +385,8 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
             .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
-        assertThat(fields.size(), equalTo(3));
-        assertThat(fields.keySet(), containsInAnyOrder("field", "field._index_prefix", "field._index_phrase"));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.keySet(), containsInAnyOrder("field"));
 
         for (DocumentField field : fields.values()) {
             assertThat(field.getValues().size(), equalTo(1));
@@ -439,6 +440,6 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new QueryShardContext(0, indexSettings, null, null, null, mapperService, null, null, null, null, null, null, null, null,
-            null, null, null);
+            null, null, null, emptyMap());
     }
 }

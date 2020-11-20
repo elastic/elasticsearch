@@ -208,7 +208,11 @@ class PluginBuildPlugin implements Plugin<Project> {
         // create the actual bundle task, which zips up all the files for the plugin
         TaskProvider<Zip> bundle = project.tasks.register('bundlePlugin', Zip) {
             from buildProperties
-            from pluginMetadata // metadata (eg custom security policy)
+            from(pluginMetadata) {
+                // metadata (eg custom security policy)
+                // the codebases properties file is only for tests and not needed in production
+                exclude 'plugin-security.codebases'
+            }
             /*
              * If the plugin is using the shadow plugin then we need to bundle
              * that shadow jar.

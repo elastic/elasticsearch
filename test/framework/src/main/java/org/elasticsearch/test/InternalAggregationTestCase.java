@@ -333,7 +333,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     @Override
-
     protected final Class<T> categoryClass() {
         return (Class<T>) InternalAggregation.class;
     }
@@ -353,7 +352,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return inputs;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65163")
     public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
         int size = between(1, 200);

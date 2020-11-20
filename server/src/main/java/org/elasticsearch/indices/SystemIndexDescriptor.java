@@ -215,7 +215,7 @@ public class SystemIndexDescriptor {
         }
 
         public SystemIndexDescriptor build() {
-            String mappings = Strings.toString(mappingsBuilder);
+            String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
             return new SystemIndexDescriptor(indexPattern, description, mappings, settings, aliasName, indexFormat, versionMetaKey, origin);
         }
     }

@@ -218,7 +218,7 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * @param cacheFile the instance that needs to be fsync
      */
-    void onCacheFileUpdate(CacheFile cacheFile) {
+    private void onCacheFileUpdate(CacheFile cacheFile) {
         assert cacheFile != null;
         cacheFilesToSync.offer(cacheFile);
         numberOfCacheFilesToSync.incrementAndGet();
@@ -231,7 +231,7 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * @param cacheFile the evicted instance
      */
-    void onCacheFileRemoval(CacheFile cacheFile) {
+    private void onCacheFileRemoval(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
     }
 

@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
@@ -73,7 +74,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     public static final TimeValue MIN_SNAPSHOT_CACHE_SYNC_INTERVAL = TimeValue.timeValueSeconds(1L);
     public static final Setting<TimeValue> SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING = Setting.timeSetting(
-        SETTINGS_PREFIX + "sync_interval",
+        SETTINGS_PREFIX + "sync.interval",
         TimeValue.timeValueSeconds(60L),                        // default
         MIN_SNAPSHOT_CACHE_SYNC_INTERVAL,                       // min
         Setting.Property.NodeScope,
@@ -81,12 +82,19 @@ public class CacheService extends AbstractLifecycleComponent {
     );
 
     public static final Setting<Integer> SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING = Setting.intSetting(
-        SETTINGS_PREFIX + "max_files_to_sync",
+        SETTINGS_PREFIX + "sync.max_files",
         10_000,                                                 // default
         0,                                                      // min
-        Integer.MAX_VALUE,                                      // min
+        Integer.MAX_VALUE,                                      // max
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT = Setting.timeSetting(
+        SETTINGS_PREFIX + "sync.shutdown_timeout",
+        TimeValue.timeValueSeconds(60L),                        // default
+        TimeValue.ZERO,                                         // min
+        Setting.Property.NodeScope
     );
 
     private static final Logger logger = LogManager.getLogger(CacheService.class);
@@ -95,6 +103,8 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ConcurrentLinkedQueue<CacheFile> cacheFilesToSync;
     private final AtomicLong numberOfCacheFilesToSync;
     private final CacheSynchronizationTask cacheSyncTask;
+    private final TimeValue cacheSyncStopTimeout;
+    private final ReentrantLock cacheSyncLock;
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
     private final Runnable cacheCleaner;
@@ -120,12 +130,14 @@ public class CacheService extends AbstractLifecycleComponent {
             .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
             .build();
         this.numberOfCacheFilesToSync = new AtomicLong();
+        this.cacheSyncLock = new ReentrantLock();
         this.cacheFilesToSync = new ConcurrentLinkedQueue<>();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.maxCacheFilesToSyncAtOnce = SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING, this::setMaxCacheFilesToSyncAtOnce);
         this.cacheSyncTask = new CacheSynchronizationTask(threadPool, SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
+        this.cacheSyncStopTimeout = SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT.get(settings);
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
@@ -144,8 +156,21 @@ public class CacheService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        cacheSyncTask.close();
-        cache.invalidateAll();
+        boolean acquired = false;
+        try {
+            acquired = cacheSyncLock.tryLock(cacheSyncStopTimeout.duration(), cacheSyncStopTimeout.timeUnit());
+            if (acquired == false) {
+                logger.warn("failed to acquire cache sync lock in [{}], cache might be partially persisted", cacheSyncStopTimeout);
+            }
+            cache.invalidateAll();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("interrupted while waiting for cache sync lock", e);
+        } finally {
+            if (acquired) {
+                cacheSyncLock.unlock();
+            }
+        }
     }
 
     @Override
@@ -251,51 +276,62 @@ public class CacheService extends AbstractLifecycleComponent {
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
      * cache entry. Note that cache files might be evicted during the synchronization.
      */
-    protected synchronized void synchronizeCache() {
-        long count = 0L;
-        final Set<Path> cacheDirs = new HashSet<>();
-        final long startTimeNanos = threadPool.relativeTimeInNanos();
-        final long maxCacheFilesToSync = Math.min(numberOfCacheFilesToSync.get(), this.maxCacheFilesToSyncAtOnce);
-        for (long i = 0L; i < maxCacheFilesToSync; i++) {
+    protected void synchronizeCache() {
+        cacheSyncLock.lock();
+        try {
             if (lifecycleState() != Lifecycle.State.STARTED) {
                 logger.debug("stopping cache synchronization (cache service is closing)");
-                break;
+                return;
             }
-            final CacheFile cacheFile = cacheFilesToSync.poll();
-            assert cacheFile != null;
 
-            final long value = numberOfCacheFilesToSync.decrementAndGet();
-            assert value >= 0 : value;
-            final Path cacheFilePath = cacheFile.getFile();
-            try {
-                final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
-                if (ranges.isEmpty() == false) {
-                    logger.trace("cache file [{}] synchronized with [{}] completed range(s)", cacheFilePath.getFileName(), ranges.size());
-                    final Path cacheDir = cacheFilePath.toAbsolutePath().getParent();
-                    if (cacheDirs.add(cacheDir)) {
-                        try {
-                            IOUtils.fsync(cacheDir, true, false);
-                            logger.trace("cache directory [{}] synchronized", cacheDir);
-                        } catch (Exception e) {
-                            assert e instanceof IOException : e;
-                            logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
+            long count = 0L;
+            final Set<Path> cacheDirs = new HashSet<>();
+            final long startTimeNanos = threadPool.relativeTimeInNanos();
+            final long maxCacheFilesToSync = Math.min(numberOfCacheFilesToSync.get(), this.maxCacheFilesToSyncAtOnce);
+
+            for (long i = 0L; i < maxCacheFilesToSync; i++) {
+                final CacheFile cacheFile = cacheFilesToSync.poll();
+                assert cacheFile != null;
+
+                final long value = numberOfCacheFilesToSync.decrementAndGet();
+                assert value >= 0 : value;
+                final Path cacheFilePath = cacheFile.getFile();
+                try {
+                    final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
+                    if (ranges.isEmpty() == false) {
+                        logger.trace(
+                            "cache file [{}] synchronized with [{}] completed range(s)",
+                            cacheFilePath.getFileName(),
+                            ranges.size()
+                        );
+                        final Path cacheDir = cacheFilePath.toAbsolutePath().getParent();
+                        if (cacheDirs.add(cacheDir)) {
+                            try {
+                                IOUtils.fsync(cacheDir, true, false);
+                                logger.trace("cache directory [{}] synchronized", cacheDir);
+                            } catch (Exception e) {
+                                assert e instanceof IOException : e;
+                                logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
+                            }
                         }
+                        // TODO Index searchable snapshot shard information + cache file ranges in Lucene
+                        count += 1L;
                     }
-                    // TODO Index searchable snapshot shard information + cache file ranges in Lucene
-                    count += 1L;
+                } catch (Exception e) {
+                    assert e instanceof IOException : e;
+                    logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
                 }
-            } catch (Exception e) {
-                assert e instanceof IOException : e;
-                logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
             }
-        }
-        if (logger.isDebugEnabled()) {
-            final long elapsedNanos = threadPool.relativeTimeInNanos() - startTimeNanos;
-            logger.debug(
-                "cache files synchronization is done ([{}] cache files synchronized in [{}])",
-                count,
-                TimeValue.timeValueNanos(elapsedNanos)
-            );
+            if (logger.isDebugEnabled()) {
+                final long elapsedNanos = threadPool.relativeTimeInNanos() - startTimeNanos;
+                logger.debug(
+                    "cache files synchronization is done ([{}] cache files synchronized in [{}])",
+                    count,
+                    TimeValue.timeValueNanos(elapsedNanos)
+                );
+            }
+        } finally {
+            cacheSyncLock.unlock();
         }
     }
 

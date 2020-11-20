@@ -22,18 +22,15 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.util.Collections.synchronizedNavigableSet;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.store.cache.TestUtils.mergeContiguousRanges;
+import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -343,29 +340,6 @@ public class CacheFileTests extends ESTestCase {
         public void onEviction(CacheFile evictedCacheFile) {
             evicted.set(Objects.requireNonNull(evictedCacheFile));
         }
-    }
-
-    private SortedSet<Tuple<Long, Long>> randomPopulateAndReads(final CacheFile cacheFile) {
-        final SortedSet<Tuple<Long, Long>> ranges = synchronizedNavigableSet(new TreeSet<>(Comparator.comparingLong(Tuple::v1)));
-        final List<Future<Integer>> futures = new ArrayList<>();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            builder().put(NODE_NAME_SETTING.getKey(), getTestName()).build(),
-            random()
-        );
-        for (int i = 0; i < between(0, 10); i++) {
-            final long start = randomLongBetween(0L, cacheFile.getLength() - 1L);
-            final long end = randomLongBetween(start + 1L, cacheFile.getLength());
-            final Tuple<Long, Long> range = Tuple.tuple(start, end);
-            futures.add(
-                cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
-                    ranges.add(Tuple.tuple(from, to));
-                    progressUpdater.accept(to);
-                }, deterministicTaskQueue.getThreadPool().generic())
-            );
-        }
-        deterministicTaskQueue.runAllRunnableTasks();
-        assertTrue(futures.stream().allMatch(Future::isDone));
-        return mergeContiguousRanges(ranges);
     }
 
     public static void assertNumberOfFSyncs(final Path path, final Matcher<Integer> matcher) {

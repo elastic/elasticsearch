@@ -28,13 +28,11 @@ import java.util.stream.Collectors;
 
 public class EqlFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
     public EqlFeatureSet(@Nullable XPackLicenseState licenseState, Client client) {
-        this.enabled = EqlPlugin.isEnabled();
         this.licenseState = licenseState;
         this.client = client;
     }
@@ -51,7 +49,7 @@ public class EqlFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -61,21 +59,17 @@ public class EqlFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        if (enabled) {
-            EqlStatsRequest request = new EqlStatsRequest();
-            request.includeStats(true);
-            client.execute(EqlStatsAction.INSTANCE, request, ActionListener.wrap(r -> {
-                List<Counters> countersPerNode = r.getNodes()
-                        .stream()
-                        .map(EqlStatsResponse.NodeStatsResponse::getStats)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
-                Counters mergedCounters = Counters.merge(countersPerNode);
-                listener.onResponse(new EqlFeatureSetUsage(available(), enabled(), mergedCounters.toNestedMap()));
-            }, listener::onFailure));
-        } else {
-            listener.onResponse(new EqlFeatureSetUsage(available(), enabled(), Collections.emptyMap()));
-        }
+        EqlStatsRequest request = new EqlStatsRequest();
+        request.includeStats(true);
+        client.execute(EqlStatsAction.INSTANCE, request, ActionListener.wrap(r -> {
+            List<Counters> countersPerNode = r.getNodes()
+                    .stream()
+                    .map(EqlStatsResponse.NodeStatsResponse::getStats)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            Counters mergedCounters = Counters.merge(countersPerNode);
+            listener.onResponse(new EqlFeatureSetUsage(available(), enabled(), mergedCounters.toNestedMap()));
+        }, listener::onFailure));
     }
 
 }

@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.StringJoiner;
 
 import static java.util.stream.Collectors.toList;
 
@@ -154,12 +155,27 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     protected void assertEvents(List<Event> events) {
         assertNotNull(events);
-        logger.info("Events {}", events);
+        logger.debug("Events {}", new Object() {
+            public String toString() {
+                return eventsToString(events);
+            }
+        });
+
         long[] expected = eventIds;
         long[] actual = extractIds(events);
         assertArrayEquals(LoggerMessageFormat.format(null, "unexpected result for spec[{}] [{}] -> {} vs {}", name, query, Arrays.toString(
                 expected), Arrays.toString(actual)),
                 expected, actual);
+    }
+
+    private String eventsToString(List<Event> events) {
+        StringJoiner sj = new StringJoiner(",", "[", "]");
+        for (Event event : events) {
+            sj.add(event.id() + "|" + event.index());
+            sj.add(event.sourceAsMap().toString());
+            sj.add("\n");
+        }
+        return sj.toString();
     }
 
     @SuppressWarnings("unchecked")

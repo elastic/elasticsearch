@@ -5,18 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskParams;
@@ -31,7 +25,6 @@ import java.util.OptionalLong;
 
 
 public class NodeLoadDetector {
-    private static final Logger logger = LogManager.getLogger(NodeLoadDetector.class);
 
     private final MlMemoryTracker mlMemoryTracker;
 
@@ -74,16 +67,18 @@ public class NodeLoadDetector {
                 + "] is not a long");
         }
 
-        NodeLoad nodeLoad = new NodeLoad(node.getId(), maxMlMemory.orElse(-1L), maxNumberOfOpenJobs, isMemoryTrackerRecentlyRefreshed);
+        NodeLoad.Builder nodeLoad = NodeLoad.builder(node.getId())
+            .setMaxMemory(maxMlMemory.orElse(-1L))
+            .setMaxJobs(maxNumberOfOpenJobs)
+            .setUseMemory(isMemoryTrackerRecentlyRefreshed);
         if (errors.isEmpty() == false) {
-            nodeLoad.error = Strings.collectionToCommaDelimitedString(errors);
-            return nodeLoad;
+            return nodeLoad.setError(Strings.collectionToCommaDelimitedString(errors)).build();
         }
         updateLoadGivenTasks(nodeLoad, persistentTasks);
-        return nodeLoad;
+        return nodeLoad.build();
     }
 
-    private void updateLoadGivenTasks(NodeLoad nodeLoad, PersistentTasksCustomMetadata persistentTasks) {
+    private void updateLoadGivenTasks(NodeLoad.Builder nodeLoad, PersistentTasksCustomMetadata persistentTasks) {
         if (persistentTasks != null) {
             // find all the anomaly detector job tasks assigned to this node
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> assignedAnomalyDetectorTasks = persistentTasks.findTasks(
@@ -108,130 +103,9 @@ public class NodeLoadDetector {
             }
             // if any jobs are running then the native code will be loaded, but shared between all jobs,
             // so increase the total memory usage of the assigned jobs to account for this
-            if (nodeLoad.numAssignedJobs > 0) {
-                nodeLoad.assignedJobMemory += MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+            if (nodeLoad.getNumAssignedJobs() > 0) {
+                nodeLoad.incAssignedJobMemory(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
             }
-        }
-    }
-
-    public static class NodeLoad {
-        private final long maxMemory;
-        private final int maxJobs;
-        private final String nodeId;
-        private boolean useMemory;
-        private String error;
-        private long numAssignedJobs;
-        private long assignedJobMemory;
-        private long numAllocatingJobs;
-
-        private NodeLoad(String nodeId, long maxMemory, int maxJobs, boolean useMemory) {
-            this.maxJobs = maxJobs;
-            this.maxMemory = maxMemory;
-            this.nodeId = nodeId;
-            this.useMemory = useMemory;
-        }
-
-        private void adjustForAnomalyJob(JobState jobState,
-                                         String jobId,
-                                         MlMemoryTracker mlMemoryTracker) {
-            if ((jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) && jobId != null) {
-                // Don't count CLOSED or FAILED jobs, as they don't consume native memory
-                ++numAssignedJobs;
-                if (jobState == JobState.OPENING) {
-                    ++numAllocatingJobs;
-                }
-                Long jobMemoryRequirement = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
-                if (jobMemoryRequirement == null) {
-                    useMemory = false;
-                    logger.debug(() -> new ParameterizedMessage(
-                        "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
-                        jobId
-                    ));
-                } else {
-                    assignedJobMemory += jobMemoryRequirement;
-                }
-            }
-        }
-
-        private void adjustForAnalyticsJob(PersistentTasksCustomMetadata.PersistentTask<?> assignedTask,
-                                           MlMemoryTracker mlMemoryTracker) {
-            DataFrameAnalyticsState dataFrameAnalyticsState = MlTasks.getDataFrameAnalyticsState(assignedTask);
-
-            // Don't count stopped and failed df-analytics tasks as they don't consume native memory
-            if (dataFrameAnalyticsState.isAnyOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED) == false) {
-                // The native process is only running in the ANALYZING and STOPPING states, but in the STARTED
-                // and REINDEXING states we're committed to using the memory soon, so account for it here
-                ++numAssignedJobs;
-                StartDataFrameAnalyticsAction.TaskParams params =
-                    (StartDataFrameAnalyticsAction.TaskParams) assignedTask.getParams();
-                Long jobMemoryRequirement = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(params.getId());
-                if (jobMemoryRequirement == null) {
-                    useMemory = false;
-                    logger.debug(() -> new ParameterizedMessage(
-                        "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
-                        params.getId()
-                    ));
-                } else {
-                    assignedJobMemory += jobMemoryRequirement;
-                }
-            }
-        }
-
-        /**
-         * @return The total number of assigned jobs
-         */
-        public long getNumAssignedJobs() {
-            return numAssignedJobs;
-        }
-
-        /**
-         * @return The total memory in bytes used by the assigned jobs.
-         */
-        public long getAssignedJobMemory() {
-            return assignedJobMemory;
-        }
-
-        /**
-         * @return The maximum memory on this node for jobs
-         */
-        public long getMaxMlMemory() {
-            return maxMemory;
-        }
-
-        /**
-         * @return The maximum number of jobs allowed on the node
-         */
-        public int getMaxJobs() {
-            return maxJobs;
-        }
-
-        /**
-         * @return returns `true` if the assignedJobMemory number is accurate
-         */
-        public boolean isUseMemory() {
-            return useMemory;
-        }
-
-        /**
-         * @return The node ID
-         */
-        public String getNodeId() {
-            return nodeId;
-        }
-
-        /**
-         * @return Returns a comma delimited string of errors if any were encountered.
-         */
-        @Nullable
-        public String getError() {
-            return error;
-        }
-
-        /**
-         * @return The current number of jobs allocating to the node
-         */
-        public long getNumAllocatingJobs() {
-            return numAllocatingJobs;
         }
     }
 

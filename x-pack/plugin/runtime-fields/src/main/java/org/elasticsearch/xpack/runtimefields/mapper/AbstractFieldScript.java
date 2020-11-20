@@ -95,13 +95,6 @@ public abstract class AbstractFieldScript {
     }
 
     /**
-     * A non-public convenience method that's used in testing.
-     */
-    protected final Map<String, Object> getSource() {
-        return leafSearchLookup.source();
-    }
-
-    /**
      * Check if the we can add another value to the list of values.
      * @param currentSize the current size of the list
      */

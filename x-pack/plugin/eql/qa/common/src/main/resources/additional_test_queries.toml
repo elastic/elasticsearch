@@ -276,3 +276,27 @@ expected_event_ids  = [
                        61, 65, 67,
                        65, 67, 70,
                        60, 66, 71]
+
+[[queries]]
+name = "seqSingleArg"
+query = 'process where string(serial_event_id) : ("1")'
+expected_event_ids  = [1]
+
+[[queries]]
+name = "seqSingleArgPattern"
+query = 'process where string(serial_event_id) : ("1*")'
+expected_event_ids  = [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+[[queries]]
+name = "seqMultipleArgs"
+query = '''
+file where file_name : ("wininit.exe", "lsass.exe") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "seqMultipleArgsWildcardPattern"
+query = '''
+file where file_name : ("winini*.exe", "lsass.*") and opcode == 2
+'''
+expected_event_ids  = [65, 86]

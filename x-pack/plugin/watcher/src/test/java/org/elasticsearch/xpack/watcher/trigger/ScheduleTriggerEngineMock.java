@@ -53,6 +53,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public synchronized void start(Collection<Watch> jobs) {
+        logger.info("starting scheduler");
         Map<String, Watch> newWatches = new ConcurrentHashMap<>();
         jobs.forEach((watch) -> newWatches.put(watch.id(), watch));
         watches.set(newWatches);
@@ -61,12 +62,13 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public void stop() {
+        logger.info("stopping scheduler and clearing queue");
         watches.set(new ConcurrentHashMap<>());
     }
 
     @Override
     public synchronized void add(Watch watch) {
-        logger.debug("adding watch [{}]", watch.id());
+        logger.info("adding watch [{}]", watch.id());
         watches.get().put(watch.id(), watch);
     }
 
@@ -86,6 +88,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     public boolean trigger(String jobName, int times, TimeValue interval) {
         if (watches.get().containsKey(jobName) == false) {
+            logger.info("not executing watch [{}] on this scheduler because it is not found", jobName);
             return false;
         }
         if (paused.get()) {

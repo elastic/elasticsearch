@@ -20,5 +20,5 @@
 grant {
   // needed to cause problems
   permission java.lang.RuntimePermission "getClassLoader";
-  permission java.lang.RuntimePermission "closeClassLoader";
+  permission java.lang.RuntimePermission "createClassLoader";
 };

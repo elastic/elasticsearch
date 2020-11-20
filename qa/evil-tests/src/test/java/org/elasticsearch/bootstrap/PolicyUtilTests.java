@@ -224,7 +224,7 @@ public class PolicyUtilTests extends ESTestCase {
         }
     }
 
-    static final List<String> PLUGIN_TEST_PERMISSIONS = List.of(
+    static final List<String> PLUGIN_TEST_PERMISSIONS = org.elasticsearch.common.collect.List.of(
         "java.lang.reflect.ReflectPermission suppressAccessChecks",
         "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getClassLoader",
@@ -284,7 +284,7 @@ public class PolicyUtilTests extends ESTestCase {
         assertAllowedPermission(clazz, name, "read", createTempDir(), PolicyUtil::getPluginPolicyInfo);
     }
 
-    static final List<String> MODULE_TEST_PERMISSIONS = List.of(
+    static final List<String> MODULE_TEST_PERMISSIONS = org.elasticsearch.common.collect.List.of(
         "java.io.FilePermission /foo/bar read",
         "java.io.FilePermission /foo/bar write",
         "java.lang.RuntimePermission getFileStoreAttributes",
@@ -295,7 +295,7 @@ public class PolicyUtilTests extends ESTestCase {
         assertAllowedPermissions(MODULE_TEST_PERMISSIONS, PolicyUtil::getModulePolicyInfo);
     }
 
-    static final List<String> ILLEGAL_TEST_PERMISSIONS = List.of(
+    static final List<String> ILLEGAL_TEST_PERMISSIONS = org.elasticsearch.common.collect.List.of(
         "java.awt.AWTPermission *",
         "java.io.FilePermission /foo/bar execute",
         "java.io.FilePermission /foo/bar delete",

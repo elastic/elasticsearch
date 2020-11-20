@@ -75,6 +75,18 @@ RUN curl --retry 8 -S -L \\
 
   def (major,minor) = VersionProperties.elasticsearch.split("\\.")
 
+  def retry_loop = { name, command, indentSize = 4, exitKeyword = 'exit'  ->
+    String indent = ' ' * indentSize
+    String commandWithRetry = """for iter in {1..10}; do
+${indent}  ${command} &&
+${indent}  exit_code=0 && break ||
+${indent}    exit_code=\$? && echo "${name} error: retry \$iter in 10s" && sleep 10;
+${indent}done;
+${indent}${exitKeyword} \$exit_code"""
+
+    return commandWithRetry.replaceAll(" *\n", " \\\\\n")
+  }
+
   return [
     'base_image'          : base.getImage(),
     'bin_dir'             : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
@@ -87,7 +99,8 @@ RUN curl --retry 8 -S -L \\
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
-    'major_minor_version' : "${major}.${minor}"
+    'major_minor_version' : "${major}.${minor}",
+    'retry_loop'          : retry_loop
   ]
 }
 

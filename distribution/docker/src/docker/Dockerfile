@@ -29,7 +29,7 @@ FROM ${base_image} AS builder
 
 <% if (docker_base == 'ubi') { %>
 # Install required packages to extract the Elasticsearch distribution
-RUN ${package_manager} install -y tar gzip
+RUN <%= retry_loop(package_manager, "${package_manager} install -y tar gzip") %>
 <% } %>
 
 <% if (docker_base == 'iron_bank') { %>
@@ -52,8 +52,8 @@ RUN set -eux ; \\
         x86_64)  tini_bin='tini-amd64' ;; \\
         *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
     esac ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
     sha256sum -c \${tini_bin}.sha256sum ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
@@ -96,14 +96,13 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 
 <% } else { %>
 
-RUN for iter in {1..10}; do \\
-      ${package_manager} update --setopt=tsflags=nodocs -y && \\
-      ${package_manager} install --setopt=tsflags=nodocs -y \\
-        nc shadow-utils zip unzip <%= docker_base == 'ubi' ? 'findutils procps-ng' : '' %> && \\
-      ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
-      sleep 10; \\
-    done; \\
-    (exit \$exit_code)
+RUN <%= retry_loop(
+    package_manager,
+      "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
+      "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
+      "      nc shadow-utils zip unzip ${docker_base == 'ubi' ? 'findutils procps-ng' : ''} && \n" +
+      "      ${package_manager} clean all"
+    ) %>
 
 <% } %>
 

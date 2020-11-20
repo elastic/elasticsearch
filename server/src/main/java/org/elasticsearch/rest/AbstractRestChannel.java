@@ -121,8 +121,18 @@ public abstract class AbstractRestChannel implements RestChannel {
             } else {
                 // default to JSON output when all else fails
                 responseContentType = XContentType.JSON;
+
             }
             responseContentTypeString = responseContentType.mediaType();
+        }
+        if (responseContentTypeString == null) {
+            if (Strings.hasText(format)) {
+                responseContentTypeString = XContentType.fromFormat(format).mediaType();
+            } else if( request.getParsedAccept()!=null){
+                responseContentTypeString = request.getParsedAccept().getOriginalHeaderValue();
+            }  else  {
+                responseContentTypeString  =  XContentType.JSON.mediaType();
+            }
         }
 
         Set<String> includes = Collections.emptySet();

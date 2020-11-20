@@ -196,6 +196,10 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
+    public String getResponseContentType(XContentType requestContentType) {
+        return null;
+    }
+
     public enum Method {
         GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
     }

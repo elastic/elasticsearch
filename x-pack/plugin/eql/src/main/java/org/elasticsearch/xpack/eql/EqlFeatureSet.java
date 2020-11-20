@@ -15,12 +15,10 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsAction;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsRequest;
 import org.elasticsearch.xpack.eql.plugin.EqlStatsResponse;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;

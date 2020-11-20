@@ -20,6 +20,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.index.store.IndexInputStats;
 
@@ -310,10 +311,6 @@ public final class TestUtils {
             this.delegateInstance = delegate;
         }
 
-        public FileSystem getDelegateInstance() {
-            return delegateInstance;
-        }
-
         public void failFSyncs(boolean shouldFail) {
             failFSyncs.set(shouldFail);
         }
@@ -348,6 +345,10 @@ public final class TestUtils {
         public void delete(Path path) throws IOException {
             super.delete(path);
             files.remove(path);
+        }
+
+        public void tearDown() {
+            PathUtilsForTesting.installMock(delegateInstance);
         }
     }
 }

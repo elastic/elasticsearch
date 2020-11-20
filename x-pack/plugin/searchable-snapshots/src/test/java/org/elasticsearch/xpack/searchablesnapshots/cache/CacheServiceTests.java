@@ -46,7 +46,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
     @AfterClass
     public static void removeFileSystem() {
-        PathUtilsForTesting.teardown();
+        fileSystemProvider.tearDown();
     }
 
     public void testCacheSynchronization() throws Exception {

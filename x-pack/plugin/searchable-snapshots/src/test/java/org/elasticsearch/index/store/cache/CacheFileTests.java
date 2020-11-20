@@ -230,7 +230,7 @@ public class CacheFileTests extends ESTestCase {
                 cacheFile.release(listener);
             }
         } finally {
-            PathUtilsForTesting.installMock(fileSystem.getDelegateInstance());
+            fileSystem.tearDown();
         }
     }
 
@@ -274,7 +274,7 @@ public class CacheFileTests extends ESTestCase {
                 cacheFile.release(listener);
             }
         } finally {
-            PathUtilsForTesting.installMock(fileSystem.getDelegateInstance());
+            fileSystem.tearDown();
         }
     }
 
@@ -323,7 +323,7 @@ public class CacheFileTests extends ESTestCase {
                 cacheFile.release(listener);
             }
         } finally {
-            PathUtilsForTesting.installMock(fileSystem.getDelegateInstance());
+            fileSystem.tearDown();
         }
     }
 

@@ -15,8 +15,11 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,7 +112,7 @@ public class XPackLicenseState {
         }
     }
 
-    // temporarily non tracked feeatures which need rework in how they are checked
+    // temporarily non tracked features which need rework in how they are checked
     // so they are not tracked as always used
     private static final Set<Feature> NON_TRACKED_FEATURES = Set.of(
         Feature.SECURITY_IP_FILTERING,
@@ -411,6 +414,7 @@ public class XPackLicenseState {
     private final boolean isSecurityExplicitlyEnabled;
     private final Map<Feature, LongAccumulator> lastUsed;
     private final LongSupplier epochMillisProvider;
+    private final Map<Feature, Set<String>> alwaysOnFeatures;
 
     // Since Status is the only field that can be updated, we do not need to synchronize access to
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
@@ -427,22 +431,29 @@ public class XPackLicenseState {
         // care to actually keep track of
         Map<Feature, LongAccumulator> lastUsed = new EnumMap<>(Feature.class);
         for (Feature feature : Feature.values()) {
-            if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 && NON_TRACKED_FEATURES.contains(feature) == false) {
+            if (isTrackableFeature(feature)) {
                 lastUsed.put(feature, new LongAccumulator(Long::max, 0));
             }
         }
         this.lastUsed = lastUsed;
         this.epochMillisProvider = epochMillisProvider;
+        this.alwaysOnFeatures = new EnumMap<>(Feature.class);
+    }
+
+    protected static boolean isTrackableFeature(Feature feature) {
+        return feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 && NON_TRACKED_FEATURES.contains(feature) == false;
     }
 
     private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
-                              Status status, Map<Feature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider) {
+                              Status status, Map<Feature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider,
+                              Map<Feature, Set<String>> alwaysOnFeatures) {
         this.listeners = listeners;
         this.isSecurityEnabled = isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
         this.status = status;
         this.lastUsed = lastUsed;
         this.epochMillisProvider = epochMillisProvider;
+        this.alwaysOnFeatures = alwaysOnFeatures;
     }
 
     private static boolean isSecurityExplicitlyEnabled(Settings settings) {
@@ -515,6 +526,20 @@ public class XPackLicenseState {
     }
 
     /**
+     * Marks a licensed feature as <em>on by configuration</em>.
+     * By default {@link #getFeatureUsage()} method returns the last time {@link #checkFeature(Feature)} was called.
+     * One this method is called, the specified feature will be marked as "always in use",and {@link #getFeatureUsage()} method will return
+     * the current time ("now"), instead of the last time the feature was checked.
+     */
+    public synchronized boolean setFeatureActive(Feature feature, String... identifiers) {
+        boolean allowed = checkFeature(feature);
+        if (allowed && isTrackableFeature(feature)) {
+            alwaysOnFeatures.computeIfAbsent(feature, ignore -> new HashSet<>()).addAll(Arrays.asList(identifiers));
+        }
+        return allowed;
+    }
+
+    /**
      * Checks whether the given feature is allowed by the current license.
      * <p>
      * This method should only be used when serializing whether a feature is allowed for telemetry.
@@ -528,10 +553,18 @@ public class XPackLicenseState {
      *
      * Note that if a feature has not been used, it will not appear in the map.
      */
-    public Map<Feature, Long> getLastUsed() {
-        return lastUsed.entrySet().stream()
+    public Collection<FeatureUsage> getFeatureUsage() {
+        final Map<Feature, FeatureUsage> used = lastUsed.entrySet().stream()
             .filter(e -> e.getValue().get() != 0) // feature was never used
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get()));
+            .map(e -> new FeatureUsage(e.getKey(), e.getValue().get(), Set.of()))
+            .collect(Collectors.toMap(u -> u.feature, Function.identity()));
+        if (alwaysOnFeatures.isEmpty() == false) {
+            final long now = epochMillisProvider.getAsLong();
+            alwaysOnFeatures.entrySet().stream()
+                .map(e -> new FeatureUsage(e.getKey(), now, e.getValue()))
+                .forEach(u -> used.put(u.feature, u));
+        }
+        return used.values();
     }
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
@@ -606,8 +639,14 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status ->
-            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, lastUsed, epochMillisProvider));
+        return executeAgainstStatus(status -> new XPackLicenseState(
+            listeners,
+            isSecurityEnabled,
+            isSecurityExplicitlyEnabled,
+            status,
+            lastUsed,
+            epochMillisProvider,
+            alwaysOnFeatures));
     }
 
     /**
@@ -629,12 +668,49 @@ public class XPackLicenseState {
 
     /**
      * A convenient method to test whether a feature is by license status.
-     * @see #isAllowedByLicense(OperationMode, boolean)
      *
-     * @param minimumMode  The minimum license to meet or exceed
+     * @param minimumMode The minimum license to meet or exceed
+     * @see #isAllowedByLicense(OperationMode, boolean)
      */
     public boolean isAllowedByLicense(OperationMode minimumMode) {
         return isAllowedByLicense(minimumMode, true);
+    }
+
+    public static class FeatureUsage {
+        public final Feature feature;
+        public final long lastUsed;
+        public final Set<String> identifiers;
+
+        public FeatureUsage(Feature feature, long lastUsed, Set<String> identifiers) {
+            this.feature = feature;
+            this.lastUsed = lastUsed;
+            this.identifiers = Objects.requireNonNull(identifiers);
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("FeatureUsage{");
+            sb.append("feature=").append(feature);
+            sb.append(", lastUsed=").append(lastUsed);
+            sb.append(", identifiers=").append(identifiers);
+            sb.append('}');
+            return sb.toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FeatureUsage that = (FeatureUsage) o;
+            return this.lastUsed == that.lastUsed &&
+                this.feature == that.feature &&
+                this.identifiers.equals(that.identifiers);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(feature, lastUsed, identifiers);
+        }
     }
 
 }

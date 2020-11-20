@@ -15,7 +15,11 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -570,23 +574,49 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(BASIC, false, s -> s.checkFeature(Feature.TRANSFORM), false);
     }
 
-    public void testLastUsed() {
+    public void testFeatureUsage() {
         Feature basicFeature = Feature.SECURITY;
         Feature goldFeature = Feature.SECURITY_DLS_FLS;
+        Feature goldFeature2 = Feature.WATCHER;
         AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, currentTime::get);
-        assertThat("basic features not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
-        assertThat("initial epoch time", licenseState.getLastUsed(), not(hasKey(goldFeature)));
+        assertThat("basic features not tracked", toMap(licenseState.getFeatureUsage()), not(hasKey(basicFeature)));
+        assertThat("initial epoch time", toMap(licenseState.getFeatureUsage()), not(hasKey(goldFeature)));
         licenseState.isAllowed(basicFeature);
-        assertThat("basic features still not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
+        assertThat("basic features still not tracked", toMap(licenseState.getFeatureUsage()), not(hasKey(basicFeature)));
         licenseState.isAllowed(goldFeature);
-        assertThat("isAllowed does not track", licenseState.getLastUsed(), not(hasKey(goldFeature)));
+        assertThat("isAllowed does not track", toMap(licenseState.getFeatureUsage()), not(hasKey(goldFeature)));
         licenseState.checkFeature(basicFeature);
-        assertThat("basic features still not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
+        assertThat("basic features still not tracked", toMap(licenseState.getFeatureUsage()), not(hasKey(basicFeature)));
         licenseState.checkFeature(goldFeature);
-        assertThat("checkFeature tracks used time", licenseState.getLastUsed(), hasEntry(goldFeature, 100L));
+        assertThat("checkFeature tracks used time", toMap(licenseState.getFeatureUsage()),
+            hasEntry(goldFeature, new XPackLicenseState.FeatureUsage(goldFeature, 100L, Set.of())));
+        assertThat("checkFeature tracks used time", toMap(licenseState.getFeatureUsage()), hasKey(goldFeature));
         currentTime.set(200);
         licenseState.checkFeature(goldFeature);
-        assertThat("checkFeature updates tracked time", licenseState.getLastUsed(), hasEntry(goldFeature, 200L));
+        assertThat("checkFeature updates tracked time", toMap(licenseState.getFeatureUsage()),
+            hasEntry(goldFeature, new XPackLicenseState.FeatureUsage(goldFeature, 200L, Set.of())));
+        assertThat("checkFeature updates only tracked feature", toMap(licenseState.getFeatureUsage()), not(hasKey(goldFeature2)));
+
+        final String id1 = randomAlphaOfLength(5), id2 = randomAlphaOfLength(12);
+        licenseState.setFeatureActive(goldFeature2, id1, id2);
+        assertThat("setFeatureActive updates tracked time", toMap(licenseState.getFeatureUsage()),
+            hasEntry(goldFeature2, new XPackLicenseState.FeatureUsage(goldFeature2, 200L, Set.of(id1, id2))));
+
+        currentTime.set(300);
+        assertThat("setFeatureActive cause usage to always current time", toMap(licenseState.getFeatureUsage()),
+            hasEntry(goldFeature2, new XPackLicenseState.FeatureUsage(goldFeature2, 300L, Set.of(id1, id2))));
+        assertThat("other features not affected by active feature tracking", toMap(licenseState.getFeatureUsage()),
+            hasEntry(goldFeature, new XPackLicenseState.FeatureUsage(goldFeature, 200L, Set.of())));
+        assertThat("basic features still not tracked", toMap(licenseState.getFeatureUsage()), not(hasKey(basicFeature)));
+
+        final String id3 = randomAlphaOfLength(3);
+        licenseState.setFeatureActive(goldFeature2, id3);
+        assertThat("setFeatureActive retains old ids", toMap(licenseState.getFeatureUsage()),
+            hasEntry(goldFeature2, new XPackLicenseState.FeatureUsage(goldFeature2, 300L, Set.of(id1, id2, id3))));
+    }
+
+    private Map<Feature, XPackLicenseState.FeatureUsage> toMap(Collection<XPackLicenseState.FeatureUsage> collection) {
+        return collection.stream().collect(Collectors.toMap(u -> u.feature, Function.identity()));
     }
 }

@@ -18,9 +18,10 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Set;
 
 public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFeatureUsageRequest, GetFeatureUsageResponse> {
 
@@ -39,14 +40,13 @@ public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFe
 
     @Override
     protected void doExecute(Task task, GetFeatureUsageRequest request, ActionListener<GetFeatureUsageResponse> listener) {
-        Map<XPackLicenseState.Feature, Long> featureUsage = licenseState.getLastUsed();
+        Collection<XPackLicenseState.FeatureUsage> featureUsage = licenseState.getFeatureUsage();
         List<GetFeatureUsageResponse.FeatureUsageInfo> usageInfos = new ArrayList<>();
-        for (var entry : featureUsage.entrySet()) {
-            XPackLicenseState.Feature feature = entry.getKey();
-            String name = feature.name().toLowerCase(Locale.ROOT);
-            ZonedDateTime lastUsedTime = Instant.ofEpochMilli(entry.getValue()).atZone(ZoneOffset.UTC);
-            String licenseLevel = feature.minimumOperationMode.name().toLowerCase(Locale.ROOT);
-            usageInfos.add(new GetFeatureUsageResponse.FeatureUsageInfo(name, lastUsedTime, licenseLevel));
+        for (var usage : featureUsage) {
+            String name = usage.feature.name().toLowerCase(Locale.ROOT);
+            ZonedDateTime lastUsedTime = Instant.ofEpochMilli(usage.lastUsed).atZone(ZoneOffset.UTC);
+            String licenseLevel = usage.feature.minimumOperationMode.name().toLowerCase(Locale.ROOT);
+            usageInfos.add(new GetFeatureUsageResponse.FeatureUsageInfo(name, lastUsedTime, licenseLevel, Set.copyOf(usage.identifiers)));
         }
         listener.onResponse(new GetFeatureUsageResponse(usageInfos));
     }

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class GetFeatureUsageResponse extends ActionResponse implements ToXContentObject {
 
@@ -26,17 +28,24 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         public final String name;
         public final ZonedDateTime lastUsedTime;
         public final String licenseLevel;
+        public final Set<String> identifiers;
 
-        public FeatureUsageInfo(String name, ZonedDateTime lastUsedTime, String licenseLevel) {
+        public FeatureUsageInfo(String name, ZonedDateTime lastUsedTime, String licenseLevel, Set<String> identifiers) {
             this.name = name;
             this.lastUsedTime = lastUsedTime;
             this.licenseLevel = licenseLevel;
+            this.identifiers = identifiers;
         }
 
         public FeatureUsageInfo(StreamInput in) throws IOException {
             this.name = in.readString();
             this.lastUsedTime = ZonedDateTime.ofInstant(Instant.ofEpochSecond(in.readLong()), ZoneOffset.UTC);
             this.licenseLevel = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.identifiers = in.readSet(StreamInput::readString);
+            } else {
+                this.identifiers = Set.of();
+            }
         }
 
         @Override
@@ -44,6 +53,9 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
             out.writeString(name);
             out.writeLong(lastUsedTime.toEpochSecond());
             out.writeString(licenseLevel);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeStringCollection(this.identifiers);
+            }
         }
     }
 
@@ -75,6 +87,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
             builder.field("name", feature.name);
             builder.field("last_used", feature.lastUsedTime.toString());
             builder.field("license_level", feature.licenseLevel);
+            builder.field("ids", feature.identifiers);
             builder.endObject();
         }
         builder.endArray();

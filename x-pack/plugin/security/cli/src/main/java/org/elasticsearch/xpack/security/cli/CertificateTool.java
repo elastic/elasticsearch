@@ -849,7 +849,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 certificate = CertGenUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
                     getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
                         certificateInformation.commonNames),
-                    keyPair, null, null, true, days, null);
+                    keyPair, null, null, false, days, null);
             }
             return new CertificateAndKey((X509Certificate) certificate, keyPair.getPrivate());
         }

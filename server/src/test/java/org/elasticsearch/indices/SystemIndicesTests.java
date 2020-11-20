@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,7 +31,6 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.mock;
 
 public class SystemIndicesTests extends ESTestCase {
 
@@ -63,7 +61,7 @@ public class SystemIndicesTests extends ESTestCase {
 
         IllegalStateException constructorException = expectThrows(
             IllegalStateException.class,
-            () -> new SystemIndices(descriptors, mock(Client.class))
+            () -> new SystemIndices(descriptors)
         );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
@@ -89,13 +87,13 @@ public class SystemIndicesTests extends ESTestCase {
 
         IllegalStateException constructorException = expectThrows(
             IllegalStateException.class,
-            () -> new SystemIndices(descriptors, mock(Client.class))
+            () -> new SystemIndices(descriptors)
         );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
     public void testBuiltInSystemIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of(), mock(Client.class));
+        SystemIndices systemIndices = new SystemIndices(Map.of());
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
@@ -105,7 +103,7 @@ public class SystemIndicesTests extends ESTestCase {
         Map<String, Collection<SystemIndexDescriptor>> pluginMap = Map.of(
             TaskResultsService.class.getName(), List.of(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap, mock(Client.class)));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));
     }
 }

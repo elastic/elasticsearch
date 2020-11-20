@@ -89,7 +89,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
@@ -1541,7 +1540,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool, shardStateAction, actionFilters));
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
 
-                final SystemIndices systemIndices = new SystemIndices(Map.of(), mock(Client.class));
+                final SystemIndices systemIndices = new SystemIndices(Map.of());
 
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,

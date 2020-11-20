@@ -144,7 +144,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         TestTransportBulkAction() {
             super(threadPool, transportService, clusterService, ingestService,
                 null, new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-                new IndexingPressure(SETTINGS), new SystemIndices(Map.of(), mock(Client.class))
+                new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
             );
         }
 

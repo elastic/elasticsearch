@@ -20,8 +20,6 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -33,6 +31,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -110,7 +109,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
                 new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(Map.of(), mock(Client.class)));
+                new SystemIndices(Map.of()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
         action.dispatchedShardOperationOnPrimary(request, indexShard,
@@ -148,7 +147,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
                 new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(Map.of(), mock(Client.class)));
+                new SystemIndices(Map.of()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
@@ -188,7 +187,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
                 new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(Map.of(), mock(Client.class)));
+                new SystemIndices(Map.of()));
 
         assertNull(action.indexBlockLevel());
     }

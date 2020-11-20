@@ -236,7 +236,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     indexNameExpressionResolver,
                     new IndexingPressure(Settings.EMPTY),
-                    new SystemIndices(Map.of(), client),
+                    new SystemIndices(Map.of()),
                     relativeTimeProvider);
         }
     }

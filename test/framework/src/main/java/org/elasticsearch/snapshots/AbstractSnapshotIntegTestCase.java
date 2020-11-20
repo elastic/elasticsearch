@@ -421,6 +421,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
     }
 
+    protected void awaitNDeletionsInProgress(int count) throws Exception {
+        logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
+        awaitClusterState(state ->
+                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries().size() == count);
+    }
+
     protected void awaitNoMoreRunningOperations() throws Exception {
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
     }

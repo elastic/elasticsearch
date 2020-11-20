@@ -30,16 +30,14 @@ public class SequenceMatcher {
     static class Stats {
         long seen = 0;
         long ignored = 0;
-        long until = 0;
         long rejectionMaxspan = 0;
         long rejectionUntil = 0;
 
         @Override
         public String toString() {
-            return LoggerMessageFormat.format(null, "Stats: Seen [{}]/Ignored [{}]/Until [{}]/Rejected {Maxspan [{}]/Until [{}]}",
+            return LoggerMessageFormat.format(null, "Stats: Seen [{}]/Ignored [{}]/Rejected {Maxspan [{}]/Until [{}]}",
                     seen,
                     ignored,
-                    until,
                     rejectionMaxspan,
                     rejectionUntil);
         }
@@ -47,7 +45,6 @@ public class SequenceMatcher {
         public void clear() {
             seen = 0;
             ignored = 0;
-            until = 0;
             rejectionMaxspan = 0;
             rejectionUntil = 0;
         }
@@ -160,7 +157,7 @@ public class SequenceMatcher {
 
         // remove the group early (as the key space is large)
         if (group.isEmpty()) {
-            keyToSequences.remove(previousStage, group);
+            keyToSequences.remove(previousStage, key);
             stageToKeys.remove(previousStage, key);
         }
 
@@ -177,10 +174,10 @@ public class SequenceMatcher {
         // until
         UntilGroup until = keyToSequences.untilIfPresent(key);
         if (until != null) {
-            KeyAndOrdinal nearestUntil = until.before(ordinal);
+            Ordinal nearestUntil = until.before(ordinal);
             if (nearestUntil != null) {
                 // check if until matches
-                if (nearestUntil.ordinal().between(sequence.ordinal(), ordinal)) {
+                if (nearestUntil.between(sequence.ordinal(), ordinal)) {
                     stats.rejectionUntil++;
                     return;
                 }
@@ -245,10 +242,6 @@ public class SequenceMatcher {
     List<Sequence> completed() {
         List<Sequence> asList = new ArrayList<>(completed);
         return limit != null ? limit.view(asList) : asList;
-    }
-
-    void dropUntil() {
-        keyToSequences.dropUntil();
     }
 
     void until(Iterable<KeyAndOrdinal> markers) {

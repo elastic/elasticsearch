@@ -217,7 +217,7 @@ public class LeaderChecker {
             logger.trace("checking {} with [{}] = {}", leader, LEADER_CHECK_TIMEOUT_SETTING.getKey(), leaderCheckTimeout);
 
             transportService.sendRequest(leader, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(transportService.getLocalNode()),
-                TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
+                TransportRequestOptions.of(leaderCheckTimeout, Type.PING),
                 new TransportResponseHandler.Empty() {
 
                     @Override

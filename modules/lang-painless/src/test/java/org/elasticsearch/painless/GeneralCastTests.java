@@ -345,4 +345,93 @@ public class GeneralCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def x = 2.0; def y = 1; y.compareTo(x);"));
         expectScriptThrows(ClassCastException.class, () -> exec("float f = 1.0f; def y = 1; y.compareTo(f);"));
     }
+
+    public void testCompoundAssignmentStringCasts() {
+        assertEquals("s71", exec("String s = 's'; byte c = 71; s += c; return s"));
+        assertEquals("s71", exec("String s = 's'; short c = 71; s += c; return s"));
+        assertEquals("sG", exec("String s = 's'; char c = 71; s += c; return s"));
+        assertEquals("s71", exec("String s = 's'; int c = 71; s += c; return s"));
+        assertEquals("s71", exec("String s = 's'; long c = 71; s += c; return s"));
+        assertEquals("s71.0", exec("String s = 's'; float c = 71; s += c; return s"));
+        assertEquals("s71.0", exec("String s = 's'; double c = 71; s += c; return s"));
+        assertEquals("s71", exec("String s = 's'; String c = '71'; s += c; return s"));
+        assertEquals("s[71]", exec("String s = 's'; List c = [71]; s += c; return s"));
+
+        assertEquals("s71s", exec("String s = 's'; byte c = 71; s += c + s; return s"));
+        assertEquals("s71s", exec("String s = 's'; short c = 71; s += c + s; return s"));
+        assertEquals("sGs", exec("String s = 's'; char c = 71; s += c + s; return s"));
+        assertEquals("s71s", exec("String s = 's'; int c = 71; s += c + s; return s"));
+        assertEquals("s71s", exec("String s = 's'; long c = 71; s += c + s; return s"));
+        assertEquals("s71.0s", exec("String s = 's'; float c = 71; s += c + s; return s"));
+        assertEquals("s71.0s", exec("String s = 's'; double c = 71; s += c + s; return s"));
+        assertEquals("s71s", exec("String s = 's'; String c = '71'; s += c + s; return s"));
+        assertEquals("s[71]s", exec("String s = 's'; List c = [71]; s += c + s; return s"));
+
+        assertEquals("s142", exec("String s = 's'; byte c = 71; s += c + c; return s"));
+        assertEquals("s142", exec("String s = 's'; short c = 71; s += c + c; return s"));
+        assertEquals("s142", exec("String s = 's'; char c = 71; s += c + c; return s"));
+        assertEquals("s142", exec("String s = 's'; int c = 71; s += c + c; return s"));
+        assertEquals("s142", exec("String s = 's'; long c = 71; s += c + c; return s"));
+        assertEquals("s142.0", exec("String s = 's'; float c = 71; s += c + c; return s"));
+        assertEquals("s142.0", exec("String s = 's'; double c = 71; s += c + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; String c = '71'; s += c + c; return s"));
+
+        assertEquals("s7171", exec("String s = 's'; byte c = 71; s += c + '' + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; short c = 71; s += c + '' + c; return s"));
+        assertEquals("sGG", exec("String s = 's'; char c = 71; s += c + '' + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; int c = 71; s += c + '' + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; long c = 71; s += c + '' + c; return s"));
+        assertEquals("s71.071.0", exec("String s = 's'; float c = 71; s += c + '' +  c; return s"));
+        assertEquals("s71.071.0", exec("String s = 's'; double c = 71; s += c + '' + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; String c = '71'; s += c + '' + c; return s"));
+        assertEquals("s[71][71]", exec("String s = 's'; List c = [71]; s += c + '' + c; return s"));
+
+        assertEquals("s142", exec("String s = 's'; byte c = 71; s += c + c + ''; return s"));
+        assertEquals("s142", exec("String s = 's'; short c = 71; s += c + c + ''; return s"));
+        assertEquals("s142", exec("String s = 's'; char c = 71; s += c + c + ''; return s"));
+        assertEquals("s142", exec("String s = 's'; int c = 71; s += c + c + ''; return s"));
+        assertEquals("s142", exec("String s = 's'; long c = 71; s += c + c + ''; return s"));
+        assertEquals("s142.0", exec("String s = 's'; float c = 71; s += c + c + ''; return s"));
+        assertEquals("s142.0", exec("String s = 's'; double c = 71; s += c + c + ''; return s"));
+        assertEquals("s7171", exec("String s = 's'; String c = '71'; s += c + c + ''; return s"));
+
+        assertEquals("s7171", exec("String s = 's'; byte c = 71; s += '' + c + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; short c = 71; s += '' + c + c; return s"));
+        assertEquals("sGG", exec("String s = 's'; char c = 71; s += '' + c + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; int c = 71; s += '' + c + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; long c = 71; s += '' + c + c; return s"));
+        assertEquals("s71.071.0", exec("String s = 's'; float c = 71; s += '' + c +  c; return s"));
+        assertEquals("s71.071.0", exec("String s = 's'; double c = 71; s += '' + c + c; return s"));
+        assertEquals("s7171", exec("String s = 's'; String c = '71'; s += '' + c + c; return s"));
+        assertEquals("s[71][71]", exec("String s = 's'; List c = [71]; s += '' + c + c; return s"));
+
+        assertEquals("s71s71", exec("String s = 's'; byte c = 71; s += c + s + c; return s"));
+        assertEquals("s71s71", exec("String s = 's'; short c = 71; s += c + s + c; return s"));
+        assertEquals("sGsG", exec("String s = 's'; char c = 71; s += c + s + c; return s"));
+        assertEquals("s71s71", exec("String s = 's'; int c = 71; s += c + s + c; return s"));
+        assertEquals("s71s71", exec("String s = 's'; long c = 71; s += c + s + c; return s"));
+        assertEquals("s71.0s71.0", exec("String s = 's'; float c = 71; s += c + s +  c; return s"));
+        assertEquals("s71.0s71.0", exec("String s = 's'; double c = 71; s += c + s + c; return s"));
+        assertEquals("s71s71", exec("String s = 's'; String c = '71'; s += c + s + c; return s"));
+        assertEquals("s[71]s[71]", exec("String s = 's'; List c = [71]; s += c + s + c; return s"));
+
+        assertEquals("s142s", exec("String s = 's'; byte c = 71; s += c + c + s; return s"));
+        assertEquals("s142s", exec("String s = 's'; short c = 71; s += c + c + s; return s"));
+        assertEquals("s142s", exec("String s = 's'; char c = 71; s += c + c + s; return s"));
+        assertEquals("s142s", exec("String s = 's'; int c = 71; s += c + c + s; return s"));
+        assertEquals("s142s", exec("String s = 's'; long c = 71; s += c + c + s; return s"));
+        assertEquals("s142.0s", exec("String s = 's'; float c = 71; s += c + c + s; return s"));
+        assertEquals("s142.0s", exec("String s = 's'; double c = 71; s += c + c + s; return s"));
+        assertEquals("s7171s", exec("String s = 's'; String c = '71'; s += c + c + s; return s"));
+
+        assertEquals("ss7171", exec("String s = 's'; byte c = 71; s += s + c + c; return s"));
+        assertEquals("ss7171", exec("String s = 's'; short c = 71; s += s + c + c; return s"));
+        assertEquals("ssGG", exec("String s = 's'; char c = 71; s += s + c + c; return s"));
+        assertEquals("ss7171", exec("String s = 's'; int c = 71; s += s + c + c; return s"));
+        assertEquals("ss7171", exec("String s = 's'; long c = 71; s += s + c + c; return s"));
+        assertEquals("ss71.071.0", exec("String s = 's'; float c = 71; s += s + c +  c; return s"));
+        assertEquals("ss71.071.0", exec("String s = 's'; double c = 71; s += s + c + c; return s"));
+        assertEquals("ss7171", exec("String s = 's'; String c = '71'; s += s + c + c; return s"));
+        assertEquals("ss[71][71]", exec("String s = 's'; List c = [71]; s += s + c + c; return s"));
+    }
 }

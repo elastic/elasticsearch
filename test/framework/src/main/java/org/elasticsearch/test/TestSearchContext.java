@@ -32,7 +32,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -509,11 +508,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return null;
-    }
-
-    @Override
-    public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(indexService.mapperService(), bitsetFilterCache()::getBitSetProducer);
     }
 
     @Override

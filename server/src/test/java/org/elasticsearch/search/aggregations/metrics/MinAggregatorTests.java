@@ -50,6 +50,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -165,10 +166,22 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher, MapperService mapperService,
-                                                      IndexSettings indexSettings, CircuitBreakerService circuitBreakerService,
-                                                      BigArrays bigArrays) {
-         this.queryShardContext = super.queryShardContextMock(searcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
+    protected QueryShardContext queryShardContextMock(
+        IndexSearcher searcher,
+        MapperService.Snapshot mapperSnapshot,
+        IndexSettings indexSettings,
+        CircuitBreakerService circuitBreakerService,
+        BitsetFilterCache bitsetFilterCache,
+        BigArrays bigArrays
+    ) {
+        this.queryShardContext = super.queryShardContextMock(
+            searcher,
+            mapperSnapshot,
+            indexSettings,
+            circuitBreakerService,
+            bitsetFilterCache,
+            bigArrays
+        );
          return queryShardContext;
     }
 

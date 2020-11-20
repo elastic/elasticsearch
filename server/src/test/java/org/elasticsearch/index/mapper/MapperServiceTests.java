@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -37,9 +38,20 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, MergeReason.MAPPING_UPDATE_PREFLIGHT, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
-        assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
+        assertThat("field was not created by preflight check", mapperService.snapshot().fieldType("field0"), nullValue());
         merge(mapperService, MergeReason.MAPPING_UPDATE, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
-        assertThat("field was not created by mapping update", mapperService.fieldType("field0"), notNullValue());
+        assertThat("field was not created by mapping update", mapperService.snapshot().fieldType("field0"), notNullValue());
+    }
+
+    public void testSnapshot() throws IOException {
+        MapperService service = createMapperService(mapping(b -> {}));
+        MapperService.Snapshot oldSnapshot = service.snapshot();
+        assertThat(oldSnapshot.fieldType("cat"), nullValue());
+
+        merge(service, mapping(b -> b.startObject("cat").field("type", "keyword").endObject()));
+        MapperService.Snapshot newSnapshot = service.snapshot();
+        assertThat(newSnapshot.fieldType("cat"), not(nullValue()));
+        assertThat(oldSnapshot.fieldType("cat"), nullValue());
     }
 
     /**

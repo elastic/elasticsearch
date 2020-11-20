@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -56,12 +55,13 @@ import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -86,6 +86,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -371,18 +372,6 @@ public class QueryShardContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings,
         List<MapperPlugin> mapperPlugins
     ) {
-        MapperService mapperService = createMapperService(indexUuid, fieldTypeLookup, mapperPlugins);
-        final long nowInMillis = randomNonNegativeLong();
-        return new QueryShardContext(
-            0, mapperService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, null,
-                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null, runtimeMappings);
-    }
-
-    private static MapperService createMapperService(String indexUuid,
-                                                     Map<String, MappedFieldType> fieldTypeLookup,
-                                                     List<MapperPlugin> mapperPlugins) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
         indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
@@ -390,29 +379,50 @@ public class QueryShardContextTests extends ESTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
         );
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
-            Collections.emptyMap(), Collections.emptyMap()
-        );
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService.Snapshot mapperSnapshot = createMapperSnapshot(indexSettings, fieldTypeLookup, mapperPlugins);
+        final long nowInMillis = randomNonNegativeLong();
+        return new QueryShardContext(
+            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
+                mapperSnapshot, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
+            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null, runtimeMappings);
+    }
+
+    private static MapperService.Snapshot createMapperSnapshot(
+        IndexSettings indexSettings,
+        Map<String, MappedFieldType> fieldTypeLookup,
+        List<MapperPlugin> mapperPlugins
+    ) {
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
+            emptyMap(),
+            emptyMap()
+        );
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-        return new MapperService(indexSettings, indexAnalyzers, NamedXContentRegistry.EMPTY, similarityService,
-            mapperRegistry, () -> {
-            throw new UnsupportedOperationException();
-        }, () -> true, null) {
+        Supplier<QueryShardContext> queryShardContextSupplier = () -> { throw new UnsupportedOperationException(); };
+        Mapper.TypeParser.ParserContext parseContext = new Mapper.TypeParser.ParserContext(
+            null,
+            mapperRegistry.getMapperParsers()::get,
+            mapperRegistry.getRuntimeFieldTypeParsers()::get,
+            indexSettings.getIndexVersionCreated(),
+            queryShardContextSupplier,
+            null,
+            null,
+            indexAnalyzers,
+            indexSettings,
+            () -> true
+        );
+        return new MapperService.StubSnapshot(fieldTypeLookup) {
             @Override
-            public MappedFieldType fieldType(String name) {
-                return fieldTypeLookup.get(name);
+            public IndexAnalyzers getIndexAnalyzers() {
+                return indexAnalyzers;
             }
 
             @Override
-            public Set<String> simpleMatchToFullName(String pattern) {
-                if (Regex.isMatchAllPattern(pattern)) {
-                    return Collections.unmodifiableSet(fieldTypeLookup.keySet());
-                }
-                throw new UnsupportedOperationException();
+            public ParserContext parserContext() {
+                return parseContext;
             }
         };
     }

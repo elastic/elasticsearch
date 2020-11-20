@@ -46,7 +46,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -63,6 +62,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -88,7 +88,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
     private final BigArrays bigArrays;
-    private final MapperService mapperService;
+    private final MapperService.Snapshot mapperSnapshot;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
@@ -117,7 +117,7 @@ public class QueryShardContext extends QueryRewriteContext {
         BigArrays bigArrays,
         BitsetFilterCache bitsetFilterCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-        MapperService mapperService,
+        MapperService.Snapshot mapperSnapshot,
         SimilarityService similarityService,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
@@ -137,7 +137,7 @@ public class QueryShardContext extends QueryRewriteContext {
             bigArrays,
             bitsetFilterCache,
             indexFieldDataLookup,
-            mapperService,
+            mapperSnapshot,
             similarityService,
             scriptService,
             xContentRegistry,
@@ -152,13 +152,13 @@ public class QueryShardContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService)
+            parseRuntimeMappings(runtimeMappings, mapperSnapshot)
         );
     }
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
-            source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
+            source.mapperSnapshot, source.similarityService, source.scriptService, source.getXContentRegistry(),
             source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
             source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry, source.runtimeMappings);
     }
@@ -168,7 +168,7 @@ public class QueryShardContext extends QueryRewriteContext {
                               BigArrays bigArrays,
                               BitsetFilterCache bitsetFilterCache,
                               TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                              MapperService mapperService,
+                              MapperService.Snapshot mapperSnapshot,
                               SimilarityService similarityService,
                               ScriptService scriptService,
                               NamedXContentRegistry xContentRegistry,
@@ -184,7 +184,7 @@ public class QueryShardContext extends QueryRewriteContext {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
-        this.mapperService = mapperService;
+        this.mapperSnapshot = mapperSnapshot;
         this.bigArrays = bigArrays;
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataLookup;
@@ -208,7 +208,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public Similarity getSearchSimilarity() {
-        return similarityService != null ? similarityService.similarity(mapperService::fieldType) : null;
+        return similarityService != null ? similarityService.similarity(mapperSnapshot::fieldType) : null;
     }
 
     public List<String> defaultFields() {
@@ -253,20 +253,19 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-        return mapperService.documentMapper() == null ? null : mapperService.documentMapper().parse(source);
+        return mapperSnapshot.parseDocument(source);
     }
 
     public FieldNameAnalyzer getFieldNameIndexAnalyzer() {
-        DocumentMapper documentMapper = mapperService.documentMapper();
-        return documentMapper == null ? null : documentMapper.mappers().indexAnalyzer();
+        return mapperSnapshot.indexAnalyzer();
     }
 
     public boolean hasNested() {
-        return mapperService.hasNested();
+        return mapperSnapshot.hasNested();
     }
 
     public boolean hasMappings() {
-        return mapperService.documentMapper() != null;
+        return mapperSnapshot.documentMapper() != null;
     }
 
     /**
@@ -275,13 +274,13 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public Set<String> simpleMatchToIndexNames(String pattern) {
         if (runtimeMappings.isEmpty()) {
-            return mapperService.simpleMatchToFullName(pattern);
+            return mapperSnapshot.simpleMatchToFullName(pattern);
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
             return Collections.singleton(pattern);
         }
-        Set<String> matches = new HashSet<>(mapperService.simpleMatchToFullName(pattern));
+        Set<String> matches = new HashSet<>(mapperSnapshot.simpleMatchToFullName(pattern));
         for (String name : runtimeMappings.keySet()) {
             if (Regex.simpleMatch(pattern, name)) {
                 matches.add(name);
@@ -312,23 +311,23 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private MappedFieldType fieldType(String name) {
         MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mapperService.fieldType(name) : fieldType;
+        return fieldType == null ? mapperSnapshot.fieldType(name) : fieldType;
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return mapperService.getObjectMapper(name);
+        return mapperSnapshot.getObjectMapper(name);
     }
 
     public boolean isMetadataField(String field) {
-        return mapperService.isMetadataField(field);
+        return mapperSnapshot.isMetadataField(field);
     }
 
     public Set<String> sourcePath(String fullName) {
-        return mapperService.sourcePath(fullName);
+        return mapperSnapshot.sourcePath(fullName);
     }
 
     public boolean isSourceEnabled() {
-        return mapperService.documentMapper().sourceMapper().enabled();
+        return mapperSnapshot.documentMapper().sourceMapper().enabled();
     }
 
     /**
@@ -336,7 +335,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Generally used to handle unmapped fields in the context of sorting.
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
-        Mapper.TypeParser.ParserContext parserContext = mapperService.parserContext();
+        Mapper.TypeParser.ParserContext parserContext = mapperSnapshot.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
@@ -350,11 +349,11 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
-        return mapperService.getIndexAnalyzers();
+        return mapperSnapshot.getIndexAnalyzers();
     }
 
     public Analyzer getIndexAnalyzer() {
-        return mapperService.indexAnalyzer();
+        return mapperSnapshot.indexAnalyzer();
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
@@ -374,7 +373,7 @@ public class QueryShardContext extends QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder
-                = new TextFieldMapper.Builder(name, () -> mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer());
+                = new TextFieldMapper.Builder(name, () -> mapperSnapshot.getIndexAnalyzers().getDefaultIndexAnalyzer());
             return builder.build(new ContentPath(1)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -386,7 +385,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * backwards offsets in term vectors
      */
     public boolean containsBrokenAnalysis(String field) {
-        return mapperService.containsBrokenAnalysis(field);
+        return mapperSnapshot.containsBrokenAnalysis(field);
     }
 
     private SearchLookup lookup = null;
@@ -585,13 +584,21 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private static Map<String, MappedFieldType> parseRuntimeMappings(
         Map<String, Object> runtimeMappings,
-        MapperService mapperService
+        MapperService.Snapshot mapperSnapshot
     ) {
         Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
         if (runtimeMappings.isEmpty() == false) {
-            RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(),
+            RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperSnapshot.parserContext(),
                 runtimeFieldType -> runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType));
         }
         return Collections.unmodifiableMap(runtimeFieldTypes);
+    }
+
+    public NestedDocuments getNestedDocuments() {
+        return new NestedDocuments(mapperSnapshot.documentMapper(), bitsetFilterCache::getBitSetProducer);
+    }
+
+    public long localMappingVersion() {
+        return mapperSnapshot.version();
     }
 }

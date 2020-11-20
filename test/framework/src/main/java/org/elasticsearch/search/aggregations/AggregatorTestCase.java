@@ -100,7 +100,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -177,12 +176,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return Collections.emptyMap();
     }
 
-    private static void registerFieldTypes(SearchContext searchContext, MapperService mapperService,
-                                           Map<String, MappedFieldType> fieldNameToType) {
+    private static void registerFieldTypes(MapperService.Snapshot mapperSnapshot, Map<String, MappedFieldType> fieldNameToType) {
         for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
             String fieldName = entry.getKey();
             MappedFieldType fieldType = entry.getValue();
-            when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
+            when(mapperSnapshot.fieldType(fieldName)).thenReturn(fieldType);
         }
     }
 
@@ -273,13 +271,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking();
         when(searchContext.bigArrays()).thenReturn(bigArrays);
 
-        // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
-        MapperService mapperService = mapperServiceMock();
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.hasNested()).thenReturn(false);
-        when(mapperService.indexAnalyzer()).thenReturn(new StandardAnalyzer()); // for significant text
-        QueryShardContext queryShardContext =
-            queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
+        MapperService.Snapshot mapperSnapshot = mapperSnapshotMock();
+        when(mapperSnapshot.hasNested()).thenReturn(false);
+        QueryShardContext queryShardContext = queryShardContextMock(
+            contextIndexSearcher,
+            mapperSnapshot,
+            indexSettings,
+            circuitBreakerService,
+            searchContext.bitsetFilterCache(),
+            bigArrays
+        );
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         when(queryShardContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
             String fieldName = (String) invocation.getArguments()[0];
@@ -289,18 +290,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return null;
         });
 
-        NestedDocuments nestedDocuments = new NestedDocuments(mapperService, searchContext.bitsetFilterCache()::getBitSetProducer);
-        when(searchContext.getNestedDocuments())
-            .thenReturn(nestedDocuments);
-
         Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
         fieldNameToType.putAll(Arrays.stream(fieldTypes)
             .filter(Objects::nonNull)
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
-        registerFieldTypes(searchContext, mapperService,
-            fieldNameToType);
+        registerFieldTypes(mapperSnapshot, fieldNameToType);
         doAnswer(invocation -> {
             /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't
              * close their sub-aggregations. This is fairly similar to what the production code does. */
@@ -324,22 +320,23 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * sub-tests that need a more complex mock can overwrite this
      */
-    protected MapperService mapperServiceMock() {
-        return mock(MapperService.class);
+    protected MapperService.Snapshot mapperSnapshotMock() {
+        return mock(MapperService.Snapshot.class);
     }
 
     /**
      * sub-tests that need a more complex mock can overwrite this
      */
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                      MapperService mapperService,
+                                                      MapperService.Snapshot mapperSnapshot,
                                                       IndexSettings indexSettings,
                                                       CircuitBreakerService circuitBreakerService,
+                                                      BitsetFilterCache bitsetFilterCache,
                                                       BigArrays bigArrays) {
 
-        return new QueryShardContext(0, indexSettings, bigArrays, null,
-            getIndexFieldDataLookup(mapperService, circuitBreakerService),
-            mapperService, null, getMockScriptService(), xContentRegistry(),
+        return new QueryShardContext(0, indexSettings, bigArrays, bitsetFilterCache,
+            getIndexFieldDataLookup(indexSettings.getIndex().getName(), circuitBreakerService),
+            mapperSnapshot, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true,
             valuesSourceRegistry, emptyMap());
     }
@@ -348,9 +345,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Sub-tests that need a more complex index field data provider can override this
      */
     protected TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> getIndexFieldDataLookup(
-        MapperService mapperService, CircuitBreakerService circuitBreakerService) {
-        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(
-            mapperService.getIndexSettings().getIndex().getName(), searchLookup)
+        String indexName,
+        CircuitBreakerService circuitBreakerService
+    ) {
+        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(indexName, searchLookup)
             .build(new IndexFieldDataCache.None(), circuitBreakerService);
     }
 
@@ -603,7 +601,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     public void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
         String fieldName = "typeTestFieldName";
         List<ValuesSourceType> supportedVSTypes = getSupportedValuesSourceTypes();
         List<String> unsupportedMappedFieldTypes = unsupportedMappedFieldTypes();

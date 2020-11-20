@@ -32,11 +32,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -273,20 +270,19 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected MapperService mapperServiceMock() {
+    protected MapperService.Snapshot mapperSnapshotMock() {
         ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper();
-        MapperService mapperService = mock(MapperService.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
+        MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
-        when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
-        when(mapperService.fieldType("join_field")).thenReturn(joinFieldMapper.fieldType());
-        when(mapperService.fieldType("join_field#" + PARENT_TYPE))
+        when(mapperSnapshot.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
+        when(mapperSnapshot.fieldType("join_field")).thenReturn(joinFieldMapper.fieldType());
+        when(mapperSnapshot.fieldType("join_field#" + PARENT_TYPE))
             .thenReturn(new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false));
-        return mapperService;
+        return mapperSnapshot;
     }
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         return new ParentJoinFieldMapper.Builder("join_field")
                 .addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
                 .build(new ContentPath(0));

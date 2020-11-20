@@ -1384,7 +1384,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(),
+        BytesReference cacheKey = request.cacheKey(context.getQueryShardContext().localMappingVersion());
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, cacheKey,
             out -> {
             queryPhase.execute(context);
             context.queryResult().writeToNoId(out);
@@ -1405,7 +1406,7 @@ public class IndicesService extends AbstractLifecycleComponent
             // key invalidate the result in the thread that caused the timeout. This will end up to be simpler and eventually correct since
             // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
             // cache. One other option is to not cache requests with a timeout at all...
-            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
+            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, cacheKey);
             if (logger.isTraceEnabled()) {
                 logger.trace("Query timed out, invalidating cache entry for request on shard [{}]:\n {}", request.shardId(),
                         request.source());

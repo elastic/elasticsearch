@@ -37,7 +37,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
-import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractBuilderTestCase;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermission
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -59,7 +57,6 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -68,15 +65,10 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MapperService mapperService = mock(MapperService.class);
-        ScriptService  scriptService = mock(ScriptService.class);
-        when(mapperService.documentMapper()).thenReturn(null);
-        when(mapperService.simpleMatchToFullName(anyString()))
-                .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
-        when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
-            final String fieldName = (String) invocation.getArguments()[0];
-            return new KeywordFieldMapper.KeywordFieldType(fieldName);
-        });
+        MapperService.Snapshot mapperSnapshot = new MapperService.StubSnapshot(
+            fieldName -> new KeywordFieldMapper.KeywordFieldType(fieldName)
+        );
+        ScriptService scriptService = mock(ScriptService.class);
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
@@ -91,7 +83,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                null, null, mapperSnapshot, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
@@ -182,15 +174,10 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MapperService mapperService = mock(MapperService.class);
-        ScriptService  scriptService = mock(ScriptService.class);
-        when(mapperService.documentMapper()).thenReturn(null);
-        when(mapperService.simpleMatchToFullName(anyString()))
-                .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
-        when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
-            final String fieldName = (String) invocation.getArguments()[0];
-            return new KeywordFieldMapper.KeywordFieldType(fieldName);
-        });
+        MapperService.Snapshot mapperSnapshot = new MapperService.StubSnapshot(
+            fieldName -> new KeywordFieldMapper.KeywordFieldType(fieldName)
+        );
+        ScriptService scriptService = mock(ScriptService.class);
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
@@ -223,7 +210,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                null, null, mapperSnapshot, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());

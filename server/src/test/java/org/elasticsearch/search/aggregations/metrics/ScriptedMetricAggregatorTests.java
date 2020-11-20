@@ -37,6 +37,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -552,9 +553,10 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      */
     @Override
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                        MapperService mapperService,
+                                                        MapperService.Snapshot mapperSnapshot,
                                                         IndexSettings indexSettings,
                                                         CircuitBreakerService circuitBreakerService,
+                                                        BitsetFilterCache bitsetFilterCache,
                                                         BigArrays bigArrays) {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
@@ -563,9 +565,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             0,
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,
-            null,
-            getIndexFieldDataLookup(mapperService, circuitBreakerService),
-            mapperService,
+            bitsetFilterCache,
+            getIndexFieldDataLookup(indexSettings.getIndex().getName(), circuitBreakerService),
+            mapperSnapshot,
             null,
             scriptService,
             xContentRegistry(),

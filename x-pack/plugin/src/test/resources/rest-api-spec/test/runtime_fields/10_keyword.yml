@@ -128,6 +128,7 @@ setup:
       search:
         index: sensor
         body:
+          size: 0
           aggs:
             dow:
               terms:
@@ -136,6 +137,31 @@ setup:
   - match: {aggregations.dow.buckets.0.key: Friday}
   - match: {aggregations.dow.buckets.0.doc_count: 1}
   - match: {aggregations.dow.buckets.1.key: Monday}
+  - match: {aggregations.dow.buckets.1.doc_count: 1}
+
+  # Update the mapping and make sure the cache doesn't still have the old results
+  - do:
+      indices.put_mapping:
+        index: sensor
+        body:
+          runtime:
+            day_of_week:
+              type: keyword
+              script: |
+                emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.SHORT, Locale.ROOT));
+  - do:
+      search:
+        index: sensor
+        body:
+          size: 0
+          aggs:
+            dow:
+              terms:
+                field: day_of_week
+  - match: {hits.total.value: 6}
+  - match: {aggregations.dow.buckets.0.key: Fri}
+  - match: {aggregations.dow.buckets.0.doc_count: 1}
+  - match: {aggregations.dow.buckets.1.key: Mon}
   - match: {aggregations.dow.buckets.1.doc_count: 1}
 
 ---

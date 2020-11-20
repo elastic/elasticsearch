@@ -159,7 +159,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
         assertArrayEquals(orig.indexRoutings(), copy.indexRoutings());
         assertEquals(orig.preference(), copy.preference());
-        assertEquals(orig.cacheKey(), copy.cacheKey());
+        long localMappingVersion = randomLong();
+        assertEquals(orig.cacheKey(localMappingVersion), copy.cacheKey(localMappingVersion));
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);

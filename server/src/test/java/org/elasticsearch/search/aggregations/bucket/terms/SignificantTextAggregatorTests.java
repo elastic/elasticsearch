@@ -34,8 +34,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -56,6 +58,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.when;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
@@ -359,5 +362,14 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029
             }
         }
+    }
+
+    @Override
+    protected MapperService.Snapshot mapperSnapshotMock() {
+        MapperService.Snapshot mapperSnapshot = super.mapperSnapshotMock();
+        when(mapperSnapshot.indexAnalyzer()).thenReturn(
+            new FieldNameAnalyzer(Map.of("text", new StandardAnalyzer(), "typeTestFieldName", new StandardAnalyzer()))
+        );
+        return mapperSnapshot;
     }
 }

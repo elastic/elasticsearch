@@ -701,11 +701,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(indexService.mapperService(), bitsetFilterCache()::getBitSetProducer);
-    }
-
-    @Override
     public FetchPhase fetchPhase() {
         return fetchPhase;
     }

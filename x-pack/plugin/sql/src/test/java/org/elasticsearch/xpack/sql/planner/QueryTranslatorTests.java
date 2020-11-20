@@ -2338,4 +2338,12 @@ public class QueryTranslatorTests extends ESTestCase {
         PhysicalPlan p = testContext.optimizeAndPlan("SELECT long FROM test WHERE long IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)");
         assertEquals(EsQueryExec.class, p.getClass());
     }
+    
+    public void testCombineBinaryComparisonsBugKeyword() {
+        final String negatedText = "00882F6";
+        PhysicalPlan p = optimizeAndPlan("SELECT keyword FROM test WHERE date >= '2010-06-18T22:58:43.000Z' " +
+            "AND keyword <> '" + negatedText + "' ORDER BY keyword LIMIT 3");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertThat(p.toString(), containsString(negatedText));
+    }
 }

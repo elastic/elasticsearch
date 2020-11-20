@@ -18,13 +18,13 @@ entries in the cache. This setting can automatically avoid the circuit breaker l
 at the cost of rebuilding the cache as needed.
 
 If the circuit breaker limit is reached, further requests that increase the cache
-size will be prevented. In this case you shoul manually <<indices-clearcache, clear the cache>>.
+size will be prevented. In this case you should manually <<indices-clearcache, clear the cache>>.
 
 `indices.fielddata.cache.size`::
 (<<static-cluster-setting,Static>>)
 The max size of the field data cache, eg `38%` of node heap space, or an
-absolute value, eg `12GB`. Defaults to unbounded. Should be set smaller than the
-<<fielddata-circuit-breaker>>, if set.
+absolute value, eg `12GB`. Defaults to unbounded. If you choose to set it,
+it should be smaller than <<fielddata-circuit-breaker>> limit.
 
 [discrete]
 [[fielddata-monitoring]]

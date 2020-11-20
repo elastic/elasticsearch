@@ -34,10 +34,10 @@ to be enabled.
 * Operations on parent and child documents from a `join` field, including
 `has_child` queries and `parent` aggregations.
 
-NOTE: The global ordinal mapping use heap memory as part of the
+NOTE: The global ordinal mapping uses heap memory as part of the
 <<modules-fielddata, field data cache>>. Aggregations on high cardinality fields
-can use a significant amount of heap memory, and could exceed the threshold
-of the <<fielddata-circuit-breaker, field data circuit breaker>>.
+can use a lot of memory and trigger the <<fielddata-circuit-breaker, field data
+circuit breaker>>.
 
 ==== Loading global ordinals
 

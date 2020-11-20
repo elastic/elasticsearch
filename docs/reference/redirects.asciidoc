@@ -1248,3 +1248,8 @@ See <<transforms>>.
 === Matrix aggregations
 
 See <<search-aggregations-matrix-stats-aggregation>>.
+
+[[fielddata]]
+=== `fielddata` mapping parameter
+
+See <<fielddata-mapping-param>>.

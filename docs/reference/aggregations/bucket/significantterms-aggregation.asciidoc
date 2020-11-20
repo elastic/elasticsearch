@@ -553,7 +553,7 @@ A description of the different collection modes can be found in the
 There are different mechanisms by which terms aggregations can be executed:
 
  - by using field values directly in order to aggregate data per-bucket (`map`)
- - by using global ordinals of the field and allocating one bucket per global ordinal (`global_ordinals`)
+ - by using <<eager-global-ordinals,global ordinals>> of the field and allocating one bucket per global ordinal (`global_ordinals`)
 
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 

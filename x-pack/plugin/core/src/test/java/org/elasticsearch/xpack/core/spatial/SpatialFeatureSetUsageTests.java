@@ -30,8 +30,7 @@ public class SpatialFeatureSetUsageTests extends AbstractWireSerializingTestCase
 
     @Override
     protected SpatialFeatureSetUsage mutateInstance(SpatialFeatureSetUsage instance) throws IOException {
-        SpatialStatsAction.Response statsResponse = randomStatsResponse();
-        return new SpatialFeatureSetUsage(statsResponse);
+        return null; // no mutations
     }
 
     @Override

@@ -98,7 +98,7 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
 

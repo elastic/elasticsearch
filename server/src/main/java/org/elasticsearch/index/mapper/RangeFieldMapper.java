@@ -194,7 +194,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())

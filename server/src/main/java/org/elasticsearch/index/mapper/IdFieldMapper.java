@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -95,16 +96,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(() -> c.mapperService().isIdFieldDataEnabled()));
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        private final Supplier<Boolean> fieldDataEnabled;
+        private final BooleanSupplier fieldDataEnabled;
 
-        IdFieldType(Supplier<Boolean> fieldDataEnabled) {
+        IdFieldType(BooleanSupplier fieldDataEnabled) {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.fieldDataEnabled = fieldDataEnabled;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -119,7 +119,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
@@ -149,17 +149,17 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            if (fieldDataEnabled.get() == false) {
+            if (fieldDataEnabled.getAsBoolean() == false) {
                 throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
                     + "you can re-enable it by updating the dynamic cluster setting: "
                     + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
             }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
-                    name(),
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-                    CoreValuesSourceType.BYTES);
+                name(),
+                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+                CoreValuesSourceType.BYTES);
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(
@@ -199,7 +199,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
                         @Override
                         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                                                            Nested nested, SortOrder sortOrder, DocValueFormat format,
+                                                            int bucketSize, BucketedSort.ExtraData extra) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };
@@ -235,7 +236,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     public BytesRef nextValue() throws IOException {
                         BytesRef encoded = inValues.nextValue();
                         return new BytesRef(Uid.decodeId(
-                                Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
                     }
 
                     @Override
@@ -256,8 +257,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(Supplier<Boolean> fieldDataEnabled) {
-        super(new IdFieldType(fieldDataEnabled));
+    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+        super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

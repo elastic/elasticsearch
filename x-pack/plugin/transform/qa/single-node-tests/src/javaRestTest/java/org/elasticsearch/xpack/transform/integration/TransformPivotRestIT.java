@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -509,7 +510,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         // we expect 3 documents as there shall be 5 unique star values and we are bucketing every 2 starting at 0
         Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
-        assertOnePivotValue(transformIndex + "/_search?q=every_2:0.0", 1.0);
+        assertOnePivotValue(transformIndex + "/_search?q=every_2:0", 1.0);
     }
 
     public void testContinuousPivotHistogram() throws Exception {
@@ -555,17 +556,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:0.0");
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
         final StringBuilder bulk = new StringBuilder();
 
@@ -607,18 +608,20 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:0.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(30.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(30));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27.0));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
+        deleteTransform(transformId);
+        deleteIndex(indexName);
     }
 
     public void testBiggerPivot() throws Exception {
@@ -649,6 +652,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
             + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"variability_rating\": {"
+            + "       \"median_absolute_deviation\": {"
             + "         \"field\": \"stars\""
             + " } },"
             + "     \"sum_rating\": {"
@@ -691,6 +698,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.variability_rating", searchResult)).get(0);
+        assertEquals(0.0, actual.doubleValue(), 0.000001);
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.sum_rating", searchResult)).get(0);
         assertEquals(159, actual.longValue());
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.cardinality_business", searchResult)).get(0);
@@ -1684,6 +1693,38 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             0
         );
         assertEquals(3, actual.longValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExportAndImport() throws Exception {
+        String transformId = "export-transform";
+        String transformIndex = "export_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        createPivotReviewsTransform(transformId, transformIndex, null, null, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        Response response = adminClient().performRequest(new Request("GET",
+            getTransformEndpoint() + transformId + "?exclude_generated=true"));
+        Map<String, Object> storedConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
+            "transforms",
+            entityAsMap(response)))
+            .get(0);
+        storedConfig.remove("id");
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.map(storedConfig);
+            Request putTransform = new Request("PUT", getTransformEndpoint() + transformId + "-import");
+            putTransform.setJsonEntity(Strings.toString(builder));
+            adminClient().performRequest(putTransform);
+        }
+
+        response = adminClient().performRequest(new Request("GET",
+            getTransformEndpoint() + transformId + "-import" + "?exclude_generated=true"));
+        Map<String, Object> importConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
+            "transforms",
+            entityAsMap(response)))
+            .get(0);
+        importConfig.remove("id");
+        assertThat(storedConfig, equalTo(importConfig));
     }
 
     private void createDateNanoIndex(String indexName, int numDocs) throws IOException {

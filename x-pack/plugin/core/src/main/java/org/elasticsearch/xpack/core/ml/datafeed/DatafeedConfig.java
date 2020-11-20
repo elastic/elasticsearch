@@ -50,7 +50,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 /**
  * Datafeed configuration options. Describes where to proactively pull input
@@ -457,10 +457,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
-            builder.field(ID.getPreferredName(), id);
-            // We don't include the job_id in export as we assume the PUT will be referring to a new job as well
-            builder.field(Job.ID.getPreferredName(), jobId);
+        builder.field(ID.getPreferredName(), id);
+        builder.field(Job.ID.getPreferredName(), jobId);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }

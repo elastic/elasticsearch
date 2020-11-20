@@ -168,7 +168,7 @@ public class DataTierIT extends ESIntegTestCase {
         Template t = new Template(Settings.builder()
             .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
             .build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null);
+        ComposableIndexTemplate ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null, null);
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
 
@@ -185,7 +185,7 @@ public class DataTierIT extends ESIntegTestCase {
         t = new Template(Settings.builder()
             .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
             .build(), null, null);
-        ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null);
+        ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null, null);
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
 

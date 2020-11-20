@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -247,10 +246,7 @@ public abstract class TransportTasksAction<
                     listener.onFailure(e);
                 }
             } else {
-                TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                if (request.getTimeout() != null) {
-                    builder.withTimeout(request.getTimeout());
-                }
+                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.getTimeout());
                 for (int i = 0; i < nodesIds.length; i++) {
                     final String nodeId = nodesIds[i];
                     final int idx = i;
@@ -261,7 +257,7 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
+                            transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions,
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse read(StreamInput in) throws IOException {
@@ -276,11 +272,6 @@ public abstract class TransportTasksAction<
                                     @Override
                                     public void handleException(TransportException exp) {
                                         onFailure(idx, node.getId(), exp);
-                                    }
-
-                                    @Override
-                                    public String executor() {
-                                        return ThreadPool.Names.SAME;
                                     }
                                 });
                         }

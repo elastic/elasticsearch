@@ -49,6 +49,23 @@ public class SparseFileTracker {
         return length;
     }
 
+    public SortedSet<Tuple<Long, Long>> getCompletedRanges() {
+        SortedSet<Tuple<Long, Long>> completedRanges = null;
+        synchronized (mutex) {
+            assert invariant();
+            for (Range range : ranges) {
+                if (range.isPending()) {
+                    continue;
+                }
+                if (completedRanges == null) {
+                    completedRanges = new TreeSet<>(Comparator.comparingLong(Tuple::v1));
+                }
+                completedRanges.add(Tuple.tuple(range.start, range.end));
+            }
+        }
+        return completedRanges == null ? Collections.emptySortedSet() : completedRanges;
+    }
+
     /**
      * @return the sum of the length of the ranges
      */

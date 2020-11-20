@@ -298,7 +298,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * in-memory buffer size)
      */
     public boolean shouldIncrementalFlush() {
-        return flushThreshold >= inMemoryBufferSize;
+        return inMemoryBufferSize >= flushThreshold;
     }
 
     /**

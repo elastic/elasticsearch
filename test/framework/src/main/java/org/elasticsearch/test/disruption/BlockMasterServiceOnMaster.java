@@ -55,11 +55,8 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask() {
-            @Override
-            public Priority priority() {
-                return Priority.IMMEDIATE;
-            }
+        clusterService.getMasterService().submitStateUpdateTask(
+                "service_disruption_block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

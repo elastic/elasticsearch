@@ -19,10 +19,12 @@
 
 package org.elasticsearch.join.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -33,8 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -161,8 +162,8 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context);
-        if (joinFieldMapper == null) {
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
@@ -170,8 +171,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
                 throw new QueryShardException(context, "[" + NAME + "] no join field found for index [" + indexName  + "]");
             }
         }
-        final ParentIdFieldMapper childMapper = joinFieldMapper.getParentIdFieldMapper(type, false);
-        if (childMapper == null) {
+        if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
@@ -179,9 +179,9 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
             }
         }
         return new BooleanQuery.Builder()
-            .add(childMapper.fieldType().termQuery(id, context), BooleanClause.Occur.MUST)
+            .add(new TermQuery(new Term(joiner.parentJoinField(type), id)), BooleanClause.Occur.MUST)
             // Need to take child type into account, otherwise a child doc of different type with the same id could match
-            .add(joinFieldMapper.fieldType().termQuery(type, context), BooleanClause.Occur.FILTER)
+            .add(new TermQuery(new Term(joiner.getJoinField(), type)), BooleanClause.Occur.FILTER)
             .build();
     }
 

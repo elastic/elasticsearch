@@ -20,6 +20,17 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -45,9 +56,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.BiConsumer;
 
-public class FiltersAggregator extends BucketsAggregator {
+/**
+ * Aggregator for {@code filters}. There are two known subclasses,
+ * {@link FilterByFilter} which is fast but only works in some cases and
+ * {@link Compatible} which works in all cases.
+ * {@link FiltersAggregator#build} will build the fastest version that
+ * works with the configuration.
+ */
+public abstract class FiltersAggregator extends BucketsAggregator {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
@@ -115,58 +133,110 @@ public class FiltersAggregator extends BucketsAggregator {
         }
     }
 
-    private final String[] keys;
-    private Supplier<Weight[]> filters;
-    private final boolean keyed;
-    private final boolean showOtherBucket;
-    private final String otherBucketKey;
-    private final int totalNumKeys;
+    /**
+     * Build an {@link Aggregator} for a {@code filters} aggregation. If there
+     * isn't a parent, there aren't children, and we don't collect "other"
+     * buckets then this will a faster {@link FilterByFilter} aggregator.
+     * Otherwise it'll fall back to a slower aggregator that is
+     * {@link Compatible} with parent, children, and "other" buckets.
+     */
+    public static FiltersAggregator build(
+        String name,
+        AggregatorFactories factories,
+        String[] keys,
+        Query[] filters,
+        boolean keyed,
+        String otherBucketKey,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        FiltersAggregator filterOrder = buildFilterOrderOrNull(
+            name,
+            factories,
+            keys,
+            filters,
+            keyed,
+            otherBucketKey,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+        if (filterOrder != null) {
+            return filterOrder;
+        }
+        return new FiltersAggregator.Compatible(
+            name,
+            factories,
+            keys,
+            filters,
+            keyed,
+            otherBucketKey,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+    }
 
-    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed,
+    /**
+     * Build an {@link Aggregator} for a {@code filters} aggregation if we
+     * can collect {@link FilterByFilter}, otherwise return {@code null}. We can
+     * collect filter by filter if there isn't a parent, there aren't children,
+     * and we don't collect "other" buckets. Collecting {@link FilterByFilter}
+     * is generally going to be much faster than the {@link Compatible} aggregator.
+     */
+    public static FiltersAggregator buildFilterOrderOrNull(
+        String name,
+        AggregatorFactories factories,
+        String[] keys,
+        Query[] filters,
+        boolean keyed,
+        String otherBucketKey,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        if (parent != null) {
+            return null;
+        }
+        if (factories.countAggregators() != 0) {
+            return null;
+        }
+        if (otherBucketKey != null) {
+            return null;
+        }
+        return new FiltersAggregator.FilterByFilter(
+            name,
+            keys,
+            filters,
+            keyed,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+    }
+
+    private final String[] keys;
+    private final boolean keyed;
+    protected final String otherBucketKey;
+
+    private FiltersAggregator(String name, AggregatorFactories factories, String[] keys, boolean keyed,
             String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
         this.keyed = keyed;
         this.keys = keys;
-        this.filters = filters;
-        this.showOtherBucket = otherBucketKey != null;
         this.otherBucketKey = otherBucketKey;
-        if (showOtherBucket) {
-            this.totalNumKeys = keys.length + 1;
-        } else {
-            this.totalNumKeys = keys.length;
-        }
-    }
-
-    @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
-        // no need to provide deleted docs to the filter
-        Weight[] filters = this.filters.get();
-        final Bits[] bits = new Bits[filters.length];
-        for (int i = 0; i < filters.length; ++i) {
-            bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorerSupplier(ctx));
-        }
-        return new LeafBucketCollectorBase(sub, null) {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                boolean matched = false;
-                for (int i = 0; i < bits.length; i++) {
-                    if (bits[i].get(doc)) {
-                        collectBucket(sub, doc, bucketOrd(bucket, i));
-                        matched = true;
-                    }
-                }
-                if (showOtherBucket && !matched) {
-                    collectBucket(sub, doc, bucketOrd(bucket, bits.length));
-                }
-            }
-        };
     }
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForFixedBucketCount(owningBucketOrds, keys.length + (showOtherBucket ? 1 : 0),
+        return buildAggregationsForFixedBucketCount(owningBucketOrds, keys.length + (otherBucketKey == null ? 0 : 1),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < keys.length) {
                     return new InternalFilters.InternalBucket(keys[offsetInOwningOrd], docCount,
@@ -185,7 +255,7 @@ public class FiltersAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
 
-        if (showOtherBucket) {
+        if (otherBucketKey != null) {
             InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed);
             buckets.add(bucket);
         }
@@ -193,8 +263,174 @@ public class FiltersAggregator extends BucketsAggregator {
         return new InternalFilters(name, buckets, keyed, metadata());
     }
 
-    final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
-        return owningBucketOrdinal * totalNumKeys + filterOrd;
+    /**
+     * Collects results by running each filter against the searcher and doesn't
+     * build any {@link LeafBucketCollector}s which is generally faster than
+     * {@link Compatible} but doesn't support when there is a parent aggregator
+     * or any child aggregators.
+     */
+    private static class FilterByFilter extends FiltersAggregator {
+        private final Query[] filters;
+        private Weight[] filterWeights;
+        private int segmentsWithDeletedDocs;
+
+        FilterByFilter(
+            String name,
+            String[] keys,
+            Query[] filters,
+            boolean keyed,
+            SearchContext context,
+            Aggregator parent,
+            CardinalityUpperBound cardinality,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, AggregatorFactories.EMPTY, keys, keyed, null, context, parent, cardinality, metadata);
+            this.filters = filters;
+        }
+
+        /**
+         * Instead of returning a {@link LeafBucketCollector} we do the
+         * collection ourselves by running the filters directly. This is safe
+         * because we only use this aggregator if there isn't a {@code parent}
+         * which would change how we collect buckets and because we take the
+         * top level query into account when building the filters.
+         */
+        @Override
+        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+            if (filterWeights == null) {
+                filterWeights = buildWeights(topLevelQuery(), filters);
+            }
+            Bits live = ctx.reader().getLiveDocs();
+            for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
+                BulkScorer scorer = filterWeights[filterOrd].bulkScorer(ctx);
+                if (scorer == null) {
+                    // the filter doesn't match any docs
+                    continue;
+                }
+                TotalHitCountCollector collector = new TotalHitCountCollector();
+                scorer.score(collector, live);
+                incrementBucketDocCount(filterOrd, collector.getTotalHits());
+            }
+            // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
+            throw new CollectionTerminatedException();
+        }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
+            super.collectDebugInfo(add);
+            add.accept("segments_with_deleted_docs", segmentsWithDeletedDocs);
+        }
     }
 
+    /**
+     * Collects results by building a {@link Bits} per filter and testing if
+     * each doc sent to its {@link LeafBucketCollector} is in each filter
+     * which is generally slower than {@link FilterByFilter} but is compatible
+     * with parent and child aggregations.
+     */
+    private static class Compatible extends FiltersAggregator {
+        private final Query[] filters;
+        private Weight[] filterWeights;
+
+        private final int totalNumKeys;
+
+        Compatible(
+            String name,
+            AggregatorFactories factories,
+            String[] keys,
+            Query[] filters,
+            boolean keyed,
+            String otherBucketKey,
+            SearchContext context,
+            Aggregator parent,
+            CardinalityUpperBound cardinality,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, factories, keys, keyed, otherBucketKey, context, parent, cardinality, metadata);
+            this.filters = filters;
+            if (otherBucketKey == null) {
+                this.totalNumKeys = keys.length;
+            } else {
+                this.totalNumKeys = keys.length + 1;
+            }
+        }
+
+        @Override
+        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+            if (filterWeights == null) {
+                filterWeights = buildWeights(new MatchAllDocsQuery(), filters);
+            }
+            final Bits[] bits = new Bits[filters.length];
+            for (int i = 0; i < filters.length; ++i) {
+                bits[i] = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filterWeights[i].scorerSupplier(ctx));
+            }
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    boolean matched = false;
+                    for (int i = 0; i < bits.length; i++) {
+                        if (bits[i].get(doc)) {
+                            collectBucket(sub, doc, bucketOrd(bucket, i));
+                            matched = true;
+                        }
+                    }
+                    if (otherBucketKey != null && false == matched) {
+                        collectBucket(sub, doc, bucketOrd(bucket, bits.length));
+                    }
+                }
+            };
+        }
+
+        final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
+            return owningBucketOrdinal * totalNumKeys + filterOrd;
+        }
+    }
+
+    protected Weight[] buildWeights(Query topLevelQuery, Query filters[]) throws IOException{
+        Weight[] weights = new Weight[filters.length];
+        for (int i = 0; i < filters.length; ++i) {
+            Query filter = filterMatchingBoth(topLevelQuery, filters[i]);
+            weights[i] = searcher().createWeight(searcher().rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
+        }
+        return weights;
+    }
+
+    /**
+     * Make a filter that matches both queries, merging the
+     * {@link PointRangeQuery}s together if possible. The "merging together"
+     * part is provides a fairly substantial speed boost then executing a
+     * top level query on a date and a filter on a date. This kind of thing
+     * is very common when visualizing logs and metrics.
+     */
+    private Query filterMatchingBoth(Query lhs, Query rhs) {
+        if (lhs instanceof MatchAllDocsQuery) {
+            return rhs;
+        }
+        if (rhs instanceof MatchAllDocsQuery) {
+            return lhs;
+        }
+        Query unwrappedLhs = unwrap(lhs);
+        Query unwrappedRhs = unwrap(rhs);
+        if (unwrappedLhs instanceof PointRangeQuery && unwrappedRhs instanceof PointRangeQuery) {
+            Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedLhs, (PointRangeQuery) unwrappedRhs);
+            if (merged != null) {
+                // Should we rewrap here?
+                return merged;
+            }
+        }
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(lhs, BooleanClause.Occur.MUST);
+        builder.add(rhs, BooleanClause.Occur.MUST);
+        return builder.build();
+    }
+
+    private Query unwrap(Query query) {
+        if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
+            query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+        }
+        if (query instanceof IndexOrDocValuesQuery) {
+            query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+        }
+        return query;
+    }
 }

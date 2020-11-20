@@ -56,7 +56,7 @@ can be found in queries.toml file) with the desired number of the query:
 #### Debug queries
 
 If one wants to check that the filtering subqueries of a sequence query yields the same results (to pinpoint that the
-possible failure is in the sequence algortihm), needs to enable this debug mode with the use of a parameter:
+possible failure is in the sequence algorithm), needs to enable this debug mode with the use of a parameter:
 
 ```shell script
 ./gradlew -p x-pack/plugin/eql/qa/correctness check -Dtests.eql_correctness_debug=true
@@ -66,3 +66,22 @@ or
 ./gradlew ':x-pack:plugin:eql:qa:correctness:javaRestTest' --tests "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT.test {<queryNo>}" -Dtests.eql_correctness_debug=true
 ```
 
+### Run an ES node manually and run the tests against it 
+
+If one wants to run an ES node manually (most probably to be able to debug the server), needs to run the following:
+
+```shell script
+./gradlew :x-pack:plugin:eql:qa:correctness:runEqlCorrectnessNode --debug-jvm
+```
+
+**Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above,**
+
+Once the ES node is up and running, the data can be restored from the snapshot by running the `main` of the 
+`EqlDataLoader` class.
+
+Once the data is loaded, a specific query can be run against the running ES node with:
+```shell script
+./gradlew ':x-pack:plugin:eql:qa:correctness:javaRestTest' --tests "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT.test {<queryNo>}" -Dtests.rest.cluster=localhost:9200 -Dtests.cluster=localhost:9200 -Dtests.clustername=runTask-0
+```
+
+**Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above,**

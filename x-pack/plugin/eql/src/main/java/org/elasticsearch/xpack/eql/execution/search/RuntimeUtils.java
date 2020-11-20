@@ -8,9 +8,13 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -44,7 +48,45 @@ public final class RuntimeUtils {
 
     private RuntimeUtils() {}
 
-    static void logSearchResponse(SearchResponse response, Logger logger) {
+    public static ActionListener<SearchResponse> searchLogListener(ActionListener<SearchResponse> listener, Logger log) {
+        return ActionListener.wrap(response -> {
+            ShardSearchFailure[] failures = response.getShardFailures();
+            if (CollectionUtils.isEmpty(failures) == false) {
+                listener.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
+                return;
+            }
+            if (log.isTraceEnabled()) {
+                logSearchResponse(response, log);
+            }
+            listener.onResponse(response);
+        }, listener::onFailure);
+    }
+
+    public static ActionListener<MultiSearchResponse> multiSearchLogListener(ActionListener<MultiSearchResponse> listener, Logger log) {
+        return ActionListener.wrap(items -> {
+            for (MultiSearchResponse.Item item : items) {
+                Exception failure = item.getFailure();
+                SearchResponse response = item.getResponse();
+
+                if (failure == null) {
+                    ShardSearchFailure[] failures = response.getShardFailures();
+                    if (CollectionUtils.isEmpty(failures) == false) {
+                        failure = new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause());
+                    }
+                }
+                if (failure != null) {
+                    listener.onFailure(failure);
+                    return;
+                }
+                if (log.isTraceEnabled()) {
+                    logSearchResponse(response, log);
+                }
+            }
+            listener.onResponse(items);
+        }, listener::onFailure);
+    }
+
+    private static void logSearchResponse(SearchResponse response, Logger logger) {
         List<Aggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
             aggs = response.getAggregations().asList();
@@ -54,8 +96,10 @@ public final class RuntimeUtils {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
 
+        SearchHit[] hits = response.getHits().getHits();
+        int count = hits != null ? hits.length : 0;
         logger.trace("Got search response [hits {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
-                + "{} successful shards, {} total shards, took {}, timed out [{}]]", response.getHits().getTotalHits(), aggs.size(),
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]", count, aggs.size(),
                 aggsNames, response.getFailedShards(), response.getSkippedShards(), response.getSuccessfulShards(),
                 response.getTotalShards(), response.getTook(), response.isTimedOut());
     }

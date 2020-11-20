@@ -1579,8 +1579,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test",
-            new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"))) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+1));
         }
         indexDoc(shard, "_doc", "test");
@@ -1604,8 +1603,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final long externalRefreshCount = shard.refreshStats().getExternalTotal();
         final long extraInternalRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 0 : 1;
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test",
-            new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"))) {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         }
@@ -2384,9 +2382,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        try (Engine.GetResult getResult = shard
-                .get(new Engine.Get(false, false, "1",
-                    new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
+        try (Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "1"))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher());
         }
@@ -2417,9 +2413,7 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits.value, 1);
         }
-        try (Engine.GetResult getResult = newShard
-                .get(new Engine.Get(false, false, "1",
-                    new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
+        try (Engine.GetResult getResult = newShard.get(new Engine.Get(false, false, "1"))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
             assertTrue(getResult.searcher().getIndexReader() instanceof FieldMaskingReader);
@@ -4020,8 +4014,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Engine.IndexResult indexResult = indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(indexResult.isCreated());
 
-        org.elasticsearch.index.engine.Engine.GetResult getResult
-            = shard.get(new Engine.Get(true, true, "0", new Term("_id", Uid.encodeId("0"))));
+        org.elasticsearch.index.engine.Engine.GetResult getResult = shard.get(new Engine.Get(true, true, "0"));
         assertTrue(getResult.exists());
         getResult.close();
 

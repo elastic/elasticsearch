@@ -131,7 +131,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     private int precision = GeoTileGridAggregationBuilder.DEFAULT_PRECISION;
     private GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
 
-    GeoTileGridValuesSourceBuilder(String name) {
+    public GeoTileGridValuesSourceBuilder(String name) {
         super(name);
     }
 

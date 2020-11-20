@@ -654,6 +654,12 @@ public class AggregationResultUtilsTests extends ESTestCase {
             AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "string"), ""),
             equalTo("one_hundred")
         );
+
+        agg = createSingleMetricAgg("metric", 100.0, "one_hundred");
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "unsigned_long"), ""),
+            equalTo(100L)
+        );
     }
 
     private ScriptedMetric createScriptedMetric(Object returnValue) {
@@ -836,7 +842,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, asStringMap("sba2.sub1", "long", "sba2.sub2", "float"), ""),
-            equalTo(asMap("sub1", 100.0, "sub2", 33.33))
+            equalTo(asMap("sub1", 100L, "sub2", 33.33))
         );
 
         agg = createSingleBucketAgg(
@@ -848,7 +854,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, asStringMap("sba3.sub1", "long", "sba3.sub2", "double"), ""),
-            equalTo(asMap("sub1", 100.0, "sub2", 33.33, "sub3", 42L))
+            equalTo(asMap("sub1", 100L, "sub2", 33.33, "sub3", 42L))
         );
 
         agg = createSingleBucketAgg(
@@ -861,7 +867,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(
             AggregationResultUtils.getExtractor(agg)
                 .value(agg, asStringMap("sba4.sub3.subsub1", "double", "sba4.sub2", "float", "sba4.sub1", "long"), ""),
-            equalTo(asMap("sub1", 100.0, "sub2", 33.33, "sub3", asMap("subsub1", 11.1)))
+            equalTo(asMap("sub1", 100L, "sub2", 33.33, "sub3", asMap("subsub1", 11.1)))
         );
     }
 

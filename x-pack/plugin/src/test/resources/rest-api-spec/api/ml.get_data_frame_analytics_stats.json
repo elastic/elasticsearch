@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics-stats.html",
       "description":"Retrieves usage information for data frame analytics jobs."
     },
-    "stability":"experimental",
+    "stability":"beta",
     "url":{
       "paths":[
         {

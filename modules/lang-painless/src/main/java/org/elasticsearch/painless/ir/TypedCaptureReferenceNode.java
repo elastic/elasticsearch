@@ -19,14 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 
 public class TypedCaptureReferenceNode extends ReferenceNode {
 
@@ -60,14 +54,4 @@ public class TypedCaptureReferenceNode extends ReferenceNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeDebugInfo(getLocation());
-        Variable captured = writeScope.getVariable(getCaptures().get(0));
-
-        methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
-        Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), captured.getAsmType());
-        methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, getExpressionCanonicalTypeName());
-    }
 }

@@ -51,13 +51,13 @@ See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-snapshot-endpoint]]
-== Model Snapshots
+== Model snapshots
 
 * <<ml-delete-snapshot,Delete model snapshot>>
 * <<ml-get-snapshot,Get model snapshot info>>
 * <<ml-revert-snapshot,Revert model snapshot>>
 * <<ml-update-snapshot,Update model snapshot>>
-
+* <<ml-upgrade-job-model-snapshot,Upgrade model snapshot>>
 
 [discrete]
 [[ml-api-result-endpoint]]

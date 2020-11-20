@@ -66,10 +66,9 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         try (CacheService cacheService = defaultCacheService()) {
-            cacheService.start();
-
             logger.debug("--> setting large cache sync interval (explicit cache synchronization calls in test)");
             cacheService.setCacheSyncInterval(TimeValue.timeValueMillis(Long.MAX_VALUE));
+            cacheService.start();
 
             // Keep a count of the number of writes for every cache file existing in the cache
             final Map<CacheKey, Tuple<CacheFile, Integer>> previous = new HashMap<>();

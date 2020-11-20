@@ -397,7 +397,7 @@ public class CertificateToolTests extends ESTestCase {
                 assertEquals(certInfo.name.x500Principal.toString(), certificate.getSubjectX500Principal().getName());
                 if (selfSigned) {
                     assertEquals(certificate.getSubjectX500Principal(), certificate.getIssuerX500Principal());
-                    assertNotEquals(0, certificate.getBasicConstraints());
+                    assertEquals(-1, certificate.getBasicConstraints());
                 }
                 final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.commonNames.size();
                 if (sanCount == 0) {

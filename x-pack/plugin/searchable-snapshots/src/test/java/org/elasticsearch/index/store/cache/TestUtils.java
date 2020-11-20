@@ -341,12 +341,6 @@ public final class TestUtils {
             };
         }
 
-        @Override
-        public void delete(Path path) throws IOException {
-            super.delete(path);
-            files.remove(path);
-        }
-
         public void tearDown() {
             PathUtilsForTesting.installMock(delegateInstance);
         }

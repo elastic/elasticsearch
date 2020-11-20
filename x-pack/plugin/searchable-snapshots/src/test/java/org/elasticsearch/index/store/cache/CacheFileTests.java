@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
 import org.elasticsearch.index.store.cache.TestUtils.FSyncTrackingFileSystemProvider;
 import org.elasticsearch.test.ESTestCase;
@@ -247,6 +248,7 @@ public class CacheFileTests extends ESTestCase {
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
 
+            final RunOnce releaseOnce = new RunOnce(() -> cacheFile.release(listener));
             try {
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
@@ -262,13 +264,20 @@ public class CacheFileTests extends ESTestCase {
 
                 cacheFile.startEviction();
 
+                if (rarely()) {
+                    assertThat("New ranges should not be written after cache file eviction", randomPopulateAndReads(cacheFile), hasSize(0));
+                }
+                if (randomBoolean()) {
+                    releaseOnce.run();
+                }
+
                 final SortedSet<Tuple<Long, Long>> completedRangesAfterEviction = cacheFile.fsync();
                 assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertThat(completedRangesAfterEviction, hasSize(0));
                 assertFalse(cacheFile.needsFsync());
                 assertFalse(needsFSyncCalled.get());
             } finally {
-                cacheFile.release(listener);
+                releaseOnce.run();
             }
         } finally {
             fileSystem.tearDown();

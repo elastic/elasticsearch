@@ -8,5 +8,5 @@ in the event of a disaster. You must not move to production without configuring
 <<snapshot-lifecycle-management,{slm}>>. For more information on recovering
 from snapshots see <<backup-cluster>>.
 
-include::../snapshot-restore/index.asciidoc[tag=backup-warning]
+include::../../snapshot-restore/index.asciidoc[tag=backup-warning]
 

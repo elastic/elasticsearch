@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.index;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -19,7 +17,6 @@ import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -28,14 +25,12 @@ import java.util.Map.Entry;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
@@ -232,38 +227,6 @@ public class IndexResolverTests extends ESTestCase {
         assertEquals(UNSUPPORTED, esIndex.mapping().get("another_field").getProperties().get("_foo").getDataType());
     }
 
-    public void testMergeCompatibleMappingVersionAware() throws Exception {
-        Map<String, EsField> basicMapping = loadMapping("mapping-basic.json", true);
-        Map<String, EsField> numericMapping = loadMapping("mapping-numeric.json", true);
-
-        assertNotEquals(basicMapping, numericMapping);
-
-        for (Tuple<Version, DataType> t : Arrays.asList(tuple(Version.V_7_10_0, UNSUPPORTED), tuple(Version.V_7_11_0, UNSIGNED_LONG))) {
-            IndexResolution resolution = merge(t.v1(), new EsIndex("basic", basicMapping), new EsIndex("numeric", numericMapping));
-
-            assertTrue(resolution.isValid());
-            assertEquals(basicMapping.size() + numericMapping.size(), resolution.get().mapping().size());
-            assertEquals(t.v2(), resolution.get().mapping().get("unsigned_long").getDataType());
-        }
-    }
-
-    public void testSeparateMappingVersionAware() throws Exception {
-        Map<String, EsField> numericMapping = loadMapping("mapping-numeric.json", true);
-        Map<String, EsField> sameMapping = loadMapping("mapping-numeric.json", true);
-
-        assertEquals(sameMapping, numericMapping);
-
-        for (Tuple<Version, DataType> t : Arrays.asList(tuple(Version.V_7_10_0, UNSUPPORTED), tuple(Version.V_7_11_0, UNSIGNED_LONG))) {
-            List<EsIndex> indices = separate(t.v1(), new EsIndex("numeric", numericMapping), new EsIndex("same", sameMapping));
-
-            assertEquals(2, indices.size());
-            assertEquals(numericMapping.size(), indices.get(0).mapping().size());
-            assertEquals(t.v2(), indices.get(0).mapping().get("unsigned_long").getDataType());
-            assertEquals(sameMapping.size(), indices.get(1).mapping().size());
-            assertEquals(t.v2(), indices.get(1).mapping().get("unsigned_long").getDataType());
-        }
-    }
-
     public void testMergeIncompatibleCapabilitiesOfObjectFields() throws Exception {
         Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
 
@@ -361,20 +324,12 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public static IndexResolution merge(EsIndex... indices) {
-        return merge(null, indices);
-    }
-
-    public static IndexResolution merge(Version version, EsIndex... indices) {
-        return mergedMappings("*", Stream.of(indices).map(EsIndex::name).toArray(String[]::new), fromMappings(indices), version);
+        return mergedMappings("*", Stream.of(indices).map(EsIndex::name).toArray(String[]::new), fromMappings(indices));
     }
 
     public static List<EsIndex> separate(EsIndex... indices) {
-        return separate(null, indices);
-    }
-
-    public static List<EsIndex> separate(Version version, EsIndex... indices) {
         return separateMappings(null, Stream.of(indices).map(EsIndex::name).toArray(String[]::new),
-                fromMappings(indices), version);
+                fromMappings(indices));
     }
 
     public static Map<String, Map<String, FieldCapabilities>> fromMappings(EsIndex... indices) {
@@ -479,16 +434,11 @@ public class IndexResolverTests extends ESTestCase {
 
     private static IndexResolution mergedMappings(String indexPattern, String[] indexNames,
                                                   Map<String, Map<String, FieldCapabilities>> fieldCaps) {
-        return mergedMappings(indexPattern, indexNames, fieldCaps, null);
-    }
-
-    private static IndexResolution mergedMappings(String indexPattern, String[] indexNames,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps, Version version) {
-        return IndexResolver.mergedMappings(SqlDataTypeRegistry.INSTANCE, indexPattern, indexNames, fieldCaps, version);
+        return IndexResolver.mergedMappings(SqlDataTypeRegistry.INSTANCE, indexPattern, indexNames, fieldCaps);
     }
 
     private static List<EsIndex> separateMappings(String javaRegex, String[] indexNames,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps, Version version) {
-        return IndexResolver.separateMappings(SqlDataTypeRegistry.INSTANCE, javaRegex, indexNames, fieldCaps, null, version);
+            Map<String, Map<String, FieldCapabilities>> fieldCaps) {
+        return IndexResolver.separateMappings(SqlDataTypeRegistry.INSTANCE, javaRegex, indexNames, fieldCaps, null);
     }
 }

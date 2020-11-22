@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -71,6 +72,7 @@ import java.util.function.Consumer;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.session.Compatibility.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -87,9 +89,11 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
  */
 public final class Verifier {
     private final Metrics metrics;
+    private final SqlConfiguration config;
 
-    public Verifier(Metrics metrics) {
+    public Verifier(Metrics metrics, SqlConfiguration config) {
         this.metrics = metrics;
+        this.config = config;
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
@@ -231,6 +235,18 @@ public final class Verifier {
 
                 failures.addAll(localFailures);
             });
+
+            if (config.version() != null) {
+                List<LogicalPlan> projects = plan.collectFirstChildren(x -> x instanceof Project);
+                if (projects.size() > 0) { // not selecting just literals
+                    ((Project) projects.get(0)).projections().forEach(e -> {
+                        if (e.resolved() && isTypeSupportedInVersion(e.dataType(), config.version()) == false) {
+                            failures.add(fail(e, "Cannot use field [" + e.name() + "] with type [" + e.dataType() + "] unsupported " +
+                                "in version [" + config.version() + "]"));
+                        }
+                    });
+                }
+            }
         }
 
         // gather metrics

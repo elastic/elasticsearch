@@ -21,6 +21,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final TimeValue pageTimeout;
     private final Mode mode;
     private final String clientId;
+    @Nullable
     private final SqlVersion version;
     private final boolean multiValueFieldLeniency;
     private final boolean includeFrozenIndices;
@@ -70,15 +71,15 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         return clientId;
     }
 
-    public SqlVersion version() {
-        return version;
-    }
-
     public boolean multiValueFieldLeniency() {
         return multiValueFieldLeniency;
     }
 
     public boolean includeFrozen() {
         return includeFrozenIndices;
+    }
+
+    public SqlVersion version() {
+        return version;
     }
 }

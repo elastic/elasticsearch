@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -27,6 +28,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isSigned;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.sql.session.Compatibility.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDateTimeSub;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlMaximumScale;
@@ -81,7 +83,9 @@ public class SysTypes extends Command {
 
     @Override
     public final void execute(SqlSession session, ActionListener<Page> listener) {
-        Stream<DataType> values = SqlDataTypes.types().stream();
+        Stream<DataType> values = SqlDataTypes.types().stream()
+            .filter(t -> Mode.isDriver(session.configuration().mode()) == false ||
+                isTypeSupportedInVersion(t, session.configuration().version()));
         if (type.intValue() != 0) {
             values = values.filter(t -> type.equals(sqlType(t).getVendorTypeNumber()));
         }

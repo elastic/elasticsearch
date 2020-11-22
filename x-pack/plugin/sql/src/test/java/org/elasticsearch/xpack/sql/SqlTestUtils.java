@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -57,13 +58,28 @@ public final class SqlTestUtils {
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
         return new SqlConfiguration(providedZoneId,
+            randomIntBetween(0,  1000),
+            new TimeValue(randomNonNegativeLong()),
+            new TimeValue(randomNonNegativeLong()),
+            null,
+            randomFrom(Mode.values()),
+            randomAlphaOfLength(10),
+            null,
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            false,
+            randomBoolean());
+    }
+
+    public static SqlConfiguration randomConfiguration(SqlVersion version) {
+        return new SqlConfiguration(randomZone(),
                 randomIntBetween(0,  1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
                 null,
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
-                null,
+                version,
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 false,

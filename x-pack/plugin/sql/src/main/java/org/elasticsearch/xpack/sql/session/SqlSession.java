@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -33,7 +32,6 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 
 public class SqlSession implements Session {
 
@@ -143,7 +141,6 @@ public class SqlSession implements Session {
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
             indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen,
-                    isDriver(configuration.mode()) ? Version.fromId(configuration.version().id) : null,
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {

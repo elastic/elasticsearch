@@ -29,14 +29,15 @@ public class DatabaseFunctionTests extends ESTestCase {
         String clusterName = randomAlphaOfLengthBetween(1, 15);
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-basic.json", true));
+        SqlConfiguration sqlConfig = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+                Protocol.PAGE_TIMEOUT, null,
+                randomFrom(Mode.values()), randomAlphaOfLength(10),
+                null, null, clusterName, randomBoolean(), randomBoolean());
         Analyzer analyzer = new Analyzer(
-                new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-                                  Protocol.PAGE_TIMEOUT, null,
-                                  randomFrom(Mode.values()), randomAlphaOfLength(10),
-                                  null, null, clusterName, randomBoolean(), randomBoolean()),
+                sqlConfig,
                 new SqlFunctionRegistry(),
                 IndexResolution.valid(test),
-                new Verifier(new Metrics())
+                new Verifier(new Metrics(), sqlConfig)
         );
 
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true);

@@ -285,26 +285,24 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
-                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get(),
-                            version)),
+                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get())),
                         listener::onFailure));
     }
 
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, boolean includeFrozen, @Nullable Version version,
+    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, boolean includeFrozen,
             ActionListener<IndexResolution> listener) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
-                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get(),
-                                version)),
+                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get())),
                         listener::onFailure));
     }
 
     public static IndexResolution mergedMappings(DataTypeRegistry typeRegistry, String indexPattern, String[] indexNames,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps, @Nullable Version version) {
+            Map<String, Map<String, FieldCapabilities>> fieldCaps) {
 
         if (indexNames.length == 0) {
             return IndexResolution.notFound(indexPattern);
@@ -363,8 +361,7 @@ public class IndexResolver {
 
             // everything checks
             return null;
-        },
-        version);
+        });
 
         if (indices.size() > 1) {
             throw new QlIllegalArgumentException(
@@ -379,8 +376,7 @@ public class IndexResolver {
             Map<String, Map<String, FieldCapabilities>> globalCaps,
             Map<String, EsField> hierarchicalMapping,
             Map<String, EsField> flattedMapping,
-            Function<String, EsField> field,
-            Version version) {
+            Function<String, EsField> field) {
 
         Map<String, EsField> parentProps = hierarchicalMapping;
 
@@ -399,7 +395,7 @@ public class IndexResolver {
                 // lack of parent implies the field is an alias
                 if (map == null) {
                     // as such, create the field manually, marking the field to also be an alias
-                    fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), new TreeMap<>(), false, true, version);
+                    fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), new TreeMap<>(), false, true);
                 } else {
                     Iterator<FieldCapabilities> iterator = map.values().iterator();
                     FieldCapabilities parentCap = iterator.next();
@@ -407,11 +403,10 @@ public class IndexResolver {
                         parentCap = iterator.next();
                     }
                     final FieldCapabilities parentC = parentCap;
-                    fieldFunction = s -> createField(typeRegistry, s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false,
-                        version);
+                    fieldFunction = s -> createField(typeRegistry, s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
                 }
 
-                parent = createField(typeRegistry, parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction, version);
+                parent = createField(typeRegistry, parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
             }
             parentProps = parent.getProperties();
         }
@@ -440,8 +435,8 @@ public class IndexResolver {
     }
 
     private static EsField createField(DataTypeRegistry typeRegistry, String fieldName, String typeName, Map<String, EsField> props,
-            boolean isAggregateable, boolean isAlias, Version version) {
-        DataType esType = typeRegistry.fromEs(typeName, version);
+            boolean isAggregateable, boolean isAlias) {
+        DataType esType = typeRegistry.fromEs(typeName);
 
         if (esType == TEXT) {
             return new TextEsField(fieldName, props, false, isAlias);
@@ -480,17 +475,15 @@ public class IndexResolver {
     /**
      * Resolves a pattern to multiple, separate indices. Doesn't perform validation.
      */
-    public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, boolean includeFrozen, @Nullable Version version,
+    public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, boolean includeFrozen,
             ActionListener<List<EsIndex>> listener) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest, wrap(response -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases ->
-                listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), aliases.getAliases(),
-                    version)),
+                listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), aliases.getAliases())),
                 ex -> {
                     if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                        listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), null,
-                            version));
+                        listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), null));
                     } else {
                         listener.onFailure(ex);
                     }
@@ -509,9 +502,8 @@ public class IndexResolver {
     }
 
     public static List<EsIndex> separateMappings(DataTypeRegistry typeRegistry, String javaRegex, String[] indexNames,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> aliases,
-            @Nullable Version version) {
-        return buildIndices(typeRegistry, indexNames, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null, version);
+            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
+        return buildIndices(typeRegistry, indexNames, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
     }
 
     private static class Fields {
@@ -526,7 +518,7 @@ public class IndexResolver {
     private static List<EsIndex> buildIndices(DataTypeRegistry typeRegistry, String[] indexNames, String javaRegex,
             Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> aliases,
             Function<String, String> indexNameProcessor,
-            BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier, @Nullable Version version) {
+            BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier) {
 
         if ((indexNames == null || indexNames.length == 0) && (aliases == null || aliases.isEmpty())) {
             return emptyList();
@@ -655,8 +647,7 @@ public class IndexResolver {
                             createField(typeRegistry, fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
                                     s -> invalidField != null ? invalidField :
                                         createField(typeRegistry, s, typeCap.getType(), emptyMap(), typeCap.isAggregatable(),
-                                                isAliasFieldType.get(), version),
-                                    version);
+                                                isAliasFieldType.get()));
                         }
                     }
                 }

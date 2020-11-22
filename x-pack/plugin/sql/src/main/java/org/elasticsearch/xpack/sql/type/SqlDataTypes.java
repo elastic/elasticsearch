@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.sql.type;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
@@ -48,7 +46,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
-import static org.elasticsearch.xpack.ql.util.VersionUtil.isUnsignedLongSupported;
 
 public class SqlDataTypes {
 
@@ -207,16 +204,6 @@ public class SqlDataTypes {
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
         return type != null ? type : UNSUPPORTED;
-    }
-
-    public static DataType fromEs(String name, @Nullable Version version) {
-        DataType type = fromEs(name);
-        if (version != null) {
-            if (type == UNSIGNED_LONG && isUnsignedLongSupported(version) == false) {
-                return UNSUPPORTED;
-            }
-        }
-        return type;
     }
 
     public static DataType fromJava(Object value) {

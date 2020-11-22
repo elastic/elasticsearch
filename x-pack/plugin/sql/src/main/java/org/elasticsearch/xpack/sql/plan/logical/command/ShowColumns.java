@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -27,7 +26,6 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 
 public class ShowColumns extends Command {
 
@@ -68,8 +66,7 @@ public class ShowColumns extends Command {
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         boolean withFrozen = includeFrozen || session.configuration().includeFrozen();
-        Version version = isDriver(session.configuration().mode()) ? Version.fromId(session.configuration().version().id) : null;
-        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, version, ActionListener.wrap(
+        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, ActionListener.wrap(
                 indexResult -> {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {

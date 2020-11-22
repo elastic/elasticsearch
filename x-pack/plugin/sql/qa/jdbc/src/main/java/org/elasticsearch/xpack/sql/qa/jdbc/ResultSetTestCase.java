@@ -2186,8 +2186,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             map.put("test_long", test_long);
 
             // random BigInteger/unsigned_long
-            BigInteger test_unsigned_long = BigInteger.valueOf(randomValueOtherThanMany(map::containsValue, randomGenerator).longValue())
-                .abs();
+            BigInteger test_unsigned_long = BigInteger.valueOf(randomValueOtherThanMany(map::containsValue, randomGenerator).longValue());
+            test_unsigned_long = test_unsigned_long.abs().subtract(test_unsigned_long.equals(BigInteger.ZERO) ?
+                BigInteger.ZERO : BigInteger.ONE);
             builder.field("test_unsigned_long", test_unsigned_long);
             map.put("test_unsigned_long", test_unsigned_long);
 

@@ -39,7 +39,8 @@ public class PostOptimizerVerifierTests extends ESTestCase {
         Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         indexResolution = IndexResolution.valid(test);
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), indexResolution,
+            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG));
         optimizer = new Optimizer();
         planner = new Planner();
     }

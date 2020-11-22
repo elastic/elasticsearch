@@ -23,6 +23,7 @@ public class SqlVersion implements Comparable<SqlVersion>{
     public final byte major;
     public final byte minor;
     public final byte revision;
+    public final byte build; // the build is required for id-compatibility with ES's version
 
     public static final int REVISION_MULTIPLIER = 100;
     public static final int MINOR_MULTIPLIER = REVISION_MULTIPLIER * REVISION_MULTIPLIER;
@@ -45,17 +46,21 @@ public class SqlVersion implements Comparable<SqlVersion>{
         this.version = version;
 
         assert parts.length >= 3 : "Version must be initialized with all Major.Minor.Revision components";
-        this.major = parts[0];
-        this.minor = parts[1];
-        this.revision = parts[2];
+        major = parts[0];
+        minor = parts[1];
+        revision = parts[2];
+        build = (parts.length >= 4) ? parts[3] : REVISION_MULTIPLIER - 1;
 
-        if ((major | minor | revision) < 0 || minor >= REVISION_MULTIPLIER || revision >= REVISION_MULTIPLIER) {
-            throw new InvalidParameterException("Invalid version initialisers [" + major + ", " + minor + ", " + revision + "]");
+        if ((major | minor | revision | build) < 0 ||
+                minor >= REVISION_MULTIPLIER || revision >= REVISION_MULTIPLIER || build >= REVISION_MULTIPLIER) {
+            throw new InvalidParameterException("Invalid version initialisers [" + major + ", " + minor + ", " + revision + ", " +
+                build + "]");
         }
 
         id = Integer.valueOf(major) * MAJOR_MULTIPLIER
             + Integer.valueOf(minor) * MINOR_MULTIPLIER
-            + Integer.valueOf(revision) * REVISION_MULTIPLIER;
+            + Integer.valueOf(revision) * REVISION_MULTIPLIER
+            + Integer.valueOf(build);
     }
 
     public static SqlVersion fromString(String version) {
@@ -66,10 +71,12 @@ public class SqlVersion implements Comparable<SqlVersion>{
     }
 
     public static SqlVersion fromId(int id) {
+        byte build = (byte) (id % REVISION_MULTIPLIER);
         byte revision = (byte) ((id / REVISION_MULTIPLIER) % REVISION_MULTIPLIER);
         byte minor = (byte) ((id / MINOR_MULTIPLIER) % REVISION_MULTIPLIER);
         byte major = (byte) ((id / MAJOR_MULTIPLIER) % REVISION_MULTIPLIER);
-        return new SqlVersion(major, minor, revision);
+        /* the build is not reflected in the string format */
+        return new SqlVersion(toString(major, minor, revision), major, minor, revision, build);
     }
 
     protected static byte[] from(String ver) {

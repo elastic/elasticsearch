@@ -748,7 +748,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             }, 30L, TimeUnit.MINUTES, ThreadPool.Names.SAME); // Wait on SAME (current thread) because this execution is wrapped by
-                                                                      // CancellableThreads and we want to be able to safely interrupt it
+                                                              // CancellableThreads and we want to be able to safely interrupt it
         }
     }
 

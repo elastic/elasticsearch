@@ -50,9 +50,7 @@ public class PolicyUtilTests extends ESTestCase {
 
     @Before
     public void assumeSecurityManagerDisabled() {
-        assumeTrue(
-            "test cannot run with security manager enabled",
-            System.getSecurityManager() == null);
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
     }
 
     URL makeUrl(String s) {
@@ -100,12 +98,12 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     public void testPluginPolicyInfoEmpty() throws Exception {
-        assertThat(PolicyUtil.getPluginPolicyInfo(createTempDir()), is(nullValue()));
+        assertThat(PolicyUtil.readPolicyInfo(createTempDir()), is(nullValue()));
     }
 
     public void testPluginPolicyInfoNoJars() throws Exception {
         Path noJarsPlugin = makeDummyPlugin("dummy.policy");
-        PluginPolicyInfo info = PolicyUtil.getPluginPolicyInfo(noJarsPlugin);
+        PluginPolicyInfo info = PolicyUtil.readPolicyInfo(noJarsPlugin);
         assertThat(info.policy, is(not(nullValue())));
         assertThat(info.jars, emptyIterable());
     }
@@ -113,7 +111,7 @@ public class PolicyUtilTests extends ESTestCase {
     public void testPluginPolicyInfo() throws Exception {
         Path plugin = makeDummyPlugin("dummy.policy",
             "foo.jar", "foo.txt", "bar.jar");
-        PluginPolicyInfo info = PolicyUtil.getPluginPolicyInfo(plugin);
+        PluginPolicyInfo info = PolicyUtil.readPolicyInfo(plugin);
         assertThat(info.policy, is(not(nullValue())));
         assertThat(info.jars, containsInAnyOrder(
             plugin.resolve("foo.jar").toUri().toURL(),
@@ -145,5 +143,241 @@ public class PolicyUtilTests extends ESTestCase {
         } finally {
             clearProperty("jarUrl");
         }
+    }
+
+    private Path makeSinglePermissionPlugin(String jarUrl, String clazz, String name, String actions) throws IOException {
+        Path plugin = createTempDir();
+        StringBuilder policyString = new StringBuilder("grant");
+        if (jarUrl != null) {
+            Path jar = plugin.resolve(jarUrl);
+            Files.createFile(jar);
+            policyString.append(" codeBase \"" + jar.toUri().toURL().toString() + "\"");
+        }
+        policyString.append(" {\n  permission ");
+        policyString.append(clazz);
+        // wildcard
+        policyString.append(" \"" + name + "\"");
+        if (actions != null) {
+            policyString.append(", \"" + actions + "\"");
+        }
+        policyString.append(";\n};");
+
+        logger.info(policyString.toString());
+        Files.writeString(plugin.resolve(PluginInfo.ES_PLUGIN_POLICY), policyString.toString());
+
+        return plugin;
+    }
+
+    interface PolicyParser {
+        PluginPolicyInfo parse(Path pluginRoot, Path tmpDir) throws IOException;
+    }
+
+    void assertAllowedPermission(String clazz, String name, String actions, Path tmpDir, PolicyParser parser) throws Exception {
+        // global policy
+        Path plugin = makeSinglePermissionPlugin(null, clazz, name, actions);
+        assertNotNull(parser.parse(plugin, tmpDir)); // no error
+
+        // specific jar policy
+        plugin = makeSinglePermissionPlugin("foobar.jar", clazz, name, actions);
+        assertNotNull(parser.parse(plugin, tmpDir)); // no error
+    }
+
+    void assertAllowedPermissions(List<String> allowedPermissions, PolicyParser parser) throws Exception {
+        Path tmpDir = createTempDir();
+        for (String rawPermission : allowedPermissions) {
+            String[] elements = rawPermission.split(" ");
+            assert elements.length <= 3;
+            assert elements.length >= 2;
+
+            assertAllowedPermission(elements[0], elements[1], elements.length == 3 ? elements[2] : null, tmpDir, parser);
+        }
+    }
+
+    void assertIllegalPermission(String clazz, String name, String actions, Path tmpDir, PolicyParser parser) throws Exception {
+        // global policy
+        final Path globalPlugin = makeSinglePermissionPlugin(null, clazz, name, actions);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            "Permission (" + clazz + " " + name + (actions == null ? "" : (" " + actions)) + ") should be illegal",
+            () -> parser.parse(globalPlugin, tmpDir)); // no error
+        assertThat(e.getMessage(), containsString("contains illegal permission"));
+        assertThat(e.getMessage(), containsString("in global grant"));
+
+        // specific jar policy
+        final Path jarPlugin = makeSinglePermissionPlugin("foobar.jar", clazz, name, actions);
+        e = expectThrows(IllegalArgumentException.class, () -> parser.parse(jarPlugin, tmpDir)); // no error
+        assertThat(e.getMessage(), containsString("contains illegal permission"));
+        assertThat(e.getMessage(), containsString("for jar"));
+    }
+
+    void assertIllegalPermissions(List<String> illegalPermissions, PolicyParser parser) throws Exception {
+        Path tmpDir = createTempDir();
+        for (String rawPermission : illegalPermissions) {
+            String[] elements = rawPermission.split(" ");
+            assert elements.length <= 3;
+            assert elements.length >= 2;
+
+            assertIllegalPermission(elements[0], elements[1], elements.length == 3 ? elements[2] : null, tmpDir, parser);
+        }
+    }
+
+    static final List<String> PLUGIN_TEST_PERMISSIONS = List.of(
+        "java.lang.reflect.ReflectPermission suppressAccessChecks",
+        "java.lang.RuntimePermission createClassLoader",
+        "java.lang.RuntimePermission getClassLoader",
+        "java.lang.RuntimePermission setContextClassLoader",
+        "java.lang.RuntimePermission setFactory",
+        "java.lang.RuntimePermission loadLibrary.*",
+        "java.lang.RuntimePermission accessClassInPackage.*",
+        "java.lang.RuntimePermission accessDeclaredMembers",
+        "java.net.NetPermission requestPasswordAuthentication",
+        "java.net.NetPermission getProxySelector",
+        "java.net.NetPermission getCookieHandler",
+        "java.net.NetPermission getResponseCache",
+        "java.net.SocketPermission * accept,connect,listen,resolve",
+        "java.net.SocketPermission www.elastic.co accept,connect,listen,resolve",
+        "java.net.URLPermission https://elastic.co",
+        "java.net.URLPermission http://elastic.co",
+        "java.security.SecurityPermission createAccessControlContext",
+        "java.security.SecurityPermission insertProvider",
+        "java.security.SecurityPermission putProviderProperty.*",
+        "java.security.SecurityPermission putProviderProperty.foo",
+        "java.sql.SQLPermission callAbort",
+        "java.sql.SQLPermission setNetworkTimeout",
+        "java.util.PropertyPermission * read",
+        "java.util.PropertyPermission someProperty read",
+        "java.util.PropertyPermission * write",
+        "java.util.PropertyPermission foo.bar write",
+        "javax.security.auth.AuthPermission doAs",
+        "javax.security.auth.AuthPermission doAsPrivileged",
+        "javax.security.auth.AuthPermission getSubject",
+        "javax.security.auth.AuthPermission getSubjectFromDomainCombiner",
+        "javax.security.auth.AuthPermission setReadOnly",
+        "javax.security.auth.AuthPermission modifyPrincipals",
+        "javax.security.auth.AuthPermission modifyPublicCredentials",
+        "javax.security.auth.AuthPermission modifyPrivateCredentials",
+        "javax.security.auth.AuthPermission refreshCredential",
+        "javax.security.auth.AuthPermission destroyCredential",
+        "javax.security.auth.AuthPermission createLoginContext.*",
+        "javax.security.auth.AuthPermission getLoginConfiguration",
+        "javax.security.auth.AuthPermission setLoginConfiguration",
+        "javax.security.auth.AuthPermission createLoginConfiguration.*",
+        "javax.security.auth.AuthPermission refreshLoginConfiguration",
+        "javax.security.auth.kerberos.DelegationPermission host/www.elastic.co@ELASTIC.CO krbtgt/ELASTIC.CO@ELASTIC.CO",
+        "javax.security.auth.kerberos.ServicePermission host/www.elastic.co@ELASTIC.CO accept"
+    );
+
+    public void testPluginPolicyAllowedPermissions() throws Exception {
+        assertAllowedPermissions(PLUGIN_TEST_PERMISSIONS, PolicyUtil::getPluginPolicyInfo);
+        assertIllegalPermissions(MODULE_TEST_PERMISSIONS, PolicyUtil::getPluginPolicyInfo);
+    }
+
+    public void testPrivateCredentialPermissionAllowed() throws Exception {
+        // the test permission list relies on name values not containing spaces, so this
+        // exists to also check PrivateCredentialPermission which requires a space in the name
+        String clazz = "javax.security.auth.PrivateCredentialPermission";
+        String name = "com.sun.PrivateCredential com.sun.Principal \\\"duke\\\"";
+
+        assertAllowedPermission(clazz, name, "read", createTempDir(), PolicyUtil::getPluginPolicyInfo);
+    }
+
+    static final List<String> MODULE_TEST_PERMISSIONS = List.of(
+        "java.io.FilePermission /foo/bar read",
+        "java.io.FilePermission /foo/bar write",
+        "java.lang.RuntimePermission getFileStoreAttributes",
+        "java.lang.RuntimePermission accessUserInformation"
+    );
+
+    public void testModulePolicyAllowedPermissions() throws Exception {
+        assertAllowedPermissions(MODULE_TEST_PERMISSIONS, PolicyUtil::getModulePolicyInfo);
+    }
+
+    static final List<String> ILLEGAL_TEST_PERMISSIONS = List.of(
+        "java.awt.AWTPermission *",
+        "java.io.FilePermission /foo/bar execute",
+        "java.io.FilePermission /foo/bar delete",
+        "java.io.FilePermission /foo/bar readLink",
+        "java.io.SerializablePermission enableSubclassImplementation",
+        "java.io.SerializablePermission enableSubstitution",
+        "java.lang.management.ManagementPermission control",
+        "java.lang.management.ManagementPermission monitor",
+        "java.lang.reflect.ReflectPermission newProxyInPackage.*",
+        "java.lang.RuntimePermission enableContextClassLoaderOverride",
+        "java.lang.RuntimePermission closeClassLoader",
+        "java.lang.RuntimePermission setSecurityManager",
+        "java.lang.RuntimePermission createSecurityManager",
+        "java.lang.RuntimePermission getenv.*",
+        "java.lang.RuntimePermission getenv.FOOBAR",
+        "java.lang.RuntimePermission shutdownHooks",
+        "java.lang.RuntimePermission setIO",
+        "java.lang.RuntimePermission modifyThread",
+        "java.lang.RuntimePermission stopThread",
+        "java.lang.RuntimePermission modifyThreadGroup",
+        "java.lang.RuntimePermission getProtectionDomain",
+        "java.lang.RuntimePermission readFileDescriptor",
+        "java.lang.RuntimePermission writeFileDescriptor",
+        "java.lang.RuntimePermission defineClassInPackage.*",
+        "java.lang.RuntimePermission defineClassInPackage.foobar",
+        "java.lang.RuntimePermission queuePrintJob",
+        "java.lang.RuntimePermission getStackTrace",
+        "java.lang.RuntimePermission setDefaultUncaughtExceptionHandler",
+        "java.lang.RuntimePermission preferences",
+        "java.lang.RuntimePermission usePolicy",
+        "java.net.NetPermission setDefaultAuthenticator",
+        "java.net.NetPermission specifyStreamHandler",
+        "java.net.NetPermission setProxySelector",
+        "java.net.NetPermission setCookieHandler",
+        "java.net.NetPermission setResponseCache",
+        "java.nio.file.LinkPermission hard",
+        "java.nio.file.LinkPermission symbolic",
+        "java.security.SecurityPermission getDomainCombiner",
+        "java.security.SecurityPermission getPolicy",
+        "java.security.SecurityPermission setPolicy",
+        "java.security.SecurityPermission getProperty.*",
+        "java.security.SecurityPermission getProperty.foobar",
+        "java.security.SecurityPermission setProperty.*",
+        "java.security.SecurityPermission setProperty.foobar",
+        "java.security.SecurityPermission removeProvider.*",
+        "java.security.SecurityPermission removeProvider.foobar",
+        "java.security.SecurityPermission clearProviderProperties.*",
+        "java.security.SecurityPermission clearProviderProperties.foobar",
+        "java.security.SecurityPermission removeProviderProperty.*",
+        "java.security.SecurityPermission removeProviderProperty.foobar",
+        "java.security.SecurityPermission insertProvider.*",
+        "java.security.SecurityPermission insertProvider.foobar",
+        "java.security.SecurityPermission setSystemScope",
+        "java.security.SecurityPermission setIdentityPublicKey",
+        "java.security.SecurityPermission setIdentityInfo",
+        "java.security.SecurityPermission addIdentityCertificate",
+        "java.security.SecurityPermission removeIdentityCertificate",
+        "java.security.SecurityPermission printIdentity",
+        "java.security.SecurityPermission getSignerPrivateKey",
+        "java.security.SecurityPermission getSignerKeyPair",
+        "java.sql.SQLPermission setLog",
+        "java.sql.SQLPermission setSyncFactory",
+        "java.sql.SQLPermission deregisterDriver",
+        "java.util.logging.LoggingPermission control",
+        "javax.management.MBeanPermission * *",
+        "javax.management.MBeanServerPermission *",
+        "javax.management.MBeanTrustPermission *",
+        "javax.management.remote.SubjectDelegationPermission *",
+        "javax.net.ssl.SSLPermission setHostnameVerifier",
+        "javax.net.ssl.SSLPermission getSSLSessionContext",
+        "javax.net.ssl.SSLPermission setDefaultSSLContext",
+        "javax.sound.sampled.AudioPermission play",
+        "javax.sound.sampled.AudioPermission record",
+        "javax.xml.bind.JAXBPermission setDatatypeConverter",
+        "javax.xml.ws.WebServicePermission publishEndpoint"
+    );
+
+    public void testIllegalPermissions() throws Exception {
+        assertIllegalPermissions(ILLEGAL_TEST_PERMISSIONS, PolicyUtil::getPluginPolicyInfo);
+        assertIllegalPermissions(ILLEGAL_TEST_PERMISSIONS, PolicyUtil::getModulePolicyInfo);
+    }
+
+    public void testAllPermission() throws Exception {
+        // AllPermission has no name element, so doesn't work with the format above
+        Path tmpDir = createTempDir();
+        assertIllegalPermission("java.security.AllPermission", null, null, tmpDir, PolicyUtil::getPluginPolicyInfo);
+        assertIllegalPermission("java.security.AllPermission", null, null, tmpDir, PolicyUtil::getModulePolicyInfo);
     }
 }

@@ -12,18 +12,15 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
-import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
 public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     @Inject
     public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
                                   XPackLicenseState licenseState) {
         super(XPackInfoFeatureAction.EQL.name(), transportService, actionFilters);
-        this.enabled = EqlPlugin.isEnabled();
         this.licenseState = licenseState;
     }
 
@@ -39,7 +36,7 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
 }

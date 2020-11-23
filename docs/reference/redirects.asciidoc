@@ -1273,3 +1273,8 @@ See <<search-aggregations-matrix-stats-aggregation>>.
 The moving average aggregation has been removed. Use the
 <<search-aggregations-pipeline-movfn-aggregation,moving function aggregation>>
 instead.
+
+[[fielddata]]
+=== `fielddata` mapping parameter
+
+See <<fielddata-mapping-param>>.

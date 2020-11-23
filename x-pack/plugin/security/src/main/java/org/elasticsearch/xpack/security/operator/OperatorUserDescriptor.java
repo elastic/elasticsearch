@@ -73,6 +73,11 @@ public class OperatorUserDescriptor {
         });
     }
 
+    // Package private for tests
+    List<Group> getGroups() {
+        return groups;
+    }
+
     public static final class Group {
         private final Set<String> usernames;
         private final String realmName;
@@ -257,11 +262,11 @@ public class OperatorUserDescriptor {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(OperatorUserDescriptor.this.file)) {
-                final List<Group> previousGroups = groups;
-                groups = parseFileLenient(file, logger);
+                List<Group> newGroups = parseFileLenient(file, logger);
 
-                if (groups.equals(previousGroups) == false) {
+                if (groups.equals(newGroups) == false) {
                     logger.info("operator users file [{}] changed. updating operator users...", file.toAbsolutePath());
+                    groups = newGroups;
                 }
             }
         }

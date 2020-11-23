@@ -15,7 +15,7 @@ public interface OperatorOnly {
     Result check(String action, TransportRequest request);
 
     enum Status {
-        MATCHED, UNMATCHED, ABSTAIN;
+        YES, NO, CONTINUE;
     }
 
     final class Result {
@@ -27,8 +27,8 @@ public interface OperatorOnly {
             this.messageSupplier = messageSupplier;
         }
 
-        static Result matched(Supplier<String> messageSupplier) {
-            return new Result(Status.MATCHED, messageSupplier);
+        static Result yes(Supplier<String> messageSupplier) {
+            return new Result(Status.YES, messageSupplier);
         }
 
         public Status getStatus() {
@@ -40,6 +40,6 @@ public interface OperatorOnly {
         }
     }
 
-    Result RESULT_FALSE = new Result(Status.UNMATCHED, null);
-    Result RESULT_CONTINUE = new Result(Status.ABSTAIN, null);
+    Result RESULT_NO = new Result(Status.NO, null);
+    Result RESULT_CONTINUE = new Result(Status.CONTINUE, null);
 }

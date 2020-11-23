@@ -25,8 +25,8 @@ public class OperatorPrivileges {
     private final XPackLicenseState licenseState;
     private final boolean enabled;
 
-    public OperatorPrivileges(
-        Settings settings, XPackLicenseState licenseState, OperatorUserDescriptor operatorUserDescriptor, CompositeOperatorOnly compositeOperatorOnly) {
+    public OperatorPrivileges(Settings settings, XPackLicenseState licenseState,
+                              OperatorUserDescriptor operatorUserDescriptor, CompositeOperatorOnly compositeOperatorOnly) {
         this.operatorUserDescriptor = operatorUserDescriptor;
         this.compositeOperatorOnly = compositeOperatorOnly;
         this.licenseState = licenseState;
@@ -46,7 +46,7 @@ public class OperatorPrivileges {
             return null;
         }
         final OperatorOnly.Result operatorOnlyCheckResult = compositeOperatorOnly.check(action, request);
-        if (operatorOnlyCheckResult.getStatus() == OperatorOnly.Status.MATCHED) {
+        if (operatorOnlyCheckResult.getStatus() == OperatorOnly.Status.YES) {
             if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
                 threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY))) {
                 return new ElasticsearchSecurityException(

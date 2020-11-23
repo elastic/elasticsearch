@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.DeleteLicenseAction;
+import org.elasticsearch.license.PutLicenseAction;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.HashSet;
@@ -37,9 +39,9 @@ public class CompositeOperatorOnly implements OperatorOnly {
     public Result check(String action, TransportRequest request) {
         return checks.stream()
             .map(c -> c.check(action, request))
-            .filter(r -> r.getStatus() != Status.ABSTAIN)
+            .filter(r -> r.getStatus() != Status.CONTINUE)
             .findFirst()
-            .orElse(OperatorOnly.RESULT_FALSE);
+            .orElse(OperatorOnly.RESULT_NO);
     }
 
     public static final class ActionOperatorOnly implements OperatorOnly {
@@ -47,10 +49,13 @@ public class CompositeOperatorOnly implements OperatorOnly {
         public static final Set<String> SIMPLE_ACTIONS = Set.of(
             AddVotingConfigExclusionsAction.NAME,
             ClearVotingConfigExclusionsAction.NAME,
-            // TODO: Use literal strings due to dependency.
-            //  Alternatively we can let each plugin publish names of operator actions. It would require changes to Plugin framework
+            PutLicenseAction.NAME,
+            DeleteLicenseAction.NAME,
+            // Autoscaling does not publish its actions to core, literal strings are needed.
             "cluster:admin/autoscaling/put_autoscaling_policy",
-            "cluster:admin/autoscaling/delete_autoscaling_policy"
+            "cluster:admin/autoscaling/delete_autoscaling_policy",
+            "cluster:admin/autoscaling/get_autoscaling_policy",
+            "cluster:admin/autoscaling/get_autoscaling_capacity"
         );
 
         // This map is just to showcase how "partial" operator-only API would work.
@@ -60,10 +65,10 @@ public class CompositeOperatorOnly implements OperatorOnly {
                 assert request instanceof DeleteRepositoryRequest;
                 final DeleteRepositoryRequest deleteRepositoryRequest = (DeleteRepositoryRequest) request;
                 if ("found-snapshots".equals(deleteRepositoryRequest.name())) {
-                    return OperatorOnly.Result.matched(
+                    return OperatorOnly.Result.yes(
                         () -> "action [" + DeleteRepositoryAction.NAME + "] with repository [" + deleteRepositoryRequest.name());
                 } else {
-                    return OperatorOnly.RESULT_FALSE;
+                    return OperatorOnly.RESULT_NO;
                 }
             }
         );
@@ -71,7 +76,7 @@ public class CompositeOperatorOnly implements OperatorOnly {
         @Override
         public Result check(String action, TransportRequest request) {
             if (SIMPLE_ACTIONS.contains(action)) {
-                return OperatorOnly.Result.matched(() -> "action [" + action + "]");
+                return OperatorOnly.Result.yes(() -> "action [" + action + "]");
             } else if (PARAMETER_SENSITIVE_ACTIONS.containsKey(action)) {
                 return PARAMETER_SENSITIVE_ACTIONS.get(action).apply(request);
             } else {
@@ -105,12 +110,12 @@ public class CompositeOperatorOnly implements OperatorOnly {
                     && Sets.haveEmptyIntersection(SIMPLE_SETTINGS, clusterUpdateSettingsRequest.transientSettings().keySet());
 
             if (hasNoOverlap) {
-                return OperatorOnly.RESULT_FALSE;
+                return OperatorOnly.RESULT_NO;
             } else {
                 final HashSet<String> requestedSettings = new HashSet<>(clusterUpdateSettingsRequest.persistentSettings().keySet());
                 requestedSettings.addAll(clusterUpdateSettingsRequest.transientSettings().keySet());
                 requestedSettings.retainAll(SIMPLE_SETTINGS);
-                return OperatorOnly.Result.matched(
+                return OperatorOnly.Result.yes(
                     () -> requestedSettings.size() > 1 ? "settings" : "setting"
                         +" [" + Strings.collectionToCommaDelimitedString(requestedSettings) + "]");
             }

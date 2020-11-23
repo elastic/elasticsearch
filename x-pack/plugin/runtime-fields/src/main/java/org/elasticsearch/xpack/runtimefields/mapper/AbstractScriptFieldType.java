@@ -197,8 +197,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), lookup.doc().getForField(this));
+    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
     }
 
     @Override

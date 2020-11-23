@@ -487,7 +487,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
                 execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter);
             }
         });
-        assertThat(e.getMessage(), containsString("Wrong password for elasticsearch.keystore"));
+        assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
     }
 
     private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {

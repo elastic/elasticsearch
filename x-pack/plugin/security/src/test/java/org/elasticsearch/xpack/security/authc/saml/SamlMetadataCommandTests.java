@@ -719,7 +719,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         UserException e = expectThrows(UserException.class, () -> {
             command.buildEntityDescriptor(terminal, options, env);
         });
-        assertThat(e.getMessage(), CoreMatchers.containsString("Wrong password for elasticsearch.keystore"));
+        assertThat(e.getMessage(), CoreMatchers.containsString("Provided keystore password was incorrect"));
     }
 
     private String getAliasName(final Tuple<java.security.cert.X509Certificate, PrivateKey> certKeyPair) {

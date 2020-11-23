@@ -1,12 +1,9 @@
-[[important-settings-snapshot]]
+[[important-settings-backups]]
 [discrete]
-=== Snapshot configuration
+=== Cluster backups
 
-<<snapshot-restore,Snapshots>> are the last line of defence against data loss
-in the event of a disaster. You must not move to production without configuring
-{es} to take snapshots regularly. The simplest way to do this is using
-<<snapshot-lifecycle-management,{slm}>>. For more information on recovering
-from snapshots see <<backup-cluster>>.
+In a disaster, <<snapshot-restore,snapshot backups>> can prevent permanent data
+loss. <<snapshot-lifecycle-management,{slm-cap}>> is the easiest way to take
+regular backups of your cluster. For more information, see <<backup-cluster>>.
 
 include::../../snapshot-restore/index.asciidoc[tag=backup-warning]
-

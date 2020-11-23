@@ -30,6 +30,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -85,6 +86,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -263,7 +265,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHello",
+        Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHello",
             new StringMessageRequest("moshe"), new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
@@ -372,7 +374,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         threadPool.getThreadContext().putHeader("test.ping.user", "ping_user");
         threadPool.getThreadContext().putTransient("my_private_context", context);
 
-        TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:ping_pong", ping, responseHandler);
+        Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:ping_pong", ping, responseHandler);
 
         StringMessageResponse message = res.get();
         assertThat("pong", equalTo(message.message));
@@ -570,7 +572,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
 
-            TransportFuture<TransportResponse.Empty> res = submitRequest(serviceC, nodeA, "internal:sayHello",
+            Future<TransportResponse.Empty> res = submitRequest(serviceC, nodeA, "internal:sayHello",
                 TransportRequest.Empty.INSTANCE, new TransportResponseHandler<>() {
                     @Override
                     public TransportResponse.Empty read(StreamInput in) {
@@ -622,7 +624,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
 
-            TransportFuture<StringMessageResponse> res = submitRequest(serviceC, nodeA, "internal:sayHello",
+            Future<StringMessageResponse> res = submitRequest(serviceC, nodeA, "internal:sayHello",
                 new StringMessageRequest("moshe"), new TransportResponseHandler<>() {
                     @Override
                     public StringMessageResponse read(StreamInput in) throws IOException {
@@ -655,14 +657,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testErrorMessage() {
+    public void testErrorMessage() throws InterruptedException {
         serviceA.registerRequestHandler("internal:sayHelloException", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
                 assertThat("moshe", equalTo(request.message));
                 throw new RuntimeException("bad message !!!");
             });
 
-        TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloException",
+        Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloException",
             new StringMessageRequest("moshe"), new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
@@ -686,10 +688,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         try {
-            res.txGet();
+            res.get();
             fail("exception should be thrown");
-        } catch (Exception e) {
-            assertThat(e.getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
+        } catch (ExecutionException e) {
+            assertThat(e.getCause().getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
         }
     }
 
@@ -851,14 +853,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         latch3.countDown();
                     }
                 });
-            TransportFuture<TransportResponse.Empty> foobar = submitRequest(serviceB, nodeA, "internal:foobar",
+            Future<TransportResponse.Empty> foobar = submitRequest(serviceB, nodeA, "internal:foobar",
                 new StringMessageRequest(""), EmptyTransportResponseHandler.INSTANCE_SAME);
             latch2.countDown();
             try {
-                foobar.txGet();
+                foobar.get();
                 fail("TransportException expected");
-            } catch (TransportException ex) {
-
+            } catch (ExecutionException ex) {
+                assertThat(ex.getCause(), instanceOf(TransportException.class));
             }
             latch3.await();
         } finally {
@@ -877,7 +879,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutNoResponse",
+        Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutNoResponse",
             new StringMessageRequest("moshe"), TransportRequestOptions.timeout(HUNDRED_MS),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
@@ -902,10 +904,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         try {
-            res.txGet();
+            res.get();
             fail("exception should be thrown");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(ReceiveTimeoutTransportException.class));
         }
     }
 
@@ -941,7 +943,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
         final CountDownLatch latch = new CountDownLatch(1);
-        TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutDelayedResponse",
+        Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutDelayedResponse",
             new StringMessageRequest("forever"), TransportRequestOptions.timeout(HUNDRED_MS),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
@@ -968,10 +970,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         try {
-            res.txGet();
+            res.get();
             fail("exception should be thrown");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(ReceiveTimeoutTransportException.class));
         }
         latch.await();
 
@@ -979,7 +981,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
-            TransportFuture<StringMessageResponse> result = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutDelayedResponse",
+            Future<StringMessageResponse> result = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutDelayedResponse",
                 new StringMessageRequest(counter + "ms"), TransportRequestOptions.timeout(TimeValue.timeValueSeconds(3)),
                 new TransportResponseHandler<StringMessageResponse>() {
                     @Override
@@ -1005,8 +1007,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 });
 
             assertions.add(() -> {
-                StringMessageResponse message = result.txGet();
-                assertThat(message.message, equalTo("hello " + counter + "ms"));
+                try {
+                    assertThat(result.get().message, equalTo("hello " + counter + "ms"));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             });
         }
         for (Runnable runnable : assertions) {
@@ -1128,9 +1133,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             appender.addExpectation(notSeenSentExpectation);
             appender.addExpectation(notSeenReceivedExpectation);
 
-            TransportFuture<StringMessageResponse> future = new TransportFuture<>(noopResponseHandler);
-            serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), future);
-            future.txGet();
+            submitRequest(serviceA, nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler).get();
 
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
@@ -1311,7 +1314,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
                 }
-            }).txGet();
+            }).get();
 
         assertThat(version0Response.value1, equalTo(1));
     }
@@ -1349,7 +1352,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
                 }
-            }).txGet();
+            }).get();
 
         assertThat(version1Response.value1, equalTo(1));
         assertThat(version1Response.value2, equalTo(0));
@@ -1386,7 +1389,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
                 }
-            }).txGet();
+            }).get();
 
         assertThat(version1Response.value1, equalTo(1));
         assertThat(version1Response.value2, equalTo(2));
@@ -1420,7 +1423,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
                 }
-            }).txGet();
+            }).get();
 
         assertThat(version0Response.value1, equalTo(1));
     }
@@ -1434,7 +1437,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         serviceB.addFailToSendNoConnectRule(serviceA);
 
-        TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHello",
+        Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHello",
             new StringMessageRequest("moshe"), new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
@@ -1460,10 +1463,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         try {
-            res.txGet();
+            res.get();
             fail("exception should be thrown");
-        } catch (Exception e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
+        } catch (ExecutionException e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
             assertThat(cause, instanceOf(ConnectTransportException.class));
             assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
         }
@@ -1482,7 +1485,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
-    public void testMockUnresponsiveRule() throws IOException {
+    public void testMockUnresponsiveRule() throws InterruptedException {
         serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
                 assertThat("moshe", equalTo(request.message));
@@ -1491,7 +1494,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         serviceB.addUnresponsiveRule(serviceA);
 
-        TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHello",
+        Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHello",
             new StringMessageRequest("moshe"), TransportRequestOptions.timeout(HUNDRED_MS),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
@@ -1516,10 +1519,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         try {
-            res.txGet();
+            res.get();
             fail("exception should be thrown");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(ReceiveTimeoutTransportException.class));
         }
 
         try {
@@ -2795,7 +2798,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return PlainActionFuture.get(fut -> service.openConnection(node, connectionProfile, fut));
     }
 
-    public static <T extends TransportResponse> TransportFuture<T> submitRequest(TransportService transportService,
+    public static <T extends TransportResponse> Future<T> submitRequest(TransportService transportService,
                                                                                  DiscoveryNode node, String action,
                                                                                  TransportRequest request,
                                                                                  TransportResponseHandler<T> handler)
@@ -2803,17 +2806,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return submitRequest(transportService, node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
-    public static <T extends TransportResponse> TransportFuture<T> submitRequest(TransportService transportService, DiscoveryNode node,
+    public static <T extends TransportResponse> Future<T> submitRequest(TransportService transportService, DiscoveryNode node,
                                                                                  String action, TransportRequest request,
                                                                                  TransportRequestOptions options,
                                                                                  TransportResponseHandler<T> handler)
                                                                                  throws TransportException {
-        TransportFuture<T> futureHandler = new TransportFuture<>(handler);
+        final StepListener<T> responseListener = new StepListener<>();
+        final TransportResponseHandler<T> futureHandler =
+                new ActionListenerResponseHandler<>(responseListener, handler, handler.executor());
         try {
             transportService.sendRequest(node, action, request, options, futureHandler);
         } catch (NodeNotConnectedException ex) {
             futureHandler.handleException(ex);
         }
-        return futureHandler;
+        responseListener.whenComplete(handler::handleResponse, e -> handler.handleException((TransportException) e));
+        final PlainActionFuture<T> future = PlainActionFuture.newFuture();
+        responseListener.whenComplete(future::onResponse, future::onFailure);
+        return future;
     }
 }

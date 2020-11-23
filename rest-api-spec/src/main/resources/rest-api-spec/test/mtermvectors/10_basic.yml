@@ -106,6 +106,6 @@ setup:
   - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
   - match: {docs.0.term_vectors.text.terms.brown.ttf: 2}
   - match: {docs.1.error.type: "illegal_argument_exception"}
-  - match: {docs.1.error.reason: "Alias [test_alias] has more than one index associated with it [[testidx2, testidx]], can't execute a single index op"}
+  - match: {docs.1.error.reason: "/Alias.\\[test_alias\\].has.more.than.one.index.associated.with.it.\\[\\[testidx2?,.testidx2?\\]\\].*/"}
 
 

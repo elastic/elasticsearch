@@ -32,6 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.MetricValue;
 
 import java.io.IOException;
@@ -495,62 +496,4 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         public void close() {}
     }
 
-    /**
-     * Helps {@link LongMetricValues} track "empty" slots. It attempts to have
-     * very low CPU overhead and no memory overhead when there *aren't* empty
-     * values.
-     */
-    private static class MissingHelper implements Releasable {
-        private final BigArrays bigArrays;
-        private BitArray tracker;
-
-        MissingHelper(BigArrays bigArrays) {
-            this.bigArrays = bigArrays;
-        }
-
-        void markMissing(long index) {
-            if (tracker == null) {
-                tracker = new BitArray(index, bigArrays);
-            }
-            tracker.set(index);
-        }
-
-        void markNotMissing(long index) {
-            if (tracker == null) {
-                return;
-            }
-            tracker.clear(index);
-        }
-
-        void swap(long lhs, long rhs) {
-            if (tracker == null) {
-                return;
-            }
-            boolean backup = tracker.get(lhs);
-            if (tracker.get(rhs)) {
-                tracker.set(lhs);
-            } else {
-                tracker.clear(lhs);
-            }
-            if (backup) {
-                tracker.set(rhs);
-            } else {
-                tracker.clear(rhs);
-            }
-        }
-
-        boolean isEmpty(long index) {
-            if (tracker == null) {
-                return false;
-            }
-            return tracker.get(index);
-        }
-
-        @Override
-        public void close() {
-            if (tracker != null) {
-                tracker.close();
-            }
-        }
-    }
 }

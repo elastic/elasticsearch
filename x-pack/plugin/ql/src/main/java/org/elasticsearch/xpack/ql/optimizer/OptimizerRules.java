@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1066,7 +1067,7 @@ public final class OptimizerRules {
 
                 Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
                 ZoneId zoneId = null;
-                List<Expression> ors = new ArrayList<>();
+                List<Expression> ors = new LinkedList<>();
 
                 for (Expression exp : exps) {
                     if (exp instanceof Equals) {
@@ -1094,16 +1095,21 @@ public final class OptimizerRules {
 
                 if (found.isEmpty() == false) {
                     // combine equals alongside the existing ors
-                    ZoneId finalZoneId = zoneId;
+                    final ZoneId finalZoneId = zoneId;
                     found.forEach((k, v) -> {
-                        if (v.size() == 1) {
-                            ors.add(new Equals(k.source(), k, v.iterator().next(), finalZoneId));
-                        } else {
-                            ors.add(createIn(k, new ArrayList<>(v), finalZoneId));
-                        }
+                        // add the new expression first to ease debugging
+                        ors.add(0, v.size() == 1
+                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
+                            : createIn(k, new ArrayList<>(v), finalZoneId));
                     });
 
-                    e = combineOr(ors);
+                    Expression combineOr = combineOr(ors);
+                    // check the result semantically since the result might different in order
+                    // but be actually the same which can trigger a loop
+                    // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
+                    if (e.semanticEquals(combineOr) == false) {
+                        e = combineOr;
+                    }
                 }
             }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -30,6 +31,8 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AutoFollowIT extends ESCCRRestTestCase {
 
@@ -415,6 +418,89 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         {
             deleteAutoFollowPattern("test_pattern");
             deleteDataStream(dataStreamName);
+        }
+    }
+
+    public void testRolloverAliasInFollowClusterForbidden() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final int numDocs = 64;
+        final String aliasName = "log-tomcat-prod";
+
+        int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+
+        // Create auto follow pattern
+        createAutoFollowPattern(client(), "test_pattern", "log-*", "leader_cluster");
+
+        // Create leader index and write alias:
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request createFirstIndexRequest = new Request("PUT", "/" + aliasName + "-000001");
+                createFirstIndexRequest.setJsonEntity("{\"aliases\": {\"" + aliasName + "\":{\"is_write_index\":true}}}");
+                leaderClient.performRequest(createFirstIndexRequest);
+
+                for (int i = 0; i < numDocs; i++) {
+                    Request indexRequest = new Request("POST", "/" + aliasName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyAlias(leaderClient, aliasName, true, aliasName + "-000001");
+                verifyDocuments(leaderClient, aliasName, numDocs);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+                verifyAlias(client(), aliasName, false, aliasName + "-000001");
+                ensureYellow(aliasName);
+                verifyDocuments(client(), aliasName, numDocs);
+            });
+        }
+
+        // Rollover in leader cluster and ensure second backing index is replicated:
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request rolloverRequest = new Request("POST", "/" +  aliasName + "/_rollover");
+                assertOK(leaderClient.performRequest(rolloverRequest));
+                verifyAlias(leaderClient, aliasName, true, aliasName + "-000002", aliasName + "-000001");
+
+                Request indexRequest = new Request("POST", "/" + aliasName + "/_doc");
+                indexRequest.addParameter("refresh", "true");
+                indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                assertOK(leaderClient.performRequest(indexRequest));
+                verifyDocuments(leaderClient, aliasName, numDocs + 1);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
+                verifyAlias(client(), aliasName, false, aliasName + "-000002", aliasName + "-000001");
+                ensureYellow(aliasName);
+                verifyDocuments(client(), aliasName, numDocs + 1);
+            });
+        }
+
+        // Try rollover in follow cluster, this should fail, because is_write_index property of an alias isn't
+        // replicated to follow cluster.
+        {
+            Request rolloverRequest1 = new Request("POST", "/" +  aliasName + "/_rollover");
+            Exception e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest1));
+            assertThat(e.getMessage(), containsString("rollover target [" + aliasName + "] does not point to a write index"));
+            verifyAlias(client(), aliasName, false, aliasName + "-000002", aliasName + "-000001");
+        }
+        // Cleanup:
+        {
+            deleteAutoFollowPattern("test_pattern");
+        }
+    }
+
+    private static void verifyAlias(RestClient client, String aliasName, boolean checkWriteIndex, String... otherIndices) throws IOException {
+        Request getAliasRequest = new Request("GET", "/_alias/" + aliasName);
+        Map<?, ?> responseBody = toMap(client.performRequest(getAliasRequest));
+        if (checkWriteIndex) {
+            assertThat(ObjectPath.eval(otherIndices[0] + ".aliases." + aliasName + ".is_write_index", responseBody), is(true));
+        }
+        for (String otherIndex : otherIndices) {
+            assertThat(ObjectPath.eval(otherIndex + ".aliases." + aliasName, responseBody), notNullValue());
         }
     }
 

@@ -27,7 +27,7 @@
 FROM ${base_image} AS builder
 
 # Install required packages to extract the Elasticsearch distribution
-RUN ${package_manager} install -y tar gzip
+RUN <%= retry_loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -42,8 +42,8 @@ RUN set -eux ; \\
         x86_64)  tini_bin='tini-amd64' ;; \\
         *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
     esac ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
     sha256sum -c \${tini_bin}.sha256sum ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
@@ -74,7 +74,7 @@ ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
 ENV TARBALL_PATH curl-\${VERSION}.tar.xz
 
 # Install dependencies
-RUN apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file
+RUN <%= retry_loop('apk', 'apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file') %>
 
 RUN mkdir /work
 WORKDIR /work
@@ -83,11 +83,7 @@ WORKDIR /work
 RUN function retry_wget() { \\
       local URL="\$1" ; \\
       local DEST="\$2" ; \\
-      for iter in {1..10}; do \\
-        wget "\$URL" -O "\$DEST" && \\
-        exit_code=0 && break || exit_code=\$? && echo "wget error fetching \$URL: retry \$iter in 10s" && sleep 10; \\
-      done; \\
-      return \$exit_code ; \\
+      <%= retry_loop('wget', 'wget "\$URL\" -O "\$DEST"', 6, 'return') %> ; \\
     } ; \\
     retry_wget "https://daniel.haxx.se/mykey.asc" "curl-gpg.pub" && \\
     retry_wget "\${TARBALL_URL}.asc" "\${TARBALL_PATH}.asc" && \\
@@ -162,8 +158,8 @@ RUN set -e ; \\
             ;; \\
         *) echo >&2 "Unsupported architecture \$(arch)" ; exit 1 ;; \\
     esac ; \\
-    curl --retry 8 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}" ; \\
-    curl --retry 8 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}.sha256sum" ; \\
+    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}" ; \\
+    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}.sha256sum" ; \\
     sha256sum -c "\${TINI_BIN}.sha256sum" ; \\
     rm "\${TINI_BIN}.sha256sum" ; \\
     mv "\${TINI_BIN}" /rootfs/bin/tini ; \\
@@ -208,6 +204,9 @@ RUN rm -rf /rootfs/etc/ld.so.cache /rootfs/var/cache/ldconfig && \\
 
 COPY --from=curl /work/curl /rootfs/usr/bin/curl
 
+# Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+RUN find /rootfs -xdev -perm -4000 -exec chmod ug-s {} +
+
 ################################################################################
 # Step 3. Fetch the Elasticsearch distribution and configure it for Docker
 ################################################################################
@@ -223,12 +222,25 @@ ${source_elasticsearch}
 
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
-# Configure the distribution for Docker
-RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
-RUN mkdir -p config config/jvm.options.d data logs plugins
-RUN chmod 0775 config config/jvm.options.d data logs plugins
+# The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml ${config_dir}/log4j2.properties config/
-RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
+
+# 1. Configure the distribution for Docker
+# 2. Ensure directories are created. Most already are, but make sure
+# 3. Apply correct permissions
+# 4. Apply more correct permissions
+# 5. The JDK's directories' permissions don't allow `java` to be executed under a different
+#    group to the default. Fix this.
+# 6. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+# 7. Ensure all files are world-readable by default. It should be possible to
+#    examine the contents of the image under any UID:GID
+RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env && \\
+    mkdir -p config/jvm.options.d data logs plugins && \\
+    chmod 0775 config config/jvm.options.d data logs plugins && \\
+    chmod 0660 config/elasticsearch.yml config/log4j2.properties && \\
+    find ./jdk -type d -exec chmod 0755 {} + && \\
+    find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
+    find . -type f -exec chmod o+r {} +
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 
@@ -243,15 +255,13 @@ FROM ${base_image}
 
 <% if (docker_base == "ubi") { %>
 
-RUN for iter in {1..10}; do \\
-      ${package_manager} update --setopt=tsflags=nodocs -y && \\
-      ${package_manager} install --setopt=tsflags=nodocs -y \\
-        nc shadow-utils zip unzip findutils procps-ng && \\
-      ${package_manager} clean all && \\
-      exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
-      sleep 10; \\
-    done; \\
-    (exit \$exit_code)
+RUN <%= retry_loop(
+    package_manager,
+      "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
+      "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
+      "      nc shadow-utils zip unzip findutils procps-ng && \n" +
+      "      ${package_manager} clean all"
+    ) %>
 
 <% } else { %>
 
@@ -299,27 +309,21 @@ COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticse
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 <% } %>
 
-# Replace OpenJDK's built-in CA certificate keystore with the one from the OS
-# vendor. The latter is superior in several ways.
-# REF: https://github.com/elastic/elasticsearch-docker/issues/171
-RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
-
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# 1. The JDK's directories' permissions don't allow `java` to be executed under a different
-#    group to the default. Fix this.
-# 2. Sync the user and group permissions of /etc/passwd
-# 3. Set correct permissions of the entrypoint
-# 4. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-# 5. Ensure all files are world-readable by default. It should be possible to
-#    examine the contents of the image under any UID:GID
-RUN find /usr/share/elasticsearch/jdk -type d -exec chmod 0755 {} + && \\
-    chmod g=u /etc/passwd && \\
+# 1. Sync the user and group permissions of /etc/passwd
+# 2. Set correct permissions of the entrypoint
+# 3. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+#    We've already run this in previous layers so it ought to be a no-op.
+# 4. Replace OpenJDK's built-in CA certificate keystore with the one from the OS
+#    vendor. The latter is superior in several ways.
+#    REF: https://github.com/elastic/elasticsearch-docker/issues/171
+RUN chmod g=u /etc/passwd && \\
     chmod 0775 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    find /usr/share/elasticsearch -type f -exec chmod o+r {} +
+    ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 
 EXPOSE 9200 9300
 
@@ -355,6 +359,7 @@ LABEL name="Elasticsearch" \\
 RUN mkdir /licenses && \\
     cp LICENSE.txt /licenses/LICENSE
 <% } %>
+
 USER elasticsearch:root
 
 # Our actual entrypoint is `tini`, a minimal but functional init program. It

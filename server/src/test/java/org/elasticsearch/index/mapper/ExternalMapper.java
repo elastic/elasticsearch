@@ -25,7 +25,6 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -104,7 +103,7 @@ public class ExternalMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
     }

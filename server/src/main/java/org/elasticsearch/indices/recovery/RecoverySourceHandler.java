@@ -821,18 +821,26 @@ public class RecoverySourceHandler {
 
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
-                // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-                cancellableThreads.execute(() -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext));
+                cancellableThreads.execute(() -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext,
+                        ActionListener.wrap(v -> {
+                            cancellableThreads.checkForCancel();
+                            completeFinalizationListener(listener, stopWatch);
+                        }, listener::onFailure)));
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
                  * target are failed (see {@link IndexShard#updateRoutingEntry}).
                  */
+            } else {
+                completeFinalizationListener(listener, stopWatch);
             }
-            stopWatch.stop();
-            logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
-            listener.onResponse(null);
         }, listener::onFailure);
+    }
+
+    private void completeFinalizationListener(ActionListener<Void> listener, StopWatch stopWatch) {
+        stopWatch.stop();
+        logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
+        listener.onResponse(null);
     }
 
     static final class SendSnapshotResult {

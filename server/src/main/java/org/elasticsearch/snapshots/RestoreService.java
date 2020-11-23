@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -90,6 +91,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
@@ -156,6 +158,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final MetadataIndexUpgradeService metadataIndexUpgradeService;
 
+    private final MetadataDeleteIndexService metadataDeleteIndexService;
+
     private final ShardLimitValidator shardLimitValidator;
 
     private final ClusterSettings clusterSettings;
@@ -164,13 +168,14 @@ public class RestoreService implements ClusterStateApplier {
 
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetadataCreateIndexService createIndexService,
-                          MetadataIndexUpgradeService metadataIndexUpgradeService, ClusterSettings clusterSettings,
-                          ShardLimitValidator shardLimitValidator) {
+                          MetadataDeleteIndexService metadataDeleteIndexService, MetadataIndexUpgradeService metadataIndexUpgradeService,
+                          ClusterSettings clusterSettings, ShardLimitValidator shardLimitValidator) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.metadataIndexUpgradeService = metadataIndexUpgradeService;
+        this.metadataDeleteIndexService = metadataDeleteIndexService;
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
@@ -264,16 +269,43 @@ public class RestoreService implements ClusterStateApplier {
                     metadataBuilder = Metadata.builder();
                 }
 
-                final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(indicesInSnapshot);
+                // set up feature state indices
+                Set<String> requestedFeatureStateIndexes = new HashSet<>();
+                Set<String> nonRequestedFeatureStateIndexes = new HashSet<>();
+
+                Set<String> requestedFeatureStates = Set.of(request.featureStates());
+                if (request.includeGlobalState() == false) {
+                    for (SnapshotFeatureInfo snapshotFeatureInfo : snapshotInfo.featureStates()) {
+                        if (requestedFeatureStates.contains(snapshotFeatureInfo.getPluginName())) {
+                            requestedFeatureStateIndexes.addAll(snapshotFeatureInfo.getIndices());
+                        } else {
+                            nonRequestedFeatureStateIndexes.addAll(snapshotFeatureInfo.getIndices());
+                        }
+                    }
+                }
+
+                List<String> requestedIndicesIncludingSystem = Stream.concat(
+                    indicesInSnapshot.stream(), requestedFeatureStateIndexes.stream())
+                    .distinct()
+                    .filter(index -> nonRequestedFeatureStateIndexes.contains(index) == false)
+                    .collect(Collectors.toList());
+
+                Set<Index> systemIndicesToDelete = new HashSet<>();
+                final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(requestedIndicesIncludingSystem);
                 for (IndexId indexId : indexIdsInSnapshot) {
-                    metadataBuilder.put(repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId), false);
+                    IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
+                    if (snapshotIndexMetaData.isSystem()) {
+                        systemIndicesToDelete.add(snapshotIndexMetaData.getIndex());
+                    }
+                    metadataBuilder.put(snapshotIndexMetaData, false);
                 }
 
                 final Metadata metadata = metadataBuilder.build();
 
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name
-                final Map<String, String> indices = renamedIndices(request, indicesInSnapshot, dataStreamIndices);
+                // TODO: don't apply to system indices
+                final Map<String, String> indices = renamedIndices(request, requestedIndicesIncludingSystem, dataStreamIndices);
 
                 // Now we can start the actual restore process by adding shards to be recovered in the cluster state
                 // and updating cluster metadata (global and index) as needed
@@ -292,6 +324,8 @@ public class RestoreService implements ClusterStateApplier {
                                 "cannot restore a snapshot while a snapshot deletion is in-progress [" +
                                     deletionsInProgress.getEntries().get(0) + "]");
                         }
+
+                        currentState = metadataDeleteIndexService.deleteIndices(currentState, systemIndicesToDelete);
 
                         // Updating cluster state
                         ClusterState.Builder builder = ClusterState.builder(currentState);

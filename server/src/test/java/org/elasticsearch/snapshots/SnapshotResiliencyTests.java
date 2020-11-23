@@ -1596,6 +1596,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
                     metadataCreateIndexService,
+                    new MetadataDeleteIndexService(settings, clusterService, allocationService),
                     new MetadataIndexUpgradeService(
                         settings, namedXContentRegistry,
                         mapperRegistry,

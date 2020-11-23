@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -868,7 +869,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Adds a field to load and return as part of the search request.
      */
     public SearchSourceBuilder fetchField(String name) {
-        return fetchField(name, null);
+        return fetchField(name, null, null);
     }
 
     /**
@@ -876,11 +877,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @param name the field name.
      * @param format an optional format string used when formatting values, for example a date format.
      */
-    public SearchSourceBuilder fetchField(String name, @Nullable String format) {
+    public SearchSourceBuilder fetchField(String name, @Nullable String format, @Nullable Boolean includeUnmapped) {
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(name, format));
+        fetchFields.add(new FieldAndFormat(name, format, Optional.ofNullable(includeUnmapped)));
         return this;
     }
 

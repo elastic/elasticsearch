@@ -27,7 +27,6 @@ import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -75,13 +74,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         final SourceSet testSourceSet = sourceSets.create("test");
 
-        project.getTasks().withType(Test.class).configureEach(new Action<Test>() {
-            @Override
-            public void execute(Test test) {
-                test.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
-
-            }
-        });
+        project.getTasks().withType(Test.class).configureEach(test -> test.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs()));
 
         // create a compileOnly configuration as others might expect it
         project.getConfigurations().create("compileOnly");

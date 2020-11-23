@@ -202,7 +202,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             () -> { throw new IllegalArgumentException("fake error"); }));
         expectThrows(IndexShardClosedException.class,
             () -> permits.asyncBlockOperations(wrap(() -> { throw new IllegalArgumentException("fake error");}),
-                randomInt(10), TimeUnit.MINUTES));
+                randomInt(10), TimeUnit.MINUTES, ThreadPool.Names.GENERIC));
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
@@ -226,7 +226,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 blocked.set(true);
                 blockAcquired.countDown();
                 releaseBlock.await();
-            }), 30, TimeUnit.MINUTES);
+            }), 30, TimeUnit.MINUTES, ThreadPool.Names.GENERIC);
             assertFalse(blocked.get());
             assertFalse(future.isDone());
         }
@@ -334,7 +334,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 blocked.set(true);
                 blockAcquired.countDown();
                 releaseBlock.await();
-            }), 30, TimeUnit.MINUTES);
+            }), 30, TimeUnit.MINUTES, ThreadPool.Names.GENERIC);
         blockAcquired.await();
         assertTrue(blocked.get());
 
@@ -385,7 +385,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         permits.asyncBlockOperations(wrap(() -> {
             onBlocked.set(true);
             blockedLatch.countDown();
-        }), 30, TimeUnit.MINUTES);
+        }), 30, TimeUnit.MINUTES, ThreadPool.Names.GENERIC);
         assertFalse(onBlocked.get());
 
         // if we submit another operation, it should be delayed
@@ -473,7 +473,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             permits.asyncBlockOperations(wrap(() -> {
                 values.add(operations);
                 operationLatch.countDown();
-            }), 30, TimeUnit.MINUTES);
+            }), 30, TimeUnit.MINUTES, ThreadPool.Names.GENERIC);
         });
         blockingThread.start();
 
@@ -552,7 +552,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 reference.set(e);
                 onFailureLatch.countDown();
             }
-        }, 10, TimeUnit.MINUTES);
+        }, 10, TimeUnit.MINUTES, ThreadPool.Names.GENERIC);
         onFailureLatch.await();
         assertThat(reference.get(), instanceOf(RuntimeException.class));
         assertThat(reference.get(), hasToString(containsString("simulated")));
@@ -591,7 +591,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                     reference.set(e);
                     onFailureLatch.countDown();
                 }
-            }, 1, TimeUnit.MILLISECONDS);
+            }, 1, TimeUnit.MILLISECONDS, ThreadPool.Names.GENERIC);
             onFailureLatch.await();
             assertThat(reference.get(), hasToString(containsString("timeout while blocking operations")));
         }

@@ -14,7 +14,7 @@ of items which *must* be considered before using your cluster in production:
 * <<gc-logging,GC logging settings>>
 * <<es-tmpdir,Temporary directory settings>>
 * <<error-file-path,JVM fatal error log setting>>
-* <<important-settings-snapshot,Snapshot configuration>>
+* <<important-settings-backups,Cluster backups>>
 
 Our {ess-trial}[{ecloud}] service configures these items automatically, making
 your cluster production-ready by default.

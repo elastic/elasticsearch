@@ -299,11 +299,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     private void setLicensingExpirationDate(License.OperationMode operationMode, long expirationDate) throws Exception {
-        // do this in an await busy since there is a chance that the setting expiration date of the license is
-        // overwritten by some other cluster activity and the node throws an exception while we
-        // wait for things to stabilize!
         assertBusy(() -> {
-            // first update the license so we can execute monitoring actions
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
                 licenseState.update(operationMode, true, expirationDate, null);
             }
@@ -311,12 +307,6 @@ public class LicensingTests extends SecurityIntegTestCase {
             ensureGreen();
             ensureClusterSizeConsistency();
             ensureClusterStateConsistency();
-
-            // re-apply the update in case any node received an updated cluster state that triggered the license state
-            // to change
-            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, expirationDate, null);
-            }
         }, 30L, TimeUnit.SECONDS);
     }
 

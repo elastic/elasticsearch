@@ -37,6 +37,11 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * A plugin to manage and provide access to the system indices used by Fleet.
+ *
+ * Currently only exposes general-purpose APIs on {@code _fleet}-prefixed routes, to be more specialized as Fleet's requirements stabilize.
+ */
 public class Fleet extends Plugin implements SystemIndexPlugin {
 
     @Override
@@ -81,6 +86,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     }
 
+    /**
+     * Wraps a generic {@link BaseRestHandler} with a {@code _fleet} prefix.
+     */
     static class FleetWrappedRestHandler extends BaseRestHandler.Wrapper {
 
         FleetWrappedRestHandler(BaseRestHandler delegate) {

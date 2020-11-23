@@ -21,6 +21,12 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
+/**
+ * Ensures that the Fleet System Index APIs properly handle all operations required by Fleet.
+ *
+ * Each test case verifies one API, and is run with each index that's used by Fleet. The tests currently only check basic functionality,
+ * so individual Javadoc has been omitted.
+ */
 public class FleetSystemIndexIT extends ESRestTestCase {
 
     private final String indexName;

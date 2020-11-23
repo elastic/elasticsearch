@@ -5,13 +5,12 @@
 <titleabbrev>List watches</titleabbrev>
 ++++
 
-Retrieves all watches in a paginated manner and
-optionally filtering watches by a query.
+Retrieves registered all watches.
 
 [[watcher-api-list-watches-request]]
 ==== {api-request-title}
 
-`GET _watcher/watch/<watch_id>`
+`GET /_watcher/_list_watches`
 
 [[watcher-api-list-watches-prereqs]]
 ==== {api-prereq-title}
@@ -22,11 +21,8 @@ this API. For more information, see <<security-privileges>>.
 //[[watcher-api-list-watches-desc]]
 //==== {api-description-title}
 
-[[watcher-api-list-watches-path-params]]
-==== {api-path-parms-title}
-
-//[[watcher-api-list-watches-query-params]]
-//==== {api-query-parms-title}
+Retrieves all watches in a paginated manner and
+optionally filtering watches by a query.
 
 //[[watcher-api-list-watches-request-body]]
 //==== {api-request-body-title}
@@ -47,14 +43,20 @@ This API supports the following fields:
 
 | `search_after`    | no       | null     | Optional <<search-request-search-after,search After>> to do pagination
                                             using last hit's sort values.
+|======
 
 Note that only the `_id` and `metadata.*` fields are queryable or sortable.
 
 //[[watcher-api-list-watches-response-body]]
 //==== {api-response-body-title}
 
-//[[watcher-api-list-watches-response-codes]]
-//==== {api-response-codes-title}
+This api returns the following top level fields:
+
+`count`::
+    The total number of watches found.
+
+`watches`::
+    A list of watches based on the `from`, `size` or `search_after` request body parameters.
 
 [[watcher-api-list-watches-example]]
 ==== {api-examples-title}

@@ -115,8 +115,6 @@ public class XContentTypeTests extends ESTestCase {
 
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json ;compatible-with=7"),
             equalTo(XContentType.JSON));
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json ;compatible-with=7"),
-            equalTo(XContentType.JSON));
 
     }
 }

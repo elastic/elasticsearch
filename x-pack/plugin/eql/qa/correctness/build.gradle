@@ -28,6 +28,9 @@ testClusters {
     if (serviceAccountFile) {
       keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
     }
+    if (Boolean.parseBoolean(System.getProperty('eql.test.preserve.data', 'false'))) {
+      preserveDataDir = true
+    }
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'basic'
     jvmArgs '-Xms4g', '-Xmx4g'
@@ -46,6 +49,6 @@ tasks.named('javaRestTest').configure {
 }
 
 tasks.register("runEqlCorrectnessNode", RunTask) {
-  useCluster testClusters.runTask;
+  useCluster testClusters.runTask
   description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
 }

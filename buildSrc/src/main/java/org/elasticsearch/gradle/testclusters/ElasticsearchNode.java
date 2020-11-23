@@ -127,7 +127,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
-
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -167,6 +166,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String transportPort = "0";
     private Path confPathData;
     private String keystorePassword = "";
+    private boolean preserveDataDir = false;
 
     ElasticsearchNode(
         String path,
@@ -422,6 +422,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    @Input
+    public boolean isPreserveDataDir() {
+        return preserveDataDir;
+    }
+
+    @Override
+    public void setPreserveDataDir(boolean preserveDataDir) {
+        this.preserveDataDir = preserveDataDir;
+    }
+
+    @Override
     public void freeze() {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
@@ -453,7 +464,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 logToProcessStdout("Configuring working directory: " + workingDir);
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
-                    fileSystemOperations.delete(d -> d.delete(workingDir));
+                    if (preserveDataDir) {
+                        Files.list(workingDir)
+                            .filter(path -> path.equals(confPathData) == false)
+                            .forEach(path -> fileSystemOperations.delete(d -> d.delete(path)));
+                    } else {
+                        fileSystemOperations.delete(d -> d.delete(workingDir));
+                    }
                 }
                 isWorkingDirConfigured = true;
             }
@@ -727,13 +744,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (systemProperties.isEmpty() == false) {
             systemPropertiesString = " "
                 + systemProperties.entrySet()
-                    .stream()
-                    .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
-                    // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
-                    // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
-                    // we replace the reference with the actual value in other environment variables
-                    .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
-                    .collect(Collectors.joining(" "));
+                .stream()
+                .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+                // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
+                // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
+                // we replace the reference with the actual value in other environment variables
+                .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
+                .collect(Collectors.joining(" "));
         }
         String jvmArgsString = "";
         if (jvmArgs.isEmpty() == false) {
@@ -749,7 +766,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultEnv.put(
             "ES_JAVA_OPTS",
             "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa " + systemPropertiesString + " " + jvmArgsString + " " +
-            // Support passing in additional JVM arguments
+                // Support passing in additional JVM arguments
                 System.getProperty("tests.jvm.argline", "")
         );
         defaultEnv.put("ES_TMPDIR", tmpDir.toString());
@@ -935,7 +952,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             prefix + " commandLine:`{}` command:`{}` args:`{}`",
             info.commandLine().orElse("-"),
             info.command().orElse("-"),
-            Arrays.stream(info.arguments().orElse(new String[] {})).map(each -> "'" + each + "'").collect(Collectors.joining(" "))
+            Arrays.stream(info.arguments().orElse(new String[]{})).map(each -> "'" + each + "'").collect(Collectors.joining(" "))
         );
     }
 
@@ -1352,8 +1369,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     void waitForAllConditions() {
         waitForConditions(waitConditions, System.currentTimeMillis(), NODE_UP_TIMEOUT_UNIT.toMillis(NODE_UP_TIMEOUT) +
-        // Installing plugins at config time and loading them when nods start requires additional time we need to
-        // account for
+            // Installing plugins at config time and loading them when nods start requires additional time we need to
+            // account for
             ADDITIONAL_CONFIG_TIMEOUT_UNIT.toMillis(
                 ADDITIONAL_CONFIG_TIMEOUT * (plugins.size() + keystoreFiles.size() + keystoreSettings.size() + credentials.size())
             ), TimeUnit.MILLISECONDS, this);

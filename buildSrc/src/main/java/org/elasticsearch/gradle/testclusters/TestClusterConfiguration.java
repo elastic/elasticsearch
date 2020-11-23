@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.PropertyNormalization;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Input;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -86,6 +87,10 @@ public interface TestClusterConfiguration {
     void environment(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
 
     void jvmArgs(String... values);
+
+    boolean isPreserveDataDir();
+
+    void setPreserveDataDir(boolean preserveDataDir);
 
     void freeze();
 

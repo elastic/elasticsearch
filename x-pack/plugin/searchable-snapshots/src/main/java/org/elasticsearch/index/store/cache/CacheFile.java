@@ -149,13 +149,19 @@ public class CacheFile {
                 synchronized (listeners) {
                     ensureOpen();
                     final boolean added = listeners.add(listener);
-                    assert added : "listener already exists " + listener;
-                    if (listeners.size() == 1) {
-                        assert channelRef == null;
-                        channelRef = new FileChannelReference();
+                    try {
+                        assert added : "listener already exists " + listener;
+                        if (listeners.size() == 1) {
+                            assert channelRef == null;
+                            channelRef = new FileChannelReference();
+                        }
+                        success = true;
+                    } finally {
+                        if (success == false && added) {
+                            listeners.remove(listener);
+                        }
                     }
                 }
-                success = true;
             } finally {
                 if (success == false) {
                     decrementRefCount();

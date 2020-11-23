@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 
-public class AddVotingConfigExclusionsAction extends ActionType<AddVotingConfigExclusionsResponse> {
+public class AddVotingConfigExclusionsAction extends ActionType<ActionResponse.Empty> {
     public static final AddVotingConfigExclusionsAction INSTANCE = new AddVotingConfigExclusionsAction();
     public static final String NAME = "cluster:admin/voting_config/add_exclusions";
 
     private AddVotingConfigExclusionsAction() {
-        super(NAME, AddVotingConfigExclusionsResponse::new);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 }

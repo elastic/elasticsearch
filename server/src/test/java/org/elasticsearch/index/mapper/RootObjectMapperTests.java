@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -575,24 +574,19 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
-    private static final class RuntimeField extends RuntimeFieldType {
+    private static final class RuntimeField extends TestRuntimeField {
         private final String prop1;
         private final String prop2;
 
         protected RuntimeField(String name, String prop1, String prop2) {
-            super(name, Collections.emptyMap());
+            super(name);
             this.prop1 = prop1;
             this.prop2 = prop2;
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return null;
-        }
-
-        @Override
-        public String typeName() {
-            return "test";
         }
 
         @Override
@@ -609,6 +603,5 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 builder.field("prop2", prop2);
             }
         }
-
     }
 }

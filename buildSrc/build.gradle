@@ -104,6 +104,8 @@ dependencies {
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.13.4'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
+  api "org.apache.httpcomponents:httpclient:${props.getProperty('httpclient')}"
+  api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
@@ -155,6 +157,7 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   tasks.named("dependencyLicenses").configure { enabled = false }
   tasks.named("dependenciesInfo").configure {enabled = false }
+  tasks.named("dependenciesGraph").configure {enabled = false }
   disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   tasks.named("jarHell").configure {
     enabled = false

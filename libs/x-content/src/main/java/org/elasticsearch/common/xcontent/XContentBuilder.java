@@ -48,6 +48,8 @@ import java.util.function.Function;
  */
 public final class XContentBuilder implements Closeable, Flushable {
 
+    private byte compatibleMajorVersion;
+
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
      * <p>
@@ -1002,6 +1004,25 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
         generator.copyCurrentStructure(parser);
         return this;
+    }
+
+    /**
+     * Sets a version used for serialising a response compatible with a previous version.
+     */
+    public XContentBuilder withCompatibleMajorVersion(byte compatibleMajorVersion) {
+        assert this.compatibleMajorVersion == 0 : "Compatible version has already been set";
+        if (compatibleMajorVersion == 0) {
+            throw new IllegalArgumentException("Compatible major version must not be equal to 0");
+        }
+        this.compatibleMajorVersion = compatibleMajorVersion;
+        return this;
+    }
+
+    /**
+     * Returns a version used for serialising a response compatible with a previous version.
+     */
+    public byte getCompatibleMajorVersion() {
+        return compatibleMajorVersion;
     }
 
     @Override

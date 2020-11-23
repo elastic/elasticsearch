@@ -521,7 +521,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
         }
 
-        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
+        waitUntilAnalyticsIsStopped(jobId);
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {

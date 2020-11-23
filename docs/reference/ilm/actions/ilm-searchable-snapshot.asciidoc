@@ -4,12 +4,20 @@
 
 beta::[]
 
-Phases allowed: cold.
+Phases allowed: hot, cold.
 
 Takes a snapshot of the managed index in the configured repository
 and mounts it as a searchable snapshot.
 If the managed index is part of a <<data-streams, data stream>>,
 the mounted index replaces the original index in the data stream.
+
+To use the `searchable_snapshot` action in the `hot` phase, the `rollover`
+action *must* be present. If no rollover action is configured, {ilm-init}
+will reject the policy.
+
+IMPORTANT: If the `searchable_snapshot` action is used in the `hot` phase the
+subsequent phases cannot define any of the `shrink`, `forcemerge`, `freeze` or
+`searchable_snapshot` (also available in the cold phase) actions.
 
 [NOTE]
 This action cannot be performed on a data stream's write index. Attempts to do

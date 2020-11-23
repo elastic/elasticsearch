@@ -94,7 +94,7 @@ Map<String, Object> expansions = [
   'base_path': gcsBasePath + "_integration_tests"
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
@@ -105,7 +105,7 @@ if (useFixture) {
 }
 
 integTest {
-  dependsOn repositoryPlugin.bundlePlugin
+  dependsOn ":plugins:repository-gcs:bundlePlugin"
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repositories_metering" + BuildParams.testSeed
 }
@@ -125,6 +125,6 @@ testClusters.integTest {
   }
 }
 
-task gcsThirdPartyTest {
+tasks.register("gcsThirdPartyTest").configure {
   dependsOn integTest
 }

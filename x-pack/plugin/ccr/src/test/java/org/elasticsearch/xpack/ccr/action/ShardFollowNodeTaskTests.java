@@ -1007,7 +1007,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
     }
 
-    public void testNonRetryableError() {
+    public void testNonRetryableError() throws Exception {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
         params.maxReadRequestOperationCount = 64;
         params.maxOutstandingReadRequests = 1;
@@ -1031,6 +1031,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.outstandingWriteRequests(), equalTo(1));
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
+        assertBusy(() -> assertNull(task.getRenewable()));
     }
 
     public void testMaxWriteRequestSize() {

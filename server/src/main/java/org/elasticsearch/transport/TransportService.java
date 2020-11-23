@@ -354,7 +354,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+            handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
@@ -396,7 +396,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      */
     public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout,
+        final TimeValue handshakeTimeout,
         final ActionListener<DiscoveryNode> listener) {
         handshake(connection, handshakeTimeout, clusterName.getEqualityPredicate(),
             ActionListener.map(listener, HandshakeResponse::getDiscoveryNode));
@@ -417,11 +417,11 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      */
     public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
+        final TimeValue handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
         final ActionListener<HandshakeResponse> listener) {
         final DiscoveryNode node = connection.getNode();
         sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
-            TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
+            TransportRequestOptions.timeout(handshakeTimeout),
             new ActionListenerResponseHandler<>(
                 new ActionListener<>() {
                     @Override
@@ -523,15 +523,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(node);
-        } catch (final NodeNotConnectedException ex) {
-            // the caller might not handle this so we invoke the handler
-            handler.handleException(ex);
-            return;
-        }
-        sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
+        sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
     public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,

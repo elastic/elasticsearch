@@ -294,21 +294,21 @@ public class FieldAttributeTests extends ESTestCase {
         String queryWithArithmetic = "SELECT unsigned_long + 1 AS unsigned_long FROM test";
         String queryWithCast = "SELECT long + 1::unsigned_long AS unsigned_long FROM test";
 
-        SqlVersion introducingUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id);
-        SqlVersion preIntroducingVersion = SqlVersion.fromId(introducingUnsignedLong.id - SqlVersion.MINOR_MULTIPLIER);
-        SqlVersion postIntroducingVersion = SqlVersion.fromId(introducingUnsignedLong.id + SqlVersion.MINOR_MULTIPLIER);
+        SqlVersion introducingUnsignedLong = INTRODUCING_UNSIGNED_LONG;
+        SqlVersion preUnsignedLong = SqlVersion.fromId(introducingUnsignedLong.id - SqlVersion.MINOR_MULTIPLIER);
+        SqlVersion postUnsignedLong = SqlVersion.fromId(introducingUnsignedLong.id + SqlVersion.MINOR_MULTIPLIER);
 
 
         for (String sql : List.of(query, queryWithLiteral, queryWithAlias, queryWithArithmetic, queryWithCast)) {
-            SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preIntroducingVersion);
+            SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preUnsignedLong);
             analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig));
             VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
             assertEquals(
                 "Found 1 problem\nline 1:8: Cannot use field [unsigned_long] with type [UNSIGNED_LONG] unsupported in version [" +
-                    preIntroducingVersion + "]",
+                    preUnsignedLong + "]",
                 ex.getMessage());
 
-            for (SqlVersion v : List.of(introducingUnsignedLong, postIntroducingVersion)) {
+            for (SqlVersion v : List.of(introducingUnsignedLong, postUnsignedLong)) {
                 analyzer = new Analyzer(SqlTestUtils.randomConfiguration(v), functionRegistry, getIndexResult,
                     verifier);
                 LogicalPlan plan = plan(sql);

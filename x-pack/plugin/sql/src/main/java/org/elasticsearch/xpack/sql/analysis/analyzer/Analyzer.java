@@ -497,37 +497,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    /*
-    private class VersionCompatibility extends BaseAnalyzeRule {
-        @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
-            if (configuration.version() == null) {
-                return plan;
-            }
-            if (plan instanceof Project) {
-                Project project = (Project) plan;
-                return new Project(project.source(), project.child(),
-                    project.projections().stream().map(this::typeSupported).collect(toList()));
-            }
-            return plan;
-        }
-
-        private NamedExpression typeSupported(NamedExpression ne) {
-            if (ne.resolved() && isTypeVersionGated(ne.dataType(), configuration.version())) {
-                return new UnresolvedAttribute(ne.source(), null, ne.toAttribute().qualifier(),
-                    "Cannot use field [" + ne.name() + "] with type [" + ne.dataType() + "] unsupported in version [" +
-                        configuration.version() + "]");
-            }
-            return ne;
-        }
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-    }
-     */
-
     // Allow ordinal positioning in order/sort by (quite useful when dealing with aggs)
     // Note that ordering starts at 1
     private static class ResolveOrdinalInOrderByAndGroupBy extends BaseAnalyzeRule {
@@ -1328,22 +1297,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected boolean skipResolved() {
             return false;
-        }
-    }
-
-    private class VersionCompatibility2 extends Rule<Project, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan logicalPlan) {
-            List<LogicalPlan> projects = logicalPlan.collectFirstChildren(x -> x instanceof Project);
-            assert projects.size() > 0;
-            projects.get(0);
-            return logicalPlan.transformDown(this::rule, typeToken());
-        }
-
-        @Override
-        protected LogicalPlan rule(Project project) {
-            return null;
         }
     }
 

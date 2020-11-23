@@ -92,7 +92,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT = Setting.timeSetting(
         SETTINGS_PREFIX + "sync.shutdown_timeout",
-        TimeValue.timeValueSeconds(60L),                        // default
+        TimeValue.timeValueSeconds(10L),                        // default
         TimeValue.ZERO,                                         // min
         Setting.Property.NodeScope
     );
@@ -158,15 +158,17 @@ public class CacheService extends AbstractLifecycleComponent {
     protected void doStop() {
         boolean acquired = false;
         try {
-            acquired = cacheSyncLock.tryLock(cacheSyncStopTimeout.duration(), cacheSyncStopTimeout.timeUnit());
-            if (acquired == false) {
-                logger.warn("failed to acquire cache sync lock in [{}], cache might be partially persisted", cacheSyncStopTimeout);
+            try {
+                acquired = cacheSyncLock.tryLock(cacheSyncStopTimeout.duration(), cacheSyncStopTimeout.timeUnit());
+                if (acquired == false) {
+                    logger.warn("failed to acquire cache sync lock in [{}], cache might be partially persisted", cacheSyncStopTimeout);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("interrupted while waiting for cache sync lock", e);
             }
             cacheSyncTask.close();
             cache.invalidateAll();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.warn("interrupted while waiting for cache sync lock", e);
         } finally {
             if (acquired) {
                 cacheSyncLock.unlock();
@@ -280,17 +282,17 @@ public class CacheService extends AbstractLifecycleComponent {
     protected void synchronizeCache() {
         cacheSyncLock.lock();
         try {
-            if (lifecycleState() != Lifecycle.State.STARTED) {
-                logger.debug("stopping cache synchronization (cache service is closing)");
-                return;
-            }
-
             long count = 0L;
             final Set<Path> cacheDirs = new HashSet<>();
             final long startTimeNanos = threadPool.relativeTimeInNanos();
             final long maxCacheFilesToSync = Math.min(numberOfCacheFilesToSync.get(), this.maxCacheFilesToSyncAtOnce);
 
             for (long i = 0L; i < maxCacheFilesToSync; i++) {
+                if (lifecycleState() != Lifecycle.State.STARTED) {
+                    logger.debug("stopping cache synchronization (cache service is closing)");
+                    return;
+                }
+
                 final CacheFile cacheFile = cacheFilesToSync.poll();
                 assert cacheFile != null;
 

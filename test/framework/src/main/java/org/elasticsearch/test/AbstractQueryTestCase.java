@@ -449,12 +449,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertNotNull("toQuery should not return null", secondLuceneQuery);
             assertLuceneQuery(secondQuery, secondLuceneQuery, context);
 
-            assertThat(firstLuceneQuery, equalTo(secondLuceneQuery));
-            assertThat(firstLuceneQuery.hashCode(), equalTo(secondLuceneQuery.hashCode()));
-
             if (builderGeneratesCacheableQueries()) {
+                assertEquals("two equivalent query builders lead to different lucene queries hashcode",
+                    secondLuceneQuery.hashCode(), firstLuceneQuery.hashCode());
                 assertEquals("two equivalent query builders lead to different lucene queries",
-                        rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
+                    rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
             }
 
             if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {

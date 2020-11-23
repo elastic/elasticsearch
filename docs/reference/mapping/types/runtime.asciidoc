@@ -14,6 +14,11 @@ space by choosing which fields to index. If you later decide that a runtime
 field is increasingly used for filtering or aggregation, you can add the field
 to `_source` to gain faster search speed.
 
+Alternatively, you can specify a `runtime_mappings` section in a search request
+to use runtime fields that exist only as part of the query. This
+flexibility allows you to override fields in `_source` for the duration of the
+query without modifying the field itself.
+
 Runtime fields help to alleviate several common issues when using {es}:
 
 * Reindexing your data between development iterations is slow and can make
@@ -165,7 +170,7 @@ field type for `message`.
 PUT /my-index/
 {
   "mappings": {
-    "runtime": {
+    "properties": {
       "@timestamp": {
         "format": "strict_date_optional_time||epoch_second",
         "type": "date"
@@ -225,8 +230,9 @@ The mapping contains two fields: `@timestamp` and `message`.
 ----
 {
   "my-index" : {
+    "aliases" : { },
     "mappings" : {
-      "runtime" : {
+      "properties" : {
         "@timestamp" : {
           "type" : "date",
           "format" : "strict_date_optional_time||epoch_second"
@@ -356,7 +362,7 @@ allows you to modify the mapping without changing any field values.
 ----
 PUT /my-index/
 {
-  "runtime": {
+  "mappings": {
     "properties": {
       "@timestamp": {
         "format": "strict_date_optional_time||epoch_second",

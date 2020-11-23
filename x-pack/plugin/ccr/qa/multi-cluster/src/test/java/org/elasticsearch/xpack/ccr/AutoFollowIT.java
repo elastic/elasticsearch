@@ -493,7 +493,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
     }
 
-    private static void verifyAlias(RestClient client, String aliasName, boolean checkWriteIndex, String... otherIndices) throws IOException {
+    private static void verifyAlias(RestClient client,
+                                    String aliasName,
+                                    boolean checkWriteIndex,
+                                    String... otherIndices) throws IOException {
         Request getAliasRequest = new Request("GET", "/_alias/" + aliasName);
         Map<?, ?> responseBody = toMap(client.performRequest(getAliasRequest));
         if (checkWriteIndex) {

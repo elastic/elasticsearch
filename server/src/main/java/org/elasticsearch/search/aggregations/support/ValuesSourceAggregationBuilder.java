@@ -347,6 +347,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     protected final ValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                                           Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig config = resolveConfig(context);
+
+        ValuesSourceAggregatorFactory factory;
         if (context.getValuesSourceRegistry().isRegistered(getRegistryKey())) {
             /*
             if the aggregation uses the values source registry, test if the resolved values source type is compatible with this aggregation.
@@ -354,9 +356,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             AbstractAggregationBuilder#build, which called this, will attempt to register the agg usage next, and if the usage is invalid
             that will fail with a weird error.
              */
-            context.getValuesSourceRegistry().getAggregator(getRegistryKey(), config);
+            Object aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(getRegistryKey(), config);
+            factory = innerBuild(context, config, parent, subFactoriesBuilder, aggregatorSupplier);
+        } else {
+            factory = innerBuild(context, config, parent, subFactoriesBuilder, null);
         }
-        ValuesSourceAggregatorFactory factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -387,7 +391,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     protected abstract ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                                 ValuesSourceConfig config,
                                                                 AggregatorFactory parent,
-                                                                Builder subFactoriesBuilder) throws IOException;
+                                                                Builder subFactoriesBuilder,
+                                                                Object aggregatorSupplier) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

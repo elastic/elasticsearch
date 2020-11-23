@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 
-import javax.crypto.AEADBadTagException;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;

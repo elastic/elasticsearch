@@ -44,9 +44,9 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
         QueryShardContext qsc,
         MappedFieldType fieldType,
         HitContext hitContext,
-        boolean storedFieldsAvailable
+        boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = super.loadFieldValues(highlighter, qsc, fieldType, hitContext, storedFieldsAvailable);
+        List<Object> fieldValues = super.loadFieldValues(highlighter, qsc, fieldType, hitContext, forceSource);
 
         List<Object> strings = new ArrayList<>(fieldValues.size());
         AnnotatedText[] annotations = new AnnotatedText[fieldValues.size()];

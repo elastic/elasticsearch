@@ -166,9 +166,9 @@ public class UnifiedHighlighter implements Highlighter {
         QueryShardContext qsc,
         MappedFieldType fieldType,
         FetchSubPhase.HitContext hitContext,
-        boolean storedFieldsAvailable
+        boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, qsc, hitContext, storedFieldsAvailable);
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, qsc, hitContext, forceSource);
         fieldValues = fieldValues.stream()
             .map((s) -> convertFieldValue(fieldType, s))
             .collect(Collectors.toList());

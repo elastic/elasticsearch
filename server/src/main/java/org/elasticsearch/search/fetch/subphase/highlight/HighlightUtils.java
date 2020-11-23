@@ -50,8 +50,8 @@ public final class HighlightUtils {
     public static List<Object> loadFieldValues(MappedFieldType fieldType,
                                                QueryShardContext qsc,
                                                FetchSubPhase.HitContext hitContext,
-                                               boolean storedFieldsAvailable) throws IOException {
-        if (storedFieldsAvailable && fieldType.isStored()) {
+                                               boolean forceSource) throws IOException {
+        if (forceSource && fieldType.isStored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());

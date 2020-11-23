@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 import java.io.IOException;
 import java.util.List;
 
-public class RestPromoteStreamsStatsAction extends BaseRestHandler {
+public class RestPromoteDataStreamAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "promote_data_stream_action";

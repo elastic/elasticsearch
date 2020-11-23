@@ -404,20 +404,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return this.lookup;
     }
 
-    /**
-     * Build a lookup customized for the fetch phase. Use {@link #lookup()}
-     * in other phases.
-     */
-    public SearchLookup newFetchLookup() {
-        /*
-         * Real customization coming soon, I promise!
-         */
-        return new SearchLookup(
-            this::getFieldType,
-            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
-        );
-    }
-
     public NestedScope nestedScope() {
         return nestedScope;
     }

@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -923,7 +922,7 @@ final class DocumentParser {
         NoOpFieldMapper(String simpleName, RuntimeFieldType runtimeField) {
             super(simpleName, new MappedFieldType(runtimeField.name(), false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
-                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(QueryShardContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 

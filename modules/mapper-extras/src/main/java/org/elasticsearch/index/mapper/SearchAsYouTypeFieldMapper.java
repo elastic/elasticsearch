@@ -549,6 +549,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     private final PrefixFieldMapper prefixField;
     private final ShingleFieldMapper[] shingleFields;
 
+    private final Builder builder;
+
     public SearchAsYouTypeFieldMapper(String simpleName,
                                       SearchAsYouTypeFieldType mappedFieldType,
                                       CopyTo copyTo,
@@ -563,6 +565,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         this.store = builder.store.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.termVectors = builder.termVectors.getValue();
+        this.builder = builder;
     }
 
     @Override
@@ -589,7 +592,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), () -> fieldType().indexAnalyzer()).init(this);
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

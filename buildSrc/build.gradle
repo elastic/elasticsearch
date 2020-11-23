@@ -21,7 +21,7 @@ import org.gradle.internal.jvm.Jvm
 import org.gradle.util.GradleVersion
 
 plugins {
-  id 'groovy-gradle-plugin'
+  id 'java-gradle-plugin'
   id 'groovy'
   id 'java-test-fixtures'
 }

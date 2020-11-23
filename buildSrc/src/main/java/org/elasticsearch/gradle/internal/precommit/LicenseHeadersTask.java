@@ -35,10 +35,13 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.w3c.dom.Element;
@@ -61,8 +64,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Checks files for license headers.
+ * Checks files for license headers..
  */
+@CacheableTask
 public abstract class LicenseHeadersTask extends DefaultTask {
     public LicenseHeadersTask() {
         setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
@@ -74,9 +78,63 @@ public abstract class LicenseHeadersTask extends DefaultTask {
      */
     @InputFiles
     @SkipWhenEmpty
+    @PathSensitive(PathSensitivity.RELATIVE)
     public List<FileCollection> getJavaFiles() {
         return getSourceFolders().get();
     }
+
+    @Internal
+    public abstract ListProperty<FileCollection> getSourceFolders();
+
+    public File getReportFile() {
+        return reportFile;
+    }
+
+    public void setReportFile(File reportFile) {
+        this.reportFile = reportFile;
+    }
+
+    public List<String> getApprovedLicenses() {
+        return approvedLicenses;
+    }
+
+    public void setApprovedLicenses(List<String> approvedLicenses) {
+        this.approvedLicenses = approvedLicenses;
+    }
+
+    public List<String> getExcludes() {
+        return excludes;
+    }
+
+    public Map<String, String> getAdditionalLicenses() {
+        return additionalLicenses;
+    }
+
+    public void setExcludes(List<String> excludes) {
+        this.excludes = excludes;
+    }
+
+    @OutputFile
+    private File reportFile = new File(getProject().getBuildDir(), "reports/licenseHeaders/rat.xml");
+
+    /**
+     * Allowed license families for this project.
+     */
+    @Input
+    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("Apache", "Generated", "Vendored"));
+    /**
+     * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
+     * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
+     * possibility of inadvertently using the license on our own source files).
+     */
+    @Input
+    private List<String> excludes = new ArrayList<String>();
+    /**
+     * Additional license families that may be found. The key is the license category name (5 characters),
+     * followed by the family name and the value list of patterns to search for.
+     */
+    @Input
+    protected Map<String, String> additionalLicenses = new HashMap<String, String>();
 
     /**
      * Add a new license type.
@@ -171,7 +229,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         return stats;
     }
 
-    private List<String> unapprovedFiles(File xmlReportFile) {
+    private static List<String> unapprovedFiles(File xmlReportFile) {
         try {
             NodeList resourcesNodes = DocumentBuilderFactory.newInstance()
                 .newDocumentBuilder()
@@ -186,56 +244,9 @@ public abstract class LicenseHeadersTask extends DefaultTask {
                 .sorted()
                 .collect(Collectors.toList());
         } catch (SAXException | IOException | ParserConfigurationException e) {
-            throw new GradleException("Error parsing xml report " + getReportFile().getAbsolutePath());
+            throw new GradleException("Error parsing xml report " + xmlReportFile.getAbsolutePath());
         }
     }
-
-    @Internal
-    public abstract ListProperty<FileCollection> getSourceFolders();
-
-    public File getReportFile() {
-        return reportFile;
-    }
-
-    public void setReportFile(File reportFile) {
-        this.reportFile = reportFile;
-    }
-
-    public List<String> getApprovedLicenses() {
-        return approvedLicenses;
-    }
-
-    public void setApprovedLicenses(List<String> approvedLicenses) {
-        this.approvedLicenses = approvedLicenses;
-    }
-
-    public List<String> getExcludes() {
-        return excludes;
-    }
-
-    public void setExcludes(List<String> excludes) {
-        this.excludes = excludes;
-    }
-
-    @OutputFile
-    private File reportFile = new File(getProject().getBuildDir(), "reports/licenseHeaders/rat.xml");
-    /**
-     * Allowed license families for this project.
-     */
-    @Input
-    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("Apache", "Generated", "Vendored"));
-    /**
-     * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
-     * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
-     * possibility of inadvertently using the license on our own source files).
-     */
-    @Input
-    private List<String> excludes = new ArrayList<String>();
-    /**
-     * Additional license families that may be found. The key is the license category name (5 characters),
-     * followed by the family name and the value list of patterns to search for.
-     */
-    protected Map<String, String> additionalLicenses = new HashMap<String, String>();
 
     private static List<Element> elementList(NodeList resourcesNodes) {
         List<Element> nodeList = new ArrayList<>(resourcesNodes.getLength());

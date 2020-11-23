@@ -57,6 +57,7 @@ import reactor.netty.resources.ConnectionProvider;
 import java.io.IOException;
 import java.net.URL;
 import java.time.Duration;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.BiConsumer;
@@ -229,7 +230,17 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        ReactorScheduledExecutorService executorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName);
+        ReactorScheduledExecutorService executorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName) {
+            @Override
+            protected Runnable decorateRunnable(Runnable command) {
+                return () -> SocketAccess.doPrivilegedVoidException(command::run);
+            }
+
+            @Override
+            protected <V> Callable<V> decorateCallable(Callable<V> callable) {
+                return () -> SocketAccess.doPrivilegedException(callable::call);
+            }
+        };
 
         // The only way to configure the schedulers used by the SDK is to inject a new global factory. This is a bit ugly...
         // See https://github.com/Azure/azure-sdk-for-java/issues/17272 for a feature request to avoid this need.

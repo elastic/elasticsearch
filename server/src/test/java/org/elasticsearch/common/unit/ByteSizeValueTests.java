@@ -148,7 +148,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     public void testFailOnEmptyNumberParsing() {
         Exception e = expectThrows(ElasticsearchParseException.class,
                 () -> assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b")));
-        assertThat(e.getMessage(), containsString("failed to parse [g]"));
+        assertThat(e.getMessage(), containsString("failed to parse setting [emptyNumberParsing] with value [g]"));
     }
 
     public void testNoDotsAllowed() {
@@ -302,7 +302,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                 exception.getMessage());
 
         exception = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("notANumberMB", "test"));
-        assertEquals("failed to parse [notANumberMB]", exception.getMessage());
+        assertEquals("failed to parse setting [test] with value [notANumberMB]", exception.getMessage());
     }
 
     public void testParseFractionalNumber() throws IOException {

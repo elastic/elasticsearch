@@ -33,7 +33,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -198,11 +197,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
-        if (lookup == null) {
-            return v -> Collections.emptyList();
-        }
-        return new DocValueFetcher(docValueFormat(format, null), lookup.doc().getForField(this));
+    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
     }
 
     @Override

@@ -42,6 +42,7 @@ import java.util.Set;
  * A CBOR based content implementation using Jackson.
  */
 public class CborXContent implements XContent {
+    private XContentType xContentType;
 
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(cborXContent);
@@ -56,15 +57,16 @@ public class CborXContent implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
         cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        cborXContent = new CborXContent();
+        cborXContent = new CborXContent(XContentType.CBOR);
     }
 
-    private CborXContent() {
+    public CborXContent(XContentType xContentType) {
+        this.xContentType = xContentType;
     }
 
     @Override
     public XContentType type() {
-        return XContentType.CBOR;
+        return xContentType;
     }
 
     @Override
@@ -74,7 +76,7 @@ public class CborXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes,xContentType);
     }
 
     @Override
@@ -106,5 +108,7 @@ public class CborXContent implements XContent {
             DeprecationHandler deprecationHandler, Reader reader) throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(reader));
     }
+
+
 
 }

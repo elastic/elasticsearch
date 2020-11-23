@@ -28,14 +28,11 @@ import java.util.Set;
 
 public class CborXContentGenerator extends JsonXContentGenerator {
 
-    public CborXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
-        super(jsonGenerator, os, includes, excludes);
+    public CborXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes, XContentType xContentType) {
+        super(jsonGenerator, os, includes, excludes, xContentType);
     }
 
-    @Override
-    public XContentType contentType() {
-        return XContentType.CBOR;
-    }
+
 
     @Override
     public void usePrintLineFeedAtEnd() {

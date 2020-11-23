@@ -97,32 +97,34 @@ public class XContentFactory {
      * Constructs a xcontent builder that will output the result into the provided output stream.
      */
     public static XContentBuilder contentBuilder(XContentType type, OutputStream outputStream) throws IOException {
-        if (type == XContentType.JSON) {
-            return jsonBuilder(outputStream);
-        } else if (type == XContentType.SMILE) {
-            return smileBuilder(outputStream);
-        } else if (type == XContentType.YAML) {
-            return yamlBuilder(outputStream);
-        } else if (type == XContentType.CBOR) {
-            return cborBuilder(outputStream);
-        }
-        throw new IllegalArgumentException("No matching content type for " + type);
+//        if (type == XContentType.JSON) {
+//            return jsonBuilder(outputStream);
+//        } else if (type == XContentType.SMILE) {
+//            return smileBuilder(outputStream);
+//        } else if (type == XContentType.YAML) {
+//            return yamlBuilder(outputStream);
+//        } else if (type == XContentType.CBOR) {
+//            return cborBuilder(outputStream);
+//        }
+//        throw new IllegalArgumentException("No matching content type for " + type);
+        return type.xContent().createContentBuilder(outputStream);
     }
 
     /**
      * Returns a binary content builder for the provided content type.
      */
     public static XContentBuilder contentBuilder(XContentType type) throws IOException {
-        if (type == XContentType.JSON) {
-            return JsonXContent.contentBuilder();
-        } else if (type == XContentType.SMILE) {
-            return SmileXContent.contentBuilder();
-        } else if (type == XContentType.YAML) {
-            return YamlXContent.contentBuilder();
-        } else if (type == XContentType.CBOR) {
-            return CborXContent.contentBuilder();
-        }
-        throw new IllegalArgumentException("No matching content type for " + type);
+//        if (type == XContentType.JSON) {
+//            return type.xContent().contentBuilder();
+//        } else if (type == XContentType.SMILE) {
+//            return SmileXContent.contentBuilder();
+//        } else if (type == XContentType.YAML) {
+//            return YamlXContent.contentBuilder();
+//        } else if (type == XContentType.CBOR) {
+//            return CborXContent.contentBuilder();
+//        }
+        return type.xContent().createContentBuilder();
+        //throw new IllegalArgumentException("No matching content type for " + type);
     }
 
     /**

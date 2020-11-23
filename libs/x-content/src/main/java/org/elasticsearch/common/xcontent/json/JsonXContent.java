@@ -42,9 +42,12 @@ import java.util.Set;
  */
 public class JsonXContent implements XContent {
 
+    private XContentType xContentType;
+
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
+
     private static final JsonFactory jsonFactory;
 
     public static final JsonXContent jsonXContent;
@@ -57,15 +60,16 @@ public class JsonXContent implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        jsonXContent = new JsonXContent();
+        jsonXContent = new JsonXContent(XContentType.JSON);
     }
 
-    private JsonXContent() {
+    public JsonXContent(XContentType xContentType) {
+        this.xContentType = xContentType;
     }
 
     @Override
     public XContentType type() {
-        return XContentType.JSON;
+        return xContentType;
     }
 
     @Override
@@ -75,7 +79,7 @@ public class JsonXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes,xContentType);
     }
 
     @Override

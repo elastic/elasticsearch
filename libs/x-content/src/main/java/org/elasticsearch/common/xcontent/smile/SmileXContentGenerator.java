@@ -28,14 +28,11 @@ import java.util.Set;
 
 public class SmileXContentGenerator extends JsonXContentGenerator {
 
-    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
-        super(jsonGenerator, os, includes, excludes);
+    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes, XContentType xContentType) {
+        super(jsonGenerator, os, includes, excludes, xContentType);
     }
 
-    @Override
-    public XContentType contentType() {
-        return XContentType.SMILE;
-    }
+
 
     @Override
     public void usePrintLineFeedAtEnd() {

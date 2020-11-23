@@ -366,7 +366,8 @@ public class NodeTests extends ESTestCase {
         plugins.add(TestRestCompatibility1.class);
         plugins.add(TestRestCompatibility2.class);
 
-        expectThrows(IllegalStateException.class, () -> new MockNode(settings.build(), plugins));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new MockNode(settings.build(), plugins));
+        assertThat(e.getMessage(), equalTo("Only one RestCompatibilityPlugin is allowed"));
     }
 
     public void testCorrectUsageOfRestCompatibilityPlugin() throws IOException {

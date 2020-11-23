@@ -456,55 +456,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         ActionListener<Boolean> stateAliasHandler = ActionListener.wrap(
             r -> {
                 jobManager.getJob(jobId, ActionListener.wrap(
-                    job -> {
-                        if (job.getJobVersion() == null) {
-                            closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
-                                + "] because jobs created prior to version 5.5 are not supported"), true);
-                            return;
-                        }
-
-                        processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
-                        jobResultsProvider.getAutodetectParams(job, params -> {
-                            // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
-                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
-                                @Override
-                                public void onFailure(Exception e) {
-                                    closeHandler.accept(e, true);
-                                }
-
-                                @Override
-                                protected void doRun() {
-                                    ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
-                                    if (processContext == null) {
-                                        logger.debug("Aborted opening job [{}] as it has been closed", jobId);
-                                        return;
-                                    }
-
-                                    try {
-                                        if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
-                                            processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
-                                            setJobState(jobTask, JobState.OPENED);
-                                        }
-                                    } catch (Exception e1) {
-                                        // No need to log here as the persistent task framework will log it
-                                        try {
-                                            // Don't leave a partially initialised process hanging around
-                                            processContext.newKillBuilder()
-                                                .setAwaitCompletion(false)
-                                                .setFinish(false)
-                                                .kill();
-                                            processByAllocation.remove(jobTask.getAllocationId());
-                                        } finally {
-                                            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
-                                        }
-                                    }
-                                }
-                            });
-                        }, e1 -> {
-                            logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
-                            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
-                        });
-                    },
+                    job -> startProcess(jobTask, job, closeHandler),
                     e -> closeHandler.accept(e, true)
                 ));
             },
@@ -543,6 +495,56 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
         AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, annotationsIndexUpdateHandler);
+    }
+
+    private void startProcess(JobTask jobTask, Job job, BiConsumer<Exception, Boolean> closeHandler) {
+        if (job.getJobVersion() == null) {
+            closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + job.getId()
+                + "] because jobs created prior to version 5.5 are not supported"), true);
+            return;
+        }
+
+        processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
+        jobResultsProvider.getAutodetectParams(job, params -> {
+            // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    closeHandler.accept(e, true);
+                }
+
+                @Override
+                protected void doRun() {
+                    ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
+                    if (processContext == null) {
+                        logger.debug("Aborted opening job [{}] as it has been closed", job.getId());
+                        return;
+                    }
+
+                    try {
+                        if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
+                            processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
+                            setJobState(jobTask, JobState.OPENED);
+                        }
+                    } catch (Exception e1) {
+                        // No need to log here as the persistent task framework will log it
+                        try {
+                            // Don't leave a partially initialised process hanging around
+                            processContext.newKillBuilder()
+                                .setAwaitCompletion(false)
+                                .setFinish(false)
+                                .kill();
+                            processByAllocation.remove(jobTask.getAllocationId());
+                        } finally {
+                            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
+                        }
+                    }
+                }
+            });
+        }, e1 -> {
+            logger.warn("Failed to gather information required to open job [" + job.getId() + "]", e1);
+            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
+        });
     }
 
     private void runSnapshotUpgrade(SnapshotUpgradeTask task, Job job, AutodetectParams params, Consumer<Exception> handler) {

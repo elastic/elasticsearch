@@ -97,13 +97,9 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
                         RollupGroup group = rollupGroups.get(rollupGroupKeyName);
                         group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
                     } else {
-                        List<String> indices = new ArrayList<>();
-                        Map<String, DateHistogramInterval> intervals = new HashMap<>();
-                        Map<String, WriteableZoneId> timezones = new HashMap<>();
-                        indices.add(rollupIndexName);
-                        intervals.put(rollupIndexName, dateConfig.getInterval());
-                        timezones.put(rollupIndexName, rollupDateZoneId);
-                        rollupGroups.put(rollupGroupKeyName, new RollupGroup(indices, intervals, timezones));
+                        RollupGroup group = new RollupGroup();
+                        group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
+                        rollupGroups.put(rollupGroupKeyName, group);
                     }
                     // add rolled up index to backing datastream if rolling up a backing index of a datastream
                     IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);

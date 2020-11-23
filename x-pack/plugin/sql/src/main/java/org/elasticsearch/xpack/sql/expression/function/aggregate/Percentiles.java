@@ -11,22 +11,16 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
-import java.util.Objects;
 
-public class Percentiles extends CompoundNumericAggregate {
-
-    private final List<Expression> percents;
-    private final PercentilesConfig percentilesConfig;
+public class Percentiles extends PercentileCompoundAggregate {
 
     public Percentiles(Source source, Expression field, List<Expression> percents, PercentilesConfig percentilesConfig) {
-        super(source, field, percents);
-        this.percents = percents;
-        this.percentilesConfig = percentilesConfig;
+        super(source, field, percents, percentilesConfig);
     }
 
     @Override
     protected NodeInfo<Percentiles> info() {
-        return NodeInfo.create(this, Percentiles::new, field(), percents, percentilesConfig);
+        return NodeInfo.create(this, Percentiles::new, field(), percents(), percentilesConfig());
     }
 
     @Override
@@ -34,34 +28,12 @@ public class Percentiles extends CompoundNumericAggregate {
         if (newChildren.size() < 2) {
             throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new Percentiles(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), percentilesConfig);
+        return new Percentiles(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), percentilesConfig());
     }
 
+    @SuppressWarnings("unchecked") 
     public List<Expression> percents() {
-        return percents;
-    }
-    
-    public PercentilesConfig percentilesConfig() {
-        return percentilesConfig;
+        return (List<Expression>) parameters();
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), percentilesConfig);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (!super.equals(o)) {
-            return false;
-        }
-
-        return Objects.equals(percentilesConfig, ((Percentiles) o).percentilesConfig);
-    }
 }

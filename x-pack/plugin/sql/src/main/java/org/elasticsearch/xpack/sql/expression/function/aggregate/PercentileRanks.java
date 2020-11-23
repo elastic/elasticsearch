@@ -11,22 +11,16 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
-import java.util.Objects;
 
-public class PercentileRanks extends CompoundNumericAggregate {
-
-    private final List<Expression> values;
-    private final PercentilesConfig percentilesConfig;
+public class PercentileRanks extends PercentileCompoundAggregate {
 
     public PercentileRanks(Source source, Expression field, List<Expression> values, PercentilesConfig percentilesConfig) {
-        super(source, field, values);
-        this.values = values;
-        this.percentilesConfig = percentilesConfig;
+        super(source, field, values, percentilesConfig);
     }
 
     @Override
     protected NodeInfo<PercentileRanks> info() {
-        return NodeInfo.create(this, PercentileRanks::new, field(), values, percentilesConfig);
+        return NodeInfo.create(this, PercentileRanks::new, field(), values(), percentilesConfig);
     }
 
     @Override
@@ -36,33 +30,10 @@ public class PercentileRanks extends CompoundNumericAggregate {
         }
         return new PercentileRanks(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), percentilesConfig);
     }
-
-    public List<Expression> values() {
-        return values;
-    }
     
-    public PercentilesConfig percentilesConfig() {
-        return percentilesConfig;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), percentilesConfig);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (!super.equals(o)) {
-            return false;
-        }
-
-        return Objects.equals(percentilesConfig, ((PercentileRanks) o).percentilesConfig);
+    @SuppressWarnings("unchecked")
+    public List<Expression> values() {
+        return (List<Expression>) parameters();
     }
 
 }

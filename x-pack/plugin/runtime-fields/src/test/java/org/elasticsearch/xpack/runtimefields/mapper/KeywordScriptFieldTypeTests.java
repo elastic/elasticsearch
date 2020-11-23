@@ -397,7 +397,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                                 return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(foo.toString());
                                         }
                                     }
@@ -406,7 +406,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                                 return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(foo.toString() + getParams().get("param").toString());
                                         }
                                     }

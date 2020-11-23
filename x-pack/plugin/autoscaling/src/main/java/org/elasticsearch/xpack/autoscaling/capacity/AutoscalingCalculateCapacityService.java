@@ -64,6 +64,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             throw new IllegalArgumentException("unknown setting [" + key + "] for decider [" + decider + "]");
         }
 
+        // check the setting, notice that `get` throws when `configuration` contains an invalid value for `setting`
         setting.get(configuration);
     }
 

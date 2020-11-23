@@ -8,6 +8,13 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
+/**
+ * Validator to check autoscaling policies
+ */
 public interface PolicyValidator {
+    /**
+     * Validate the given policy, e.g., check decider names, setting names and values.
+     * @param policy the policy to validate
+     */
     void validate(AutoscalingPolicy policy);
 }

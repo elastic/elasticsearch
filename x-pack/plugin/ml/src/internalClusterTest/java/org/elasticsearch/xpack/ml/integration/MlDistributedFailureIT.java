@@ -66,6 +66,8 @@ import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -147,7 +149,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         String jobId = "test-lose-ml-node";
         String datafeedId = jobId + "-datafeed";
         setupJobAndDatafeed(jobId, datafeedId, TimeValue.timeValueHours(1));
-        waitForDatafeed(jobId, numDocs1);
+        waitForJobToHaveProcessedExactly(jobId, numDocs1);
 
         // stop the only ML node
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
@@ -224,7 +226,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         String jobId = "test-stop-unassigned-datafeed-for-failed-job";
         String datafeedId = jobId + "-datafeed";
         setupJobAndDatafeed(jobId, datafeedId, TimeValue.timeValueHours(1));
-        waitForDatafeed(jobId, numDocs1);
+        waitForJobToHaveProcessedExactly(jobId, numDocs1);
 
         // Job state should be opened here
         GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);
@@ -331,7 +333,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         String jobId = "test-stop-and-force-stop";
         String datafeedId = jobId + "-datafeed";
         setupJobAndDatafeed(jobId, datafeedId, TimeValue.timeValueHours(1));
-        waitForDatafeed(jobId, numDocs1);
+        waitForJobToHaveProcessedExactly(jobId, numDocs1);
 
         GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
         GetDatafeedsStatsAction.Response datafeedStatsResponse =
@@ -416,6 +418,65 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
+    public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
+        internalCluster().ensureAtMostNumDataNodes(0);
+        logger.info("Starting dedicated master node...");
+        internalCluster().startMasterOnlyNode();
+        logger.info("Starting ml and data node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        logger.info("Starting another ml and data node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        ensureStableCluster();
+
+        // index some datafeed data
+        client().admin().indices().prepareCreate("data")
+            .setMapping("time", "type=date")
+            .get();
+        long numDocs = 80000;
+        long now = System.currentTimeMillis();
+        long weekAgo = now - 604800000;
+        long twoWeeksAgo = weekAgo - 604800000;
+        indexDocs(logger, "data", numDocs, twoWeeksAgo, weekAgo);
+
+        String jobId = "test-node-goes-down-while-running-job";
+        String datafeedId = jobId + "-datafeed";
+
+        Job.Builder job = createScheduledJob(jobId);
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
+
+        DatafeedConfig config = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"), TimeValue.timeValueHours(1));
+        PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
+        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
+
+        client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));
+
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse =
+                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
+        }, 30, TimeUnit.SECONDS);
+
+        DiscoveryNode nodeRunningJob = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId()))
+            .actionGet().getResponse().results().get(0).getNode();
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
+        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
+        startDatafeedRequest.getParams().setEndTime("now");
+        client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
+
+        waitForJobToHaveProcessedAtLeast(jobId, 1000);
+
+        internalCluster().stopNode(nodeRunningJob);
+
+        waitForJobClosed(jobId);
+
+        DataCounts dataCounts = getJobStats(jobId).getDataCounts();
+        assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
+        assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+    }
+
     private void setupJobWithoutDatafeed(String jobId, ByteSizeValue modelMemoryLimit) throws Exception {
         Job.Builder job = createFareQuoteJob(jobId, modelMemoryLimit);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
@@ -462,7 +523,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         indexDocs(logger, "data", numDocs1, twoWeeksAgo, weekAgo);
 
         setupJobAndDatafeed(jobId, "data_feed_id", TimeValue.timeValueSeconds(1));
-        waitForDatafeed(jobId, numDocs1);
+        waitForJobToHaveProcessedExactly(jobId, numDocs1);
 
         client().admin().indices().prepareFlush().get();
 
@@ -507,7 +568,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         long numDocs2 = randomIntBetween(2, 64);
         long now2 = System.currentTimeMillis();
         indexDocs(logger, "data", numDocs2, now2 + 5000, now2 + 6000);
-        waitForDatafeed(jobId, numDocs1 + numDocs2);
+        waitForJobToHaveProcessedExactly(jobId, numDocs1 + numDocs2);
     }
 
     // Get datacounts from index instead of via job stats api,
@@ -532,11 +593,26 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
     }
 
-    private void waitForDatafeed(String jobId, long numDocs) throws Exception {
+    private void waitForJobToHaveProcessedExactly(String jobId, long numDocs) throws Exception {
         assertBusy(() -> {
             DataCounts dataCounts = getDataCountsFromIndex(jobId);
             assertEquals(numDocs, dataCounts.getProcessedRecordCount());
             assertEquals(0L, dataCounts.getOutOfOrderTimeStampCount());
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void waitForJobToHaveProcessedAtLeast(String jobId, long numDocs) throws Exception {
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCountsFromIndex(jobId);
+            assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
+            assertEquals(0L, dataCounts.getOutOfOrderTimeStampCount());
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void waitForJobClosed(String jobId) throws Exception {
+        assertBusy(() -> {
+            JobStats jobStats = getJobStats(jobId);
+            assertEquals(jobStats.getState(), JobState.CLOSED);
         }, 30, TimeUnit.SECONDS);
     }
 

@@ -24,6 +24,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
 
     private static final String templatePrefix = ".watch-history-";
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65320")
     public void testWatcherRestart() throws Exception {
         client().performRequest(new Request("POST", "/_watcher/_stop"));
         ensureWatcherStopped();

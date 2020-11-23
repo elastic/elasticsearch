@@ -39,7 +39,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import javax.crypto.AEADBadTagException;
 import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -152,7 +151,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         if (isPasswordProtected) {
             when(keyStore.hasPassword()).thenReturn(true);
             doNothing().when(keyStore).decrypt("keystore-password".toCharArray());
-            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException()))
+            doThrow(new SecurityException("Provided keystore password was incorrect", new IOException()))
                 .when(keyStore).decrypt("wrong-password".toCharArray());
         }
         return keyStore;

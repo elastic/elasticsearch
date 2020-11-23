@@ -76,9 +76,7 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
             readPassword(terminal, false) : new SecureString(new char[0])) {
             keyStore.decrypt(keystorePassword.getChars());
         } catch (SecurityException e) {
-            if (e.getCause() instanceof AEADBadTagException) {
-                throw new UserException(ExitCodes.DATA_ERROR, "Wrong password for elasticsearch.keystore");
-            }
+            throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         }
     }
 

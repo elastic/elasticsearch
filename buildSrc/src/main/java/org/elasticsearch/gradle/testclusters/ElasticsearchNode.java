@@ -1010,7 +1010,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         if (foundNettyLeaks) {
-            throw new TestClustersException("Found Netty ByteBuf leaks in node logs");
+            final boolean leakTestsEnabled = (Boolean) project.getExtensions().getExtraProperties().get("netty_leak_tests_enabled");
+            if (leakTestsEnabled) {
+                throw new TestClustersException(
+                    "Found Netty ByteBuf leaks in node logs. In order to temporarily mute this check, set "
+                        + "\"netty_leak_tests_enabled\" to false in the root level build.gradle file"
+                );
+            } else {
+                LOGGER.error(
+                    "Found Netty ByteBuf leaks in node logs but not failing tests because \"netty_leak_tests_enabled\" is set to "
+                        + "false."
+                );
+            }
         }
     }
 

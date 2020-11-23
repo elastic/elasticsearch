@@ -191,8 +191,22 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
   bwc_tests_enabled = false
 }
 
+// Flag that can be used to mute Netty ByteBuf leak checks in REST tests until the leak is fixed.
+final boolean netty_leak_tests_enabled = true
+final String netty_leak_tests_disabled_issue = "" /* place an issue link here that addresses the Netty ByteBuf leak */
+if (netty_leak_tests_enabled == false) {
+  if (netty_leak_tests_disabled_issue.isEmpty()) {
+    throw new GradleException("netty_leak_tests_disabled_issue must be set when netty_leak_tests_enabled == false")
+  }
+  println "========================= WARNING ========================="
+  println "         Netty ByteBuf leak tests are disabled!"
+  println "See ${netty_leak_tests_disabled_issue}"
+  println "==========================================================="
+}
+
 subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled
+  ext.netty_leak_tests_enabled = netty_leak_tests_enabled
 }
 
 tasks.register("verifyBwcTestsEnabled") {

@@ -149,7 +149,6 @@ public class DependenciesInfoTask extends ConventionTask {
 
             final String licenseType = getLicenseType(dep.getGroup(), dependencyName);
             output.append(dep.getGroup() + ":" + dep.getName() + "," + dep.getVersion() + "," + url + "," + licenseType + "\n");
-
         }
 
         Files.write(outputFile.toPath(), output.toString().getBytes("UTF-8"), StandardOpenOption.CREATE);

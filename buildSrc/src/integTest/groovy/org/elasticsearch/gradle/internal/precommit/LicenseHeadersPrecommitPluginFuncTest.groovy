@@ -33,7 +33,8 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
         }
         """
         apacheSourceFile()
-        invalidSourceFile()
+        unknownSourceFile()
+        unapprovedSourceFile()
 
         when:
         def result = gradleRunner("licenseHeaders").buildAndFail()
@@ -41,7 +42,8 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":licenseHeaders").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, "> License header problems were found! Full details: ./build/reports/licenseHeaders/rat.xml")
-        assertOutputContains(result.output, "./src/main/java/org/acme/InvalidLicensed.java")
+        assertOutputContains(result.output, "./src/main/java/org/acme/UnknownLicensed.java")
+        assertOutputContains(result.output, "./src/main/java/org/acme/UnapprovedLicensed.java")
         normalizedOutput(result.output).contains("./src/main/java/org/acme/ApacheLicensed.java") == false
     }
 
@@ -58,26 +60,50 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
         }
         """
         apacheSourceFile()
-        invalidSourceFile("src/main/java/org/acme/filtered/FilteredInvalidLicensed.java")
+        unknownSourceFile("src/main/java/org/acme/filtered/FilteredUnknownLicensed.java")
+        unapprovedSourceFile("src/main/java/org/acme/filtered/FilteredUnapprovedLicensed.java")
 
         when:
         def result = gradleRunner("licenseHeaders").build()
 
         then:
         result.task(":licenseHeaders").outcome == TaskOutcome.SUCCESS
-//        assertOutputContains(result.output, "> License header problems were found! Full details: ./build/reports/licenseHeaders/rat.xml")
-//        assertOutputContains(result.output, "./src/main/java/org/acme/InvalidLicensed.java")
-//        normalizedOutput(result.output).contains("./src/main/java/org/acme/ApacheLicensed.java") == false
     }
 
-    private File invalidSourceFile(String filePath = "src/main/java/org/acme/InvalidLicensed.java") {
+    private File unapprovedSourceFile(String filePath = "src/main/java/org/acme/UnapprovedLicensed.java") {
+        File sourceFile = file(filePath);
+        sourceFile << """
+/*
+ * Copyright (C) 2007 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+ package ${packageString(sourceFile)};
+ 
+ public class ${sourceFile.getName() - ".java"} {
+ }
+ """
+    }
+
+    private File unknownSourceFile(String filePath = "src/main/java/org/acme/UnknownLicensed.java") {
         File sourceFile = file(filePath);
         sourceFile << """
 /*
  * Blubb my custom license shrug!
  */
  
- package org.acme;
+ package ${packageString(sourceFile)};
  
  public class ${sourceFile.getName() - ".java"} {
  }
@@ -105,10 +131,13 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
  * under the License.
  */
  
- package org.acme;
- 
+ package org.acme; 
  public class ApacheLicensed {
  }
  """
+    }
+
+    private static String packageString(File sourceFile) {
+        (sourceFile.getPath().substring(sourceFile.getPath().indexOf("src/main/java")) - "src/main/java/" - ("/" + sourceFile.getName())).replaceAll("/", ".")
     }
 }

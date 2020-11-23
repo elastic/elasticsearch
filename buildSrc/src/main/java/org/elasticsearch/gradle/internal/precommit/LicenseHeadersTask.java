@@ -126,8 +126,9 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         }).toArray(SimpleLicenseFamily[]::new));
 
         ClaimStatistic stats = generateReport(reportConfiguration, getReportFile());
-        boolean zeroUnknownLicenses = stats.getNumUnknown() == 0;
-        if (zeroUnknownLicenses == false) {
+        boolean unknownLicenses = stats.getNumUnknown() > 0;
+        boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
+        if (unknownLicenses || unApprovedLicenses) {
             unapprovedFiles(getReportFile()).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
             throw new GradleException("License header problems were found! Full details: " + reportFile.getAbsolutePath());
         }

@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 
 public class FleetSystemIndexIT extends ESRestTestCase {
 
@@ -67,7 +66,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
 
         Request getRequest = new Request("GET", "/_fleet/" + indexName + "/_doc/1");
         Response getResponse = client().performRequest(getRequest);
-        assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
+        assertOK(getResponse);
         String responseBody = EntityUtils.toString(getResponse.getEntity());
         assertThat(responseBody, containsString("foo"));
         assertThat(responseBody, containsString("bar"));
@@ -83,7 +82,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
 
         Request getRequest = new Request("GET", "/_fleet/" + indexName + "/_doc/1");
         Response getResponse = client().performRequest(getRequest);
-        assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
+        assertOK(getResponse);
         String responseBody = EntityUtils.toString(getResponse.getEntity());
         assertThat(responseBody, containsString("foo"));
         assertThat(responseBody, containsString("bar"));
@@ -107,7 +106,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         Request searchRequest = new Request("GET", "/_fleet/" + indexName + "/_search");
         searchRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
         Response getResponse = client().performRequest(searchRequest);
-        assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
+        assertOK(getResponse);
         String responseBody = EntityUtils.toString(getResponse.getEntity());
         assertThat(responseBody, containsString("foo"));
         assertThat(responseBody, containsString("bar"));
@@ -132,7 +131,7 @@ public class FleetSystemIndexIT extends ESRestTestCase {
 
         Request deleteRequest = new Request("DELETE", "/_fleet/" + indexName + "/_doc/1");
         Response deleteResponse = client().performRequest(deleteRequest);
-        assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
+        assertOK(deleteResponse);
     }
 
     public void testDeleteByQueryFromFleetIndex() throws IOException {
@@ -153,24 +152,24 @@ public class FleetSystemIndexIT extends ESRestTestCase {
         Request dbqRequest = new Request("POST", "/_fleet/" + indexName + "/_delete_by_query");
         dbqRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
         Response dbqResponse = client().performRequest(dbqRequest);
-        assertThat(dbqResponse.getStatusLine().getStatusCode(), is(200));
+        assertOK(dbqResponse);
     }
 
     public void testIndexingAndUpdatingDocs() throws IOException {
         Request request = new Request("PUT", "/_fleet/" + indexName + "/_doc/1");
         request.setJsonEntity("{ \"foo\" : \"bar\" }");
         Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(201));
+        assertOK(response);
 
         request = new Request("PUT", "/_fleet/" + indexName + "/_create/2");
         request.setJsonEntity("{ \"foo\" : \"bar\" }");
         response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(201));
+        assertOK(response);
 
         request = new Request("POST", "/_fleet/" + indexName + "/_doc");
         request.setJsonEntity("{ \"foo\" : \"bar\" }");
         response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(201));
+        assertOK(response);
 
         request = new Request("GET", "/_fleet/" + indexName + "/_refresh");
         response = client().performRequest(request);

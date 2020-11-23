@@ -26,9 +26,9 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.apache.commons.codec.binary.Hex;
 
-class ActiveDirectorySIDUtil {
-
-    static String convertToString( byte[] bytes )
+public class ActiveDirectorySIDUtil {
+    public static final String TOKEN_GROUPS = "tokenGroups";
+    public static String convertToString(byte[] bytes)
     {
         /*
          * The binary data structure, from http://msdn.microsoft.com/en-us/library/cc230371(PROT.10).aspx:

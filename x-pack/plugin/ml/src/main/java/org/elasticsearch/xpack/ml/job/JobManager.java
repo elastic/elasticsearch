@@ -20,7 +20,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -465,12 +464,12 @@ public class JobManager {
             }
             jobResultsProvider.modelSizeStats(job.getId(), modelSizeStats -> {
                 if (modelSizeStats != null) {
-                    ByteSizeValue modelSize = new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES);
+                    ByteSizeValue modelSize = ByteSizeValue.ofBytes(modelSizeStats.getModelBytes());
                     if (newModelMemoryLimit < modelSize.getMb()) {
                         listener.onFailure(ExceptionsHelper.badRequestException(
                                 Messages.getMessage(Messages.JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED,
-                                        new ByteSizeValue(modelSize.getMb(), ByteSizeUnit.MB),
-                                        new ByteSizeValue(newModelMemoryLimit, ByteSizeUnit.MB))));
+                                        ByteSizeValue.ofMb(modelSize.getMb()),
+                                        ByteSizeValue.ofMb(newModelMemoryLimit))));
                         return;
                     }
                 }

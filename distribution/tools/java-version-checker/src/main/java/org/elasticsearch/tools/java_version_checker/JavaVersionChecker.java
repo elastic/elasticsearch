@@ -42,7 +42,9 @@ final class JavaVersionChecker {
         if (JavaVersion.compare(JavaVersion.CURRENT, JavaVersion.JAVA_8) < 0) {
             final String message = String.format(
                 Locale.ROOT,
-                "the minimum required Java version is 8; your Java version from [%s] does not meet this requirement",
+                "The minimum required Java version is 8; your Java version from [%s] does not meet this "
+                    + "requirement. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
+                    + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
                 System.getProperty("java.home")
             );
             errPrintln(message);
@@ -51,7 +53,9 @@ final class JavaVersionChecker {
         if (JavaVersion.compare(JavaVersion.CURRENT, JavaVersion.JAVA_11) < 0) {
             final String message = String.format(
                 Locale.ROOT,
-                "future versions of Elasticsearch will require Java 11; your Java version from [%s] does not meet this requirement",
+                "Future versions of Elasticsearch will require Java 11; your Java version from [%s] does not meet this "
+                    + "requirement. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
+                    + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
                 System.getProperty("java.home")
             );
             errPrintln(message);

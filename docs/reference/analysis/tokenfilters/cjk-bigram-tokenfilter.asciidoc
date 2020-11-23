@@ -159,7 +159,7 @@ All non-CJK input is passed through unmodified.
 --
 
 `output_unigrams`
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, emit tokens in both bigram and
 {wikipedia}/N-gram[unigram] form. If `false`, a CJK character
 is output in unigram form when it has no adjacent characters. Defaults to

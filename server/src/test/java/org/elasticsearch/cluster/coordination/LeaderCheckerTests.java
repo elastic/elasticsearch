@@ -463,13 +463,13 @@ public class LeaderCheckerTests extends ESTestCase {
         }
     }
 
-    private class CapturingTransportResponseHandler implements TransportResponseHandler<Empty> {
+    private class CapturingTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
 
         TransportException transportException;
         boolean successfulResponseReceived;
 
         @Override
-        public void handleResponse(Empty response) {
+        public void handleResponse(TransportResponse.Empty response) {
             successfulResponseReceived = true;
         }
 

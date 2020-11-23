@@ -100,6 +100,8 @@ public class XPackLicenseState {
 
         ANALYTICS(OperationMode.MISSING, true),
 
+        AGGREGATE_METRIC(OperationMode.MISSING, true),
+
         SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true);
 
         final OperationMode minimumOperationMode;

@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.spatial.aggregations.metrics.GeoShapeCentroidAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
@@ -67,9 +67,9 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new HashMap<>(super.getMappers());
-        mappers.put(ShapeFieldMapper.CONTENT_TYPE, new ShapeFieldMapper.TypeParser());
-        mappers.put(PointFieldMapper.CONTENT_TYPE, new PointFieldMapper.TypeParser());
-        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, new GeoShapeWithDocValuesFieldMapper.TypeParser());
+        mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
+        mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
+        mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeWithDocValuesFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -119,7 +119,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
     private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoHashGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
             (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
+             aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
                 if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
@@ -141,7 +141,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
 
         builder.register(GeoTileGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
             (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
+             aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
                 if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {

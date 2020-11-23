@@ -17,15 +17,12 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -65,7 +62,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException();
         }
     }
@@ -88,7 +85,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper build(BuilderContext context) {
+        public MetadataFieldMapper build() {
             return new DataStreamTimestampFieldMapper(new TimestampFieldType(), enabled.getValue());
         }
     }
@@ -107,7 +104,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
     }
 

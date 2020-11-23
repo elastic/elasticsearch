@@ -235,7 +235,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
                 return true;
             } else if (STRATEGY_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 String strategyName = parser.text();
-                strategy = SpatialStrategy.fromString(strategyName);
+                strategy = SpatialStrategy.fromString(strategyName, deprecationLogger);
                 if (strategy == null) {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
                 } else {

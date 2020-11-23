@@ -383,7 +383,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+            handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (validateConnections && node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
@@ -436,7 +436,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      */
     public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout,
+        final TimeValue handshakeTimeout,
         final ActionListener<DiscoveryNode> listener) {
         handshake(connection, handshakeTimeout, clusterName.getEqualityPredicate(),
             ActionListener.map(listener, HandshakeResponse::getDiscoveryNode));
@@ -457,11 +457,11 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      */
     public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
+        final TimeValue handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
         final ActionListener<HandshakeResponse> listener) {
         final DiscoveryNode node = connection.getNode();
         sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
-            TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
+            TransportRequestOptions.timeout(handshakeTimeout),
             new ActionListenerResponseHandler<>(
                 new ActionListener<HandshakeResponse>() {
                     @Override
@@ -582,15 +582,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(node);
-        } catch (final NodeNotConnectedException ex) {
-            // the caller might not handle this so we invoke the handler
-            handler.handleException(ex);
-            return;
-        }
-        sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
+        sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
     public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
@@ -1007,8 +999,12 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
         if (timeoutInfoHolder != null) {
             long time = threadPool.relativeTimeInMillis();
-            logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, " +
-                    "action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(),
+            long sentMs = time - timeoutInfoHolder.sentTime();
+            long timedOutMs = time - timeoutInfoHolder.timeoutTime();
+            logger.warn("Received response for a request that has timed out, sent [{}/{}ms] ago, timed out [{}/{}ms] ago, " +
+                    "action [{}], node [{}], id [{}]",
+                TimeValue.timeValueMillis(sentMs), sentMs,
+                TimeValue.timeValueMillis(timedOutMs), timedOutMs,
                 timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
             action = timeoutInfoHolder.action();
             sourceNode = timeoutInfoHolder.node();

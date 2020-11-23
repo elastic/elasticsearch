@@ -96,7 +96,7 @@
       <property name="ignoreComments" value="true" />
     </module>
     <module name="RegexpSinglelineJava">
-      <property name="format" value="java\.io\.Serializable" />
+      <property name="format" value="java\.io\.Serializable;" />
       <property name="message" value="References java.io.Serializable." />
       <property name="ignoreComments" value="true" />
     </module>

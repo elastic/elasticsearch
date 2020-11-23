@@ -36,6 +36,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -312,6 +313,8 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalTimeZone(DateTimeZone.getDefault());
         out.writeOptionalTimeZone(null);
         out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        final OffsetTime offsetNow = OffsetTime.now(randomZone());
+        out.writeGenericValue(offsetNow);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         assertEquals(in.available(), bytes.length);
@@ -349,6 +352,7 @@ public class BytesStreamsTests extends ESTestCase {
         JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
         assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
         assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
+        assertThat(in.readGenericValue(), equalTo(offsetNow));
         assertEquals(0, in.available());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
             @Override

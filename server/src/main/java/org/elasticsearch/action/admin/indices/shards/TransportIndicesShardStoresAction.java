@@ -44,7 +44,6 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
@@ -53,7 +52,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -79,20 +77,9 @@ public class TransportIndicesShardStoresAction
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              TransportNodesListGatewayStartedShards listShardStoresInfo) {
         super(IndicesShardStoresAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            IndicesShardStoresRequest::new, indexNameExpressionResolver);
+                IndicesShardStoresRequest::new, indexNameExpressionResolver, IndicesShardStoresResponse::new, ThreadPool.Names.SAME);
         this.listShardStoresInfo = listShardStoresInfo;
     }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected IndicesShardStoresResponse read(StreamInput in) throws IOException {
-        return new IndicesShardStoresResponse(in);
-    }
-
     @Override
     protected void masterOperation(IndicesShardStoresRequest request, ClusterState state,
                                    ActionListener<IndicesShardStoresResponse> listener) {

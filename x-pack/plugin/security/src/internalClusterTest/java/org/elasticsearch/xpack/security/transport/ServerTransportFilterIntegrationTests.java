@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -159,7 +160,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
                     ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
                 // handshake should be ok
-                final DiscoveryNode handshake = PlainActionFuture.get(fut -> instance.handshake(connection, 10000, fut));
+                final DiscoveryNode handshake =
+                        PlainActionFuture.get(fut -> instance.handshake(connection, TimeValue.timeValueSeconds(10), fut));
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());
                 CountDownLatch latch = new CountDownLatch(1);
                 instance.sendRequest(connection, NodeMappingRefreshAction.ACTION_NAME,

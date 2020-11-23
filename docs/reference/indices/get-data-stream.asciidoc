@@ -40,6 +40,9 @@ PUT /_index_template/my-index-template
     "settings": {
       "index.lifecycle.name": "my-lifecycle-policy"
     }
+  },
+  "_meta": {
+    "my-meta-field": "foo"
   }
 }
 
@@ -134,8 +137,13 @@ Universally unique identifier (UUID) for the index.
 `generation`::
 (integer)
 Current <<data-streams-generation,generation>> for the data stream. This number
-acts as a cumulative count of the stream's backing indices, including
-deleted indices.
+acts as a cumulative count of the stream's rollovers, starting at `1`.
+
+`_meta`::
+(object)
+Custom metadata for the stream, copied from the `_meta` object of the
+stream's matching <<create-a-data-stream-template,index template>>. If empty,
+the response omits this property.
 
 `status`::
 (string)
@@ -208,9 +216,13 @@ The API returns the following response:
         }
       ],
       "generation": 2,
+      "_meta": {
+        "my-meta-field": "foo"
+      },
       "status": "GREEN",
       "template": "my-index-template",
-      "ilm_policy": "my-lifecycle-policy"
+      "ilm_policy": "my-lifecycle-policy",
+      "hidden": false
     },
     {
       "name": "my-data-stream_two",
@@ -224,9 +236,13 @@ The API returns the following response:
         }
       ],
       "generation": 1,
+      "_meta": {
+        "my-meta-field": "foo"
+      },
       "status": "YELLOW",
       "template": "my-index-template",
-      "ilm_policy": "my-lifecycle-policy"
+      "ilm_policy": "my-lifecycle-policy",
+      "hidden": false
     }
   ]
 }

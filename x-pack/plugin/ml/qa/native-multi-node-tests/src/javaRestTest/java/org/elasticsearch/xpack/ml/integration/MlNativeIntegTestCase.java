@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
@@ -138,6 +139,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             throw new IllegalStateException("error trying to get keystore path", e);
         }
         Settings.Builder builder = Settings.builder();
+        builder.putList("node.roles", Collections.emptyList());
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
         builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
@@ -239,6 +241,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 StartDataFrameAnalyticsAction.TaskParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_TASK_NAME,
                     OpenJobAction.JobParams::new));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+                SnapshotUpgradeTaskParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameAnalyticsTaskState.NAME,
@@ -290,7 +294,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     null,
                     null,
                     null,
-                    new ComposableIndexTemplate.DataStreamTemplate())))
+                    new ComposableIndexTemplate.DataStreamTemplate(),
+                    null)))
             .actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
     }

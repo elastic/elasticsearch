@@ -73,7 +73,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         String jobId = config.getId();
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AnalyticsBuilder.ANALYTICS, jobId,
-                false, true, true, hasState, config.getAnalysis().persistsState());
+            null, false, true, true, hasState, config.getAnalysis().persistsState());
 
         // The extra 2 are for the checksum and the control field
         int numberOfFields = analyticsProcessConfig.cols() + 2;
@@ -115,8 +115,11 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
             new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
         try {
             analyticsBuilder.build();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("[{}] Interrupted while launching data frame analytics process", jobId);
         } catch (IOException e) {
-            String msg = "Failed to launch data frame analytics process for job " + jobId;
+            String msg = "[" + jobId + "] Failed to launch data frame analytics process";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

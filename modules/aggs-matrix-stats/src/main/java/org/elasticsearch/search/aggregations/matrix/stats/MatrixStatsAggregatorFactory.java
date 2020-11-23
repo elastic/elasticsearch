@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -41,11 +41,11 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     MatrixStatsAggregatorFactory(String name,
                                     Map<String, ValuesSourceConfig> configs,
                                     MultiValueMode multiValueMode,
-                                    QueryShardContext queryShardContext,
+                                    AggregationContext context,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
                                     Map<String, Object> metadata) throws IOException {
-        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, configs, context, parent, subFactoriesBuilder, metadata);
         this.multiValueMode = multiValueMode;
     }
 

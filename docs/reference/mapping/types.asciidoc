@@ -51,7 +51,7 @@ Dates::                 Date types, including <<date,`date`>> and
 <<range,Range>>::   Range types, such as `long_range`, `double_range`,
                     `date_range`, and `ip_range`.
 <<ip,`ip`>>::       IPv4 and IPv6 addresses.
-<<version,Version>>::  Software versions. Supports https://semver.org/[Semantic Versioning]
+<<version,`version`>>::  Software versions. Supports https://semver.org/[Semantic Versioning]
 precedence rules.
 {plugins}/mapper-murmur3.html[`murmur3`]:: Compute and stores hashes of
 values.
@@ -82,6 +82,7 @@ as-you-type completion.
 ==== Document ranking types
 
 <<dense-vector,`dense_vector`>>::   Records dense vectors of float values.
+<<sparse-vector,`sparse_vector`>>:: Records sparse vectors of float values.
 <<rank-feature,`rank_feature`>>::   Records a numeric feature to boost hits at
                                     query time.
 <<rank-features,`rank_features`>>:: Records numeric features to boost hits at
@@ -140,17 +141,15 @@ include::types/date_nanos.asciidoc[]
 
 include::types/dense-vector.asciidoc[]
 
-include::types/histogram.asciidoc[]
-
 include::types/flattened.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 
 include::types/geo-shape.asciidoc[]
 
-include::types/ip.asciidoc[]
+include::types/histogram.asciidoc[]
 
-include::types/version.asciidoc[]
+include::types/ip.asciidoc[]
 
 include::types/parent-join.asciidoc[]
 
@@ -174,10 +173,14 @@ include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
 
+include::types/shape.asciidoc[]
+
 include::types/sparse-vector.asciidoc[]
 
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
-include::types/shape.asciidoc[]
+include::types/unsigned_long.asciidoc[]
+
+include::types/version.asciidoc[]

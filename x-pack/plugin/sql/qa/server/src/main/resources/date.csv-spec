@@ -37,7 +37,8 @@ SELECT TRUNCATE(YEAR(TODAY() - INTERVAL 50 YEARS) / 1000) AS result;
 ;
 
 
-currentDateFilter
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/65336
+currentDateFilter-Ignore
 SELECT first_name FROM test_emp WHERE hire_date > CURRENT_DATE() - INTERVAL 35 YEARS ORDER BY first_name ASC LIMIT 10;
 
     first_name

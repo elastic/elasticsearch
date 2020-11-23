@@ -11,13 +11,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-
-import static org.mockito.Mockito.mock;
 
 public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScript.Factory> {
     public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanFieldScript(
@@ -49,7 +46,7 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
                 BooleanFieldScript script = new BooleanFieldScript(
                     "test",
                     org.elasticsearch.common.collect.Map.of(),
-                    new SearchLookup(mock(MapperService.class), (ft, lookup) -> null, null),
+                    new SearchLookup(field -> null, (ft, lookup) -> null, null),
                     reader.leaves().get(0)
                 ) {
                     @Override

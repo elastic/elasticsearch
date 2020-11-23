@@ -305,7 +305,7 @@ information.
 How long, in milliseconds, it took to process the bulk request.
 
 `errors`::
-(boolean)
+(Boolean)
 If `true`, one or more of the operations in the bulk request did not complete
 successfully.
 

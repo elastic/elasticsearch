@@ -82,6 +82,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -583,7 +585,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
+                searchContext.docIdsToLoad(request.docIds(), request.docIdsSize());
                 try (SearchOperationListenerExecutor executor =
                          new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())) {
                     fetchPhase.execute(searchContext);
@@ -931,8 +933,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
+            AggregationContext aggContext = new ProductionAggregationContext(
+                queryShardContext,
+                context.parsedQuery() == null ? null : context.parsedQuery().query()
+            );
             try {
-                AggregatorFactories factories = source.aggregations().build(queryShardContext, null);
+                AggregatorFactories factories = source.aggregations().build(aggContext, null);
                 context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
@@ -961,8 +967,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(context.mapperService()::simpleMatchToFullName,
-                context.mapperService().getIndexSettings().getMaxDocvalueFields(), source.docValueFields());
+            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(context.getQueryShardContext(), source.docValueFields());
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {
@@ -978,7 +983,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.scriptFields() != null && source.size() != 0) {
-            int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();
+            int maxAllowedScriptFields = queryShardContext.getIndexSettings().getMaxScriptFields();
             if (source.scriptFields().size() > maxAllowedScriptFields) {
                 throw new IllegalArgumentException(
                         "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxAllowedScriptFields
@@ -1096,7 +1101,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 docIdsToLoad[docsOffset++] = option.getDoc().doc;
             }
         }
-        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+        context.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
     }
 
     private void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
@@ -1171,7 +1176,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             try (Releasable ignored2 = canMatchSearcher) {
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias());
+                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
                 final boolean aliasFilterCanMatch = request.getAliasFilter()
                     .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;

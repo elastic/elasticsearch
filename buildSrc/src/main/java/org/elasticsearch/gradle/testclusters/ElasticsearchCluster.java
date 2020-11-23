@@ -34,6 +34,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.process.ExecOperations;
 
 import java.io.File;
 import java.io.IOException;
@@ -69,6 +70,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final ReaperService reaper;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
+    private final ExecOperations execOperations;
     private int nodeIndex = 0;
 
     public ElasticsearchCluster(
@@ -78,6 +80,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         File workingDirBase,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
+        ExecOperations execOperations,
         Jdk bwcJdk
     ) {
         this.path = project.getPath();
@@ -86,6 +89,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.reaper = reaper;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
+        this.execOperations = execOperations;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(ElasticsearchNode.class);
         this.bwcJdk = bwcJdk;
@@ -96,9 +100,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 clusterName + "-0",
                 project,
                 reaper,
+                workingDirBase,
                 fileSystemOperations,
                 archiveOperations,
-                workingDirBase,
+                execOperations,
                 bwcJdk
             )
         );
@@ -128,9 +133,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     clusterName + "-" + i,
                     project,
                     reaper,
+                    workingDirBase,
                     fileSystemOperations,
                     archiveOperations,
-                    workingDirBase,
+                    execOperations,
                     bwcJdk
                 )
             );

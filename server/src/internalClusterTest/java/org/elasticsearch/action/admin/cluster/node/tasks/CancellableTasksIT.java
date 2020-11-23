@@ -485,11 +485,6 @@ public class CancellableTasksIT extends ESIntegTestCase {
                                 }
 
                                 @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
-                                }
-
-                                @Override
                                 public TestResponse read(StreamInput in) throws IOException {
                                     return new TestResponse(in);
                                 }

@@ -83,7 +83,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -1403,6 +1402,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final ThreadPool threadPool;
 
+            private final BigArrays bigArrays;
+
             private Coordinator coordinator;
 
             TestClusterNode(DiscoveryNode node) throws IOException {
@@ -1504,7 +1505,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings =
                     new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-                final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
+                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 indicesService = new IndicesService(
                     settings,
@@ -1571,7 +1572,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         shardStateAction,
                         actionFilters),
                     RetentionLeaseSyncer.EMPTY);
-            Map<ActionType, TransportAction> actions = new HashMap<>();
+                Map<ActionType, TransportAction> actions = new HashMap<>();
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
                     indicesService,
@@ -1585,9 +1586,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings, clusterService);
                 mappingUpdatedAction.setClient(client);
-            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
-                clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
+                final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
+                    clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
+                    actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(
@@ -1595,7 +1596,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(), client),
                         transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
-                        new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
                         new IndexingPressure(settings),
                         new SystemIndices(emptyMap())
                     ));
@@ -1618,14 +1618,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new TransportAutoPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
                         actionFilters, indexNameExpressionResolver));
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-                final SearchTransportService searchTransportService = new SearchTransportService(transportService,
+                final SearchTransportService searchTransportService = new SearchTransportService(transportService, client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
                 final SearchService searchService = new SearchService(clusterService, indicesService, threadPool, scriptService,
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService());
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
-                    new TransportSearchAction(client, threadPool, new NoneCircuitBreakerService(), transportService, searchService,
+                    new TransportSearchAction(threadPool, new NoneCircuitBreakerService(), transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,
                         actionFilters, indexNameExpressionResolver, namedWriteableRegistry));
                 actions.put(RestoreSnapshotAction.INSTANCE,
@@ -1672,7 +1672,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             private Repository.Factory getRepoFactory(Environment environment) {
                 // Run half the tests with the eventually consistent repository
                 if (blobStoreContext == null) {
-                    return metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService,
+                    return metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays,
                         recoverySettings) {
                         @Override
                         protected void assertSnapshotOrGenericThread() {

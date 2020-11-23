@@ -24,6 +24,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classific
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
@@ -122,10 +123,9 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             // Evaluation metrics results
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
-                new ParseField(
-                    registeredMetricName(
-                        OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME)),
-                org.elasticsearch.client.ml.dataframe.evaluation.classification.AucRocMetric.Result::fromXContent),
+                new ParseField(registeredMetricName(
+                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME)),
+                AucRocResult::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(
@@ -145,7 +145,7 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, AucRocMetric.NAME)),
-                AucRocMetric.Result::fromXContent),
+                AucRocResult::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, AccuracyMetric.NAME)),

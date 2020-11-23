@@ -20,11 +20,8 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
 
 public class InstanceofNode extends UnaryNode {
 
@@ -62,21 +59,4 @@ public class InstanceofNode extends UnaryNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-
-        getChildNode().write(writeScope);
-
-        if (instanceType == def.class) {
-            methodWriter.writePop(MethodWriter.getType(getExpressionType()).getSize());
-            methodWriter.push(true);
-        } else if (getChildNode().getExpressionType().isPrimitive()) {
-            methodWriter.writePop(MethodWriter.getType(getExpressionType()).getSize());
-            methodWriter.push(PainlessLookupUtility.typeToBoxedType(instanceType).isAssignableFrom(
-                    PainlessLookupUtility.typeToBoxedType(getChildNode().getExpressionType())));
-        } else {
-            methodWriter.instanceOf(MethodWriter.getType(PainlessLookupUtility.typeToBoxedType(instanceType)));
-        }
-    }
 }

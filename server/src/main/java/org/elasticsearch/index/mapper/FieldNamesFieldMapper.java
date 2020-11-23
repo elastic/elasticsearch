@@ -28,7 +28,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +50,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_field_names";
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(indexVersionCreated).init(this);
     }
 
@@ -97,7 +96,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public FieldNamesFieldMapper build(BuilderContext context) {
+        public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 deprecationLogger.deprecate("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
             }
@@ -130,7 +129,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
@@ -170,7 +169,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (fieldType().isEnabled() == false) {
                 return;
             }
-            for (ParseContext.Document document : context) {
+            for (ParseContext.Document document : context.docs()) {
                 final List<String> paths = new ArrayList<>(document.getFields().size());
                 String previousPath = ""; // used as a sentinel - field names can't be empty
                 for (IndexableField field : document.getFields()) {

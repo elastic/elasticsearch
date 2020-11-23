@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -35,31 +34,16 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -68,7 +52,6 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -80,7 +63,6 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -92,29 +74,23 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,213 +101,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
-    public static class TestCustomMetadataPlugin extends Plugin {
-
-        private final List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>();
-        private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
-
-        public TestCustomMetadataPlugin() {
-            registerBuiltinWritables();
-        }
-
-        private <T extends Metadata.Custom> void registerMetadataCustom(String name, Writeable.Reader<T> reader,
-                                                                        Writeable.Reader<NamedDiff> diffReader,
-                                                                        CheckedFunction<XContentParser, T, IOException> parser) {
-            namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));
-            namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
-            namedXContents.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(name), parser));
-        }
-
-        private void registerBuiltinWritables() {
-            registerMetadataCustom(SnapshottableMetadata.TYPE, SnapshottableMetadata::readFrom,
-                SnapshottableMetadata::readDiffFrom, SnapshottableMetadata::fromXContent);
-            registerMetadataCustom(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata::readFrom,
-                NonSnapshottableMetadata::readDiffFrom, NonSnapshottableMetadata::fromXContent);
-            registerMetadataCustom(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata::readFrom,
-                SnapshottableGatewayMetadata::readDiffFrom, SnapshottableGatewayMetadata::fromXContent);
-            registerMetadataCustom(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata::readFrom,
-                NonSnapshottableGatewayMetadata::readDiffFrom, NonSnapshottableGatewayMetadata::fromXContent);
-            registerMetadataCustom(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata::readFrom,
-                NonSnapshottableGatewayMetadata::readDiffFrom, SnapshotableGatewayNoApiMetadata::fromXContent);
-        }
-
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return namedWritables;
-        }
-
-        @Override
-        public List<NamedXContentRegistry.Entry> getNamedXContent() {
-            return namedXContents;
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetadataPlugin.class, BrokenSettingPlugin.class,
-                MockTransportService.TestPlugin.class);
-    }
-
-    public static class BrokenSettingPlugin extends Plugin {
-        private static boolean breakSetting = false;
-        private static final IllegalArgumentException EXCEPTION =  new IllegalArgumentException("this setting goes boom");
-
-        static void breakSetting(boolean breakSetting) {
-            BrokenSettingPlugin.breakSetting = breakSetting;
-        }
-
-        static final Setting<String> BROKEN_SETTING = new Setting<>("setting.broken", "default", s->s,
-                s-> {
-                    if ((s.equals("default") == false && breakSetting)) {
-                        throw EXCEPTION;
-                    }
-                },
-                Setting.Property.NodeScope, Setting.Property.Dynamic);
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(BROKEN_SETTING);
-        }
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37485")
-    public void testExceptionWhenRestoringPersistentSettings() {
-        logger.info("--> start 2 nodes");
-        internalCluster().startNodes(2);
-
-        Client client = client();
-        Consumer<String> setSettingValue = value -> {
-            client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
-                    Settings.builder()
-                            .put(BrokenSettingPlugin.BROKEN_SETTING.getKey(), value))
-                    .execute().actionGet();
-        };
-
-        Consumer<String> assertSettingValue = value -> {
-            assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                            .getMetadata().persistentSettings().get(BrokenSettingPlugin.BROKEN_SETTING.getKey()),
-                    equalTo(value));
-        };
-
-        logger.info("--> set test persistent setting");
-        setSettingValue.accept("new value");
-        assertSettingValue.accept("new value");
-
-        createRepository("test-repo", "fs");
-        createFullSnapshot("test-repo", "test-snap");
-        assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
-
-        logger.info("--> change the test persistent setting and break it");
-        setSettingValue.accept("new value 2");
-        assertSettingValue.accept("new value 2");
-        BrokenSettingPlugin.breakSetting(true);
-
-        logger.info("--> restore snapshot");
-        try {
-            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true)
-                .setWaitForCompletion(true).execute().actionGet();
-
-        } catch (IllegalArgumentException ex) {
-            assertEquals(BrokenSettingPlugin.EXCEPTION.getMessage(), ex.getMessage());
-        }
-
-        assertSettingValue.accept("new value 2");
-    }
-
-    public void testRestoreCustomMetadata() throws Exception {
-        Path tempDir = randomRepoPath();
-
-        logger.info("--> start node");
-        internalCluster().startNode();
-        createIndex("test-idx");
-        logger.info("--> add custom persistent metadata");
-        updateClusterState(currentState -> {
-            ClusterState.Builder builder = ClusterState.builder(currentState);
-            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-            metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("before_snapshot_s"));
-            metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("before_snapshot_ns"));
-            metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("before_snapshot_s_gw"));
-            metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("before_snapshot_ns_gw"));
-            metadataBuilder.putCustom(SnapshotableGatewayNoApiMetadata.TYPE,
-                new SnapshotableGatewayNoApiMetadata("before_snapshot_s_gw_noapi"));
-            builder.metadata(metadataBuilder);
-            return builder.build();
-        });
-
-        createRepository("test-repo", "fs", tempDir);
-        createFullSnapshot("test-repo", "test-snap");
-        assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
-
-        logger.info("--> change custom persistent metadata");
-        updateClusterState(currentState -> {
-            ClusterState.Builder builder = ClusterState.builder(currentState);
-            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-            if (randomBoolean()) {
-                metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("after_snapshot_s"));
-            } else {
-                metadataBuilder.removeCustom(SnapshottableMetadata.TYPE);
-            }
-            metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("after_snapshot_ns"));
-            if (randomBoolean()) {
-                metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("after_snapshot_s_gw"));
-            } else {
-                metadataBuilder.removeCustom(SnapshottableGatewayMetadata.TYPE);
-            }
-            metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("after_snapshot_ns_gw"));
-            metadataBuilder.removeCustom(SnapshotableGatewayNoApiMetadata.TYPE);
-            builder.metadata(metadataBuilder);
-            return builder.build();
-        });
-
-        logger.info("--> delete repository");
-        assertAcked(clusterAdmin().prepareDeleteRepository("test-repo"));
-
-        createRepository("test-repo-2", "fs", tempDir);
-
-        logger.info("--> restore snapshot");
-        clusterAdmin().prepareRestoreSnapshot("test-repo-2", "test-snap").setRestoreGlobalState(true).setIndices("-*")
-            .setWaitForCompletion(true).execute().actionGet();
-
-        logger.info("--> make sure old repository wasn't restored");
-        assertRequestBuilderThrows(clusterAdmin().prepareGetRepositories("test-repo"), RepositoryMissingException.class);
-        assertThat(clusterAdmin().prepareGetRepositories("test-repo-2").get().repositories().size(), equalTo(1));
-
-        logger.info("--> check that custom persistent metadata was restored");
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-        logger.info("Cluster state: {}", clusterState);
-        Metadata metadata = clusterState.getMetadata();
-        assertThat(((SnapshottableMetadata) metadata.custom(SnapshottableMetadata.TYPE)).getData(), equalTo("before_snapshot_s"));
-        assertThat(((NonSnapshottableMetadata) metadata.custom(NonSnapshottableMetadata.TYPE)).getData(), equalTo("after_snapshot_ns"));
-        assertThat(((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
-            equalTo("before_snapshot_s_gw"));
-        assertThat(((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
-            equalTo("after_snapshot_ns_gw"));
-
-        logger.info("--> restart all nodes");
-        internalCluster().fullRestart();
-        ensureYellow();
-
-        logger.info("--> check that gateway-persistent custom metadata survived full cluster restart");
-        clusterState = clusterAdmin().prepareState().get().getState();
-        logger.info("Cluster state: {}", clusterState);
-        metadata = clusterState.getMetadata();
-        assertThat(metadata.custom(SnapshottableMetadata.TYPE), nullValue());
-        assertThat(metadata.custom(NonSnapshottableMetadata.TYPE), nullValue());
-        assertThat(((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
-            equalTo("before_snapshot_s_gw"));
-        assertThat(((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
-            equalTo("after_snapshot_ns_gw"));
-        // Shouldn't be returned as part of API response
-        assertThat(metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE), nullValue());
-        // But should still be in state
-        metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
-        assertThat(((SnapshotableGatewayNoApiMetadata) metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(),
-            equalTo("before_snapshot_s_gw_noapi"));
+        return Arrays.asList(MockRepository.Plugin.class, MockTransportService.TestPlugin.class);
     }
 
     public void testSnapshotDuringNodeShutdown() throws Exception {
@@ -355,7 +131,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                                 .get();
 
         logger.info("--> waiting for block to kick in");
-        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
+        waitForBlock(blockedNode, "test-repo");
 
         logger.info("--> execution was blocked on node [{}], shutting it down", blockedNode);
         unblockNode("test-repo", blockedNode);
@@ -363,9 +139,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         logger.info("--> waiting for completion");
-        SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
-        logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
-        logger.info("--> done");
+        awaitNoMoreRunningOperations();
+        logger.info("Number of failed shards [{}]", getSnapshot("test-repo", "test-snap").shardFailures().size());
     }
 
     public void testSnapshotWithStuckNode() throws Exception {
@@ -395,7 +170,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                                 .get();
 
         logger.info("--> waiting for block to kick in");
-        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
+        waitForBlock(blockedNode, "test-repo");
 
         logger.info("--> execution was blocked on node [{}], aborting snapshot", blockedNode);
 
@@ -432,9 +207,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testRestoreIndexWithMissingShards() throws Exception {
         disableRepoConsistencyCheck("This test leaves behind a purposely broken repository");
         logger.info("--> start 2 nodes");
-        internalCluster().startNode();
-        internalCluster().startNode();
-        cluster().wipeIndices("_all");
+        internalCluster().startNodes(2);
 
         logger.info("--> create an index that will have some unallocated shards");
         assertAcked(prepareCreate("test-idx-some", 2, indexSettingsNoReplicas(6)));
@@ -565,12 +338,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testRestoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        Settings nodeSettings = Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                .build();
-
-        internalCluster().startNodes(2, nodeSettings);
-        cluster().wipeIndices("_all");
+        internalCluster().startNodes(2);
 
         createRepository("test-repo", "fs");
 
@@ -580,6 +348,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ensureGreen();
 
         indexRandomDocs("test-idx", 100);
+
+        logger.info("--> force merging down to a single segment to get a deterministic set of files");
+        assertEquals(client().admin().indices().prepareForceMerge("test-idx").setMaxNumSegments(1).setFlush(true).get().getFailedShards(),
+            0);
 
         createSnapshot("test-repo", "test-snap-1", Collections.singletonList("test-idx"));
 
@@ -742,15 +514,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numberOfShards = getNumShards("test-idx").numPrimaries;
         logger.info("number of shards: {}", numberOfShards);
 
-        final String masterNode = blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
+        blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
 
         dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false)
             .setIndices("test-idx").get();
 
-        logger.info("--> stopping data node {}", dataNode);
         stopNode(dataNode);
-        logger.info("--> stopping master node {} ", masterNode);
         internalCluster().stopCurrentMasterNode();
 
         logger.info("--> wait until the snapshot is done");
@@ -1137,7 +907,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         blockAllDataNodes(repoName);
         final String snapshotName = "test-snap";
         final ActionFuture<CreateSnapshotResponse> snapshotResponse = startFullSnapshot(repoName, snapshotName);
-        waitForBlock(dataNodeName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(dataNodeName, repoName);
 
         final AtomicBoolean blocked = new AtomicBoolean(true);
 
@@ -1249,8 +1019,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        logger.info("--> wait for snapshot to complete");
-        SnapshotInfo snapshotInfo = waitForCompletion(repoName, "test-snap", TimeValue.timeValueSeconds(600));
+        awaitNoMoreRunningOperations();
+        SnapshotInfo snapshotInfo = getSnapshot(repoName, "test-snap");
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
         assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
         logger.info("--> done");
@@ -1268,205 +1038,22 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     private static List<Path> findRepoMetaBlobs(Path repoPath) throws IOException {
         List<Path> files = new ArrayList<>();
-        Files.walkFileTree(repoPath.resolve("indices"), new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    final String fileName = file.getFileName().toString();
-                    if (fileName.startsWith(BlobStoreRepository.METADATA_PREFIX) && fileName.endsWith(".dat")) {
-                        files.add(file);
-                    }
-                    return super.visitFile(file, attrs);
-                }
+        forEachFileRecursively(repoPath.resolve("indices"), ((file, basicFileAttributes) -> {
+            final String fileName = file.getFileName().toString();
+            if (fileName.startsWith(BlobStoreRepository.METADATA_PREFIX) && fileName.endsWith(".dat")) {
+                files.add(file);
             }
-        );
+        }));
         return files;
     }
 
     private List<Path> scanSnapshotFolder(Path repoPath) throws IOException {
         List<Path> files = new ArrayList<>();
-        Files.walkFileTree(repoPath, new SimpleFileVisitor<Path>(){
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.getFileName().toString().startsWith("__")){
-                        files.add(file);
-                    }
-                    return super.visitFile(file, attrs);
-                }
+        forEachFileRecursively(repoPath.resolve("indices"), ((file, basicFileAttributes) -> {
+            if (file.getFileName().toString().startsWith("__")){
+                files.add(file);
             }
-        );
+        }));
         return files;
-    }
-
-    public static class SnapshottableMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_snapshottable";
-
-        public SnapshottableMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static SnapshottableMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(SnapshottableMetadata::new, in);
-        }
-
-        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TYPE, in);
-        }
-
-        public static SnapshottableMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(SnapshottableMetadata::new, parser);
-        }
-
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return Metadata.API_AND_SNAPSHOT;
-        }
-    }
-
-    public static class NonSnapshottableMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_non_snapshottable";
-
-        public NonSnapshottableMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static NonSnapshottableMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(NonSnapshottableMetadata::new, in);
-        }
-
-        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TYPE, in);
-        }
-
-        public static NonSnapshottableMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(NonSnapshottableMetadata::new, parser);
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return Metadata.API_ONLY;
-        }
-    }
-
-    public static class SnapshottableGatewayMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_snapshottable_gateway";
-
-        public SnapshottableGatewayMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static SnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(SnapshottableGatewayMetadata::new, in);
-        }
-
-        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TYPE, in);
-        }
-
-        public static SnapshottableGatewayMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(SnapshottableGatewayMetadata::new, parser);
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.SNAPSHOT, Metadata.XContentContext.GATEWAY);
-        }
-    }
-
-    public static class NonSnapshottableGatewayMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_non_snapshottable_gateway";
-
-        public NonSnapshottableGatewayMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static NonSnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(NonSnapshottableGatewayMetadata::new, in);
-        }
-
-        public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TYPE, in);
-        }
-
-        public static NonSnapshottableGatewayMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(NonSnapshottableGatewayMetadata::new, parser);
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return Metadata.API_AND_GATEWAY;
-        }
-
-    }
-
-    public static class SnapshotableGatewayNoApiMetadata extends TestCustomMetadata {
-        public static final String TYPE = "test_snapshottable_gateway_no_api";
-
-        public SnapshotableGatewayNoApiMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        public static SnapshotableGatewayNoApiMetadata readFrom(StreamInput in) throws IOException {
-            return readFrom(SnapshotableGatewayNoApiMetadata::new, in);
-        }
-
-        public static SnapshotableGatewayNoApiMetadata fromXContent(XContentParser parser) throws IOException {
-            return fromXContent(SnapshotableGatewayNoApiMetadata::new, parser);
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
-        }
     }
 }

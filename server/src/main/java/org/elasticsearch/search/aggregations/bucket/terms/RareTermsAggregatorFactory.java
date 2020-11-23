@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -29,6 +28,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -151,10 +151,10 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     RareTermsAggregatorFactory(String name, ValuesSourceConfig config,
                                       IncludeExclude includeExclude,
-                                      QueryShardContext queryShardContext,
+                                      AggregationContext context,
                                       AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                       Map<String, Object> metadata, int maxDocCount, double precision) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.includeExclude = includeExclude;
         this.maxDocCount = maxDocCount;
         this.precision = precision;
@@ -180,7 +180,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
+        return context.getValuesSourceRegistry()
             .getAggregator(RareTermsAggregationBuilder.REGISTRY_KEY, config)
             .build(
                 name,

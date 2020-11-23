@@ -41,7 +41,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -71,6 +70,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -281,11 +281,11 @@ public class HighlightBuilderTests extends ESTestCase {
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
-                null, null, System::currentTimeMillis, null, null, () -> true, null) {
+                null, null, System::currentTimeMillis, null, null, () -> true, null, emptyMap()) {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER);
-                return builder.build(new Mapper.BuilderContext(idxSettings.getSettings(), new ContentPath(1))).fieldType();
+                return builder.build(new ContentPath(1)).fieldType();
             }
         };
         mockShardContext.setMapUnmappedFieldAsString(true);

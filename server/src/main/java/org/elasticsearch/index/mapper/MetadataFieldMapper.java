@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,7 +32,7 @@ import java.util.function.Function;
 /**
  * A mapper for a builtin field containing metadata about a document.
  */
-public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
+public abstract class MetadataFieldMapper extends FieldMapper {
 
     public interface TypeParser extends Mapper.TypeParser {
 
@@ -41,13 +42,9 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 
         /**
          * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
-         * @param fieldType      the existing field type for this meta mapper on the current index
-         *                       or null if this is the first type being introduced
          * @param parserContext context that may be useful to build the field like analyzers
          */
-        // TODO: remove the fieldType parameter which is only used for bw compat with pre-2.0
-        // since settings could be modified
-        MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext);
+        MetadataFieldMapper getDefault(ParserContext parserContext);
     }
 
     /**
@@ -86,7 +83,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType defaultFieldType, ParserContext parserContext) {
+        public MetadataFieldMapper getDefault(ParserContext parserContext) {
             return mapperParser.apply(parserContext);
         }
     }
@@ -110,12 +107,12 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType defaultFieldType, ParserContext parserContext) {
+        public MetadataFieldMapper getDefault(ParserContext parserContext) {
             return defaultMapperParser.apply(parserContext);
         }
     }
 
-    public abstract static class Builder extends ParametrizedFieldMapper.Builder {
+    public abstract static class Builder extends FieldMapper.Builder {
 
         protected Builder(String name) {
             super(name);
@@ -131,15 +128,23 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public abstract MetadataFieldMapper build(BuilderContext context);
+        public final MetadataFieldMapper build(ContentPath path) {
+            return build();
+        }
+
+        public abstract MetadataFieldMapper build();
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
         super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
+    protected MetadataFieldMapper(MappedFieldType mappedFieldType, NamedAnalyzer indexAnalyzer) {
+        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, MultiFields.empty(), CopyTo.empty());
+    }
+
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return null;    // by default, things can't be configured so we have no builder
     }
 

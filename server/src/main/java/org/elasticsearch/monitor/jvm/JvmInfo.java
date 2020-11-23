@@ -178,7 +178,7 @@ public class JvmInfo implements ReportingService.Info {
         final String javaHome = System.getProperty("java.home");
         final String userDir = System.getProperty("user.dir");
         if (Constants.MAC_OS_X) {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk/Contents/Home").toAbsolutePath());
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk.app/Contents/Home").toAbsolutePath());
         } else {
             return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
         }
@@ -331,27 +331,6 @@ public class JvmInfo implements ReportingService.Info {
 
     public String getVersion() {
         return this.version;
-    }
-
-    public int versionAsInteger() {
-        try {
-            int i = 0;
-            StringBuilder sVersion = new StringBuilder();
-            for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
-                    break;
-                }
-                if (version.charAt(i) != '.') {
-                    sVersion.append(version.charAt(i));
-                }
-            }
-            if (i == 0) {
-                return -1;
-            }
-            return Integer.parseInt(sVersion.toString());
-        } catch (Exception e) {
-            return -1;
-        }
     }
 
     public int versionUpdatePack() {

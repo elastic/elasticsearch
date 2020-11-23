@@ -272,6 +272,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(response.getAuthenticationRequestUrl(),
             equalTo("https://op.example.com/login?scope=scope1+scope2+openid&response_type=code" +
                 "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" + state + "&nonce=" + nonce + "&client_id=rp-my"));
+        assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
 
     public void testBuildingAuthenticationRequest() {
@@ -295,6 +296,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(response.getAuthenticationRequestUrl(),
             equalTo("https://op.example.com/login?scope=openid+scope1+scope2&response_type=code" +
                 "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" + state + "&nonce=" + nonce + "&client_id=rp-my"));
+        assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
 
     public void testBuilidingAuthenticationRequestWithDefaultScope() {
@@ -316,6 +318,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final String nonce = response.getNonce();
         assertThat(response.getAuthenticationRequestUrl(), equalTo("https://op.example.com/login?scope=openid&response_type=code" +
             "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" + state + "&nonce=" + nonce + "&client_id=rp-my"));
+        assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
 
     public void testBuildLogoutResponse() throws Exception {
@@ -373,6 +376,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
         assertThat(response.getAuthenticationRequestUrl(), equalTo("https://op.example.com/login?scope=openid&response_type=code" +
             "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" + state + "&nonce=" + nonce + "&client_id=rp-my"));
+        assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
 
     public void testBuildingAuthenticationRequestWithLoginHint() {
@@ -397,6 +401,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(response.getAuthenticationRequestUrl(), equalTo("https://op.example.com/login?login_hint=" + thehint +
             "&scope=openid&response_type=code&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" +
             state + "&nonce=" + nonce + "&client_id=rp-my"));
+        assertThat(response.getRealmName(), equalTo(REALM_NAME));
     }
 
     private AuthenticationResult authenticateWithOidc(String principal, UserRoleMapper roleMapper, boolean notPopulateMetadata,

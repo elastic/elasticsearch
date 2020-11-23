@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
@@ -534,7 +533,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         String forecastId = forecast(job.getId(),
             TimeValue.timeValueHours(1),
             TimeValue.ZERO,
-            new ByteSizeValue(50, ByteSizeUnit.MB).getBytes());
+            ByteSizeValue.ofMb(50).getBytes());
 
         waitForecastToFinish(job.getId(), forecastId);
         closeJob(job.getId());

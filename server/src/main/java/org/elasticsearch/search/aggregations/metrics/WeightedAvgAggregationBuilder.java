@@ -26,11 +26,11 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
@@ -110,13 +110,13 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected MultiValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected MultiValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                             Map<String, ValuesSourceConfig> configs,
                                                             Map<String, QueryBuilder> filters,
                                                             DocValueFormat format,
                                                             AggregatorFactory parent,
                                                             Builder subFactoriesBuilder) throws IOException {
-        return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new WeightedAvgAggregatorFactory(name, configs, format, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

@@ -66,9 +66,9 @@ public interface Function {
          * TODO: replace the boolean with a more descriptive enum.
          *
          * @param searchResponse the response after querying for changes
-         * @return true in case of no more changed buckets, false in case changes buckets have been collected
+         * @return the position of the change collector, null in case the collector is exhausted
          */
-        boolean processSearchResponse(SearchResponse searchResponse);
+        Map<String, Object> processSearchResponse(SearchResponse searchResponse);
 
         /**
          * Build the filter query to narrow the result set given the previously collected changes.
@@ -87,18 +87,18 @@ public interface Function {
         void clear();
 
         /**
-         * Get the bucket position of the changes collector.
-         *
-         * @return the position, null in case the collector is exhausted
-         */
-        Map<String, Object> getBucketPosition();
-
-        /**
          * Whether the collector optimizes change detection by narrowing the required query.
          *
          * @return true if the collector optimizes change detection
          */
         boolean isOptimized();
+
+        /**
+         * Whether the collector requires an extra query to identify the changes.
+         *
+         * @return true if collector requires an extra query for identifying changes
+         */
+        boolean queryForChanges();
     }
 
     /**
@@ -181,17 +181,6 @@ public interface Function {
      * @return the page size
      */
     int getInitialPageSize();
-
-    /**
-     * Whether this function - given its configuration - supports incremental bucket update used in continuous mode.
-     *
-     * If so, the indexer uses the change collector to update the continuous transform.
-     *
-     * TODO: simplify and remove this method if possible
-     *
-     * @return true if incremental bucket update is supported
-     */
-    boolean supportsIncrementalBucketUpdate();
 
     /**
      * Build the query for the next iteration

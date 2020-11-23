@@ -23,10 +23,8 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
-import java.util.function.LongSupplier;
 
 /**
-=======
  * {@link ValuesSourceType} represents a collection of fields that share a common set of operations, for example all numeric fields.
  * Aggregations declare their support for a given ValuesSourceType (via {@link ValuesSourceRegistry.Builder#register}),
  * and should then not need to care about the fields which use that ValuesSourceType.
@@ -69,9 +67,10 @@ public interface ValuesSourceType {
      *
      * @param fieldContext - The field being wrapped
      * @param script - Optional script that might be applied over the field
+     * @param context context for the aggregation fetching the field
      * @return - Field specialization of the base {@link ValuesSource}
      */
-    ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
+    ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context);
 
     /**
      * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
@@ -80,11 +79,11 @@ public interface ValuesSourceType {
      * @param valuesSource - The original {@link ValuesSource}
      * @param rawMissing - The missing value we got from the parser, typically a string or number
      * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
-     * @param now - Used in conjunction with the formatter, should return the current time in milliseconds
+     * @param context - Context for this aggregation used to handle {@link AggregationContext#nowInMillis() "now"}
      * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
     ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                LongSupplier now);
+                                AggregationContext context);
 
     /**
      * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a

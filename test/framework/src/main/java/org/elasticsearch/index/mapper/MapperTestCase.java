@@ -204,12 +204,28 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
-    protected void assertParseMinimalWarnings() {
-        // Most mappers don't emit any warnings
+    protected final void assertParseMinimalWarnings() {
+        String[] warnings = getParseMinimalWarnings();
+        if (warnings.length > 0) {
+            assertWarnings(warnings);
+        }
     }
 
-    protected void assertParseMaximalWarnings() {
+    protected final void assertParseMaximalWarnings() {
+        String[] warnings = getParseMaximalWarnings();
+        if (warnings.length > 0) {
+            assertWarnings(warnings);
+        }
+    }
+
+    protected String[] getParseMinimalWarnings() {
         // Most mappers don't emit any warnings
+        return Strings.EMPTY_ARRAY;
+    }
+
+    protected String[] getParseMaximalWarnings() {
+        // Most mappers don't emit any warnings
+        return Strings.EMPTY_ARRAY;
     }
 
     /**
@@ -255,20 +271,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
+    protected String typeName() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(this::minimalMapping));
+        return ms.fieldType("field").typeName();
+    }
+
     public final void testDeprecatedBoost() throws IOException {
-        try {
-            createMapperService(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("boost", 2.0);
-            }));
-            assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
-        }
-        catch (MapperParsingException e) {
-            assertThat(e.getMessage(), anyOf(
-                containsString("unknown parameter [boost]"),
-                containsString("[boost : 2.0]")));
-        }
-        assertParseMinimalWarnings();
+        MapperService ms = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("boost", 2.0);
+        }));
+        String type = typeName();
+        String[] warnings = Strings.concatStringArrays(getParseMinimalWarnings(),
+            new String[]{"Parameter [boost] on field [field] is deprecated and will be removed in 8.0",
+                         "Parameter [boost] has no effect on type [" + type + "] and will be removed in future"});
+        allowedWarnings(warnings);
     }
 
     /**
@@ -286,7 +303,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup, null);
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup, null);
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

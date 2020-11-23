@@ -15,11 +15,11 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -114,6 +114,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
         tokenService.decodeToken(response.getTokenString(), userTokenFuture);
         assertNotNull(userTokenFuture.actionGet());
+        assertNotNull(response.getAuthentication());
     }
 
 
@@ -135,7 +136,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
         client().admin().cluster().prepareHealth().execute().get();
-        PlainActionFuture<ClusterStateUpdateResponse> rotateActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AcknowledgedResponse> rotateActionFuture = new PlainActionFuture<>();
         logger.info("rotate on master: {}", masterName);
         masterTokenService.rotateKeysOnMaster(rotateActionFuture);
         assertTrue(rotateActionFuture.actionGet().isAcknowledged());
@@ -147,6 +148,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertNotNull(userTokenFuture.actionGet());
             assertNotEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
+        assertNotNull(response.getAuthentication());
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.getAuthentication().getUser().principal());
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
@@ -468,6 +471,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
             .admin().cluster().prepareHealth().get());
+        assertNotNull(refreshResponse.getAuthentication());
     }
 
     public void testRefreshingInvalidatedToken() {

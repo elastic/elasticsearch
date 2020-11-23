@@ -56,6 +56,7 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.process.ExecOperations;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -127,6 +128,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Jdk bwcJdk;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
+    private final ExecOperations execOperations;
 
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
@@ -173,9 +175,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         String name,
         Project project,
         ReaperService reaper,
+        File workingDirBase,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
-        File workingDirBase,
+        ExecOperations execOperations,
         Jdk bwcJdk
     ) {
         this.path = path;
@@ -184,6 +187,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.reaper = reaper;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
+        this.execOperations = execOperations;
         this.bwcJdk = bwcJdk;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
@@ -231,7 +235,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void doSetVersion(String version) {
-        String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version + "-";
+        String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
         if (container.findByName(distroName) == null) {
             container.create(distroName);
@@ -425,6 +429,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void freeze() {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
+        distributions.stream().forEach(d -> d.maybeFreeze());
         configurationFrozen.set(true);
     }
 
@@ -633,27 +638,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void installModules() {
-        if (testDistribution == TestDistribution.INTEG_TEST) {
-            logToProcessStdout("Installing " + modules.size() + "modules");
-            for (Provider<File> module : modules) {
-                Path destination = getDistroDir().resolve("modules")
-                    .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
-                // only install modules that are not already bundled with the integ-test distribution
-                if (Files.exists(destination) == false) {
-                    fileSystemOperations.copy(spec -> {
-                        if (module.get().getName().toLowerCase().endsWith(".zip")) {
-                            spec.from(archiveOperations.zipTree(module));
-                        } else if (module.get().isDirectory()) {
-                            spec.from(module);
-                        } else {
-                            throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
-                        }
-                        spec.into(destination);
-                    });
-                }
+        logToProcessStdout("Installing " + modules.size() + "modules");
+        for (Provider<File> module : modules) {
+            Path destination = getDistroDir().resolve("modules")
+                .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
+            // only install modules that are not already bundled with the integ-test distribution
+            if (Files.exists(destination) == false) {
+                fileSystemOperations.copy(spec -> {
+                    if (module.get().getName().toLowerCase().endsWith(".zip")) {
+                        spec.from(archiveOperations.zipTree(module));
+                    } else if (module.get().isDirectory()) {
+                        spec.from(module);
+                    } else {
+                        throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
+                    }
+                    spec.into(destination);
+                });
             }
-        } else {
-            LOGGER.info("Not installing " + modules.size() + "(s) since the " + distributions + " distribution already " + "has them");
         }
     }
 
@@ -705,7 +706,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
-            LoggedExec.exec(project, spec -> {
+            LoggedExec.exec(execOperations, spec -> {
                 spec.setEnvironment(getESEnvironment());
                 spec.workingDir(getDistroDir());
                 spec.executable(OS.conditionalString().onUnix(() -> "./bin/" + tool).onWindows(() -> "cmd").supply());

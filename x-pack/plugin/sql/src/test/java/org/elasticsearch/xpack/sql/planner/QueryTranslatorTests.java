@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
@@ -77,6 +80,7 @@ import org.junit.BeforeClass;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -99,6 +103,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -132,7 +137,11 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private PhysicalPlan optimizeAndPlan(String sql) {
-        return  planner.plan(optimizer.optimize(plan(sql)), true);
+        return optimizeAndPlan(plan(sql));
+    }
+
+    private PhysicalPlan optimizeAndPlan(LogicalPlan plan) {
+        return planner.plan(optimizer.optimize(plan),true);
     }
 
     private QueryTranslation translate(Expression condition) {
@@ -141,6 +150,10 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private QueryTranslation translateWithAggs(Expression condition) {
         return QueryTranslator.toQuery(condition, true);
+    }
+
+    private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
+        return analyzer.analyze(parser.createStatement(sql, Arrays.asList(params), org.elasticsearch.xpack.ql.type.DateUtils.UTC), true);
     }
 
     public void testTermEqualityAnalyzer() {
@@ -982,6 +995,39 @@ public class QueryTranslatorTests extends ESTestCase {
         TermsQuery tq = (TermsQuery) query;
         assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"lala\"],\"boost\":1.0}}",
             tq.asBuilder().toString().replaceAll("\\s", ""));
+    }
+
+    public void testTranslateInExpression_WhereClause_Datetime() {
+        ZoneId zoneId = randomZone();
+        String[] dates = {"2002-02-02T02:02:02.222Z", "2003-03-03T03:03:03.333Z"};
+        LogicalPlan p = plan("SELECT * FROM test WHERE date IN ('" + dates[0] + "'::datetime, '" + dates[1] + "'::datetime)", zoneId);
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = translate(condition);
+
+        Query query = translation.query;
+        assertTrue(query instanceof BoolQuery);
+        BoolQuery bq = (BoolQuery) query;
+        assertFalse(bq.isAnd());
+        assertTrue(bq.left() instanceof RangeQuery);
+        assertTrue(bq.right() instanceof RangeQuery);
+        List<Tuple<String, RangeQuery>> tuples = Arrays.asList(new Tuple<>(dates[0], (RangeQuery)bq.left()),
+            new Tuple<>(dates[1], (RangeQuery) bq.right()));
+
+        for (Tuple<String, RangeQuery> t: tuples) {
+            String date = t.v1();
+            RangeQuery rq = t.v2();
+
+            assertEquals("date", rq.field());
+            assertEquals(date, rq.upper().toString());
+            assertEquals(date, rq.lower().toString());
+            assertEquals(zoneId, rq.zoneId());
+            assertTrue(rq.includeLower());
+            assertTrue(rq.includeUpper());
+            assertEquals(DATE_FORMAT, rq.format());
+        }
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {
@@ -2205,5 +2251,53 @@ public class QueryTranslatorTests extends ESTestCase {
             + "{\"a0\":\"" + aggName + ".min\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt("
             + "InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\","
             + "\"params\":{\"v0\":\"2020-05-03T00:00:00.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
+    }
+
+    public void testFoldingWithParamsWithoutIndex() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("integer", 200)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(2).toString(), startsWith("?{r}#"));
+        assertNotEquals(p.output().get(1).id(), p.output().get(2).id());
+    }
+
+    public void testSameAliasForParamAndField() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, int as \"?\" FROM test",
+            new SqlTypedParamValue("integer", 100)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+        assertNotEquals(p.output().get(0).id(), p.output().get(1).id());
+    }
+
+    public void testSameAliasOnSameField() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT int as \"int\", int as \"int\" FROM test"));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("int{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("int{r}#"));
+    }
+
+    public void testFoldingWithMixedParamsWithoutAlias() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("text", "200")));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+    }
+
+    public void testSameExpressionWithoutAlias() {
+        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT 100, 100 FROM test");
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+        assertEquals(2, eqe.output().size());
+        assertThat(eqe.output().get(0).toString(), startsWith("100{r}#"));
+        assertThat(eqe.output().get(1).toString(), startsWith("100{r}#"));
+        // these two should be semantically different reference attributes
+        assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,10 +71,4 @@ public class BlockNode extends StatementNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        for (StatementNode statementNode : statementNodes) {
-            statementNode.write(writeScope);
-        }
-    }
 }

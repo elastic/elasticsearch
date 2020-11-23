@@ -20,7 +20,6 @@
 package org.elasticsearch.tools.launchers;
 
 import org.elasticsearch.tools.java_version_checker.JavaVersion;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -139,12 +138,14 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         List<String> jvmErgonomics = JvmErgonomics.choose(
             Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=45")
         );
-        assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
+
         if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 10) {
             assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
+            assertThat(jvmErgonomics, hasItem("-XX:G1HeapRegionSize=4m"));
         } else {
             assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
+            assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
         }
     }
 

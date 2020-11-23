@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -14,7 +15,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -68,9 +68,9 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
         assert enabled || request.path().endsWith("_disable");
         final String username = request.param("username");
         return channel -> new SecurityClient(client).prepareSetEnabled(username, enabled)
-                .execute(new RestBuilderListener<SetEnabledResponse>(channel) {
+                .execute(new RestBuilderListener<ActionResponse.Empty>(channel) {
                     @Override
-                    public RestResponse buildResponse(SetEnabledResponse setEnabledResponse, XContentBuilder builder) throws Exception {
+                    public RestResponse buildResponse(ActionResponse.Empty setEnabledResponse, XContentBuilder builder) throws Exception {
                         return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
                     }
                 });

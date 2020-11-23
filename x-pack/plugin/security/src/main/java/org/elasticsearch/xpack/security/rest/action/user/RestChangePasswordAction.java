@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,10 +17,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -83,9 +83,9 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
                 new SecurityClient(client)
                     .prepareChangePassword(username, request.requiredContent(), request.getXContentType(), passwordHasher)
                         .setRefreshPolicy(refresh)
-                        .execute(new RestBuilderListener<ChangePasswordResponse>(channel) {
+                        .execute(new RestBuilderListener<ActionResponse.Empty>(channel) {
                             @Override
-                            public RestResponse buildResponse(ChangePasswordResponse changePasswordResponse,
+                            public RestResponse buildResponse(ActionResponse.Empty changePasswordResponse,
                                                               XContentBuilder builder) throws Exception {
                                 return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
                             }

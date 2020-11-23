@@ -36,7 +36,7 @@ UUID of the index to import, which you can find using the
 ==== {api-query-parms-title}
 
 `accept_data_loss`::
-(Required, boolean)
+(Required, Boolean)
 This field must be set to `true` to import a dangling index. Because {es}
 cannot know where the dangling index data came from or determine which shard
 copies are fresh and which are stale, it cannot guarantee that the imported data

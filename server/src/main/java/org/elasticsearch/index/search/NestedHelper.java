@@ -35,17 +35,18 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /** Utility class to filter parent and children clauses when building nested
  * queries. */
 public final class NestedHelper {
 
     private final Function<String, ObjectMapper> objectMapperLookup;
-    private final Function<String, Boolean> isMappedFieldFunction;
+    private final Predicate<String> isMappedFieldPredicate;
 
-    public NestedHelper(Function<String, ObjectMapper> objectMapperLookup, Function<String, Boolean> isMappedFieldFunction) {
+    public NestedHelper(Function<String, ObjectMapper> objectMapperLookup, Predicate<String> isMappedFieldPredicate) {
         this.objectMapperLookup = objectMapperLookup;
-        this.isMappedFieldFunction = isMappedFieldFunction;
+        this.isMappedFieldPredicate = isMappedFieldPredicate;
     }
 
     /** Returns true if the given query might match nested documents. */
@@ -106,7 +107,7 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (isMappedFieldFunction.apply(field) == false) {
+        if (isMappedFieldPredicate.test(field) == false) {
             // field does not exist
             return false;
         }
@@ -175,7 +176,7 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (isMappedFieldFunction.apply(field) == false) {
+        if (isMappedFieldPredicate.test(field) == false) {
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {

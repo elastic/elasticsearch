@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -135,6 +136,8 @@ import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotResponse;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
 import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
@@ -162,6 +165,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Multiclas
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric.ConfusionMatrix;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
@@ -237,6 +241,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -342,6 +347,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-job-request
             GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*"); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setExcludeGenerated(false); // <3>
             // end::get-job-request
 
             // tag::get-job-execute
@@ -838,6 +844,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-datafeed-request
             GetDatafeedRequest request = new GetDatafeedRequest(datafeedId); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setExcludeGenerated(false); // <3>
             // end::get-datafeed-request
 
             // tag::get-datafeed-execute
@@ -2329,6 +2336,82 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testUpgradeJobSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-upgrade-job-model-snapshot";
+        String snapshotId = "1541587919";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-upgrade-job-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, " +
+            "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"quantile_state\":\"state\"}}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::upgrade-job-model-snapshot-request
+            UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(
+                jobId, // <1>
+                snapshotId, // <2>
+                TimeValue.timeValueMinutes(30), // <3>
+                false); // <4>
+            // end::upgrade-job-model-snapshot-request
+
+            try {
+                // tag::upgrade-job-model-snapshot-execute
+                UpgradeJobModelSnapshotResponse response = client.machineLearning().upgradeJobSnapshot(request, RequestOptions.DEFAULT);
+                // end::upgrade-job-model-snapshot-execute
+            } catch (ElasticsearchException ex) {
+                assertThat(ex.getMessage(), containsString("Expected persisted state but no state exists"));
+            }
+            UpgradeJobModelSnapshotResponse response = new UpgradeJobModelSnapshotResponse(true, "");
+
+            // tag::upgrade-job-model-snapshot-response
+            boolean completed = response.isCompleted(); // <1>
+            String node = response.getNode(); // <2>
+            // end::upgrade-job-model-snapshot-response
+        }
+        {
+            UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, false);
+
+            // tag::upgrade-job-model-snapshot-execute-listener
+            ActionListener<UpgradeJobModelSnapshotResponse> listener =
+                new ActionListener<UpgradeJobModelSnapshotResponse>() {
+                    @Override
+                    public void onResponse(UpgradeJobModelSnapshotResponse revertModelSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::upgrade-job-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::upgrade-job-model-snapshot-execute-async
+            client.machineLearning().upgradeJobSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::upgrade-job-model-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testUpdateModelSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
@@ -2863,6 +2946,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-data-frame-analytics-request
             GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            request.setExcludeGenerated(false); // <2>
             // end::get-data-frame-analytics-request
 
             // tag::get-data-frame-analytics-execute
@@ -3529,8 +3613,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <8>
             long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <9>
 
-            AucRocMetric.Result aucRocResult = response.getMetricByName(AucRocMetric.NAME); // <10>
-            double aucRocScore = aucRocResult.getScore(); // <11>
+            AucRocResult aucRocResult = response.getMetricByName(AucRocMetric.NAME); // <10>
+            double aucRocScore = aucRocResult.getValue(); // <11>
             // end::evaluate-data-frame-results-classification
 
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
@@ -3727,7 +3811,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDecompressDefinition(false) // <6>
                 .setAllowNoMatch(true) // <7>
                 .setTags("regression") // <8>
-                .setForExport(false); // <9>
+                .setExcludeGenerated(false); // <9>
             // end::get-trained-models-request
             request.setTags((List<String>)null);
 

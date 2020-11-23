@@ -96,8 +96,8 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    protected String[] getParseMaximalWarnings() {
+        return new String[]{ "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {

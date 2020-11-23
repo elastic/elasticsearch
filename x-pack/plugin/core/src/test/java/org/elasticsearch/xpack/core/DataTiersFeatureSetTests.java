@@ -29,7 +29,7 @@ public class DataTiersFeatureSetTests extends ESTestCase {
     public void testCalculateMAD() {
         assertThat(DataTiersFeatureSet.computeMedianAbsoluteDeviation(new TDigestState(10)), equalTo(0L));
 
-        TDigestState sketch = new TDigestState(randomDoubleBetween(0, 1000, false));
+        TDigestState sketch = new TDigestState(randomDoubleBetween(1, 1000, false));
         sketch.add(1);
         sketch.add(1);
         sketch.add(2);

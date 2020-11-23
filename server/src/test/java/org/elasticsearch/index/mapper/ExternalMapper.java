@@ -25,7 +25,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -42,7 +42,7 @@ import java.util.List;
  * .point GeoPoint type
  * .shape GeoShape type
  */
-public class ExternalMapper extends ParametrizedFieldMapper {
+public class ExternalMapper extends FieldMapper {
 
     public static class Names {
         public static final String FIELD_BIN = "bin";
@@ -51,22 +51,25 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private final BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
-        private final GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
-        private final GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
-        private final LegacyGeoShapeFieldMapper.Builder legacyShapeBuilder = new LegacyGeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
-        private final Mapper.Builder<?> stringBuilder;
+        private final GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT, false);
+        private final GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE, false, true);
+        private final LegacyGeoShapeFieldMapper.Builder legacyShapeBuilder
+            = new LegacyGeoShapeFieldMapper.Builder(Names.FIELD_SHAPE, Version.CURRENT, false, true);
+        private final Mapper.Builder stringBuilder;
         private final String generatedValue;
         private final String mapperName;
+        private final Version indexCreatedVersion;
 
-        public Builder(String name, String generatedValue, String mapperName) {
+        public Builder(String name, String generatedValue, String mapperName, Version indexCreatedVersion) {
             super(name);
             this.stringBuilder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).store(false);
             this.generatedValue = generatedValue;
             this.mapperName = mapperName;
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         @Override
@@ -75,24 +78,25 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ExternalMapper build(BuilderContext context) {
-            context.path().add(name);
-            BinaryFieldMapper binMapper = binBuilder.build(context);
-            BooleanFieldMapper boolMapper = boolBuilder.build(context);
-            GeoPointFieldMapper pointMapper = (GeoPointFieldMapper) latLonPointBuilder.build(context);
-            AbstractShapeGeometryFieldMapper<?, ?> shapeMapper = (context.indexCreatedVersion().before(Version.V_6_6_0))
-                ? legacyShapeBuilder.build(context)
-                : shapeBuilder.build(context);
-            FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
-            context.path().remove();
+        public ExternalMapper build(ContentPath contentPath) {
+            contentPath.add(name);
+            BinaryFieldMapper binMapper = binBuilder.build(contentPath);
+            BooleanFieldMapper boolMapper = boolBuilder.build(contentPath);
+            GeoPointFieldMapper pointMapper = (GeoPointFieldMapper) latLonPointBuilder.build(contentPath);
+            AbstractShapeGeometryFieldMapper<?, ?> shapeMapper = (indexCreatedVersion.before(Version.V_6_6_0))
+                ? legacyShapeBuilder.build(contentPath)
+                : shapeBuilder.build(contentPath);
+            FieldMapper stringMapper = (FieldMapper) stringBuilder.build(contentPath);
+            contentPath.remove();
 
-            return new ExternalMapper(name, buildFullName(context), generatedValue, mapperName, binMapper, boolMapper,
-                pointMapper, shapeMapper, stringMapper, multiFieldsBuilder.build(this, context), copyTo.build());
+            return new ExternalMapper(name, buildFullName(contentPath), generatedValue, mapperName, binMapper, boolMapper,
+                pointMapper, shapeMapper, stringMapper, indexCreatedVersion,
+                multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 
     public static TypeParser parser(String mapperName, String generatedValue) {
-        return new TypeParser((n, c) -> new Builder(n, generatedValue, mapperName));
+        return new TypeParser((n, c) -> new Builder(n, generatedValue, mapperName, c.indexVersionCreated()));
     }
 
     static class ExternalFieldType extends TermBasedFieldType {
@@ -107,8 +111,8 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
     }
 
@@ -121,10 +125,13 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     private final AbstractShapeGeometryFieldMapper<?, ?> shapeMapper;
     private final FieldMapper stringMapper;
 
+    private final Version indexCreatedVersion;
+
     public ExternalMapper(String simpleName, String contextName,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           AbstractShapeGeometryFieldMapper<?, ?> shapeMapper, FieldMapper stringMapper,
+                          Version indexCreatedVersion,
                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, new ExternalFieldType(contextName, true, true, false), multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -134,6 +141,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         this.pointMapper = pointMapper;
         this.shapeMapper = shapeMapper;
         this.stringMapper = stringMapper;
+        this.indexCreatedVersion = indexCreatedVersion;
     }
 
     @Override
@@ -177,8 +185,8 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), generatedValue, mapperName);
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), generatedValue, mapperName, indexCreatedVersion);
     }
 
     @Override

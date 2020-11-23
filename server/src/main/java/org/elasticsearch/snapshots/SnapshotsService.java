@@ -27,8 +27,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -72,11 +73,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -90,7 +89,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -245,7 +243,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         Repository repository = repositoriesService.repository(request.repository());
         final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
-        clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']',
+                new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private List<String> indices;
 
@@ -326,11 +325,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     });
                 }
             }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
         });
     }
 
@@ -359,6 +353,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
+        // TODO: create snapshot UUID in CreateSnapshotRequest and make this operation idempotent to cleanly deal with transport layer
+        //       retries
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         Repository repository = repositoriesService.repository(request.repository());
         if (repository.isReadOnly()) {
@@ -368,7 +364,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
-        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
+        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private SnapshotsInProgress.Entry newEntry;
 
@@ -451,11 +447,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
             }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
@@ -486,10 +477,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.target());
         validate(repositoryName, snapshotName);
+        // TODO: create snapshot UUID in CloneSnapshotRequest and make this operation idempotent to cleanly deal with transport layer
+        //       retries
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         initializingClones.add(snapshot);
-        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
+        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private SnapshotsInProgress.Entry newEntry;
 
@@ -550,12 +543,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 logger.info("snapshot clone [{}] started", snapshot);
                 addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
                 startCloning(repository, newEntry);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                initializingClones.remove(snapshot);
-                return request.masterNodeTimeout();
             }
         }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
     }
@@ -1830,7 +1817,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 Strings.arrayToCommaDelimitedString(snapshotNames), repoName));
 
         final Repository repository = repositoriesService.repository(repoName);
-        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.NORMAL) {
+        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private Snapshot runningSnapshot;
 
@@ -1958,11 +1945,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }
                 ));
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
             }
         }, "delete snapshot", listener::onFailure);
     }
@@ -3058,6 +3040,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         public int hashCode() {
             return Objects.hash(snapshot, shardId, updatedState, repoShardId);
         }
+
+        @Override
+        public String toString() {
+            return "ShardSnapshotUpdate{" +
+                    "snapshot=" + snapshot +
+                    ", shardId=" + shardId +
+                    ", repoShardId=" + repoShardId +
+                    ", updatedState=" + updatedState +
+                    '}';
+        }
     }
 
     /**
@@ -3115,30 +3107,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private class UpdateSnapshotStatusAction
-            extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
+            extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, ActionResponse.Empty> {
         UpdateSnapshotStatusAction(TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver) {
             super(UPDATE_SNAPSHOT_STATUS_ACTION_NAME, false, transportService, clusterService, threadPool,
-                    actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver
+                    actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver,
+                    in -> ActionResponse.Empty.INSTANCE, ThreadPool.Names.SAME
             );
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
-            return UpdateIndexShardSnapshotStatusResponse.INSTANCE;
-        }
-
-        @Override
         protected void masterOperation(UpdateIndexShardSnapshotStatusRequest request, ClusterState state,
-                                       ActionListener<UpdateIndexShardSnapshotStatusResponse> listener) throws Exception {
+                                       ActionListener<ActionResponse.Empty> listener) throws Exception {
             innerUpdateSnapshotState(new ShardSnapshotUpdate(request.snapshot(), request.shardId(), request.status()),
-                    ActionListener.delegateFailure(listener, (l, v) -> l.onResponse(UpdateIndexShardSnapshotStatusResponse.INSTANCE)));
+                    ActionListener.delegateFailure(listener, (l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
         }
 
         @Override

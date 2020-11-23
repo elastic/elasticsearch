@@ -559,13 +559,13 @@ public class SysColumnsTests extends ESTestCase {
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
         doAnswer(invocation -> {
-            ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
+            ((ActionListener<List<EsIndex>>) invocation.getArguments()[3]).onResponse(singletonList(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any());
 
         SqlSession session = new SqlSession(config, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);

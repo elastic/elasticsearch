@@ -20,17 +20,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -39,55 +32,46 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 
 public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
-
-        private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-
+        private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers;
         private final RootObjectMapper rootObjectMapper;
+        private final ContentPath contentPath;
+        private final IndexSettings indexSettings;
+        private final IndexAnalyzers indexAnalyzers;
+        private final DocumentParser documentParser;
 
         private Map<String, Object> meta;
 
-        private final Mapper.BuilderContext builderContext;
-
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
-            final Settings indexSettings = mapperService.getIndexSettings().getSettings();
-            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
-            this.rootObjectMapper = builder.build(builderContext);
+            this(builder, mapperService.getIndexSettings(), mapperService.getIndexAnalyzers(), mapperService.documentParser(),
+                mapperService::getMetadataMappers);
+        }
 
-            final String type = rootObjectMapper.name();
-            final DocumentMapper existingMapper = mapperService.documentMapper(type);
-            final Version indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-            final Map<String, TypeParser> metadataMapperParsers =
-                mapperService.mapperRegistry.getMetadataMapperParsers(indexCreatedVersion);
-            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
-                final String name = entry.getKey();
-                final MetadataFieldMapper existingMetadataMapper = existingMapper == null
-                        ? null
-                        : (MetadataFieldMapper) existingMapper.mappers().getMapper(name);
-                final MetadataFieldMapper metadataMapper;
-                if (existingMetadataMapper == null) {
-                    final TypeParser parser = entry.getValue();
-                    metadataMapper = parser.getDefault(mapperService.fieldType(name),
-                            mapperService.documentMapperParser().parserContext());
-                } else {
-                    metadataMapper = existingMetadataMapper;
-                }
-                metadataMappers.put(metadataMapper.getClass(), metadataMapper);
-            }
+        Builder(RootObjectMapper.Builder builder,
+                IndexSettings indexSettings,
+                IndexAnalyzers indexAnalyzers,
+                DocumentParser documentParser,
+                Function<String, Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersFunction) {
+            this.indexSettings = indexSettings;
+            this.indexAnalyzers = indexAnalyzers;
+            this.documentParser = documentParser;
+            this.contentPath = new ContentPath(1);
+            this.rootObjectMapper = builder.build(contentPath);
+            this.metadataMappers = metadataMappersFunction.apply(rootObjectMapper.name());
         }
 
         public Builder meta(Map<String, Object> meta) {
@@ -96,48 +80,44 @@ public class DocumentMapper implements ToXContentFragment {
         }
 
         public Builder put(MetadataFieldMapper.Builder mapper) {
-            MetadataFieldMapper metadataMapper = mapper.build(builderContext);
+            MetadataFieldMapper metadataMapper = mapper.build(contentPath);
             metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             return this;
         }
 
-        public DocumentMapper build(MapperService mapperService) {
+        public DocumentMapper build() {
             Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             Mapping mapping = new Mapping(
-                    mapperService.getIndexSettings().getIndexVersionCreated(),
+                    indexSettings.getIndexVersionCreated(),
                     rootObjectMapper,
                     metadataMappers.values().toArray(new MetadataFieldMapper[0]),
                     meta);
-            return new DocumentMapper(mapperService, mapping);
+            return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
         }
     }
 
-    private final MapperService mapperService;
-
     private final String type;
     private final Text typeText;
-
     private final CompressedXContent mappingSource;
-
     private final Mapping mapping;
-
     private final DocumentParser documentParser;
-
     private final MappingLookup fieldMappers;
-
+    private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
-    public DocumentMapper(MapperService mapperService, Mapping mapping) {
-        this.mapperService = mapperService;
+    private DocumentMapper(IndexSettings indexSettings,
+                           IndexAnalyzers indexAnalyzers,
+                           DocumentParser documentParser,
+                           Mapping mapping) {
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
-        final IndexSettings indexSettings = mapperService.getIndexSettings();
         this.mapping = mapping;
-        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
-
-        final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
-        this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
+        this.documentParser = documentParser;
+        this.indexSettings = indexSettings;
+        this.indexAnalyzers = indexAnalyzers;
+        this.fieldMappers = MappingLookup.fromMapping(this.mapping);
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
@@ -153,6 +133,14 @@ public class DocumentMapper implements ToXContentFragment {
             VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
+    }
+
+    IndexSettings indexSettings() {
+        return indexSettings;
+    }
+
+    IndexAnalyzers indexAnalyzers() {
+        return indexAnalyzers;
     }
 
     public Mapping mapping() {
@@ -215,27 +203,19 @@ public class DocumentMapper implements ToXContentFragment {
         return this.fieldMappers;
     }
 
-    public FieldTypeLookup fieldTypes() {
-        return mappers().fieldTypes();
-    }
-
-    public Map<String, ObjectMapper> objectMappers() {
-        return mappers().objectMappers();
-    }
-
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, mapping.metadataMappers);
+        return documentParser.parseDocument(source, mapping.metadataMappers, this);
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String type, String id) throws MapperParsingException {
         final SourceToParse emptySource = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
+        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, this).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
         final SourceToParse sourceToParse = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, this).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);
         parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
@@ -243,43 +223,93 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     /**
-     * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
+     * Given an object path, checks to see if any of its parents are non-nested objects
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, LeafReaderContext context) throws IOException {
-        ObjectMapper nestedObjectMapper = null;
-        for (ObjectMapper objectMapper : objectMappers().values()) {
-            if (!objectMapper.nested().isNested()) {
-                continue;
+    public boolean hasNonNestedParent(String path) {
+        ObjectMapper mapper = mappers().objectMappers().get(path);
+        if (mapper == null) {
+            return false;
+        }
+        while (mapper != null) {
+            if (mapper.nested().isNested() == false) {
+                return true;
             }
+            if (path.contains(".") == false) {
+                return false;
+            }
+            path = path.substring(0, path.lastIndexOf("."));
+            mapper = mappers().objectMappers().get(path);
+        }
+        return false;
+    }
 
-            Query filter = objectMapper.nestedTypeFilter();
-            if (filter == null) {
+    /**
+     * Returns all nested object mappers
+     */
+    public List<ObjectMapper> getNestedMappers() {
+        List<ObjectMapper> childMappers = new ArrayList<>();
+        for (ObjectMapper mapper : mappers().objectMappers().values()) {
+            if (mapper.nested().isNested() == false) {
                 continue;
             }
-            // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
-            // therefore is guaranteed to be a live doc.
-            final Weight nestedWeight = filter.createWeight(sc.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            Scorer scorer = nestedWeight.scorer(context);
-            if (scorer == null) {
-                continue;
-            }
+            childMappers.add(mapper);
+        }
+        return childMappers;
+    }
 
-            if (scorer.iterator().advance(nestedDocId) == nestedDocId) {
-                if (nestedObjectMapper == null) {
-                    nestedObjectMapper = objectMapper;
-                } else {
-                    if (nestedObjectMapper.fullPath().length() < objectMapper.fullPath().length()) {
-                        nestedObjectMapper = objectMapper;
-                    }
-                }
+    /**
+     * Returns all nested object mappers which contain further nested object mappers
+     *
+     * Used by BitSetProducerWarmer
+     */
+    public List<ObjectMapper> getNestedParentMappers() {
+        List<ObjectMapper> parents = new ArrayList<>();
+        for (ObjectMapper mapper : mappers().objectMappers().values()) {
+            String nestedParentPath = getNestedParent(mapper.fullPath());
+            if (nestedParentPath == null) {
+                continue;
+            }
+            ObjectMapper parent = mappers().objectMappers().get(nestedParentPath);
+            if (parent.nested().isNested()) {
+                parents.add(parent);
             }
         }
-        return nestedObjectMapper;
+        return parents;
+    }
+
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String path) {
+        ObjectMapper mapper = mappers().objectMappers().get(path);
+        if (mapper == null) {
+            return null;
+        }
+        if (path.contains(".") == false) {
+            return null;
+        }
+        do {
+            path = path.substring(0, path.lastIndexOf("."));
+            mapper = mappers().objectMappers().get(path);
+            if (mapper == null) {
+                return null;
+            }
+            if (mapper.nested().isNested()) {
+                return path;
+            }
+            if (path.contains(".") == false) {
+                return null;
+            }
+        } while(true);
     }
 
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(mapperService, merged);
+        return new DocumentMapper(this.indexSettings, this.indexAnalyzers, this.documentParser, merged);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {
@@ -306,14 +336,13 @@ public class DocumentMapper implements ToXContentFragment {
     @Override
     public String toString() {
         return "DocumentMapper{" +
-            "mapperService=" + mapperService +
-            ", type='" + type + '\'' +
+            "type='" + type + '\'' +
             ", typeText=" + typeText +
             ", mappingSource=" + mappingSource +
             ", mapping=" + mapping +
             ", documentParser=" + documentParser +
             ", fieldMappers=" + fieldMappers +
-            ", objectMappers=" + objectMappers() +
+            ", objectMappers=" + mappers().objectMappers() +
             ", hasNestedObjects=" + hasNestedObjects() +
             ", deleteTombstoneMetadataFieldMappers=" + Arrays.toString(deleteTombstoneMetadataFieldMappers) +
             ", noopTombstoneMetadataFieldMappers=" + Arrays.toString(noopTombstoneMetadataFieldMappers) +

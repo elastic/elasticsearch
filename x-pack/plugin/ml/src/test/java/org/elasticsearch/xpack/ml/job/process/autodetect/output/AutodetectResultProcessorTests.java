@@ -15,7 +15,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -328,8 +327,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         // Now with hard_limit
         modelSizeStats = new ModelSizeStats.Builder(JOB_ID)
                 .setMemoryStatus(ModelSizeStats.MemoryStatus.HARD_LIMIT)
-                .setModelBytesMemoryLimit(new ByteSizeValue(512, ByteSizeUnit.MB).getBytes())
-                .setModelBytesExceeded(new ByteSizeValue(1, ByteSizeUnit.KB).getBytes())
+                .setModelBytesMemoryLimit(ByteSizeValue.ofMb(512).getBytes())
+                .setModelBytesExceeded(ByteSizeValue.ofKb(1).getBytes())
                 .build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);

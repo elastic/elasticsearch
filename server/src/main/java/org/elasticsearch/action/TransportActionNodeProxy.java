@@ -20,7 +20,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -33,10 +32,10 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
     private final ActionType<Response> action;
     private final TransportRequestOptions transportOptions;
 
-    public TransportActionNodeProxy(Settings settings, ActionType<Response> action, TransportService transportService) {
+    public TransportActionNodeProxy(ActionType<Response> action, TransportService transportService) {
         this.action = action;
         this.transportService = transportService;
-        this.transportOptions = action.transportOptions(settings);
+        this.transportOptions = action.transportOptions();
     }
 
     public void execute(final DiscoveryNode node, final Request request, final ActionListener<Response> listener) {

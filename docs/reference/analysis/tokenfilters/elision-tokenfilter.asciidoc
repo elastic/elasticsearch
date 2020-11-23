@@ -146,7 +146,7 @@ specified.
 --
 
 `articles_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter treats any provided elisions as case sensitive.
 Defaults to `false`.
 

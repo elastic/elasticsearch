@@ -24,13 +24,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -212,7 +212,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected ScriptedMetricAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+    protected ScriptedMetricAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                                       Builder subfactoriesBuilder) throws IOException {
 
         if (combineScript == null) {
@@ -229,25 +229,25 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         ScriptedMetricAggContexts.InitScript.Factory compiledInitScript;
         Map<String, Object> initScriptParams;
         if (initScript != null) {
-            compiledInitScript = queryShardContext.compile(initScript, ScriptedMetricAggContexts.InitScript.CONTEXT);
+            compiledInitScript = context.compile(initScript, ScriptedMetricAggContexts.InitScript.CONTEXT);
             initScriptParams = initScript.getParams();
         } else {
             compiledInitScript = null;
             initScriptParams = Collections.emptyMap();
         }
 
-        ScriptedMetricAggContexts.MapScript.Factory compiledMapScript = queryShardContext.compile(mapScript,
+        ScriptedMetricAggContexts.MapScript.Factory compiledMapScript = context.compile(mapScript,
             ScriptedMetricAggContexts.MapScript.CONTEXT);
         Map<String, Object> mapScriptParams = mapScript.getParams();
 
 
-        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript = queryShardContext.compile(combineScript,
+        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript = context.compile(combineScript,
             ScriptedMetricAggContexts.CombineScript.CONTEXT);
         Map<String, Object> combineScriptParams = combineScript.getParams();
 
         return new ScriptedMetricAggregatorFactory(name, compiledMapScript, mapScriptParams, compiledInitScript,
                 initScriptParams, compiledCombineScript, combineScriptParams, reduceScript,
-                params, queryShardContext.lookup(), queryShardContext, parent, subfactoriesBuilder, metadata);
+                params, context, parent, subfactoriesBuilder, metadata);
     }
 
 

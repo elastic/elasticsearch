@@ -324,7 +324,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                                 return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(((Number) foo).longValue());
                                         }
                                     }
@@ -333,7 +333,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                                 return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
                                         }
                                     }
@@ -344,7 +344,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                                 return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
+                                        for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
                                             emit(now - ((Number) timestamp).longValue());
                                         }
                                     }

@@ -319,7 +319,7 @@ public class IndexMetadataTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             IndexMetadata.builder("test").settings(settings).build());
         assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
     }

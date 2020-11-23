@@ -311,7 +311,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
     public void testIndividualActionsTimeout() throws Exception {
         ClusterUpdateSettingsRequest settingsRequest = newSettingsRequest();
         TimeValue timeValue = TimeValue.timeValueMillis(100);
-        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(), timeValue));
+        settingsRequest.persistentSettings(Settings.builder()
+            .put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(), timeValue)
+            // we need to dissociate the timeout for SnapshotInfoService operations, otherwise the shard might never be assigned at all
+            .put(CcrSettings.SHARD_SIZE_FETCHING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(60L))
+        );
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
 
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
@@ -355,7 +359,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         try {
             final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
             final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
-            PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
+
+            final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
             restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
 
             // Depending on when the timeout occurs this can fail in two ways. If it times-out when fetching

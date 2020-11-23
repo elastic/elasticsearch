@@ -79,6 +79,13 @@ public final class CcrSettings {
             Property.Dynamic, Property.NodeScope);
 
     /**
+     * The timeout value to use when fetching shard sizes from the leader cluster
+     * */
+    public static final Setting<TimeValue> SHARD_SIZE_FETCHING_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("ccr.indices.recovery.shard_size_fetching_timeout",
+            INDICES_RECOVERY_ACTION_TIMEOUT_SETTING, TimeValue.ZERO, Property.Dynamic, Property.NodeScope);
+
+    /**
      * The settings defined by CCR.
      *
      * @return the settings
@@ -93,18 +100,22 @@ public final class CcrSettings {
                 CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT,
                 RECOVERY_CHUNK_SIZE,
                 INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
-                CCR_WAIT_FOR_METADATA_TIMEOUT);
+                CCR_WAIT_FOR_METADATA_TIMEOUT,
+                SHARD_SIZE_FETCHING_TIMEOUT_SETTING
+        );
     }
 
     private final CombinedRateLimiter ccrRateLimiter;
     private volatile TimeValue recoveryActivityTimeout;
     private volatile TimeValue recoveryActionTimeout;
+    private volatile TimeValue shardSizeFetchingTimeout;
     private volatile ByteSizeValue chunkSize;
     private volatile int maxConcurrentFileChunks;
 
     public CcrSettings(Settings settings, ClusterSettings clusterSettings) {
         this.recoveryActivityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
         this.recoveryActionTimeout = INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.get(settings);
+        this.shardSizeFetchingTimeout = SHARD_SIZE_FETCHING_TIMEOUT_SETTING.get(settings);
         this.ccrRateLimiter = new CombinedRateLimiter(RECOVERY_MAX_BYTES_PER_SECOND.get(settings));
         this.chunkSize = RECOVERY_CHUNK_SIZE.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
@@ -113,6 +124,7 @@ public final class CcrSettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setRecoveryActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTION_TIMEOUT_SETTING, this::setRecoveryActionTimeout);
+        clusterSettings.addSettingsUpdateConsumer(SHARD_SIZE_FETCHING_TIMEOUT_SETTING, this::setShardSizeFetchingTimeout);
     }
 
     private void setChunkSize(ByteSizeValue chunkSize) {
@@ -135,6 +147,10 @@ public final class CcrSettings {
         this.recoveryActionTimeout = recoveryActionTimeout;
     }
 
+    private void setShardSizeFetchingTimeout(TimeValue shardSizeFetchingTimeout) {
+        this.shardSizeFetchingTimeout = shardSizeFetchingTimeout;
+    }
+
     public ByteSizeValue getChunkSize() {
         return chunkSize;
     }
@@ -153,5 +169,9 @@ public final class CcrSettings {
 
     public TimeValue getRecoveryActionTimeout() {
         return recoveryActionTimeout;
+    }
+
+    public TimeValue getShardSizeFetchingTimeout() {
+        return shardSizeFetchingTimeout;
     }
 }

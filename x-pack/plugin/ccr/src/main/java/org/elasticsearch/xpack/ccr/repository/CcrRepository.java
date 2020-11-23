@@ -438,7 +438,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final String leaderIndex = index.getName();
         final IndicesStatsResponse response = getRemoteClusterClient().admin().indices().prepareStats(leaderIndex)
             .clear().setStore(true)
-            .get(ccrSettings.getRecoveryActionTimeout());
+            .get(ccrSettings.getShardSizeFetchingTimeout());
         for (ShardStats shardStats : response.getIndex(leaderIndex).getShards()) {
             final ShardRouting shardRouting = shardStats.getShardRouting();
             if (shardRouting.shardId().id() == shardId.getId()

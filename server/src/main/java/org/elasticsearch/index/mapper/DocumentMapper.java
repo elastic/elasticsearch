@@ -20,11 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,11 +32,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -218,38 +214,88 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     /**
-     * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
+     * Given an object path, checks to see if any of its parents are non-nested objects
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, LeafReaderContext context) throws IOException {
-        ObjectMapper nestedObjectMapper = null;
-        for (ObjectMapper objectMapper : mappers().objectMappers().values()) {
-            if (!objectMapper.nested().isNested()) {
-                continue;
+    public boolean hasNonNestedParent(String path) {
+        ObjectMapper mapper = mappers().objectMappers().get(path);
+        if (mapper == null) {
+            return false;
+        }
+        while (mapper != null) {
+            if (mapper.nested().isNested() == false) {
+                return true;
             }
+            if (path.contains(".") == false) {
+                return false;
+            }
+            path = path.substring(0, path.lastIndexOf("."));
+            mapper = mappers().objectMappers().get(path);
+        }
+        return false;
+    }
 
-            Query filter = objectMapper.nestedTypeFilter();
-            if (filter == null) {
+    /**
+     * Returns all nested object mappers
+     */
+    public List<ObjectMapper> getNestedMappers() {
+        List<ObjectMapper> childMappers = new ArrayList<>();
+        for (ObjectMapper mapper : mappers().objectMappers().values()) {
+            if (mapper.nested().isNested() == false) {
                 continue;
             }
-            // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
-            // therefore is guaranteed to be a live doc.
-            final Weight nestedWeight = filter.createWeight(sc.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            Scorer scorer = nestedWeight.scorer(context);
-            if (scorer == null) {
-                continue;
-            }
+            childMappers.add(mapper);
+        }
+        return childMappers;
+    }
 
-            if (scorer.iterator().advance(nestedDocId) == nestedDocId) {
-                if (nestedObjectMapper == null) {
-                    nestedObjectMapper = objectMapper;
-                } else {
-                    if (nestedObjectMapper.fullPath().length() < objectMapper.fullPath().length()) {
-                        nestedObjectMapper = objectMapper;
-                    }
-                }
+    /**
+     * Returns all nested object mappers which contain further nested object mappers
+     *
+     * Used by BitSetProducerWarmer
+     */
+    public List<ObjectMapper> getNestedParentMappers() {
+        List<ObjectMapper> parents = new ArrayList<>();
+        for (ObjectMapper mapper : mappers().objectMappers().values()) {
+            String nestedParentPath = getNestedParent(mapper.fullPath());
+            if (nestedParentPath == null) {
+                continue;
+            }
+            ObjectMapper parent = mappers().objectMappers().get(nestedParentPath);
+            if (parent.nested().isNested()) {
+                parents.add(parent);
             }
         }
-        return nestedObjectMapper;
+        return parents;
+    }
+
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String path) {
+        ObjectMapper mapper = mappers().objectMappers().get(path);
+        if (mapper == null) {
+            return null;
+        }
+        if (path.contains(".") == false) {
+            return null;
+        }
+        do {
+            path = path.substring(0, path.lastIndexOf("."));
+            mapper = mappers().objectMappers().get(path);
+            if (mapper == null) {
+                return null;
+            }
+            if (mapper.nested().isNested()) {
+                return path;
+            }
+            if (path.contains(".") == false) {
+                return null;
+            }
+        } while(true);
     }
 
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {

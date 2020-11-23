@@ -19,9 +19,6 @@
 
 package org.elasticsearch.gradle;
 
-import groovy.lang.Closure;
-import groovy.lang.Reference;
-import org.codehaus.groovy.runtime.ResourceGroovyMethods;
 import org.elasticsearch.gradle.internal.precommit.DependencyLicensesTask;
 import org.elasticsearch.gradle.precommit.LicenseAnalyzer;
 import org.gradle.api.artifacts.Configuration;
@@ -38,8 +35,10 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -57,6 +56,62 @@ import java.util.stream.Collectors;
  * </ul>
  */
 public class DependenciesInfoTask extends ConventionTask {
+    /**
+     * Directory to read license files
+     */
+    @Optional
+    @InputDirectory
+    private File licensesDir = new File(getProject().getProjectDir(), "licenses").exists()
+        ? new File(getProject().getProjectDir(), "licenses")
+        : null;
+
+    @OutputFile
+    private File outputFile = new File(getProject().getBuildDir(), "reports/dependencies/dependencies.csv");
+    private LinkedHashMap<String, String> mappings;
+
+    public Configuration getRuntimeConfiguration() {
+        return runtimeConfiguration;
+    }
+
+    public void setRuntimeConfiguration(Configuration runtimeConfiguration) {
+        this.runtimeConfiguration = runtimeConfiguration;
+    }
+
+    public Configuration getCompileOnlyConfiguration() {
+        return compileOnlyConfiguration;
+    }
+
+    public void setCompileOnlyConfiguration(Configuration compileOnlyConfiguration) {
+        this.compileOnlyConfiguration = compileOnlyConfiguration;
+    }
+
+    public File getLicensesDir() {
+        return licensesDir;
+    }
+
+    public void setLicensesDir(File licensesDir) {
+        this.licensesDir = licensesDir;
+    }
+
+    public File getOutputFile() {
+        return outputFile;
+    }
+
+    public void setOutputFile(File outputFile) {
+        this.outputFile = outputFile;
+    }
+
+    /**
+     * Dependencies to gather information from.
+     */
+    @InputFiles
+    private Configuration runtimeConfiguration;
+    /**
+     * We subtract compile-only dependencies.
+     */
+    @InputFiles
+    private Configuration compileOnlyConfiguration;
+
     public DependenciesInfoTask() {
         setDescription("Create a CSV file with dependencies information.");
     }
@@ -77,31 +132,27 @@ public class DependenciesInfoTask extends ConventionTask {
             .collect(Collectors.toSet());
 
         final StringBuilder output = new StringBuilder();
-        for (final Dependency dependency : runtimeDependencies) {
+        for (final Dependency dep : runtimeDependencies) {
             // we do not need compile-only dependencies here
-            if (compileOnlyArtifacts.contains(dependency.getGroup() + ":" + dependency.getName() + ":" + dependency.getVersion())) {
+            if (compileOnlyArtifacts.contains(dep.getGroup() + ":" + dep.getName() + ":" + dep.getVersion())) {
                 continue;
             }
 
             // only external dependencies are checked
-            if (dependency instanceof ProjectDependency) {
+            if (dep instanceof ProjectDependency) {
                 continue;
             }
 
-            final String url = createURL(dependency.getGroup(), dependency.getName(), dependency.getVersion());
-            final String dependencyName = DependencyLicensesTask.getDependencyName(getMappings(), dependency.getName());
-            getLogger().info(
-                "mapped dependency " + dependency.getGroup() + ":" + dependency.getName() + " to " + dependencyName + " for license info"
-            );
+            final String url = createURL(dep.getGroup(), dep.getName(), dep.getVersion());
+            final String dependencyName = DependencyLicensesTask.getDependencyName(getMappings(), dep.getName());
+            getLogger().info("mapped dependency " + dep.getGroup() + ":" + dep.getName() + " to " + dependencyName + " for license info");
 
-            final String licenseType = getLicenseType(dependency.getGroup(), dependencyName);
-            output.append(
-                dependency.getGroup() + ":" + dependency.getName() + "," + dependency.getVersion() + "," + url + "," + licenseType + "\n"
-            );
+            final String licenseType = getLicenseType(dep.getGroup(), dependencyName);
+            output.append(dep.getGroup() + ":" + dep.getName() + "," + dep.getVersion() + "," + url + "," + licenseType + "\n");
 
         }
 
-        ResourceGroovyMethods.setText(outputFile, output.toString(), "UTF-8");
+        Files.write(outputFile.toPath(), output.toString().getBytes("UTF-8"), StandardOpenOption.CREATE);
     }
 
     @Input
@@ -157,39 +208,24 @@ public class DependenciesInfoTask extends ConventionTask {
 
         if (licenseInfo.isSourceRedistributionRequired()) {
             final File sources = getDependencyInfoFile(group, name, "SOURCES");
-            licenseType += ResourceGroovyMethods.getText(sources).trim();
+            licenseType += Files.readString(sources.toPath()).trim();
         }
 
         return licenseType;
     }
 
-    protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) throws FileNotFoundException {
-        final Reference<File> license = new Reference<File>(null);
-
-        if (licensesDir != null) {
-            ResourceGroovyMethods.eachFileMatch(licensesDir, new Closure<Boolean>(this, this) {
-                public Boolean doCall(File it) {
-                    return Pattern.matches("/" + ".*-" + infoFileSuffix + ".*" + "/", it.getName());
-                }
-
-                public Boolean doCall() {
-                    return doCall(null);
-                }
-
-            }, new Closure<File>(this, this) {
-                public File doCall(File file) {
+    protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {
+        java.util.Optional<File> license = licensesDir != null
+            ? Arrays.stream(licensesDir.listFiles((dir, name1) -> Pattern.matches("/" + ".*-" + infoFileSuffix + ".*" + "/", name1)))
+                .filter(file -> {
                     String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
-                    if (group.contains(prefix) || name.contains(prefix)) {
-                        return setGroovyRef(license, file.getAbsoluteFile());
-                    }
-                    return null;
-                }
+                    return group.contains(prefix) || name.contains(prefix);
+                })
+                .findFirst()
+            : java.util.Optional.empty();
 
-            });
-        }
-
-        if (license.get() == null) {
-            throw new IllegalStateException(
+        return license.orElseThrow(
+            () -> new IllegalStateException(
                 "Unable to find "
                     + infoFileSuffix
                     + " file for dependency "
@@ -197,69 +233,8 @@ public class DependenciesInfoTask extends ConventionTask {
                     + ":"
                     + name
                     + " in "
-                    + String.valueOf(getLicensesDir())
-            );
-        }
-
-        return license.get();
-    }
-
-    public Configuration getRuntimeConfiguration() {
-        return runtimeConfiguration;
-    }
-
-    public void setRuntimeConfiguration(Configuration runtimeConfiguration) {
-        this.runtimeConfiguration = runtimeConfiguration;
-    }
-
-    public Configuration getCompileOnlyConfiguration() {
-        return compileOnlyConfiguration;
-    }
-
-    public void setCompileOnlyConfiguration(Configuration compileOnlyConfiguration) {
-        this.compileOnlyConfiguration = compileOnlyConfiguration;
-    }
-
-    public File getLicensesDir() {
-        return licensesDir;
-    }
-
-    public void setLicensesDir(File licensesDir) {
-        this.licensesDir = licensesDir;
-    }
-
-    public File getOutputFile() {
-        return outputFile;
-    }
-
-    public void setOutputFile(File outputFile) {
-        this.outputFile = outputFile;
-    }
-
-    /**
-     * Dependencies to gather information from.
-     */
-    @InputFiles
-    private Configuration runtimeConfiguration;
-    /**
-     * We subtract compile-only dependencies.
-     */
-    @InputFiles
-    private Configuration compileOnlyConfiguration;
-    /**
-     * Directory to read license files
-     */
-    @Optional
-    @InputDirectory
-    private File licensesDir = new File(getProject().getProjectDir(), "licenses").exists()
-        ? new File(getProject().getProjectDir(), "licenses")
-        : null;
-    @OutputFile
-    private File outputFile = new File(getProject().getBuildDir(), "reports/dependencies/dependencies.csv");
-    private LinkedHashMap<String, String> mappings;
-
-    private static <T> T setGroovyRef(Reference<T> ref, T newValue) {
-        ref.set(newValue);
-        return newValue;
+                    + getLicensesDir().getAbsolutePath()
+            )
+        );
     }
 }

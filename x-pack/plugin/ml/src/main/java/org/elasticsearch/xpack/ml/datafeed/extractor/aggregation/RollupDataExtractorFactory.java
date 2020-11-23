@@ -75,7 +75,8 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             Intervals.alignToFloor(end, histogramInterval),
             job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
             datafeedConfig.getHeaders(),
-            datafeedConfig.getIndicesOptions());
+            datafeedConfig.getIndicesOptions(),
+            datafeedConfig.getRuntimeMappings());
         return new RollupDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }
 

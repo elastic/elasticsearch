@@ -118,6 +118,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
             .aggregation(new DateHistogramAggregationBuilder(DATE_BUCKETS)
                 .fixedInterval(new DateHistogramInterval(bucketSpan + "ms")).field(timeField))
             .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end));
+        // TODO runtime search here.
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder).indicesOptions(indicesOptions);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {

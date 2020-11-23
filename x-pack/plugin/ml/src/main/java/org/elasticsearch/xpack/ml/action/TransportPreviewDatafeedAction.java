@@ -69,6 +69,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
                 jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
                     jobBuilder -> {
+                        // TODO should we use DatafeedJobValidator here
                         DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
                         useSecondaryAuthIfAvailable(securityContext, () -> {
                             previewDatafeed.setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()));

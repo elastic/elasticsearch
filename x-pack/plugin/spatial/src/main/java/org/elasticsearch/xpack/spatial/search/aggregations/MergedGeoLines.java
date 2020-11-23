@@ -50,7 +50,9 @@ final class MergedGeoLines {
     public void merge() {
         // 1. add first element of each sub line to heap
         for (int i = 0; i < geoLines.size(); i++) {
-            add(i, 0);
+            if (geoLines.size() > 0) {
+                add(i, 0);
+            }
         }
 
         // 2. take lowest/greatest value from heap and re-insert the next value from the same sub-line that specific value was chosen from.

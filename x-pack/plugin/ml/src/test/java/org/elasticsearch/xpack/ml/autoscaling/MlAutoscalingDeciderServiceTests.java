@@ -83,7 +83,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         MlAutoscalingDeciderService service = buildService();
         service.onMaster();
 
-        assertThat(service.checkForScaleUp(0, 0, Collections.emptyList(),
+        assertThat(service.checkForScaleUp(0, 0,
+            Collections.emptyList(),
             Collections.emptyList(),
             null,
             NativeMemoryCapacity.ZERO,

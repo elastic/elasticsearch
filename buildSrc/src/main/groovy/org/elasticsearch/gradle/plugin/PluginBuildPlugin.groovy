@@ -56,9 +56,6 @@ class PluginBuildPlugin implements Plugin<Project> {
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
 
-        boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
-        boolean isModule = project.path.startsWith(':modules:') || isXPackModule
-
         createBundleTasks(project, extension)
 
         project.afterEvaluate {
@@ -98,34 +95,58 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'requiresKeystore'    : extension1.requiresKeystore,
                     'type'                : extension1.type.toString(),
                     'javaOpts'            : extension1.javaOpts,
+                    'licensed'            : extension1.licensed,
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)
                 inputs.properties(properties)
             }
-            if (isModule == false || isXPackModule) {
-                addNoticeGeneration(project, extension1)
+            BuildParams.withInternalBuild {
+                boolean isXPackModule = project.path.startsWith(':x-pack:plugin') || project.path.startsWith(':x-pack:quota-aware-fs')
+                boolean isModule = project.path.startsWith(':modules:') || isXPackModule
+                if (isModule == false || isXPackModule) {
+                    addNoticeGeneration(project, extension1)
+                }
             }
         }
 
-        project.tasks.named('testingConventions').configure {
-            naming.clear()
-            naming {
-                Tests {
-                    baseClass 'org.apache.lucene.util.LuceneTestCase'
+        BuildParams.withInternalBuild {
+            // We've ported this from multiple build scripts where we see this pattern into
+            // an extension method as a first step of consolidation.
+            // We might want to port this into a general pattern later on.
+            project.ext.addQaCheckDependencies = {
+                project.afterEvaluate {
+                    // let check depend on check tasks of qa sub-projects
+                    def checkTaskProvider = project.tasks.named("check")
+                    def qaSubproject = project.subprojects.find { it.path == project.path + ":qa" }
+                    if(qaSubproject) {
+                        qaSubproject.subprojects.each {p ->
+                            checkTaskProvider.configure {it.dependsOn(p.path + ":check") }
+                        }
+                    }
                 }
-                IT {
-                    baseClass 'org.elasticsearch.test.ESIntegTestCase'
-                    baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
-                    baseClass 'org.elasticsearch.test.ESSingleNodeTestCase'
+            }
+
+            project.tasks.named('testingConventions').configure {
+                naming.clear()
+                naming {
+                    Tests {
+                        baseClass 'org.apache.lucene.util.LuceneTestCase'
+                    }
+                    IT {
+                        baseClass 'org.elasticsearch.test.ESIntegTestCase'
+                        baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+                        baseClass 'org.elasticsearch.test.ESSingleNodeTestCase'
+                    }
                 }
             }
         }
+
         project.configurations.getByName('default')
                 .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
-            dependsOn(project.tasks.bundlePlugin)
+            dependsOn(project.tasks.named("bundlePlugin"))
         }
     }
 
@@ -187,7 +208,11 @@ class PluginBuildPlugin implements Plugin<Project> {
         // create the actual bundle task, which zips up all the files for the plugin
         TaskProvider<Zip> bundle = project.tasks.register('bundlePlugin', Zip) {
             from buildProperties
-            from pluginMetadata // metadata (eg custom security policy)
+            from(pluginMetadata) {
+                // metadata (eg custom security policy)
+                // the codebases properties file is only for tests and not needed in production
+                exclude 'plugin-security.codebases'
+            }
             /*
              * If the plugin is using the shadow plugin then we need to bundle
              * that shadow jar.

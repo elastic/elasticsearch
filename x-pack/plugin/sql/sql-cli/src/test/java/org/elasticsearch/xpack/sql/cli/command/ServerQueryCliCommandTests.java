@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.cli.SqlCliTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -25,7 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ServerQueryCliCommandTests extends ESTestCase {
+public class ServerQueryCliCommandTests extends SqlCliTestCase {
 
     public void testExceptionHandling() throws Exception {
         TestTerminal testTerminal = new TestTerminal();

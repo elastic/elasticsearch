@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,11 +32,14 @@ import java.util.Objects;
  * newly created searchable snapshot backed index.
  */
 public class SearchableSnapshotAction implements LifecycleAction {
+    private static final Logger logger = LogManager.getLogger(SearchableSnapshotAction.class);
+
     public static final String NAME = "searchable_snapshot";
 
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
     public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
+    public static final String CONDITIONAL_SKIP_ACTION_STEP = BranchingStep.NAME + "-check-prerequisites";
 
     public static final String RESTORED_INDEX_PREFIX = "restored-";
 
@@ -74,6 +80,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey preActionBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_ACTION_STEP);
         StepKey checkNoWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey forceMergeStepKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
@@ -90,6 +97,18 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
+        BranchingStep conditionalSkipActionStep = new BranchingStep(preActionBranchingKey, checkNoWriteIndex, nextStepKey,
+            (index, clusterState) -> {
+                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
+                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
+                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is already mounted as searchable " +
+                            "snapshot. Skipping this action", SearchableSnapshotAction.NAME, index.getName(),
+                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+                    return true;
+                }
+                return false;
+            });
         CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNoWriteIndex,
             waitForNoFollowerStepKey);
         final WaitForNoFollowersStep waitForNoFollowersStep;
@@ -130,6 +149,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             null, client, RESTORED_INDEX_PREFIX);
 
         List<Step> steps = new ArrayList<>();
+        steps.add(conditionalSkipActionStep);
         steps.add(checkNoWriteIndexStep);
         steps.add(waitForNoFollowersStep);
         if (forceMergeIndex) {

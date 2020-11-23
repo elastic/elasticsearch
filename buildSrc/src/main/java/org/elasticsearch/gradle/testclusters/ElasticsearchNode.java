@@ -231,7 +231,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void doSetVersion(String version) {
-        String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version + "-";
+        String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
         if (container.findByName(distroName) == null) {
             container.create(distroName);
@@ -425,6 +425,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void freeze() {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
+        distributions.stream().forEach(d -> d.maybeFreeze());
         configurationFrozen.set(true);
     }
 
@@ -617,27 +618,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void installModules() {
-        if (testDistribution == TestDistribution.INTEG_TEST) {
-            logToProcessStdout("Installing " + modules.size() + "modules");
-            for (Provider<File> module : modules) {
-                Path destination = getDistroDir().resolve("modules")
-                    .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
-                // only install modules that are not already bundled with the integ-test distribution
-                if (Files.exists(destination) == false) {
-                    fileSystemOperations.copy(spec -> {
-                        if (module.get().getName().toLowerCase().endsWith(".zip")) {
-                            spec.from(archiveOperations.zipTree(module));
-                        } else if (module.get().isDirectory()) {
-                            spec.from(module);
-                        } else {
-                            throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
-                        }
-                        spec.into(destination);
-                    });
-                }
+        logToProcessStdout("Installing " + modules.size() + "modules");
+        for (Provider<File> module : modules) {
+            Path destination = getDistroDir().resolve("modules")
+                .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
+            // only install modules that are not already bundled with the integ-test distribution
+            if (Files.exists(destination) == false) {
+                fileSystemOperations.copy(spec -> {
+                    if (module.get().getName().toLowerCase().endsWith(".zip")) {
+                        spec.from(archiveOperations.zipTree(module));
+                    } else if (module.get().isDirectory()) {
+                        spec.from(module);
+                    } else {
+                        throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
+                    }
+                    spec.into(destination);
+                });
             }
-        } else {
-            LOGGER.info("Not installing " + modules.size() + "(s) since the " + distributions + " distribution already has them");
         }
     }
 

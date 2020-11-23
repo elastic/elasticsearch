@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+
 /**
  * A field mapper that supports lookup of dynamic sub-keys. If the field mapper is named 'my_field',
  * then a user is able to search on the field in both of the following ways:
@@ -41,8 +43,9 @@ public abstract class DynamicKeyFieldMapper extends FieldMapper {
 
     public DynamicKeyFieldMapper(String simpleName,
                                  MappedFieldType defaultFieldType,
+                                 NamedAnalyzer indexAnalyzer,
                                  CopyTo copyTo) {
-        super(simpleName, defaultFieldType, MultiFields.empty(), copyTo);
+        super(simpleName, defaultFieldType, indexAnalyzer, MultiFields.empty(), copyTo);
     }
 
     public abstract MappedFieldType keyedFieldType(String key);

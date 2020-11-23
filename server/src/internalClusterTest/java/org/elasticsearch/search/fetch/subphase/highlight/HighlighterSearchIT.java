@@ -2959,7 +2959,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>hello world</em>"));
         }
     }
 

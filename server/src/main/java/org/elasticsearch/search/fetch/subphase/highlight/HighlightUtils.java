@@ -51,7 +51,7 @@ public final class HighlightUtils {
                                                QueryShardContext qsc,
                                                FetchSubPhase.HitContext hitContext,
                                                boolean forceSource) throws IOException {
-        if (forceSource && fieldType.isStored()) {
+        if (forceSource == false && fieldType.isStored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());

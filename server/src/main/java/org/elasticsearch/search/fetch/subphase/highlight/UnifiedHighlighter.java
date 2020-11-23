@@ -73,7 +73,7 @@ public class UnifiedHighlighter implements Highlighter {
 
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
             List<Object> fieldValues = loadFieldValues(highlighter, fieldContext.context.getQueryShardContext(), fieldType,
-                hitContext, fieldContext.forceSource == false);
+                hitContext, fieldContext.forceSource);
             if (fieldValues.size() == 0) {
                 return null;
             }

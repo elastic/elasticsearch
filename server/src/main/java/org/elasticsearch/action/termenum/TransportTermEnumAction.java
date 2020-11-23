@@ -46,6 +46,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -117,9 +119,21 @@ public class TransportTermEnumAction extends TransportBroadcastAction<
         // } else {
         // // Random routing to limit request to a single shard
         // routing = Integer.toString(Randomness.get().nextInt(1000));
-        // }
+        // }\
+        
+        // Remove any frozen indices from the set of indices to be searched.
+        ArrayList<String> fastIndices = new ArrayList<>();
+        for (String indexName : concreteIndices) {
+            Settings settings = clusterState.metadata().index(indexName).getSettings();            
+            final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);
+            // Search throttled is the indicator used to signify a frozen index?
+            if (searchThrottled == false) {
+                fastIndices.add(indexName);
+            }            
+        }
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, "_local");
+        
+        return clusterService.operationRouting().searchShards(clusterState, fastIndices.toArray(new String[0]), routingMap, "_local");
     }
 
     @Override

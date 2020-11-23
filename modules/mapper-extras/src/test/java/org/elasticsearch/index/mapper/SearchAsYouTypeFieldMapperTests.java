@@ -37,6 +37,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
@@ -552,6 +553,20 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 asList("quick brown fox", "brown fox jump", "fox jump lazy", "jump lazy dog")),
             buildBoolPrefixQuery("field._4gram", "field._index_prefix",
                 asList("quick brown fox jump", "brown fox jump lazy", "fox jump lazy dog"))));
+    }
+
+    public void testAnalyzerSerialization() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(b -> {
+            b.field("type", "search_as_you_type");
+            b.field("analyzer", "simple");
+        }));
+        String serialized = Strings.toString(ms.documentMapper());
+        assertEquals(serialized,
+            "{\"_doc\":{\"properties\":{\"field\":" +
+                "{\"type\":\"search_as_you_type\",\"doc_values\":false,\"max_shingle_size\":3,\"analyzer\":\"simple\"}}}}");
+
+        merge(ms, mapping(b -> {}));
+        assertEquals(serialized, Strings.toString(ms.documentMapper()));
     }
 
     private void documentParsingTestCase(Collection<String> values) throws IOException {

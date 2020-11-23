@@ -128,7 +128,7 @@ depending on your {es} installation.
 
 .. On each node, copy the certificate that you created into the `/certs`
 directory. This certificate is typically a single `.p12` (PKCS#12) file, such
-as `elastic-stack-ca.p12`.
+as `elastic-certificates.p12`.
 
 .. If you generated HTTP certificates, copy the `http.p12` file into the
 `certs` directory as well.

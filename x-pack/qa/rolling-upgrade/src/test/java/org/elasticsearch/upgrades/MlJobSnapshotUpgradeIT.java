@@ -6,6 +6,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.MachineLearningClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -53,6 +54,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -86,7 +88,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      */
     public void testSnapshotUpgrader() throws Exception {
         hlrc = new HLRC(client()).machineLearning();
-        //assumeTrue("Snapshot upgrader should only upgrade from the last major", UPGRADE_FROM_VERSION.major < 7);
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +
@@ -98,9 +99,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 createJobAndSnapshots();
                 break;
             case MIXED:
-                // Add mixed cluster test after backported
+                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                testSnapshotUpgradeFailsOnMixedCluster();
                 break;
             case UPGRADED:
+                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -112,6 +115,24 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
+    }
+
+    private void testSnapshotUpgradeFailsOnMixedCluster() throws Exception {
+        Job job = getJob(JOB_ID).jobs().get(0);
+        String currentSnapshot = job.getModelSnapshotId();
+        GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
+        assertThat(modelSnapshots.snapshots(), hasSize(2));
+
+        ModelSnapshot snapshot = modelSnapshots.snapshots()
+            .stream()
+            .filter(s -> s.getSnapshotId().equals(currentSnapshot) == false)
+            .findFirst()
+            .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
+
+       Exception ex = expectThrows(Exception.class, () -> hlrc.upgradeJobSnapshot(
+            new UpgradeJobModelSnapshotRequest(JOB_ID, snapshot.getSnapshotId(), null, true),
+            RequestOptions.DEFAULT));
+       assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
     }
 
     private void testSnapshotUpgrade() throws Exception {
@@ -135,6 +156,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         List<ModelSnapshot> snapshots = getModelSnapshots(job.getId(), snapshot.getSnapshotId()).snapshots();
         assertThat(snapshots, hasSize(1));
+        snapshot = snapshots.get(0);
         assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
 
         // Does the snapshot still work?

@@ -44,9 +44,9 @@ import java.security.Policy;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
@@ -134,15 +134,9 @@ final class Security {
     @SuppressForbidden(reason = "proper use of URL")
     static Map<String,Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
         Map<String,Policy> map = new HashMap<>();
-        // collect up set of plugins and modules by listing directories.
-        Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginsService.findPluginDirs(environment.pluginsFile()));
-        pluginsAndModules.addAll(PluginsService.findPluginDirs(environment.modulesFile()));
-
-        // now process each one
-        for (Path plugin : pluginsAndModules) {
-            PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(plugin);
+        Consumer<PluginPolicyInfo> addPolicy = pluginPolicy -> {
             if (pluginPolicy == null) {
-                continue;
+                return;
             }
 
             // consult this policy for each of the plugin's jars:
@@ -152,6 +146,13 @@ final class Security {
                     throw new IllegalStateException("per-plugin permissions already granted for jar file: " + jar);
                 }
             }
+        };
+
+        for (Path plugin : PluginsService.findPluginDirs(environment.pluginsFile())) {
+            addPolicy.accept(PolicyUtil.getPluginPolicyInfo(plugin, environment.tmpFile()));
+        }
+        for (Path plugin : PluginsService.findPluginDirs(environment.modulesFile())) {
+            addPolicy.accept(PolicyUtil.getModulePolicyInfo(plugin, environment.tmpFile()));
         }
 
         return Collections.unmodifiableMap(map);

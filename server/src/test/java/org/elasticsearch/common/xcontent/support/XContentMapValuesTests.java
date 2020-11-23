@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -204,6 +205,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("test", map).get(0).toString(), equalTo("value"));
+        assertThat(XContentMapValues.extractRawValues("test.dummy", map), contains("value"));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .field("test.me", "value")
@@ -265,6 +267,18 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         }
         assertThat(XContentMapValues.extractRawValues("path1.path2", map), contains("value"));
 
+    }
+
+    public void testExtractRawValueLeafOnly() throws IOException {
+        Map<String, Object> map;
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .startArray("path1").value(9).startObject().field("path2", "value").endObject().value(7).endArray()
+            .endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            map = parser.map();
+        }
+        assertThat(XContentMapValues.extractRawValues("path1", map), contains(9, 7));
+        assertThat(XContentMapValues.extractRawValues("path1.path2", map), Matchers.contains("value"));
     }
 
     public void testPrefixedNamesFilteringTest() {

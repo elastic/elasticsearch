@@ -150,7 +150,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
                 plugins.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
                     randomAlphaOfLengthBetween(3, 10), VersionUtils.randomVersion(random()), "1.8",
                     randomAlphaOfLengthBetween(3, 10), Collections.emptyList(), randomBoolean(), randomFrom(PluginType.values()),
-                    randomAlphaOfLengthBetween(3, 10)));
+                    randomAlphaOfLengthBetween(3, 10), randomBoolean()));
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginInfo> modules = new ArrayList<>();
@@ -158,7 +158,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
                 modules.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
                     randomAlphaOfLengthBetween(3, 10), VersionUtils.randomVersion(random()), "1.8",
                     randomAlphaOfLengthBetween(3, 10), Collections.emptyList(), randomBoolean(), randomFrom(PluginType.values()),
-                    randomAlphaOfLengthBetween(3, 10)));
+                    randomAlphaOfLengthBetween(3, 10), randomBoolean()));
             }
             pluginsAndModules = new PluginsAndModules(plugins, modules);
         }

@@ -6,9 +6,13 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-public class UntilGroup extends OrdinalGroup<KeyAndOrdinal> {
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
-    UntilGroup(SequenceKey key) {
-        super(key, KeyAndOrdinal::ordinal);
+import java.util.function.Function;
+
+public class UntilGroup extends OrdinalGroup<Ordinal> {
+
+    UntilGroup() {
+        super(Function.identity());
     }
 }

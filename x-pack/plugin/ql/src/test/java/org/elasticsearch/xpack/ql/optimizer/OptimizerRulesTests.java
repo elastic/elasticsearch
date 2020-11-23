@@ -68,7 +68,9 @@ import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
 public class OptimizerRulesTests extends ESTestCase {
 
@@ -135,7 +137,11 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     private static FieldAttribute getFieldAttribute(String name) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", INTEGER, emptyMap(), true));
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     //
@@ -1015,7 +1021,32 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression exp = rule.rule(or);
         assertEquals(r2, exp);
     }
+    
+    public void testBinaryComparisonAndOutOfRangeNotEqualsDifferentFields() {
+        FieldAttribute fDouble = getFieldAttribute("double", DOUBLE);
+        FieldAttribute fDouble2 = getFieldAttribute("double2", DOUBLE);
+        FieldAttribute fInteger = getFieldAttribute("int", INTEGER);
+        FieldAttribute fDatetime = getFieldAttribute("datetime", INTEGER);
+        FieldAttribute fKeyword = getFieldAttribute("keyword", KEYWORD);
+        FieldAttribute fKeyword2 = getFieldAttribute("keyword2", KEYWORD);
+        ZoneId zoneId = randomZone();
 
+        for (And and : Arrays.asList(
+            // double > 10 AND integer != -10
+            new And(EMPTY, new GreaterThan(EMPTY, fDouble, L(10), zoneId), new NotEquals(EMPTY, fInteger, L(-10), zoneId)),
+            // keyword > '5' AND keyword2 != '48'
+            new And(EMPTY, new GreaterThan(EMPTY, fKeyword, L("5"), zoneId), new NotEquals(EMPTY, fKeyword2, L("48"), zoneId)),
+            // keyword != '2021' AND datetime <= '2020-12-04T17:48:22.954240Z'
+            new And(EMPTY, new NotEquals(EMPTY, fKeyword, L("2021"), zoneId), 
+                new LessThanOrEqual(EMPTY, fDatetime, L("2020-12-04T17:48:22.954240Z"), zoneId)),
+            // double > 10.1 AND double2 != -10.1
+            new And(EMPTY, new GreaterThan(EMPTY, fDouble, L(10.1d), zoneId), new NotEquals(EMPTY, fDouble2, L(-10.1d), zoneId))
+        )) {
+            CombineBinaryComparisons rule = new CombineBinaryComparisons();
+            Expression exp = rule.rule(and);
+            assertEquals("Rule should not have transformed [" + and.nodeString() + "]", and, exp);
+        }   
+    }
 
     // Equals & NullEquals
 

@@ -59,6 +59,9 @@ setup:
 ---
 "Tests index not found error in item":
 
+  - skip:
+      version: " - 7.10.99"
+      reason: bug fixed in 7.11
   - do:
         mtermvectors:
           "term_statistics" : true
@@ -79,6 +82,9 @@ setup:
 ---
 "Tests catching other exceptions per item":
 
+  - skip:
+      version: " - 7.10.99"
+      reason: bug fixed in 7.11
   - do:
       indices.create:
           index: testidx2

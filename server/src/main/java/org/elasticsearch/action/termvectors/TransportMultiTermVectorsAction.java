@@ -78,8 +78,18 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                     continue;
                 }
             } catch (Exception e) {
-                responses.set(i, new MultiTermVectorsItemResponse(null,
-                    new MultiTermVectorsResponse.Failure(termVectorsRequest.index(), termVectorsRequest.type(), termVectorsRequest.id(), e)));
+                responses.set(
+                    i,
+                    new MultiTermVectorsItemResponse(
+                        null,
+                        new MultiTermVectorsResponse.Failure(
+                            termVectorsRequest.index(),
+                            termVectorsRequest.type(),
+                            termVectorsRequest.id(),
+                            e
+                        )
+                    )
+                );
                 continue;
             }
 

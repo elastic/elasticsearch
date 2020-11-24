@@ -18,14 +18,7 @@ static_import {
     # Parse a value from the source to millis since epoch
     long parse(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript, def) bound_to org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript$Parse
     # The `values` callback to find values for the field in the source
-    List values(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript$Values
-
-    long tryParseDate(Object, DateFormatter) from_class org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript
-}
-
-class org.elasticsearch.common.time.DateFormatter {
-    DateFormatter forPattern(String)
-    long parseMillis(String)
+    void emitValues(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript$EmitValues
 }
 
 

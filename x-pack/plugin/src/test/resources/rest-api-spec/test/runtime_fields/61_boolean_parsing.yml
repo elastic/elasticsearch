@@ -9,18 +9,8 @@ setup:
             number_of_replicas: 0
           mappings:
             runtime:
-              active:
+              state.active:
                 type: boolean
-                script:
-                  source: |
-                    for (def v : values("state.active")) {
-                      try {
-                        emit(tryParseBoolean(v))
-                      }
-                      catch (Exception e) {
-                        // do nothing
-                      }
-                    }
             properties:
               timestamp:
                 type: date
@@ -33,9 +23,6 @@ setup:
               state:
                 type: object
                 enabled: false
-
-
-
 
   - do:
       bulk:
@@ -56,6 +43,14 @@ setup:
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "state" : { "active" : "false" } }
 
 ---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: { sensor.mappings.runtime.state\.active.type: boolean }
+  - is_false: sensor.mappings.runtime.state\.active.script
+
+---
 "test matching":
   - do:
       search:
@@ -63,7 +58,7 @@ setup:
         body:
           query:
             term:
-              active: false
+              state.active: false
   - match: { hits.total.value: 2 }
   - do:
       search:
@@ -71,5 +66,5 @@ setup:
         body:
           query:
             term:
-              active: true
+              state.active: true
   - match: { hits.total.value: 4 }

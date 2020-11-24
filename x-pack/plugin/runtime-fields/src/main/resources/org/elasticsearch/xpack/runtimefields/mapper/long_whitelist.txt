@@ -16,7 +16,5 @@ static_import {
     # The `emit` callback to collect values for the field
     void emit(org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript, long) bound_to org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript$Emit
     # The `values` callback to find values for the field in the source
-    List values(org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript$Values
-
-    long tryParseLong(Object) from_class org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript
+    void emitValues(org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript$EmitValues
 }

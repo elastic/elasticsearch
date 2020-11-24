@@ -11,7 +11,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -98,7 +97,10 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
-        values[count++] = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
+        BytesRef encoded = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
+        // encode the address and increment the count on separate lines, to ensure that
+        // we don't increment if the address is badly formed
+        values[count++] = encoded;
     }
 
     public static class Emit {
@@ -113,15 +115,23 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         }
     }
 
-    public static class Values {
+    public static class EmitValues {
         private final IpFieldScript script;
 
-        public Values(IpFieldScript script) {
+        public EmitValues(IpFieldScript script) {
             this.script = script;
         }
 
-        public List<Object> values(String path) {
-            return XContentMapValues.extractRawValues(path, script.getSource());
+        public void emitFromPath(String path) {
+            for (Object v : script.extractFromSource(path)) {
+                if (v instanceof String) {
+                    try {
+                        script.emit(v.toString());
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
         }
     }
 }

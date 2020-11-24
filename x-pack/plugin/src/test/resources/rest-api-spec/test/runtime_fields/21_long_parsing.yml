@@ -9,18 +9,8 @@ setup:
             number_of_replicas: 0
           mappings:
             runtime:
-              count:
+              history.count:
                 type: long
-                script:
-                  source: |
-                    for (def v : values("history.count")) {
-                      try {
-                        emit(tryParseLong(v))
-                      }
-                      catch (Exception e) {
-                        // ignore
-                      }
-                    }
             properties:
               timestamp:
                 type: date
@@ -53,6 +43,14 @@ setup:
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "history" : { "count" : 20 } }
 
 ---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: { sensor.mappings.runtime.history\.count.type: long }
+  - is_false: sensor.mappings.runtime.history\.count.script
+
+---
 "test matching":
   - do:
       search:
@@ -60,7 +58,7 @@ setup:
         body:
           query:
             range:
-              count:
+              history.count:
                 gte: 10
                 lte: 18
   - match: { hits.total.value: 5 }

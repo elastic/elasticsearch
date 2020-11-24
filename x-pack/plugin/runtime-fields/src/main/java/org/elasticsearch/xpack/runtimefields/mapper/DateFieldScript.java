@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -77,22 +76,23 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         }
     }
 
-    public static class Values {
+    public static class EmitValues {
         private final DateFieldScript script;
 
-        public Values(DateFieldScript script) {
+        public EmitValues(DateFieldScript script) {
             this.script = script;
         }
 
-        public List<Object> values(String path) {
-            return XContentMapValues.extractRawValues(path, script.getSource());
+        public void emitFromPath(String path) {
+            for (Object v : script.extractFromSource(path)) {
+                if (v instanceof String) {
+                    try {
+                        script.emit(script.formatter.parseMillis((String)v));
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
         }
-    }
-
-    public static long tryParseDate(Object val, DateFormatter formatter) {
-        if (val instanceof String) {
-            return formatter.parseMillis((String) val);
-        }
-        throw new IllegalArgumentException("Cannot parse value " + val + " as date");
     }
 }

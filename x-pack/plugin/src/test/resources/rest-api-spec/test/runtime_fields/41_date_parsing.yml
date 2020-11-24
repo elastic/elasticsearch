@@ -9,19 +9,9 @@ setup:
             number_of_replicas: 0
           mappings:
             runtime:
-              installed:
+              history.installed:
                 type: date
-                script:
-                  source: |
-                    DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd");
-                    for (def v : values("history.installed")) {
-                      try {
-                        emit(tryParseDate(v, formatter))
-                      }
-                      catch (Exception e) {
-                        // ignore
-                      }
-                    }
+                format: yyyy-MM-dd
             properties:
               timestamp:
                 type: date
@@ -54,6 +44,15 @@ setup:
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "history" : { "installed" : "2020-11-10" } }
 
 ---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: { sensor.mappings.runtime.history\.installed.type: date }
+  - match: { sensor.mappings.runtime.history\.installed.format: yyyy-MM-dd }
+  - is_false: sensor.mappings.runtime.history\.installed.script
+
+---
 "test matching":
   - do:
       search:
@@ -61,7 +60,7 @@ setup:
         body:
           query:
             range:
-              installed:
+              history.installed:
                 gte: "2020-11-01"
                 lte: "2020-11-30"
                 format: "yyyy-MM-dd"

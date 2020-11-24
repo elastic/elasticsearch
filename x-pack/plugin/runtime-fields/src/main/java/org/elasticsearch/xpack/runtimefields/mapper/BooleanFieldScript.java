@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -88,25 +87,25 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         }
     }
 
-    public static class Values {
+    public static class EmitValues {
         private final BooleanFieldScript script;
 
-        public Values(BooleanFieldScript script) {
+        public EmitValues(BooleanFieldScript script) {
             this.script = script;
         }
 
-        public List<Object> values(String path) {
-            return XContentMapValues.extractRawValues(path, script.getSource());
+        public void emitFromPath(String path) {
+            for (Object v : script.extractFromSource(path)) {
+                if (v instanceof Boolean) {
+                    script.emit((Boolean)v);
+                } else if (v instanceof String) {
+                    try {
+                        script.emit(Booleans.parseBoolean((String)v));
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                }
+            }
         }
-    }
-
-    public static boolean tryParseBoolean(Object value) {
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        }
-        if (value instanceof String) {
-            return Booleans.parseBoolean((String) value);
-        }
-        throw new IllegalArgumentException("Cannot coerce " + value + " to boolean");
     }
 }

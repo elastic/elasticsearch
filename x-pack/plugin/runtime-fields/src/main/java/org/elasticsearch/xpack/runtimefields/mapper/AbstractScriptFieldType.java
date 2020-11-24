@@ -222,7 +222,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
             this::defaultScript,
             Builder::parseScript,
             initializerNotSupported()
-        );
+        ).setSerializerCheck((id, ic, v) -> ic);
 
         Builder(String name) {
             super(name);
@@ -235,7 +235,9 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
 
         protected abstract AbstractScriptFieldType<?> buildFieldType();
 
-        protected abstract Script defaultScript();
+        protected final Script defaultScript() {
+            return new Script("emitValues(\"" + name + "\")");
+        }
 
         @Override
         public FieldMapper.Builder init(FieldMapper initializer) {

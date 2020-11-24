@@ -9,19 +9,8 @@ setup:
             number_of_replicas: 0
           mappings:
             runtime:
-              ip:
+              host.ip:
                 type: ip
-                script:
-                  source: |
-                    for (def v : values("host.ip")) {
-                      try {
-                        InetAddresses.forString(v.toString()); // check it parses
-                        emit(v.toString())
-                      }
-                      catch (Exception e) {
-                        // ignore
-                      }
-                    }
             properties:
               timestamp:
                 type: date
@@ -54,6 +43,14 @@ setup:
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "host" : { "ip" : "128.192.7.6" } }
 
 ---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: { sensor.mappings.runtime.host\.ip.type: ip }
+  - is_false: sensor.mappings.runtime.host\.ip.script
+
+---
 "test matching":
   - do:
       search:
@@ -61,7 +58,7 @@ setup:
         body:
           query:
             range:
-              ip:
+              host.ip:
                 gte: "128.192.7.1"
                 lte: "128.192.7.5"
   - match: { hits.total.value: 3 }

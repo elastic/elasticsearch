@@ -16,8 +16,8 @@ Geohashes used in this aggregation can have a choice of precision between 1 and 
 WARNING: The highest-precision geohash of length 12 produces cells that cover less than a square metre of land and so high-precision requests can be very costly in terms of RAM and result sizes.
 Please see the example below on how to first filter the aggregation to a smaller geographic area before requesting high-levels of detail.
 
-You can only use `geotile_grid` to aggregate an explicitly mapped `geo_point` or
-`geo_shape` field. If the `geo_point` field contains an array, `geotile_grid`
+You can only use `geohash_grid` to aggregate an explicitly mapped `geo_point` or
+`geo_shape` field. If the `geo_point` field contains an array, `geohash_grid`
 aggregates all the array values.
 
 

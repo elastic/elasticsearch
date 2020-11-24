@@ -65,12 +65,12 @@ syntax>> or wildcards (`*`).
 ==== {api-request-body-title}
 
 `rollup_index`::
-(Required, index)
+(Required, string)
 Index that stores the rollup results. Cannot be a <<data-streams,data stream>>
 or <<indices-aliases,index alias>>.
 +
 If this index does not exist, the request creates it. If the `<index>` is a
-backing index for a data stream, this new index is a backing index of the same
+backing index for a data stream, this new index is a backing index for the same
 stream.
 
 `groups`::
@@ -84,16 +84,16 @@ Aggregates and stores fields in the rollup.
 (Required,
 <<search-aggregations-bucket-datehistogram-aggregation,`date_histogram`
 aggregation>> object)
-Groups documents in the original `<index>` based on a provided time interval.
+Groups documents based on a provided time interval.
 +
 .Properties of `date_histogram`
 [%collapsible%open]
 =====
 `field`::
 (Required, string)
-<<date,`date`>> or <<date_nanos,`date_nanos`>> field containing the `<index>`'s
-timestamp. If you're rolling up a backing index or using the {ecs-ref}[Elastic
-Common Schema (ECS)], we recommend using `@timestamp`.
+<<date,`date`>> or <<date_nanos,`date_nanos`>> field containing a timestamp. If
+you're rolling up a backing index or using the {ecs-ref}[Elastic Common Schema
+(ECS)], we recommend using `@timestamp`.
 
 `calendar_interval` or `fixed_interval`::
 (Required, <<time-units,time units>>)

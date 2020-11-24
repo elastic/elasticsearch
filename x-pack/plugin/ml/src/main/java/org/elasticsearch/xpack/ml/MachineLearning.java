@@ -65,7 +65,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -215,7 +214,6 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
-import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -1104,7 +1102,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(MlAutoscalingNamedWritableProvider.getXContentParsers());
         return namedXContent;
     }
 
@@ -1136,7 +1133,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.inferenceModelBreaker.set(circuitBreaker);
     }
 
-    public Collection<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders() {
+    public Collection<AutoscalingDeciderService> deciders() {
         if (enabled) {
             assert mlAutoscalingDeciderService.get() != null;
             return Collections.singletonList(mlAutoscalingDeciderService.get());

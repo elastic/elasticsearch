@@ -10,8 +10,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AbstractPercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
@@ -85,6 +89,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -102,6 +110,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -2345,5 +2354,93 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec eqe = (EsQueryExec) physicalPlan;
         assertEquals(1, eqe.output().size());
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("\"terms\":{\"int\":[1,2,3],"));
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    private static List<AbstractPercentilesAggregationBuilder> percentilesAggsByField(PhysicalPlan p, int fieldCount) {
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        AggregationBuilder aggregationBuilder = ee.queryContainer().aggs().asAggBuilder();
+        assertEquals(fieldCount, ee.output().size());
+        assertEquals(ReferenceAttribute.class, ee.output().get(0).getClass());
+        assertEquals(fieldCount, ee.queryContainer().fields().size());
+        assertThat(fieldCount, greaterThanOrEqualTo(ee.queryContainer().aggs().asAggBuilder().getSubAggregations().size()));
+        Map<String, AggregationBuilder> aggsByName =
+            aggregationBuilder.getSubAggregations().stream().collect(Collectors.toMap(AggregationBuilder::getName, ab -> ab));
+        return IntStream.range(0, fieldCount).mapToObj(i -> {
+            String percentileAggName = ((MetricAggRef) ee.queryContainer().fields().get(i).v1()).name();
+            return (AbstractPercentilesAggregationBuilder) aggsByName.get(percentileAggName);
+        }).collect(Collectors.toList());
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    public void testPercentileMethodParametersSameAsDefault() {
+        BiConsumer<String, Function<AbstractPercentilesAggregationBuilder, double[]>> test = (fnName, pctOrValFn) -> {
+            final int fieldCount = 5;
+            final String sql = ("SELECT " +
+                // 0-3: these all should fold into the same aggregation
+                "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), " +
+                "   PERCENTILE(int, 40 + 10, 'tdigest', null), " +
+                "   PERCENTILE(int, 50, 'tdigest'), " +
+                "   PERCENTILE(int, 50), " +
+                // 4: this has a different method parameter
+                // just to make sure we don't fold everything to default
+                "   PERCENTILE(int, 50, 'tdigest', 22) " 
+                + "FROM test").replaceAll("PERCENTILE", fnName);
+            
+            List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
+            
+            // 0-3
+            assertEquals(aggs.get(0), aggs.get(1));
+            assertEquals(aggs.get(0), aggs.get(2));
+            assertEquals(aggs.get(0), aggs.get(3));
+            assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+            assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(0)), 0);
+
+            // 4
+            assertEquals(new PercentilesConfig.TDigest(22), aggs.get(4).percentilesConfig());
+            assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(4)), 0);
+        };
+        
+        test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
+        test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    public void testPercentileOptimization() {
+        BiConsumer<String, Function<AbstractPercentilesAggregationBuilder, double[]>> test = (fnName, pctOrValFn) -> {
+            final int fieldCount = 5;
+            final String sql = ("SELECT " +
+                // 0-1: fold into the same aggregation
+                "   PERCENTILE(int, 50, 'tdigest'), " +
+                "   PERCENTILE(int, 60, 'tdigest'), " +
+                
+                // 2-3: fold into one aggregation
+                "   PERCENTILE(int, 50, 'hdr'), " +
+                "   PERCENTILE(int, 60, 'hdr', 3), " +
+                
+                // 4: folds into a separate aggregation
+                "   PERCENTILE(int, 60, 'hdr', 4)" +
+                "FROM test").replaceAll("PERCENTILE", fnName);
+
+            List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
+            
+            // 0-1
+            assertEquals(aggs.get(0), aggs.get(1));
+            assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+            assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(0)), 0);
+
+            // 2-3
+            assertEquals(aggs.get(2), aggs.get(3));
+            assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
+            assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(2)), 0);
+            
+            // 4
+            assertEquals(new PercentilesConfig.Hdr(4), aggs.get(4).percentilesConfig());
+            assertArrayEquals(new double[]{60}, pctOrValFn.apply(aggs.get(4)), 0);
+        };
+
+        test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
+        test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
     }
 }

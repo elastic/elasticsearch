@@ -21,7 +21,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.nio.Config;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;

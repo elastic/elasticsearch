@@ -2300,4 +2300,12 @@ public class QueryTranslatorTests extends ESTestCase {
         // these two should be semantically different reference attributes
         assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
     }
+
+    public void testEqualsAndInOnTheSameField() {
+        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT int FROM test WHERE int in (1, 2) OR int = 3 OR int = 2");
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+        assertEquals(1, eqe.output().size());
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("\"terms\":{\"int\":[1,2,3],"));
+    }
 }

@@ -68,6 +68,7 @@ public class FieldFetcher {
                     continue;
                 }
                 ValueFetcher valueFetcher = ft.valueFetcher(context, format);
+                mappedToExclude.add(field);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }

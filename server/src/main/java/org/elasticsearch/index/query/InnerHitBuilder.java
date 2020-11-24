@@ -396,7 +396,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
      * @param format an optional format string used when formatting values, for example a date format.
      */
     public InnerHitBuilder addFetchField(String name, @Nullable String format) {
-        return addFetchField(name, format, false);
+        return addFetchField(name, format, null);
     }
 
     /**
@@ -405,11 +405,11 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
      * @param format an optional format string used when formatting values, for example a date format.
      * @param includeUnmapped whether unmapped fields should be returned as well
      */
-    public InnerHitBuilder addFetchField(String name, @Nullable String format, boolean includeUnmapped) {
+    public InnerHitBuilder addFetchField(String name, @Nullable String format, Boolean includeUnmapped) {
         if (fetchFields == null || fetchFields.isEmpty()) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(name, format, Optional.of(includeUnmapped)));
+        fetchFields.add(new FieldAndFormat(name, format, Optional.ofNullable(includeUnmapped)));
         return this;
     }
 

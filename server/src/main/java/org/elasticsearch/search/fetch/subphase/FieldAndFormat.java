@@ -74,7 +74,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
             builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
         if (this.includeUnmapped.isPresent()) {
-            builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped);
+            builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped.get());
         }
         builder.endObject();
         return builder;
@@ -133,6 +133,6 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
             return false;
         }
         FieldAndFormat other = (FieldAndFormat) obj;
-        return field.equals(other.field) && Objects.equals(format, other.format) && Objects.equals(includeUnmapped,other.includeUnmapped);
+        return field.equals(other.field) && Objects.equals(format, other.format) && Objects.equals(includeUnmapped, other.includeUnmapped);
     }
 }

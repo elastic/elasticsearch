@@ -553,7 +553,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
     }
 
-    public void testVoidMessageCompressed() {
+    public void testVoidMessageCompressed() throws Exception {
         try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION, Settings.EMPTY)) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
@@ -594,17 +594,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         fail("got exception instead of a response: " + exp.getMessage());
                     }
                 });
-
-            try {
-                TransportResponse.Empty message = res.get();
-                assertThat(message, notNullValue());
-            } catch (Exception e) {
-                assertThat(e.getMessage(), false, equalTo(true));
-            }
+            assertThat(res.get(), notNullValue());
         }
     }
 
-    public void testHelloWorldCompressed() throws IOException {
+    public void testHelloWorldCompressed() throws Exception {
         try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION,  Settings.EMPTY)) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
@@ -648,12 +642,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            try {
-                StringMessageResponse message = res.get();
-                assertThat("hello moshe", equalTo(message.message));
-            } catch (Exception e) {
-                assertThat(e.getMessage(), false, equalTo(true));
-            }
+            StringMessageResponse message = res.get();
+            assertThat("hello moshe", equalTo(message.message));
         }
     }
 
@@ -687,12 +677,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        try {
-            res.get();
-            fail("exception should be thrown");
-        } catch (ExecutionException e) {
-            assertThat(e.getCause().getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
-        }
+        final ExecutionException e = expectThrows(ExecutionException.class, res::get);
+        assertThat(e.getCause().getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
     }
 
     public void testDisconnectListener() throws Exception {
@@ -856,12 +842,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             Future<TransportResponse.Empty> foobar = submitRequest(serviceB, nodeA, "internal:foobar",
                 new StringMessageRequest(""), EmptyTransportResponseHandler.INSTANCE_SAME);
             latch2.countDown();
-            try {
-                foobar.get();
-                fail("TransportException expected");
-            } catch (ExecutionException ex) {
-                assertThat(ex.getCause(), instanceOf(TransportException.class));
-            }
+            assertThat(expectThrows(ExecutionException.class, foobar::get).getCause(), instanceOf(TransportException.class));
             latch3.await();
         } finally {
             serviceB.close(); // make sure we are fully closed here otherwise we might run into assertions down the road
@@ -871,13 +852,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
         serviceA.registerRequestHandler("internal:sayHelloTimeoutNoResponse", ThreadPool.Names.GENERIC, StringMessageRequest::new,
-            new TransportRequestHandler<StringMessageRequest>() {
-                @Override
-                public void messageReceived(StringMessageRequest request, TransportChannel channel, Task task) {
-                    assertThat("moshe", equalTo(request.message));
-                    // don't send back a response
-                }
-            });
+                (request, channel, task) -> assertThat("moshe", equalTo(request.message))); // don't send back a response
 
         Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutNoResponse",
             new StringMessageRequest("moshe"), TransportRequestOptions.timeout(HUNDRED_MS),
@@ -903,12 +878,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        try {
-            res.get();
-            fail("exception should be thrown");
-        } catch (ExecutionException e) {
-            assertThat(e.getCause(), instanceOf(ReceiveTimeoutTransportException.class));
-        }
+        final ExecutionException e = expectThrows(ExecutionException.class, res::get);
+        assertThat(e.getCause(), instanceOf(ReceiveTimeoutTransportException.class));
     }
 
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
@@ -916,9 +887,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch doneWaitingForever = new CountDownLatch(1);
         Semaphore inFlight = new Semaphore(Integer.MAX_VALUE);
         serviceA.registerRequestHandler("internal:sayHelloTimeoutDelayedResponse", ThreadPool.Names.GENERIC, StringMessageRequest::new,
-            new TransportRequestHandler<StringMessageRequest>() {
-                @Override
-                public void messageReceived(StringMessageRequest request, TransportChannel channel, Task task) throws InterruptedException {
+                (request, channel, task) -> {
                     String message = request.message;
                     inFlight.acquireUninterruptibly();
                     try {
@@ -940,8 +909,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             doneWaitingForever.countDown();
                         }
                     }
-                }
-            });
+                });
         final CountDownLatch latch = new CountDownLatch(1);
         Future<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHelloTimeoutDelayedResponse",
             new StringMessageRequest("forever"), TransportRequestOptions.timeout(HUNDRED_MS),
@@ -969,12 +937,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        try {
-            res.get();
-            fail("exception should be thrown");
-        } catch (ExecutionException e) {
-            assertThat(e.getCause(), instanceOf(ReceiveTimeoutTransportException.class));
-        }
+        assertThat(expectThrows(ExecutionException.class, res::get).getCause(), instanceOf(ReceiveTimeoutTransportException.class));
         latch.await();
 
         List<Runnable> assertions = new ArrayList<>();
@@ -1271,8 +1234,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         }
 
-
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -1283,17 +1244,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testVersionFrom0to1() throws Exception {
-        serviceB.registerRequestHandler("internal:version", ThreadPool.Names.SAME, Version1Request::new,
-            new TransportRequestHandler<Version1Request>() {
-                @Override
-                public void messageReceived(Version1Request request, TransportChannel channel, Task task) throws Exception {
-                    assertThat(request.value1, equalTo(1));
-                    assertThat(request.value2, equalTo(0)); // not set, coming from service A
-                    Version1Response response = new Version1Response(1, 2);
-                    channel.sendResponse(response);
-                    assertEquals(version0, channel.getVersion());
-                }
-            });
+        serviceB.registerRequestHandler("internal:version", ThreadPool.Names.SAME, Version1Request::new, (request, channel, task) -> {
+            assertThat(request.value1, equalTo(1));
+            assertThat(request.value2, equalTo(0)); // not set, coming from service A
+            Version1Response response = new Version1Response(1, 2);
+            channel.sendResponse(response);
+            assertEquals(version0, channel.getVersion());
+        });
 
         Version0Request version0Request = new Version0Request();
         version0Request.value1 = 1;
@@ -1320,16 +1277,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testVersionFrom1to0() throws Exception {
-        serviceA.registerRequestHandler("internal:version", ThreadPool.Names.SAME, Version0Request::new,
-            new TransportRequestHandler<Version0Request>() {
-                @Override
-                public void messageReceived(Version0Request request, TransportChannel channel, Task task) throws Exception {
-                    assertThat(request.value1, equalTo(1));
-                    Version0Response response = new Version0Response(1);
-                    channel.sendResponse(response);
-                    assertEquals(version0, channel.getVersion());
-                }
-            });
+        serviceA.registerRequestHandler("internal:version", ThreadPool.Names.SAME, Version0Request::new, (request, channel, task) -> {
+            assertThat(request.value1, equalTo(1));
+            Version0Response response = new Version0Response(1);
+            channel.sendResponse(response);
+            assertEquals(version0, channel.getVersion());
+        });
 
         Version1Request version1Request = new Version1Request();
         version1Request.value1 = 1;
@@ -1462,26 +1415,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        try {
-            res.get();
-            fail("exception should be thrown");
-        } catch (ExecutionException e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
-            assertThat(cause, instanceOf(ConnectTransportException.class));
-            assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
-        }
+        final ExecutionException e = expectThrows(ExecutionException.class, res::get);
+        Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
+        assertThat(cause, instanceOf(ConnectTransportException.class));
+        assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
 
         // wait for the transport to process the sending failure and disconnect from node
         assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));
 
         // now try to connect again and see that it fails
-        try {
-            connectToNode(serviceB, nodeA);
-            fail("exception should be thrown");
-        } catch (ConnectTransportException e) {
-            // all is well
-        }
-
+        expectThrows(ConnectTransportException.class, () -> connectToNode(serviceB, nodeA));
         expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
@@ -1518,21 +1461,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        try {
-            res.get();
-            fail("exception should be thrown");
-        } catch (ExecutionException e) {
-            assertThat(e.getCause(), instanceOf(ReceiveTimeoutTransportException.class));
-        }
-
-        try {
+        assertThat(expectThrows(ExecutionException.class, res::get).getCause(), instanceOf(ReceiveTimeoutTransportException.class));
+        expectThrows(ConnectTransportException.class, () -> {
             serviceB.disconnectFromNode(nodeA);
             connectToNode(serviceB, nodeA);
-            fail("exception should be thrown");
-        } catch (ConnectTransportException e) {
-            // all is well
-        }
-
+        });
         expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 

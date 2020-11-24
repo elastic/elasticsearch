@@ -29,6 +29,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
@@ -252,6 +253,9 @@ public class QueryShardContext extends QueryRewriteContext {
         return Map.copyOf(namedQueries);
     }
 
+    /**
+     * Parse a document with current mapping.
+     */
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
         return mapperSnapshot.parseDocument(source);
     }
@@ -594,10 +598,19 @@ public class QueryShardContext extends QueryRewriteContext {
         return Collections.unmodifiableMap(runtimeFieldTypes);
     }
 
+    /**
+     * Build a loader for nested documents.
+     */
     public NestedDocuments getNestedDocuments() {
         return new NestedDocuments(mapperSnapshot.documentMapper(), bitsetFilterCache::getBitSetProducer);
     }
 
+    /**
+     * Current version of the of the mapping. Increments if the mapping
+     * changes locally. Distinct from
+     * {@link IndexMetadata#getMappingVersion()} because it purely
+     * considers the local mapping changes.
+     */
     public long localMappingVersion() {
         return mapperSnapshot.version();
     }

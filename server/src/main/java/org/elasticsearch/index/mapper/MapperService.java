@@ -451,7 +451,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
      * An analyzer that performs a volatile read on the mapping find correct {@link FieldNameAnalyzer}.
+     * @deprecated Prefer {@link #snapshot()} and then {@link Snapshot#indexAnalyzer()}.
      */
+    @Deprecated
     public Analyzer indexAnalyzer() {
         return indexAnalyzer;
     }
@@ -638,6 +640,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         abstract String updateOperationName();
     }
 
+    /**
+     * {@link Snapshot} of an "empty" mapping.
+     */
     private static class EmptySnapshot extends AbstractSnapshot {
         EmptySnapshot(MapperService mapperService) {
             super(mapperService);
@@ -731,7 +736,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    static class MappedSnapshot extends AbstractSnapshot {
+    /**
+     * Snapshot of a non-empty mapping.
+     */
+    private static class MappedSnapshot extends AbstractSnapshot {
         private final DocumentMapper mapper;
         /**
          * Current version of the of the mapping. Increments if the mapping

@@ -241,6 +241,13 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
+    protected ObjectMapper clone() {
+        ObjectMapper clone = super.clone();
+        ((RootObjectMapper) clone).runtimeFieldTypes = new HashMap<>(this.runtimeFieldTypes);
+        return clone;
+    }
+
+    @Override
     public ObjectMapper mappingUpdate(Mapper mapper) {
         RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
         // for dynamic updates, no need to carry root-specific options, we just
@@ -250,7 +257,8 @@ public class RootObjectMapper extends ObjectMapper {
         update.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         update.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         update.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
-        update.runtimeFieldTypes = new HashMap<>();
+        //also no need to carry the already defined runtime fields, only new ones need to be added
+        update.runtimeFieldTypes.clear();
         return update;
     }
 
@@ -355,7 +363,7 @@ public class RootObjectMapper extends ObjectMapper {
                 this.dynamicTemplates = mergeWithObject.dynamicTemplates;
             }
         }
-
+        assert this.runtimeFieldTypes != mergeWithObject.runtimeFieldTypes;
         this.runtimeFieldTypes.putAll(mergeWithObject.runtimeFieldTypes);
     }
 

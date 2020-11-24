@@ -17,25 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.internal.precommit
+package org.elasticsearch.gradle.internal.precommit;
 
-import groovy.transform.CompileStatic
-import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditPrecommitPlugin;
 import org.gradle.api.Project;
 
 /**
  * Internal precommit plugins that adds elasticsearch project specific
  * checks to the common precommit plugin.
- * */
-
-@CompileStatic
-class InternalPrecommitTasks {
-
+ */
+public class InternalPrecommitTasks {
     /**
      * Adds a precommit task, which depends on non-test verification tasks.
      */
-    static void create(Project project, boolean includeDependencyLicenses) {
+    public static void create(Project project, boolean includeDependencyLicenses) {
         PrecommitTasks.create(project);
 
         project.getPluginManager().apply(ThirdPartyAuditPrecommitPlugin.class);
@@ -66,5 +62,4 @@ class InternalPrecommitTasks {
             project.getPluginManager().apply(LoggerUsagePrecommitPlugin.class);
         }
     }
-
 }

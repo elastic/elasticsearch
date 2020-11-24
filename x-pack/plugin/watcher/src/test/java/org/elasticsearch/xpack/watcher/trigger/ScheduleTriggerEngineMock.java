@@ -73,6 +73,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     @Override
     public void pauseExecution() {
         paused.set(true);
+        watches.get().clear();
     }
 
     @Override

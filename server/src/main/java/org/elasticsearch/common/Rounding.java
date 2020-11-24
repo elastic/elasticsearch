@@ -290,7 +290,7 @@ public abstract class Rounding implements Writeable {
          * Given the rounded value, returns the size between this value and the
          * next rounded value in specified units if possible.
          */
-        double roundingSize(long utcMillis, DateTimeUnit timeUnit);
+        double roundingSize(Long utcMillis, DateTimeUnit timeUnit);
         /**
          * If this rounding mechanism precalculates rounding points then
          * this array stores dates such that each date between each entry.
@@ -609,16 +609,22 @@ public abstract class Rounding implements Writeable {
 
         private abstract class TimeUnitPreparedRounding extends PreparedRounding {
             @Override
-            public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+            public double roundingSize(Long utcMillis, DateTimeUnit timeUnit) {
                 if (timeUnit.isMillisBased == unit.isMillisBased) {
                     return (double) unit.ratio / timeUnit.ratio;
                 } else {
-                    if (unit.isMillisBased == false) {
+                    if (unit.isMillisBased == false && utcMillis != null) {
                         return (double) (nextRoundingValue(utcMillis) - utcMillis) / timeUnit.ratio;
                     } else {
-                        throw new IllegalArgumentException("Cannot use month-based rate unit [" + timeUnit.shortName +
-                            "] with non-month based calendar interval histogram [" + unit.shortName +
-                            "] only week, day, hour, minute and second are supported for this histogram");
+                        if (timeUnit.isMillisBased == false) {
+                            throw new IllegalArgumentException("Cannot use month-based rate unit [" + timeUnit.shortName +
+                                "] with non-month based calendar interval histogram [" + unit.shortName +
+                                "] only week, day, hour, minute and second are supported for this histogram");
+                        } else {
+                            throw new IllegalArgumentException("Cannot use non month-based rate unit [" + timeUnit.shortName +
+                                "] with month-based calendar interval histogram [" + unit.shortName +
+                                "] only month, quarter and year are supported for this histogram");
+                        }
                     }
                 }
             }
@@ -995,7 +1001,7 @@ public abstract class Rounding implements Writeable {
 
         private abstract class TimeIntervalPreparedRounding extends PreparedRounding {
             @Override
-            public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+            public double roundingSize(Long utcMillis, DateTimeUnit timeUnit) {
                 if (timeUnit.isMillisBased) {
                     return (double) interval / timeUnit.ratio;
                 } else {
@@ -1262,7 +1268,7 @@ public abstract class Rounding implements Writeable {
                 }
 
                 @Override
-                public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+                public double roundingSize(Long utcMillis, DateTimeUnit timeUnit) {
                     return delegatePrepared.roundingSize(utcMillis, timeUnit);
                 }
 
@@ -1350,7 +1356,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+        public double roundingSize(Long utcMillis, DateTimeUnit timeUnit) {
             return delegate.roundingSize(utcMillis, timeUnit);
         }
 

@@ -211,7 +211,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         buildIndex.accept(indexWriter);
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         try {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("value_field");

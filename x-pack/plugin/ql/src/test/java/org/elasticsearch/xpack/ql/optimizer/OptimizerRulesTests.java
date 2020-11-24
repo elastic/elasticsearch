@@ -1036,7 +1036,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute keywordOne = fieldAttribute("keyword", KEYWORD);
         FieldAttribute keywordTwo = fieldAttribute("keyword2", KEYWORD);
 
-        List<And> testCases = Arrays.asList(
+        List<And> testCases = asList(
             // double > 10 AND integer != -10
             new And(EMPTY, greaterThanOf(doubleOne, L(10)), notEqualsOf(intOne, L(-10))),
             // keyword > '5' AND keyword2 != '48'

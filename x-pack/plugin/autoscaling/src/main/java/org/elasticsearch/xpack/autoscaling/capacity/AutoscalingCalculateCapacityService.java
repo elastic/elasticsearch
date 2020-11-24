@@ -14,10 +14,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
+import org.elasticsearch.xpack.autoscaling.action.PolicyValidator;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.util.Map;
@@ -30,12 +33,39 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class AutoscalingCalculateCapacityService {
-    private Map<String, AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciderByName;
+public class AutoscalingCalculateCapacityService implements PolicyValidator {
+    private final Map<String, AutoscalingDeciderService> deciderByName;
 
-    public AutoscalingCalculateCapacityService(Set<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders) {
+    public AutoscalingCalculateCapacityService(Set<AutoscalingDeciderService> deciders) {
         assert deciders.size() >= 1; // always have fixed
         this.deciderByName = deciders.stream().collect(Collectors.toMap(AutoscalingDeciderService::name, Function.identity()));
+    }
+
+    public void validate(AutoscalingPolicy policy) {
+        policy.deciders().forEach(this::validate);
+    }
+
+    private void validate(final String deciderName, final Settings configuration) {
+        AutoscalingDeciderService deciderService = deciderByName.get(deciderName);
+        if (deciderService == null) {
+            throw new IllegalArgumentException("unknown decider [" + deciderName + "]");
+        }
+
+        Map<String, Setting<?>> deciderSettings = deciderService.deciderSettings()
+            .stream()
+            .collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
+
+        configuration.keySet().forEach(key -> validateSetting(key, configuration, deciderSettings, deciderName));
+    }
+
+    private void validateSetting(String key, Settings configuration, Map<String, Setting<?>> deciderSettings, String decider) {
+        Setting<?> setting = deciderSettings.get(key);
+        if (setting == null) {
+            throw new IllegalArgumentException("unknown setting [" + key + "] for decider [" + decider + "]");
+        }
+
+        // check the setting, notice that `get` throws when `configuration` contains an invalid value for `setting`
+        setting.get(configuration);
     }
 
     public static class Holder {
@@ -84,7 +114,7 @@ public class AutoscalingCalculateCapacityService {
         SortedMap<String, AutoscalingDeciderResult> results = policy.deciders()
             .entrySet()
             .stream()
-            .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getValue(), context)))
+            .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context)))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
         return new AutoscalingDeciderResults(context.currentCapacity, results);
     }
@@ -97,14 +127,10 @@ public class AutoscalingCalculateCapacityService {
         return DiscoveryNode.getPossibleRoleNames().containsAll(policy.roles()) == false;
     }
 
-    private <T extends AutoscalingDeciderConfiguration> AutoscalingDeciderResult calculateForDecider(
-        T decider,
-        AutoscalingDeciderContext context
-    ) {
-        assert deciderByName.containsKey(decider.name());
-        @SuppressWarnings("unchecked")
-        AutoscalingDeciderService<T> service = (AutoscalingDeciderService<T>) deciderByName.get(decider.name());
-        return service.scale(decider, context);
+    private AutoscalingDeciderResult calculateForDecider(String name, Settings configuration, AutoscalingDeciderContext context) {
+        assert deciderByName.containsKey(name);
+        AutoscalingDeciderService service = deciderByName.get(name);
+        return service.scale(configuration, context);
     }
 
     static class DefaultAutoscalingDeciderContext implements AutoscalingDeciderContext {

@@ -26,24 +26,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CopyToMapperTests extends MapperServiceTestCase {
 
@@ -641,35 +634,5 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         })));
         assertThat(e.getMessage(),
             Matchers.containsString("[copy_to] may not be used to copy from a multi-field: [field.bar]"));
-    }
-
-    public void testCopyToValueFetching() throws IOException {
-        MapperService ms = createMapperService(mapping(b -> {
-            b.startObject("source");
-            {
-                b.field("type", "text");
-                b.field("copy_to", "dest");
-            }
-            b.endObject();
-            b.startObject("dest");
-            {
-                b.field("type", "text");
-            }
-            b.endObject();
-        }));
-
-        ParsedDocument doc = ms.documentMapper().parse(source(b -> b.field("source", "source text")));
-
-        withLuceneIndex(ms, iw -> iw.addDocuments(doc.docs()), ir -> {
-            QueryShardContext qsc = mock(QueryShardContext.class);
-            when(qsc.sourcePath(anyString())).thenAnswer(i -> ms.sourcePath((String)i.getArguments()[0]));
-            MappedFieldType fieldType = ms.fieldType("dest");
-            ValueFetcher valueFetcher = fieldType.valueFetcher(qsc, null);
-            SourceLookup sourceLookup = new SourceLookup();
-            sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
-            List<Object> values = valueFetcher.fetchValues(sourceLookup);
-            assertThat(values.stream().map(Object::toString).collect(Collectors.toList()),
-                contains("source text"));
-        });
     }
 }

@@ -36,8 +36,7 @@ public class GetActionsResponse extends ActionResponse implements ToXContentObje
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .field("actions", actions);
+        builder.startObject().field("actions", actions);
         return builder.endObject();
     }
 }

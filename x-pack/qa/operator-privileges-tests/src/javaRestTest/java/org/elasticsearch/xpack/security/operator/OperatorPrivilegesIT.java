@@ -29,25 +29,25 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @SuppressWarnings("unchecked")
     public void testNonOperatorSuperuserWillFailToCallOperatorOnlyApiWhenOperatorPrivilegesIsEnabled() throws IOException {
-        final Request getClusterSettingsRequest = new Request("GET",
-            "_cluster/settings?flat_settings&include_defaults&filter_path=defaults.*operator_privileges*");
+        final Request getClusterSettingsRequest = new Request(
+            "GET",
+            "_cluster/settings?flat_settings&include_defaults&filter_path=defaults.*operator_privileges*"
+        );
         final Map<String, Object> settingsMap = entityAsMap(client().performRequest(getClusterSettingsRequest));
         final Map<String, Object> defaults = (Map<String, Object>) settingsMap.get("defaults");
         final Object isOperatorPrivilegesEnabled = defaults.get("xpack.security.operator_privileges.enabled");
 
-        final Request postVotingConfigExclusionsRequest = new Request(
-            "POST", "_cluster/voting_config_exclusions?node_names=foo");
+        final Request postVotingConfigExclusionsRequest = new Request("POST", "_cluster/voting_config_exclusions?node_names=foo");
         if ("true".equals(isOperatorPrivilegesEnabled)) {
             final ResponseException responseException = expectThrows(
                 ResponseException.class,
-                () -> client().performRequest(postVotingConfigExclusionsRequest));
+                () -> client().performRequest(postVotingConfigExclusionsRequest)
+            );
             assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(responseException.getMessage(), containsString("Operator privileges are required for action"));
         } else {
@@ -56,34 +56,31 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     }
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyApi() throws IOException {
-        final Request postVotingConfigExclusionsRequest = new Request(
-            "POST", "_cluster/voting_config_exclusions?node_names=foo");
-        final String authHeader = "Basic " + Base64.getEncoder().encodeToString(
-            "test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        postVotingConfigExclusionsRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        final Request postVotingConfigExclusionsRequest = new Request("POST", "_cluster/voting_config_exclusions?node_names=foo");
+        final String authHeader = "Basic "
+            + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
+        postVotingConfigExclusionsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
         client().performRequest(postVotingConfigExclusionsRequest);
     }
 
     public void testOperatorUserWillFailToCallOperatorOnlyApiIfRbacFails() throws IOException {
-        final Request deleteVotingConfigExclusionsRequest = new Request(
-            "DELETE", "_cluster/voting_config_exclusions");
-        final String authHeader = "Basic " + Base64.getEncoder().encodeToString(
-            "test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        deleteVotingConfigExclusionsRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
-        final ResponseException responseException = expectThrows(ResponseException.class,
-            () -> client().performRequest(deleteVotingConfigExclusionsRequest));
+        final Request deleteVotingConfigExclusionsRequest = new Request("DELETE", "_cluster/voting_config_exclusions");
+        final String authHeader = "Basic "
+            + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
+        deleteVotingConfigExclusionsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        final ResponseException responseException = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(deleteVotingConfigExclusionsRequest)
+        );
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(responseException.getMessage(), containsString("is unauthorized for user"));
     }
 
     public void testOperatorUserCanCallNonOperatorOnlyApi() throws IOException {
         final Request mainRequest = new Request("GET", "/");
-        final String authHeader = "Basic " + Base64.getEncoder().encodeToString(
-            "test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        mainRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        final String authHeader = "Basic "
+            + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
+        mainRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
         client().performRequest(mainRequest);
     }
 
@@ -91,7 +88,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     public void testAllActionsAreEitherOperatorOnlyOrNonOperator() throws IOException {
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
-        List<String> allActions = (List<String>)response.get("actions");
+        List<String> allActions = (List<String>) response.get("actions");
         allActions.remove(GetActionsAction.NAME);
         allActions.removeAll(CompositeOperatorOnly.ActionOperatorOnly.SIMPLE_ACTIONS);
         allActions.removeAll(Constants.NON_OPERATOR_ACTIONS);

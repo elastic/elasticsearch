@@ -35,8 +35,8 @@ public class OpTestPlugin extends Plugin implements ActionPlugin {
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster) {
-
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return List.of(new RestGetActionsAction());
     }
 

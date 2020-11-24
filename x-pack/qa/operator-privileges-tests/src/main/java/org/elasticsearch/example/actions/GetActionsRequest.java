@@ -14,8 +14,7 @@ import java.io.IOException;
 
 public class GetActionsRequest extends ActionRequest {
 
-    public GetActionsRequest() {
-    }
+    public GetActionsRequest() {}
 
     public GetActionsRequest(StreamInput in) throws IOException {
         super(in);

@@ -101,7 +101,7 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
                     script.emit(((Number) v).doubleValue());
                 } else if (v instanceof String) {
                     try {
-                        script.emit(Double.parseDouble((String)v));
+                        script.emit(Double.parseDouble((String) v));
                     } catch (Exception e) {
                         // ignore
                     }

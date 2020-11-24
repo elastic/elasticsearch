@@ -265,18 +265,6 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             map = parser.map();
         }
-        assertThat(XContentMapValues.extractRawValues("path1.path2", map), contains("value"));
-
-    }
-
-    public void testExtractRawValueLeafOnly() throws IOException {
-        Map<String, Object> map;
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-            .startArray("path1").value(9).startObject().field("path2", "value").endObject().value(7).endArray()
-            .endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
         assertThat(XContentMapValues.extractRawValues("path1", map), contains(9, 7));
         assertThat(XContentMapValues.extractRawValues("path1.path2", map), Matchers.contains("value"));
     }

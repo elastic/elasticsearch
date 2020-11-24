@@ -63,7 +63,7 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
                     script.emit(((Number) v).longValue());
                 } else if (v instanceof String) {
                     try {
-                        script.emit(Long.parseLong((String)v));
+                        script.emit(Long.parseLong((String) v));
                     } catch (Exception e) {
                         // ignore
                     }

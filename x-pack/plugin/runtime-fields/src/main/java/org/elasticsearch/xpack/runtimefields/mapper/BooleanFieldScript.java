@@ -97,10 +97,10 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         public void emitFromPath(String path) {
             for (Object v : script.extractFromSource(path)) {
                 if (v instanceof Boolean) {
-                    script.emit((Boolean)v);
+                    script.emit((Boolean) v);
                 } else if (v instanceof String) {
                     try {
-                        script.emit(Booleans.parseBoolean((String)v));
+                        script.emit(Booleans.parseBoolean((String) v));
                     } catch (Exception e) {
                         // ignore
                     }

@@ -87,7 +87,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
             for (Object v : script.extractFromSource(path)) {
                 if (v instanceof String) {
                     try {
-                        script.emit(script.formatter.parseMillis((String)v));
+                        script.emit(script.formatter.parseMillis((String) v));
                     } catch (Exception e) {
                         // ignore
                     }

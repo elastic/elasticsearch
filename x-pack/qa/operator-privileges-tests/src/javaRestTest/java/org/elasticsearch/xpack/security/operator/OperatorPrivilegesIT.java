@@ -11,11 +11,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.example.actions.GetActionsAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -83,5 +85,16 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         mainRequest.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
         client().performRequest(mainRequest);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAllActionsAreEitherOperatorOnlyOrNonOperator() throws IOException {
+        final Request request = new Request("GET", "/_test/get_actions");
+        final Map<String, Object> response = responseAsMap(client().performRequest(request));
+        List<String> allActions = (List<String>)response.get("actions");
+        allActions.remove(GetActionsAction.NAME);
+        allActions.removeAll(CompositeOperatorOnly.ActionOperatorOnly.SIMPLE_ACTIONS);
+        allActions.removeAll(Constants.NON_OPERATOR_ACTIONS);
+        assertTrue(allActions.isEmpty());
     }
 }

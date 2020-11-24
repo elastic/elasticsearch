@@ -1,11 +1,21 @@
 import org.elasticsearch.gradle.info.BuildParams
 
+apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.java-rest-test'
+
+esplugin {
+  name 'op-test'
+  description 'An test plugin for testing hard to get internals'
+  classname 'org.elasticsearch.example.OpTestPlugin'
+  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
+}
 
 dependencies {
   compileOnly project(':x-pack:plugin:core')
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':client:rest-high-level')
+  javaRestTestImplementation project(':x-pack:plugin:security')
   // let the javaRestTest see the classpath of main
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }

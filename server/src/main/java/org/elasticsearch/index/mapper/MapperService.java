@@ -227,14 +227,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MappingMetadata mappingMetadata = newIndexMetadata.mapping();
         CompressedXContent incomingMappingSource = mappingMetadata.source();
 
-        String op = snapshot != null ? "updated" : "added";
         if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
-            logger.debug("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
+            logger.debug("[{}] {} mapping, source [{}]", index(), snapshot.updateOperationName(), incomingMappingSource.string());
         } else if (logger.isTraceEnabled()) {
-            logger.trace("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
+            logger.trace("[{}] {} mapping, source [{}]", index(), snapshot.updateOperationName(), incomingMappingSource.string());
         } else {
-            logger.debug("[{}] {} mapping (source suppressed due to length, use TRACE level if needed)",
-                index(), op);
+            logger.debug(
+                "[{}] {} mapping (source suppressed due to length, use TRACE level if needed)",
+                index(),
+                snapshot.updateOperationName()
+            );
         }
 
         // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
@@ -615,6 +617,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         abstract MappedSnapshot merge(DocumentMapper mapper, MergeReason reason);
 
         abstract Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers();
+
+        /**
+         * The name of the operation to log when merging new mappings. If the
+         * mapping is empty it'll be {@code add} and if it isn't then it'll be
+         * {@code update}.
+         */
+        abstract String updateOperationName();
     }
 
     private static class EmptySnapshot extends AbstractSnapshot {
@@ -702,6 +711,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         @Override
         MappedSnapshot merge(DocumentMapper mapper, MergeReason reason) {
             return new MappedSnapshot(mapperService, mapper, 1);
+        }
+
+        @Override
+        protected String updateOperationName() {
+            return  "added";
         }
     }
 
@@ -796,6 +810,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 return this;
             }
             return new MappedSnapshot(mapperService, merged, version + 1);
+        }
+
+        @Override
+        protected String updateOperationName() {
+            return  "updated";
         }
     }
 

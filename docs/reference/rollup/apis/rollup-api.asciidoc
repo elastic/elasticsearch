@@ -56,11 +56,9 @@ privilege to use this API. See <<security-privileges>>.
 
 `<index>`::
 (Required, string)
-Index to roll up. Does not support <<multi-index,multi-target syntax>> or
-wildcards (`*`).
-+
-Cannot be a <<data-streams,data stream>> or <<indices-aliases,index alias>>.
-
+Index to roll up. Cannot be a <<data-streams,data stream>> or
+<<indices-aliases,index alias>>. Does not support <<multi-index,multi-target
+syntax>> or wildcards (`*`).
 
 [role="child_attributes"]
 [[rollup-api-request-body]]

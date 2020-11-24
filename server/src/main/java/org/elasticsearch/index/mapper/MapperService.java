@@ -183,9 +183,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        snapshot.collectMetadataMappers(metadataMappers);
-        return metadataMappers;
+        return snapshot.getMetadataMappers();
     }
 
     /**
@@ -616,7 +614,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         abstract MappedSnapshot merge(DocumentMapper mapper, MergeReason reason);
 
-        abstract void collectMetadataMappers(Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers);
+        abstract Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers();
     }
 
     private static class EmptySnapshot extends AbstractSnapshot {
@@ -689,14 +687,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         @Override
-        void collectMetadataMappers(Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers) {
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers(
                 mapperService.indexSettings.getIndexVersionCreated()
             );
+            Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
             for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
                 MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
             }
+            return metadataMappers;
         }
 
         @Override
@@ -785,8 +785,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         @Override
-        protected void collectMetadataMappers(Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers) {
-            metadataMappers.putAll(mapper.mapping().metadataMappersMap);            
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
+            return new LinkedHashMap<>(mapper.mapping().metadataMappersMap);            
         }
 
         @Override

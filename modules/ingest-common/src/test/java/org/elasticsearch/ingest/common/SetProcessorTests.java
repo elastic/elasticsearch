@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,7 +39,7 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
-        Processor processor = createSetProcessor(fieldName, fieldValue, true, false);
+        Processor processor = createSetProcessor(fieldName, fieldValue, null, true, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -50,7 +51,7 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
-        Processor processor = createSetProcessor(fieldName, fieldValue, true, false);
+        Processor processor = createSetProcessor(fieldName, fieldValue, null, true, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -59,7 +60,7 @@ public class SetProcessorTests extends ESTestCase {
     public void testSetFieldsTypeMismatch() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("field", "value");
-        Processor processor = createSetProcessor("field.inner", "value", true, false);
+        Processor processor = createSetProcessor("field.inner", "value", null, true, false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -73,7 +74,7 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
-        Processor processor = createSetProcessor(fieldName, fieldValue, false, false);
+        Processor processor = createSetProcessor(fieldName, fieldValue, null, false, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -83,7 +84,7 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         Object fieldValue = "foo";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = createSetProcessor(fieldName, "bar", false, false);
+        Processor processor = createSetProcessor(fieldName, "bar", null, false, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -94,7 +95,7 @@ public class SetProcessorTests extends ESTestCase {
         Object fieldValue = null;
         Object newValue = "bar";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = createSetProcessor(fieldName, newValue, false, false);
+        Processor processor = createSetProcessor(fieldName, newValue, null, false, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(newValue));
@@ -102,7 +103,7 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetMetadataExceptVersion() throws Exception {
         Metadata randomMetadata = randomFrom(Metadata.INDEX, Metadata.ID, Metadata.ROUTING);
-        Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", true, false);
+        Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(randomMetadata.getFieldName(), String.class), Matchers.equalTo("_value"));
@@ -110,7 +111,7 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetMetadataVersion() throws Exception {
         long version = randomNonNegativeLong();
-        Processor processor = createSetProcessor(Metadata.VERSION.getFieldName(), version, true, false);
+        Processor processor = createSetProcessor(Metadata.VERSION.getFieldName(), version, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.VERSION.getFieldName(), Long.class), Matchers.equalTo(version));
@@ -118,7 +119,7 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetMetadataVersionType() throws Exception {
         String versionType = randomFrom("internal", "external", "external_gte");
-        Processor processor = createSetProcessor(Metadata.VERSION_TYPE.getFieldName(), versionType, true, false);
+        Processor processor = createSetProcessor(Metadata.VERSION_TYPE.getFieldName(), versionType, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
@@ -126,7 +127,7 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetMetadataIfSeqNo() throws Exception {
         long ifSeqNo = randomNonNegativeLong();
-        Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, true, false);
+        Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), Matchers.equalTo(ifSeqNo));
@@ -134,14 +135,29 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetMetadataIfPrimaryTerm() throws Exception {
         long ifPrimaryTerm = randomNonNegativeLong();
-        Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, true, false);
+        Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
     }
 
-    private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled, boolean ignoreEmptyValue) {
+    public void testCopyFromOtherField() throws Exception {
+        Map<String, Object> document = new HashMap<>();
+        Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
+        document.put("field", fieldValue);
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+
+        Processor processor = createSetProcessor(fieldName, null, "field", true, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField(fieldName), equalTo(true));
+        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
+    }
+
+    private static Processor createSetProcessor(String fieldName, Object fieldValue, String copyFrom, boolean overrideEnabled,
+        boolean ignoreEmptyValue) {
         return new SetProcessor(randomAlphaOfLength(10), null, new TestTemplateService.MockTemplateScript.Factory(fieldName),
-                ValueSource.wrap(fieldValue, TestTemplateService.instance()), overrideEnabled, ignoreEmptyValue);
+                ValueSource.wrap(fieldValue, TestTemplateService.instance()), copyFrom, overrideEnabled, ignoreEmptyValue);
     }
 }

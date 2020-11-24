@@ -24,7 +24,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -41,7 +41,7 @@ import java.util.List;
  * .point GeoPoint type
  * .shape GeoShape type
  */
-public class ExternalMapper extends ParametrizedFieldMapper {
+public class ExternalMapper extends FieldMapper {
 
     public static class Names {
         public static final String FIELD_BIN = "bin";
@@ -50,7 +50,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private final BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
@@ -73,17 +73,17 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ExternalMapper build(BuilderContext context) {
-            context.path().add(name);
-            BinaryFieldMapper binMapper = binBuilder.build(context);
-            BooleanFieldMapper boolMapper = boolBuilder.build(context);
-            GeoPointFieldMapper pointMapper = (GeoPointFieldMapper) latLonPointBuilder.build(context);
-            AbstractShapeGeometryFieldMapper<?, ?> shapeMapper = shapeBuilder.build(context);
-            FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
-            context.path().remove();
+        public ExternalMapper build(ContentPath contentPath) {
+            contentPath.add(name);
+            BinaryFieldMapper binMapper = binBuilder.build(contentPath);
+            BooleanFieldMapper boolMapper = boolBuilder.build(contentPath);
+            GeoPointFieldMapper pointMapper = (GeoPointFieldMapper) latLonPointBuilder.build(contentPath);
+            AbstractShapeGeometryFieldMapper<?, ?> shapeMapper = shapeBuilder.build(contentPath);
+            FieldMapper stringMapper = (FieldMapper)stringBuilder.build(contentPath);
+            contentPath.remove();
 
-            return new ExternalMapper(name, buildFullName(context), generatedValue, mapperName, binMapper, boolMapper,
-                pointMapper, shapeMapper, stringMapper, multiFieldsBuilder.build(this, context), copyTo.build());
+            return new ExternalMapper(name, buildFullName(contentPath), generatedValue, mapperName, binMapper, boolMapper,
+                pointMapper, shapeMapper, stringMapper, multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 
@@ -103,8 +103,8 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
     }
 
@@ -173,7 +173,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), generatedValue, mapperName);
     }
 

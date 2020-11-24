@@ -183,11 +183,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     }
 
                     @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-
-                    @Override
                     public void handleResponse(final Response response) {
                         listener.onResponse(response);
                     }
@@ -249,11 +244,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         @Override
                         public Response read(StreamInput in) throws IOException {
                             return reader.read(in);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override

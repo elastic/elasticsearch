@@ -49,10 +49,10 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
@@ -68,7 +68,9 @@ import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
 public class OptimizerRulesTests extends ESTestCase {
 
@@ -135,7 +137,11 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     private static FieldAttribute getFieldAttribute(String name) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", INTEGER, emptyMap(), true));
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     //
@@ -289,7 +295,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         FieldAttribute field = getFieldAttribute();
 
-        List<? extends BinaryComparison> comparisons = Arrays.asList(
+        List<? extends BinaryComparison> comparisons = asList(
             new Equals(EMPTY, field, TRUE),
             new Equals(EMPTY, field, FALSE),
             notEqualsOf(field, TRUE),
@@ -504,7 +510,7 @@ public class OptimizerRulesTests extends ESTestCase {
         LessThan blt4 = new LessThan(EMPTY, fb, FOUR, zoneId);
         LessThan clt4 = new LessThan(EMPTY, fc, FOUR, zoneId);
 
-        Expression inputAnd = Predicates.combineAnd(Arrays.asList(agt1, alt3, bgt2, blt4, clt4));
+        Expression inputAnd = Predicates.combineAnd(asList(agt1, alt3, bgt2, blt4, clt4));
 
         CombineBinaryComparisons rule = new CombineBinaryComparisons();
         Expression outputAnd = rule.rule(inputAnd);
@@ -513,7 +519,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Range bgt2lt4 = new Range(EMPTY, fb, TWO, false, FOUR, false, zoneId);
 
         // The actual outcome is (c < 4) AND (1 < a < 3) AND (2 < b < 4), due to the way the Expression types are combined in the Optimizer
-        Expression expectedAnd = Predicates.combineAnd(Arrays.asList(clt4, agt1lt3, bgt2lt4));
+        Expression expectedAnd = Predicates.combineAnd(asList(clt4, agt1lt3, bgt2lt4));
 
         assertTrue(outputAnd.semanticEquals(expectedAnd));
     }
@@ -1015,7 +1021,31 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression exp = rule.rule(or);
         assertEquals(r2, exp);
     }
+    
+    public void testBinaryComparisonAndOutOfRangeNotEqualsDifferentFields() {
+        FieldAttribute doubleOne = getFieldAttribute("double", DOUBLE);
+        FieldAttribute doubleTwo = getFieldAttribute("double2", DOUBLE);
+        FieldAttribute intOne = getFieldAttribute("int", INTEGER);
+        FieldAttribute datetimeOne = getFieldAttribute("datetime", INTEGER);
+        FieldAttribute keywordOne = getFieldAttribute("keyword", KEYWORD);
+        FieldAttribute keywordTwo = getFieldAttribute("keyword2", KEYWORD);
 
+        List<And> testCases = asList(
+            // double > 10 AND integer != -10
+            new And(EMPTY, greaterThanOf(doubleOne, L(10)), notEqualsOf(intOne, L(-10))),
+            // keyword > '5' AND keyword2 != '48'
+            new And(EMPTY, greaterThanOf(keywordOne, L("5")), notEqualsOf(keywordTwo, L("48"))),
+            // keyword != '2021' AND datetime <= '2020-12-04T17:48:22.954240Z'
+            new And(EMPTY, notEqualsOf(keywordOne, L("2021")), lessThanOrEqualOf(datetimeOne, L("2020-12-04T17:48:22.954240Z"))),
+            // double > 10.1 AND double2 != -10.1
+            new And(EMPTY, greaterThanOf(doubleOne, L(10.1d)), notEqualsOf(doubleTwo, L(-10.1d))));
+        
+        for (And and : testCases) {
+            CombineBinaryComparisons rule = new CombineBinaryComparisons();
+            Expression exp = rule.rule(and);
+            assertEquals("Rule should not have transformed [" + and.nodeString() + "]", and, exp);
+        }   
+    }
 
     // Equals & NullEquals
 
@@ -1188,7 +1218,7 @@ public class OptimizerRulesTests extends ESTestCase {
         NotEquals neq = notEqualsOf(fa, FOUR);
 
         PropagateEquals rule = new PropagateEquals();
-        Expression and = Predicates.combineAnd(Arrays.asList(eq, lt, gt, neq));
+        Expression and = Predicates.combineAnd(asList(eq, lt, gt, neq));
         Expression exp = rule.rule(and);
         assertEquals(eq, exp);
     }
@@ -1202,7 +1232,7 @@ public class OptimizerRulesTests extends ESTestCase {
         NotEquals neq = notEqualsOf(fa, FOUR);
 
         PropagateEquals rule = new PropagateEquals();
-        Expression and = Predicates.combineAnd(Arrays.asList(eq, range, gt, neq));
+        Expression and = Predicates.combineAnd(asList(eq, range, gt, neq));
         Expression exp = rule.rule(and);
         assertEquals(eq, exp);
     }
@@ -1331,7 +1361,7 @@ public class OptimizerRulesTests extends ESTestCase {
         NotEquals neq = notEqualsOf(fa, TWO);
 
         PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(Predicates.combineOr(Arrays.asList(eq, range, neq, gt)));
+        Expression exp = rule.rule(Predicates.combineOr(asList(eq, range, neq, gt)));
         assertEquals(TRUE, exp);
     }
 
@@ -1339,7 +1369,7 @@ public class OptimizerRulesTests extends ESTestCase {
     // Like / Regex
     //
     public void testMatchAllLikeToExist() throws Exception {
-        for (String s : Arrays.asList("%", "%%", "%%%")) {
+        for (String s : asList("%", "%%", "%%%")) {
             LikePattern pattern = new LikePattern(s, (char) 0);
             FieldAttribute fa = getFieldAttribute();
             Like l = new Like(EMPTY, fa, pattern);
@@ -1361,7 +1391,7 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testExactMatchLike() throws Exception {
-        for (String s : Arrays.asList("ab", "ab0%", "ab0_c")) {
+        for (String s : asList("ab", "ab0%", "ab0_c")) {
             LikePattern pattern = new LikePattern(s, '0');
             FieldAttribute fa = getFieldAttribute();
             Like l = new Like(EMPTY, fa, pattern);

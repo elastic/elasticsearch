@@ -1471,7 +1471,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Or or = new Or(EMPTY, equalsOf(fieldOne, one), equalsOf(fieldTwo, two));
         Expression e = new CombineDisjunctionsToIn().rule(or);
-        assertEquals(e, e);
+        assertEquals(or, e);
     }
 
     public void testMultipleIn() throws Exception {
@@ -1500,12 +1500,9 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression e = new CombineDisjunctionsToIn().rule(secondOr);
         assertEquals(Or.class, e.getClass());
         Or or = (Or) e;
-        assertEquals(LessThan.class, or.right().getClass());
-        LessThan lt = (LessThan) or.right();
-        assertEquals(fa, lt.left());
-        assertEquals(two, lt.right());
-        assertEquals(In.class, or.left().getClass());
-        In in = (In) or.left();
+        assertEquals(or.left(), firstOr.right());
+        assertEquals(In.class, or.right().getClass());
+        In in = (In) or.right();
         assertEquals(fa, in.value());
         assertThat(in.list(), contains(one, three));
     }

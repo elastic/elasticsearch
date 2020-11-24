@@ -1097,8 +1097,7 @@ public final class OptimizerRules {
                     // combine equals alongside the existing ors
                     final ZoneId finalZoneId = zoneId;
                     found.forEach((k, v) -> {
-                        // add the new expression first to ease debugging
-                        ors.add(0, v.size() == 1
+                        ors.add(v.size() == 1
                             ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
                             : createIn(k, new ArrayList<>(v), finalZoneId));
                     });

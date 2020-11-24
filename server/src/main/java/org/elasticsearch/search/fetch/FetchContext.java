@@ -51,7 +51,7 @@ public class FetchContext {
      */
     public FetchContext(SearchContext searchContext) {
         this.searchContext = searchContext;
-        this.searchLookup = searchContext.getQueryShardContext().newFetchLookup();
+        this.searchLookup = searchContext.getQueryShardContext().lookup();
     }
 
     /**

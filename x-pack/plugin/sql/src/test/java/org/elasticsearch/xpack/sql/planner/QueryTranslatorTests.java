@@ -2338,4 +2338,12 @@ public class QueryTranslatorTests extends ESTestCase {
         PhysicalPlan p = testContext.optimizeAndPlan("SELECT long FROM test WHERE long IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)");
         assertEquals(EsQueryExec.class, p.getClass());
     }
+
+    public void testEqualsAndInOnTheSameField() {
+        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT int FROM test WHERE int in (1, 2) OR int = 3 OR int = 2");
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+        assertEquals(1, eqe.output().size());
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("\"terms\":{\"int\":[1,2,3],"));
+    }
 }

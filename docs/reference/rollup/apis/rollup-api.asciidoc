@@ -60,7 +60,6 @@ Index to roll up. Does not support <<multi-index,multi-target syntax>> or
 wildcards (`*`).
 +
 Cannot be a <<data-streams,data stream>> or <<indices-aliases,index alias>>.
-Instead, target the stream's backing indices or the alias's concrete indices.
 
 
 [role="child_attributes"]

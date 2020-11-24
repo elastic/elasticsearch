@@ -48,7 +48,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
@@ -150,7 +149,6 @@ public class FetchPhase {
                     context,
                     leafNestedDocuments,
                     nestedDocuments::hasNonNestedParent,
-                    fetchContext.searchLookup(),
                     fieldsVisitor,
                     docId,
                     storedToRequestedFields,
@@ -258,7 +256,6 @@ public class FetchPhase {
     private HitContext prepareHitContext(SearchContext context,
                                          LeafNestedDocuments nestedDocuments,
                                          Predicate<String> hasNonNestedParent,
-                                         SearchLookup lookup,
                                          FieldsVisitor fieldsVisitor,
                                          int docId,
                                          Map<String, Set<String>> storedToRequestedFields,
@@ -266,7 +263,7 @@ public class FetchPhase {
                                          CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
-                context, lookup, fieldsVisitor, docId, storedToRequestedFields, subReaderContext, storedFieldReader);
+                context, fieldsVisitor, docId, storedToRequestedFields, subReaderContext, storedFieldReader);
         } else {
             return prepareNestedHitContext(context, docId, nestedDocuments, hasNonNestedParent, storedToRequestedFields,
                 subReaderContext, storedFieldReader);
@@ -277,11 +274,10 @@ public class FetchPhase {
      * Resets the provided {@link HitContext} with information on the current
      * document. This includes the following:
      *   - Adding an initial {@link SearchHit} instance.
-     *   - Loading the document source and setting it on {@link SourceLookup}. This allows
-     *     fetch subphases that use the hit context to access the preloaded source.
+     *   - Loading the document source and setting it on {@link HitContext#sourceLookup()}. This
+     *     allows fetch subphases that use the hit context to access the preloaded source.
      */
     private HitContext prepareNonNestedHitContext(SearchContext context,
-                                                  SearchLookup lookup,
                                                   FieldsVisitor fieldsVisitor,
                                                   int docId,
                                                   Map<String, Set<String>> storedToRequestedFields,
@@ -290,7 +286,7 @@ public class FetchPhase {
         int subDocId = docId - subReaderContext.docBase;
         if (fieldsVisitor == null) {
             SearchHit hit = new SearchHit(docId, null, null, null);
-            return new HitContext(hit, subReaderContext, subDocId, lookup.source());
+            return new HitContext(hit, subReaderContext, subDocId);
         } else {
             SearchHit hit;
             loadStoredFields(context.getQueryShardContext()::getFieldType, fieldReader, fieldsVisitor, subDocId);
@@ -303,9 +299,15 @@ public class FetchPhase {
                 hit = new SearchHit(docId, fieldsVisitor.id(), emptyMap(), emptyMap());
             }
 
-            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId, lookup.source());
+            HitContext hitContext = new HitContext(hit, subReaderContext, subDocId);
             if (fieldsVisitor.source() != null) {
+                // Store the loaded source on the hit context so that fetch subphases can access it.
+                // Also make it available to scripts by storing it on the shared SearchLookup instance.
                 hitContext.sourceLookup().setSource(fieldsVisitor.source());
+
+                SourceLookup scriptSourceLookup = context.getQueryShardContext().lookup().source();
+                scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
+                scriptSourceLookup.setSource(fieldsVisitor.source());
             }
             return hitContext;
         }
@@ -316,8 +318,8 @@ public class FetchPhase {
      * nested document. This includes the following:
      *   - Adding an initial {@link SearchHit} instance.
      *   - Loading the document source, filtering it based on the nested document ID, then
-     *     setting it on {@link SourceLookup}. This allows fetch subphases that use the hit
-     *     context to access the preloaded source.
+     *     setting it on {@link HitContext#sourceLookup()}. This allows fetch subphases that
+     *     use the hit context to access the preloaded source.
      */
     @SuppressWarnings("unchecked")
     private HitContext prepareNestedHitContext(SearchContext context,
@@ -375,12 +377,7 @@ public class FetchPhase {
         SearchHit.NestedIdentity nestedIdentity = nestedInfo.nestedIdentity();
 
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
-        HitContext hitContext = new HitContext(
-            hit,
-            subReaderContext,
-            nestedInfo.doc(),
-            new SourceLookup()  // Use a clean, fresh SourceLookup for the nested context
-        );
+        HitContext hitContext = new HitContext(hit, subReaderContext, nestedInfo.doc());
 
         if (rootSourceAsMap != null) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json

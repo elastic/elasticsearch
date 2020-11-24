@@ -333,6 +333,10 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
                     .field("type", "integer")
                     .field("copy_to", "field")
                 .endObject()
+                .startObject("yet_another_field")
+                    .field("type", "keyword")
+                    .field("copy_to", "field")
+                .endObject()
             .endObject()
         .endObject();
 

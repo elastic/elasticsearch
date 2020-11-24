@@ -55,6 +55,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
@@ -68,7 +69,10 @@ import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
 
@@ -135,7 +139,11 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     private static FieldAttribute getFieldAttribute(String name) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", INTEGER, emptyMap(), true));
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     //
@@ -1015,7 +1023,31 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression exp = rule.rule(or);
         assertEquals(r2, exp);
     }
+    
+    public void testBinaryComparisonAndOutOfRangeNotEqualsDifferentFields() {
+        FieldAttribute doubleOne = fieldAttribute("double", DOUBLE);
+        FieldAttribute doubleTwo = fieldAttribute("double2", DOUBLE);
+        FieldAttribute intOne = fieldAttribute("int", INTEGER);
+        FieldAttribute datetimeOne = fieldAttribute("datetime", INTEGER);
+        FieldAttribute keywordOne = fieldAttribute("keyword", KEYWORD);
+        FieldAttribute keywordTwo = fieldAttribute("keyword2", KEYWORD);
 
+        List<And> testCases = asList(
+            // double > 10 AND integer != -10
+            new And(EMPTY, greaterThanOf(doubleOne, L(10)), notEqualsOf(intOne, L(-10))),
+            // keyword > '5' AND keyword2 != '48'
+            new And(EMPTY, greaterThanOf(keywordOne, L("5")), notEqualsOf(keywordTwo, L("48"))),
+            // keyword != '2021' AND datetime <= '2020-12-04T17:48:22.954240Z'
+            new And(EMPTY, notEqualsOf(keywordOne, L("2021")), lessThanOrEqualOf(datetimeOne, L("2020-12-04T17:48:22.954240Z"))),
+            // double > 10.1 AND double2 != -10.1
+            new And(EMPTY, greaterThanOf(doubleOne, L(10.1d)), notEqualsOf(doubleTwo, L(-10.1d))));
+        
+        for (And and : testCases) {
+            CombineBinaryComparisons rule = new CombineBinaryComparisons();
+            Expression exp = rule.rule(and);
+            assertEquals("Rule should not have transformed [" + and.nodeString() + "]", and, exp);
+        }   
+    }
 
     // Equals & NullEquals
 

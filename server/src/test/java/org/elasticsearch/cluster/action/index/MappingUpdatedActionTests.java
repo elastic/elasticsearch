@@ -155,7 +155,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         mua.setClient(client);
 
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", Version.CURRENT).build(new ContentPath());
-        Mapping update = new Mapping(Version.V_7_8_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+        Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), "type", update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).putMapping(any(), any());
@@ -180,7 +180,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         mua.setClient(client);
 
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", Version.CURRENT).build(new ContentPath());
-        Mapping update = new Mapping(Version.V_7_9_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+        Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), "type", update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());

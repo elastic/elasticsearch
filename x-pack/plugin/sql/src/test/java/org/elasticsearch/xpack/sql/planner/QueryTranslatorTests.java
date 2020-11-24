@@ -1800,9 +1800,9 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))\","
+                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\","
                         +
-                "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3.141592653589793}},\"missing_bucket\":true," +
                 "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
         );
     }
@@ -1818,9 +1818,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))"
+                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)"
                             +
-                    "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                    "\",\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3.141592653589793}},\"missing_bucket\":true," +
                     "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
         }
@@ -1853,9 +1853,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))"
+                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)"
                             +
-                    "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                    "\",\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3.141592653589793}},\"missing_bucket\":true," +
                     "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
         }
@@ -1868,8 +1868,8 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                    endsWith("{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))\"," +
-                    "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}}," +
+                    endsWith("{\"source\":\"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3.141592653589793}}," +
                     "\"missing_bucket\":true,\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
         }

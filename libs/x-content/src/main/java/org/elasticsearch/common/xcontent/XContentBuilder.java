@@ -202,7 +202,6 @@ public final class XContentBuilder implements Closeable, Flushable {
                            String responseContentTypeString) throws IOException {
         this.bos = os;
         this.responseContentTypeString = responseContentTypeString;
-        Objects.requireNonNull(responseContentTypeString);
         this.generator = xContent.createGenerator(bos, includes, excludes);
     }
 

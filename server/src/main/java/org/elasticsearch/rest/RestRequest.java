@@ -31,8 +31,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -73,13 +71,11 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
-    private XContentType responseContentType;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
 
     private final long requestId;
-    private String responseContentTypeString;
 
     public boolean isContentConsumed() {
         return contentConsumed;
@@ -112,41 +108,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-
     }
-
-//    <T> Tuple<MediaType,String> responseContentType(MediaTypeRegistry<T>) responseMediaTypeRegistry) {
-//        String responseContentTypeString = null;
-//        if (responseContentType!=null) {
-//            responseContentTypeString = responseContentType.mediaType();
-//        }
-//
-//        if (Strings.hasText(header("format"))) {
-//            this.responseContentType = XContentType.fromFormat(header("format"));
-//            this.responseContentTypeString = responseContentType.mediaType();
-//        } else if(parsedAccept != null) {
-//            parsedAccept.toMediaType()
-//        }
-//        if (responseContentType == null && Strings.hasText(acceptHeader)) {
-//            responseContentType = XContentType.fromMediaType(acceptHeader);
-//            responseContentTypeString = acceptHeader;
-//        }
-//
-//        // try to determine the response content type from the media type or the format query string parameter, with the format parameter
-//        // taking precedence over the Accept header
-//        if (responseContentType == null) {
-//            if (requestContentType != null) {
-//                // if there was a parsed content-type for the incoming request use that since no format was specified using the query
-//                // string parameter or the HTTP Accept header
-//                responseContentType = requestContentType;
-//            } else {
-//                // default to JSON output when all else fails
-//                responseContentType = XContentType.JSON;
-//
-//            }
-//            responseContentTypeString = responseContentType.mediaType();
-//        }
-//    }
 
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
         //TODO: make all usages of headers case-insensitive
@@ -232,10 +194,6 @@ public class RestRequest implements ToXContent.Params {
         Map<String, String> params = Collections.emptyMap();
         return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
             requestIdGenerator.incrementAndGet());
-    }
-
-    public String getResponseContentType(XContentType requestContentType) {
-        return null;
     }
 
     public enum Method {
@@ -570,13 +528,6 @@ public class RestRequest implements ToXContent.Params {
         return parsedContentType;
     }
 
-    public XContentType getResponseContentType() {
-        return responseContentType;
-    }
-
-    public String getResponseContentTypeString() {
-        return responseContentTypeString;
-    }
     /**
      * Parses the given content type string for the media type. This method currently ignores parameters.
      */

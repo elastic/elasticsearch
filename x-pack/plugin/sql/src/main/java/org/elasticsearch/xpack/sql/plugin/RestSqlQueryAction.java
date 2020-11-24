@@ -58,9 +58,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         }
 
         responseMediaType = sqlMediaTypeParser.getMediaType(request, sqlRequest);
-        if(responseMediaType == null){
 
-        }
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
@@ -68,7 +66,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 RestResponse restResponse;
 
                 // XContent branch
-                if (responseMediaType instanceof XContentType) {
+                if (responseMediaType != null && responseMediaType instanceof XContentType) {
                     XContentType type = (XContentType) responseMediaType;
                     XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
                     response.toXContent(builder, request);

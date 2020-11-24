@@ -175,6 +175,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Version version = maybeWrappedHandler.compatibleWithVersion();
         assert Version.CURRENT.minimumRestCompatibilityVersion() == version || Version.CURRENT == version
             : "REST API compatibility is only supported for version " + Version.CURRENT.minimumRestCompatibilityVersion().major;
+
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
@@ -327,10 +328,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
 
-
         Version compatibleVersion = this.compatibleVersion.
             get(request.getParsedAccept(), request.getParsedContentType(), request.hasContent());
-
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();

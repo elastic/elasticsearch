@@ -125,7 +125,6 @@ public abstract class AbstractRestChannel implements RestChannel {
             } else {
                 // default to JSON output when all else fails
                 responseContentType = XContentType.JSON;
-
             }
             responseContentTypeString = responseContentType.mediaType();
         }

@@ -88,18 +88,18 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * Immediately delays operations and on another thread waits for in-flight operations to finish and then acquires all permits. When all
-     * permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are started. Delayed
-     * operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in this case the
-     * {@code onFailure} handler will be invoked after delayed operations are released.
+     * Immediately delays operations and uses the {@code executor} to wait for in-flight operations to finish and then acquires all
+     * permits. When all permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are
+     * started. Delayed operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in
+     * this case the {@code onFailure} handler will be invoked after delayed operations are released.
      *
      * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed
      * @param timeout    the maximum time to wait for the in-flight operations block
      * @param timeUnit   the time unit of the {@code timeout} argument
      * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
      */
-    public void asyncBlockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit,
-                                     String executor)  {
+    public void blockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit,
+                                String executor)  {
         delayOperations();
         threadPool.executor(executor).execute(new AbstractRunnable() {
 

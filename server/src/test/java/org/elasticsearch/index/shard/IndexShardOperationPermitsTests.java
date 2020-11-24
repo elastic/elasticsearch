@@ -199,7 +199,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testBlockIfClosed() {
         permits.close();
         expectThrows(IndexShardClosedException.class,
-            () -> permits.asyncBlockOperations(wrap(() -> { throw new IllegalArgumentException("fake error");}),
+            () -> permits.blockOperations(wrap(() -> { throw new IllegalArgumentException("fake error");}),
                 randomInt(10), TimeUnit.MINUTES, ThreadPool.Names.GENERIC));
     }
 
@@ -220,7 +220,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         try (Releasable ignored = blockAndWait()) {
             permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
 
-            permits.asyncBlockOperations(wrap(() -> {
+            permits.blockOperations(wrap(() -> {
                 blocked.set(true);
                 blockAcquired.countDown();
                 releaseBlock.await();
@@ -292,7 +292,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         CountDownLatch blockReleased = new CountDownLatch(1);
         boolean throwsException = randomBoolean();
         IndexShardClosedException exception = new IndexShardClosedException(new ShardId("blubb", "id", 0));
-        permits.asyncBlockOperations(ActionListener.runAfter(new ActionListener<>() {
+        permits.blockOperations(ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(Releasable releasable) {
                 try (releasable) {
@@ -328,7 +328,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         final CountDownLatch blockAcquired = new CountDownLatch(1);
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
-        permits.asyncBlockOperations(wrap(() -> {
+        permits.blockOperations(wrap(() -> {
                 blocked.set(true);
                 blockAcquired.countDown();
                 releaseBlock.await();
@@ -380,7 +380,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         // now we will delay operations while the first operation is still executing (because it is latched)
         final CountDownLatch blockedLatch = new CountDownLatch(1);
         final AtomicBoolean onBlocked = new AtomicBoolean();
-        permits.asyncBlockOperations(wrap(() -> {
+        permits.blockOperations(wrap(() -> {
             onBlocked.set(true);
             blockedLatch.countDown();
         }), 30, TimeUnit.MINUTES, ThreadPool.Names.GENERIC);
@@ -468,7 +468,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            permits.asyncBlockOperations(wrap(() -> {
+            permits.blockOperations(wrap(() -> {
                 values.add(operations);
                 operationLatch.countDown();
             }), 30, TimeUnit.MINUTES, ThreadPool.Names.GENERIC);
@@ -537,7 +537,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testAsyncBlockOperationsOnFailure() throws InterruptedException {
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final CountDownLatch onFailureLatch = new CountDownLatch(1);
-        permits.asyncBlockOperations(new ActionListener<Releasable>() {
+        permits.blockOperations(new ActionListener<Releasable>() {
             @Override
             public void onResponse(Releasable releasable) {
                 try (Releasable ignored = releasable) {
@@ -571,7 +571,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final CountDownLatch onFailureLatch = new CountDownLatch(1);
-        permits.asyncBlockOperations(new ActionListener<Releasable>() {
+        permits.blockOperations(new ActionListener<Releasable>() {
             @Override
             public void onResponse(Releasable releasable) {
                 releasable.close();

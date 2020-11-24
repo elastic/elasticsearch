@@ -44,6 +44,7 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
@@ -1010,7 +1011,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         if (foundNettyLeaks) {
-            final boolean leakTestsEnabled = (Boolean) project.getExtensions().getExtraProperties().get("netty_leak_tests_enabled");
+            final ExtraPropertiesExtension extension = project.getExtensions().getExtraProperties();
+            final boolean leakTestsEnabled = extension.has("netty_leak_tests_enabled")
+                ? (Boolean) extension.get("netty_leak_tests_enabled")
+                : true;
             if (leakTestsEnabled) {
                 throw new TestClustersException(
                     "Found Netty ByteBuf leaks in node logs. In order to temporarily mute this check, set "

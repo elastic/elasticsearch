@@ -162,9 +162,10 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+                                                       Builder subFactoriesBuilder,
+                                                       Object aggregatorSupplier) throws IOException {
         return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, context, parent,
-                subFactoriesBuilder, metadata);
+                subFactoriesBuilder, metadata, (DiversifiedAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

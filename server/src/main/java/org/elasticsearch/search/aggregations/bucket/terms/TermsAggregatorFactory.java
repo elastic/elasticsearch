@@ -166,6 +166,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
     }
 
+    private final TermsAggregatorSupplier aggregatorSupplier;
     private final BucketOrder order;
     private final IncludeExclude includeExclude;
     private final String executionHint;
@@ -184,8 +185,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                            AggregationContext context,
                            AggregatorFactory parent,
                            AggregatorFactories.Builder subFactoriesBuilder,
-                           Map<String, Object> metadata) throws IOException {
+                           Map<String, Object> metadata,
+                           TermsAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
@@ -229,8 +232,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        TermsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry()
-            .getAggregator(TermsAggregationBuilder.REGISTRY_KEY, config);
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
             && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {

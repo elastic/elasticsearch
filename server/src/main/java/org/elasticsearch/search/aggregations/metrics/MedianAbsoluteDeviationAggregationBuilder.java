@@ -116,10 +116,12 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder)
+                                                       AggregatorFactories.Builder subFactoriesBuilder,
+                                                       Object aggregatorSupplier)
         throws IOException {
         return new MedianAbsoluteDeviationAggregatorFactory(name, config, context,
-            parent, subFactoriesBuilder, metadata, compression);
+            parent, subFactoriesBuilder, metadata, compression,
+            (MedianAbsoluteDeviationAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

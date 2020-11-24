@@ -81,8 +81,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     protected StringStatsAggregatorFactory innerBuild(AggregationContext context,
                                                       ValuesSourceConfig config,
                                                       AggregatorFactory parent,
-                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new StringStatsAggregatorFactory(name, config, showDistribution, context, parent, subFactoriesBuilder, metadata);
+                                                      AggregatorFactories.Builder subFactoriesBuilder,
+                                                      Object aggregatorSupplier) throws IOException {
+        return new StringStatsAggregatorFactory(name, config, showDistribution, context,
+                                                parent, subFactoriesBuilder, metadata,
+                                                (StringStatsAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

@@ -36,6 +36,7 @@ import java.util.Map;
 
 class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final PercentilesAggregatorSupplier aggregatorSupplier;
     private final double[] percents;
     private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
@@ -57,11 +58,13 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                                      AggregationContext context,
                                      AggregatorFactory parent,
                                      AggregatorFactories.Builder subFactoriesBuilder,
-                                     Map<String, Object> metadata) throws IOException {
+                                     Map<String, Object> metadata,
+                                     PercentilesAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.percentilesConfig = percentilesConfig;
         this.keyed = keyed;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
@@ -80,8 +83,8 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(PercentileRanksAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config.getValuesSource(), searchContext, parent, percents, percentilesConfig, keyed, config.format(), metadata);
+        return aggregatorSupplier
+            .build(name, config.getValuesSource(), searchContext, parent,
+                   percents, percentilesConfig, keyed, config.format(), metadata);
     }
 }

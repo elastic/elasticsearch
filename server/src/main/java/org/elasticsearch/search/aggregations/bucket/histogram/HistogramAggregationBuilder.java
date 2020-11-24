@@ -358,7 +358,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder,
+                                                       Object aggregatorSupplier) throws IOException {
 
         if (hardBounds != null && extendedBounds != null) {
             if (hardBounds.getMax() != null && extendedBounds.getMax() != null && hardBounds.getMax() < extendedBounds.getMax()) {
@@ -371,7 +372,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
             }
         }
         return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, extendedBounds,
-            hardBounds, context, parent, subFactoriesBuilder, metadata);
+            hardBounds, context, parent, subFactoriesBuilder, metadata, (HistogramAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

@@ -100,8 +100,11 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MissingAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata);
+                                                       AggregatorFactories.Builder subFactoriesBuilder,
+                                                       Object aggregatorSupplier) throws IOException {
+        return new MissingAggregatorFactory(name, config, context,
+                                            parent, subFactoriesBuilder, metadata,
+                                            (MissingAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

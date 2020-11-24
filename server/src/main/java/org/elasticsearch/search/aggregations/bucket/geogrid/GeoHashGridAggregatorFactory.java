@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -42,6 +43,7 @@ import static java.util.Collections.emptyList;
 
 public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final GeoGridAggregatorSupplier aggregatorSupplier;
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
@@ -50,8 +52,11 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     GeoHashGridAggregatorFactory(String name, ValuesSourceConfig config, int precision, int requiredSize,
                                  int shardSize, GeoBoundingBox geoBoundingBox, AggregationContext context,
                                  AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata) throws IOException {
+                                 Map<String, Object> metadata,
+                                 GeoGridAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -76,8 +81,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                           Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(GeoHashGridAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(
                 name,
                 factories,

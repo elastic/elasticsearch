@@ -88,8 +88,11 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     @Override
     protected StatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                 AggregatorFactory parent,
-                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new StatsAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata);
+                                                AggregatorFactories.Builder subFactoriesBuilder,
+                                                Object aggregatorSupplier) throws IOException {
+        return new StatsAggregatorFactory(name, config, context,
+                                          parent, subFactoriesBuilder, metadata,
+                                          (MetricAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

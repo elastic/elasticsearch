@@ -434,7 +434,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder,
+                                                       Object aggregatorSupplier) throws IOException {
         final ZoneId tz = timeZone();
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
 
@@ -477,7 +478,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             context,
             parent,
             subFactoriesBuilder,
-            metadata);
+            metadata,
+            (DateHistogramAggregationSupplier) aggregatorSupplier);
     }
 
     @Override

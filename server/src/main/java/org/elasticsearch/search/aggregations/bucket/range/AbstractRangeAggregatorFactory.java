@@ -42,6 +42,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final R[] ranges;
     private final boolean keyed;
     private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
+    private final RangeAggregatorSupplier aggregatorSupplier;
 
     public static void registerAggregators(
         ValuesSourceRegistry.Builder builder,
@@ -63,12 +64,14 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                           AggregationContext context,
                                           AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactoriesBuilder,
-                                          Map<String, Object> metadata) throws IOException {
+                                          Map<String, Object> metadata,
+                                          RangeAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
         this.registryKey = registryKey;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
@@ -86,8 +89,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         Map<String, Object> metadata
     ) throws IOException {
 
-        return context.getValuesSourceRegistry()
-            .getAggregator(registryKey, config)
+        return aggregatorSupplier
             .build(
                 name,
                 factories,

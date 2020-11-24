@@ -406,7 +406,7 @@ public class SearchModuleTests extends ESTestCase {
         protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                            ValuesSourceConfig config,
                                                            AggregatorFactory parent,
-                                                           Builder subFactoriesBuilder) throws IOException {
+                                                           Builder subFactoriesBuilder, Object aggregatorSupplier) throws IOException {
             return null;
         }
 

@@ -129,13 +129,13 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(
-        AggregationContext context,
-        ValuesSourceConfig config,
-        AggregatorFactory parent,
-        AggregatorFactories.Builder subFactoriesBuilder
-    ) throws IOException {
+            AggregationContext context,
+            ValuesSourceConfig config,
+            AggregatorFactory parent,
+            AggregatorFactories.Builder subFactoriesBuilder,
+            Object aggregatorSupplier) throws IOException {
         return new PercentilesAggregatorFactory(name, config, values, configOrDefault(), keyed,
-            context, parent, subFactoriesBuilder, metadata);
+            context, parent, subFactoriesBuilder, metadata, (PercentilesAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

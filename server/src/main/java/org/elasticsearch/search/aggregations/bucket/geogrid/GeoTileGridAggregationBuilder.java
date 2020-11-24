@@ -69,9 +69,9 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     protected ValuesSourceAggregatorFactory createFactory(
-            String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
-            GeoBoundingBox geoBoundingBox, AggregationContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+        String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
+        GeoBoundingBox geoBoundingBox, AggregationContext context, AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata, Object aggregationSupplier) throws IOException {
         return new GeoTileGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
             context, parent, subFactoriesBuilder, metadata);
     }

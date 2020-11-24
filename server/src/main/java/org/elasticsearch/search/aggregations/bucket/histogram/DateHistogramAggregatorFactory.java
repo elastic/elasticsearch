@@ -48,6 +48,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
     }
 
+    private final DateHistogramAggregationSupplier aggregatorSupplier;
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
@@ -67,9 +68,11 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        DateHistogramAggregationSupplier aggregationSupplier
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregationSupplier;
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
@@ -88,8 +91,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry()
-            .getAggregator(DateHistogramAggregationBuilder.REGISTRY_KEY, config);
         return aggregatorSupplier.build(
             name,
             factories,

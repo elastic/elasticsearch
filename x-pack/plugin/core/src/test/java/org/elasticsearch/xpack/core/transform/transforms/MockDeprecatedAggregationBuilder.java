@@ -81,7 +81,8 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+                                                       Builder subFactoriesBuilder,
+                                                       Object aggregatorSupplier) throws IOException {
         return null;
     }
 

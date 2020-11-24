@@ -36,13 +36,18 @@ import java.util.Map;
 
 class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final MetricAggregatorSupplier aggregatorSupplier;
+
     SumAggregatorFactory(String name,
                             ValuesSourceConfig config,
                             AggregationContext context,
                             AggregatorFactory parent,
                             AggregatorFactories.Builder subFactoriesBuilder,
-                            Map<String, Object> metadata) throws IOException {
+                            Map<String, Object> metadata,
+                            MetricAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -68,8 +73,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(SumAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(name, config, searchContext, parent, metadata);
     }
 }

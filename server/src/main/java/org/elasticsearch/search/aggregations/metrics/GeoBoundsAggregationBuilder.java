@@ -112,8 +112,11 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     protected GeoBoundsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                     AggregatorFactory parent,
-                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, context, parent, subFactoriesBuilder, metadata);
+                                                    AggregatorFactories.Builder subFactoriesBuilder,
+                                                    Object aggregatorSupplier) throws IOException {
+        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude,
+                                              context, parent, subFactoriesBuilder, metadata,
+                                              (GeoBoundsAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

@@ -197,7 +197,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                       AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+                                                       AggregatorFactory parent, Builder subFactoriesBuilder,
+                                                       Object aggregatorSupplier) throws IOException {
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
@@ -212,8 +213,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
                 " must be less than " + bucketCeiling);
         }
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent,
-            subFactoriesBuilder,
-            metadata);
+            subFactoriesBuilder, metadata, (AutoDateHistogramAggregatorSupplier) aggregatorSupplier);
     }
 
     static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {

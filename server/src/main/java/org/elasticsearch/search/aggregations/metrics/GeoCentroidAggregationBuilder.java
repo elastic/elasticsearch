@@ -90,8 +90,11 @@ public class GeoCentroidAggregationBuilder
     @Override
     protected GeoCentroidAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                       AggregatorFactory parent,
-                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new GeoCentroidAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata);
+                                                      AggregatorFactories.Builder subFactoriesBuilder,
+                                                      Object aggregatorSupplier) throws IOException {
+        return new GeoCentroidAggregatorFactory(name, config, context, parent,
+                                                subFactoriesBuilder, metadata,
+                                                (MetricAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

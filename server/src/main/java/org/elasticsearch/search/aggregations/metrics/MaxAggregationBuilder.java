@@ -88,8 +88,11 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     @Override
     protected MaxAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                               AggregatorFactory parent,
-                                              AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MaxAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata);
+                                              AggregatorFactories.Builder subFactoriesBuilder,
+                                              Object aggregatorSupplier) throws IOException {
+        return new MaxAggregatorFactory(name, config, context,
+                                        parent, subFactoriesBuilder, metadata,
+                                        (MetricAggregatorSupplier) aggregatorSupplier);
     }
 
     @Override

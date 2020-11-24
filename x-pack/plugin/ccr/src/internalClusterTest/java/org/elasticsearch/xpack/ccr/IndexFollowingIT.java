@@ -1385,7 +1385,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             String action = ShardFollowTask.NAME + "[c]";
             ListTasksResponse listTasksResponse = followerClient().admin().cluster().prepareListTasks().setActions(action).get();
             assertThat(listTasksResponse.getTasks(), hasSize(0));
-        });
+        }, 60, TimeUnit.SECONDS);
         ensureNoCcrTasks();
     }
 

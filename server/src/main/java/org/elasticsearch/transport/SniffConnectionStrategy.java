@@ -244,7 +244,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
             openConnectionStep.whenComplete(connection -> {
                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
-                transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
+                transportService.handshake(connection, connectionProfile.getHandshakeTimeout(),
                     getRemoteClusterNamePredicate(), handshakeStep);
             }, onFailure);
 

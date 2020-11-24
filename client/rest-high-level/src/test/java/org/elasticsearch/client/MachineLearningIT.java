@@ -19,7 +19,9 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -121,6 +123,7 @@ import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
@@ -141,8 +144,11 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyM
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.PerClassSingleValue;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocPoint;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
@@ -175,6 +181,8 @@ import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.client.tasks.GetTaskRequest;
+import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -187,6 +195,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
@@ -198,6 +207,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -207,6 +217,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -299,7 +310,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DeleteJobResponse response = execute(deleteJobRequest, machineLearningClient::deleteJob, machineLearningClient::deleteJobAsync);
 
         assertNull(response.getAcknowledged());
-        assertNotNull(response.getTask());
+
+        final TaskId taskId = response.getTask();
+        assertNotNull(taskId);
+
+        // When wait_for_completion=false the DeleteJobAction stored the task result in the .tasks index. In tests we need to wait
+        // for the delete job task to complete, otherwise the .tasks index could be created during the execution of a following test.
+        final GetTaskRequest taskRequest = new GetTaskRequest(taskId.getNodeId(), taskId.getId());
+        assertBusy(() -> {
+            Optional<GetTaskResponse> taskResponse = highLevelClient().tasks().get(taskRequest, RequestOptions.DEFAULT);
+            assertTrue(taskResponse.isPresent());
+            assertTrue(taskResponse.get().isCompleted());
+        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testOpenJob() throws Exception {
@@ -1789,17 +1811,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
         assertNull(confusionMatrixResult.getScoreByThreshold("0.1"));
 
-        AucRocMetric.Result aucRocResult =
+        AucRocResult aucRocResult =
             evaluateDataFrameResponse.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME);
         assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-        assertThat(aucRocResult.getScore(), closeTo(0.70025, 1e-9));
+        assertThat(aucRocResult.getValue(), closeTo(0.70025, 1e-9));
         assertNotNull(aucRocResult.getCurve());
-        List<AucRocMetric.AucRocPoint> curve = aucRocResult.getCurve();
-        AucRocMetric.AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
+        List<AucRocPoint> curve = aucRocResult.getCurve();
+        AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
         assertThat(curvePointAtThreshold0.getTruePositiveRate(), equalTo(1.0));
         assertThat(curvePointAtThreshold0.getFalsePositiveRate(), equalTo(1.0));
         assertThat(curvePointAtThreshold0.getThreshold(), equalTo(0.0));
-        AucRocMetric.AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
+        AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
         assertThat(curvePointAtThreshold1.getTruePositiveRate(), equalTo(0.0));
         assertThat(curvePointAtThreshold1.getFalsePositiveRate(), equalTo(0.0));
         assertThat(curvePointAtThreshold1.getThreshold(), equalTo(1.0));
@@ -1925,9 +1947,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
             assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
 
-            AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
+            AucRocResult aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocResult.getScore(), closeTo(0.6425, 1e-9));
+            assertThat(aucRocResult.getValue(), closeTo(0.6425, 1e-9));
             assertNotNull(aucRocResult.getCurve());
         }
         {  // Accuracy
@@ -1947,11 +1969,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 equalTo(
                     List.of(
                         // 9 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("ant", 0.9),
+                        new PerClassSingleValue("ant", 0.9),
                         // 6 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 8 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("dog", 0.8))));
+                        new PerClassSingleValue("dog", 0.8))));
             assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
         }
         {  // Precision
@@ -1971,9 +1993,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 equalTo(
                     List.of(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new PrecisionMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new PrecisionMetric.PerClassResult("dog", 0.75))));
+                        new PerClassSingleValue("dog", 0.75))));
             assertThat(precisionResult.getAvgPrecision(), equalTo(0.675));
         }
         {  // Recall
@@ -1993,11 +2015,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 equalTo(
                     List.of(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new RecallMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new RecallMetric.PerClassResult("dog", 0.75),
+                        new PerClassSingleValue("dog", 0.75),
                         // no examples labeled as "ant" were classified correctly
-                        new RecallMetric.PerClassResult("ant", 0.0))));
+                        new PerClassSingleValue("ant", 0.0))));
             assertThat(recallResult.getAvgRecall(), equalTo(0.45));
         }
         {  // No size provided for MulticlassConfusionMatrixMetric, default used instead
@@ -2708,6 +2730,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void createModelSnapshot(String jobId, String snapshotId) throws IOException {
+        createModelSnapshot(jobId, snapshotId, Version.CURRENT);
+    }
+
+    public void createModelSnapshot(String jobId, String snapshotId, Version minVersion) throws IOException {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
@@ -2721,10 +2747,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
             "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
             "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
-            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, \"min_version\":\"" + minVersion.toString() + "\"}",
+            XContentType.JSON);
 
         highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
     }
+
 
     public void createModelSnapshots(String jobId, List<String> snapshotIds) throws IOException {
         Job job = MachineLearningIT.buildJob(jobId);
@@ -2798,6 +2826,23 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertEquals(getModelSnapshotsResponse2.count(), 1L);
         assertEquals("Updated description",
             getModelSnapshotsResponse2.snapshots().get(0).getDescription());
+    }
+
+    public void testUpgradeJobSnapshot() throws Exception {
+        String jobId = "test-upgrade-model-snapshot";
+        String snapshotId = "1541587919";
+
+        createModelSnapshot(jobId, snapshotId, Version.CURRENT);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, true);
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> execute(request, machineLearningClient::upgradeJobSnapshot, machineLearningClient::upgradeJobSnapshotAsync));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Cannot upgrade job [test-upgrade-model-snapshot] snapshot [1541587919] as it is already compatible with current version"
+            )
+        );
     }
 
     public void testRevertModelSnapshot() throws IOException {

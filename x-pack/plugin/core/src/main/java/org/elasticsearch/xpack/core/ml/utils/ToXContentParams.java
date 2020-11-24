@@ -24,7 +24,7 @@ public final class ToXContentParams {
      *
      * This helps to GET a configuration, copy it, and then PUT it directly without removing or changing any fields in between
      */
-    public static final String FOR_EXPORT = "for_export";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     /**
      * When serialising POJOs to X Content this indicates whether the calculated (i.e. not stored) fields

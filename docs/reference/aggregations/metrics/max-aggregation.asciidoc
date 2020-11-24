@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-max-aggregation]]
-=== Max Aggregation
+=== Max aggregation
+++++
+<titleabbrev>Max</titleabbrev>
+++++
 
 A `single-value` metrics aggregation that keeps track and returns the maximum
 value among the numeric values extracted from the aggregated documents. These

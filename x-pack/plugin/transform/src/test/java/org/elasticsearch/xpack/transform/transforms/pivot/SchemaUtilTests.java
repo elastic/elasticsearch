@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SchemaUtilTests extends ESTestCase {
 
@@ -52,6 +55,20 @@ public class SchemaUtilTests extends ESTestCase {
         assertEquals("object", fieldMappings.get(".z"));
         assertFalse(fieldMappings.containsKey("."));
         assertFalse(fieldMappings.containsKey(""));
+    }
+
+    public void testConvertToIntegerTypeIfNeeded() {
+        assertEquals(33L, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("unsigned_long", 33.0));
+        assertEquals(33L, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("long", 33.0));
+        assertEquals(33.0, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("double", 33.0));
+        assertEquals(33.0, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("half_float", 33.0));
+        assertEquals(33.0, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("unknown", 33.0));
+        assertEquals(33.0, SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt(null, 33.0));
+
+        Object value = SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt("unsigned_long", 1.8446744073709551615E19);
+        assertThat(value, instanceOf(BigInteger.class));
+
+        assertEquals(new BigInteger("18446744073709551615").doubleValue(), ((BigInteger) value).doubleValue(), 0.0);
     }
 
 }

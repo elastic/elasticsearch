@@ -18,140 +18,48 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /** Base class for for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
 
-    public static class Names extends AbstractGeometryFieldMapper.Names {
-        public static final ParseField NULL_VALUE = new ParseField("null_value");
+    public static Parameter<ParsedPoint> nullValueParam(Function<FieldMapper, ParsedPoint> initializer,
+                                                        TriFunction<String, ParserContext, Object, ParsedPoint> parser,
+                                                        Supplier<ParsedPoint> def) {
+        return new Parameter<>("null_value", false, def, parser, initializer);
     }
 
-    public static final FieldType DEFAULT_FIELD_TYPE = new FieldType();
-    static {
-        DEFAULT_FIELD_TYPE.setDimensions(2, Integer.BYTES);
-        DEFAULT_FIELD_TYPE.setStored(false);
-        DEFAULT_FIELD_TYPE.freeze();
-    }
+    protected final ParsedPoint nullValue;
 
-    public abstract static class Builder extends AbstractGeometryFieldMapper.Builder {
-
-        protected ParsedPoint nullValue;
-
-        public Builder(String name, FieldType fieldType) {
-            super(name, fieldType);
-        }
-
-        public void setNullValue(ParsedPoint nullValue) {
-            this.nullValue = nullValue;
-        }
-
-        public abstract AbstractPointGeometryFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
-                                                               MultiFields multiFields,
-                                                               Explicit<Boolean> ignoreMalformed,
-                                                               Explicit<Boolean> ignoreZValue,
-                                                               ParsedPoint nullValue, CopyTo copyTo);
-
-
-        @Override
-        public AbstractPointGeometryFieldMapper build(BuilderContext context) {
-            return build(context, name, fieldType,
-                multiFieldsBuilder.build(this, context), ignoreMalformed(context),
-                ignoreZValue(context), nullValue, copyTo);
-        }
-    }
-
-    public abstract static class TypeParser<T extends Builder> extends AbstractGeometryFieldMapper.TypeParser<Builder> {
-        protected abstract ParsedPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed);
-
-        @Override
-        public T parse(String name, Map<String, Object> node, Map<String, Object> params, ParserContext parserContext) {
-            T builder = (T)(super.parse(name, node, params, parserContext));
-            parseField(builder, name, node, parserContext);
-            Object nullValue = null;
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-
-                if (Names.NULL_VALUE.match(propName, LoggingDeprecationHandler.INSTANCE)) {
-                    nullValue = propNode;
-                    iterator.remove();
-                }
-            }
-
-            if (nullValue != null) {
-                builder.setNullValue(parseNullValue(nullValue, (Boolean)builder.ignoreZValue().value(),
-                    (Boolean)builder.ignoreMalformed().value()));
-            }
-
-            return builder;
-        }
-    }
-
-    ParsedPoint nullValue;
-
-    public abstract static class AbstractPointGeometryFieldType
-        extends AbstractGeometryFieldType {
-        protected AbstractPointGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                                 Parser<?> parser, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, true, parser, meta);
-        }
-    }
-
-    protected AbstractPointGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    protected AbstractPointGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                                Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
                                                Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
+        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
         this.nullValue = nullValue;
     }
 
     @Override
     public final boolean parsesArrayValue() {
         return true;
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        super.mergeOptions(other, conflicts);
-        AbstractPointGeometryFieldMapper<Parsed, Processed> gpfm = (AbstractPointGeometryFieldMapper<Parsed, Processed>)other;
-        // TODO make this un-updateable
-        if (gpfm.nullValue != null) {
-            this.nullValue = gpfm.nullValue;
-        }
-    }
-
-    @Override
-    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (nullValue != null || includeDefaults) {
-            builder.field(Names.NULL_VALUE.getPreferredName(), nullValue);
-        }
     }
 
     public ParsedPoint getNullValue() {

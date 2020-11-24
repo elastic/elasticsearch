@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryPredicate;
@@ -70,15 +71,15 @@ public final class OptimizerRules {
      * This rule must always be placed after {@link BooleanLiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
      * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
-    public static final class BooleanEqualsSimplification extends OptimizerExpressionRule {
+    public static final class BooleanFunctionEqualsElimination extends OptimizerExpressionRule {
 
-        public BooleanEqualsSimplification() {
+        public BooleanFunctionEqualsElimination() {
             super(TransformDirection.UP);
         }
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof Equals || e instanceof NotEquals) {
+            if ((e instanceof Equals || e instanceof NotEquals) && ((BinaryComparison) e).left() instanceof Function)   {
                 // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
                 BinaryComparison bc = (BinaryComparison) e;
 

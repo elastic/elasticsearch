@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -78,14 +77,14 @@ public class MapperTestUtils {
 
     public static void assertConflicts(String mapping1,
                                        String mapping2,
-                                       DocumentMapperParser parser,
+                                       MapperService mapperService,
                                        String... conflicts) throws IOException {
-        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
+        DocumentMapper docMapper = mapperService.parse("type", new CompressedXContent(mapping1));
         if (conflicts.length == 0) {
-            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
+            docMapper.merge(mapperService.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
         } else {
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE));
+                () -> docMapper.merge(mapperService.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE));
             for (String conflict : conflicts) {
                 assertThat(e.getMessage(), containsString(conflict));
             }

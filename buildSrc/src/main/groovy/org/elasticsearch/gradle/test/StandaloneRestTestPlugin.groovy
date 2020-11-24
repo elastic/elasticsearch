@@ -27,6 +27,7 @@ import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.RepositoriesSetupPlugin
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.InvalidUserDataException
@@ -54,8 +55,8 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
     void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.build')) {
             throw new InvalidUserDataException('elasticsearch.standalone-test '
-                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
-                + 'are mutually exclusive')
+                    + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
+                    + 'are mutually exclusive')
         }
         project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
         project.pluginManager.apply(JavaBasePlugin)
@@ -92,6 +93,10 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         idea.module.testSourceDirs += testSourceSet.java.srcDirs
         idea.module.scopes.put('TEST', [plus: [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]] as Map<String, Collection<Configuration>>)
 
-        PrecommitTasks.create(project, false)
+        BuildParams.withInternalBuild {
+            InternalPrecommitTasks.create(project, false)
+        }.orElse {
+            PrecommitTasks.create(project)
+        }
     }
 }

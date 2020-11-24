@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
       "description": "Simulate matching the given index name against the index templates in the system"
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url":{
       "paths":[
         {

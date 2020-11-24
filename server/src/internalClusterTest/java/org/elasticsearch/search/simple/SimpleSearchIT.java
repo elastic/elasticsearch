@@ -225,6 +225,51 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
+    public void testRangeQueryKeyword() throws Exception {
+        createIndex("test");
+
+        client().admin().indices().preparePutMapping("test").setSource("field", "type=keyword").get();
+
+        client().prepareIndex("test").setId("0").setSource("field", "").get();
+        client().prepareIndex("test").setId("1").setSource("field", "A").get();
+        client().prepareIndex("test").setId("2").setSource("field", "B").get();
+        client().prepareIndex("test").setId("3").setSource("field", "C").get();
+        ensureGreen();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lte("B")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("A").lte("B")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lt("B")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(null).lt("C")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 3L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("B").lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(null).lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 4L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("").lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 4L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("").lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 3L);
+    }
+
     public void testSimpleTerminateAfterCount() throws Exception {
         prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();

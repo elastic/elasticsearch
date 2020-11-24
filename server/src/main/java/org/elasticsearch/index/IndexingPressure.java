@@ -40,10 +40,18 @@ public class IndexingPressure {
     private final AtomicLong currentPrimaryBytes = new AtomicLong(0);
     private final AtomicLong currentReplicaBytes = new AtomicLong(0);
 
+    private final AtomicLong currentCoordinatingOps = new AtomicLong(0);
+    private final AtomicLong currentPrimaryOps = new AtomicLong(0);
+    private final AtomicLong currentReplicaOps = new AtomicLong(0);
+
     private final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
     private final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
     private final AtomicLong totalPrimaryBytes = new AtomicLong(0);
     private final AtomicLong totalReplicaBytes = new AtomicLong(0);
+
+    private final AtomicLong totalCoordinatingOps = new AtomicLong(0);
+    private final AtomicLong totalPrimaryOps = new AtomicLong(0);
+    private final AtomicLong totalReplicaOps = new AtomicLong(0);
 
     private final AtomicLong coordinatingRejections = new AtomicLong(0);
     private final AtomicLong primaryRejections = new AtomicLong(0);

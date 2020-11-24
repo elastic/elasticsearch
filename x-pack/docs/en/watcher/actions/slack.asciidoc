@@ -181,7 +181,7 @@ aggregation and the Slack action:
 You configure the accounts {watcher} can use to communicate with Slack in the
 `xpack.notification.slack` namespace in `elasticsearch.yml`.
 
-You need a Slack App with the Incoming Webhooks feature[https://api.slack.com/messaging/webhooks] 
+You need a Slack App with the https://api.slack.com/messaging/webhooks[Incoming Webhooks feature] 
 to configure a Slack account. Use the generated webhook URL to set up your Slack account in Elasticsearch.
 
 To configure a Slack account, at a minimum you need to specify the account 

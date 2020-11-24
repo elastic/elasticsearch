@@ -254,7 +254,7 @@ field at runtime to calculate values for that field.
 
 [source,console]
 ----
-PUT /my-index/_mappings
+PUT /my-index/_mapping
 {
   "runtime": {
     "clientip": {
@@ -399,7 +399,7 @@ POST /my-index/_bulk?refresh
 { "index": {}}
 { "@timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
 
-PUT /my-index/_mappings
+PUT /my-index/_mapping
 {
   "runtime": {
     "clientip": {
@@ -411,19 +411,29 @@ PUT /my-index/_mappings
   }
 }
 
-PUT /my-index
+GET my-index/_search
 {
-  "mappings": {
-    "runtime": {
-      "day_of_week": {
-        "type": "keyword",
-        "script": {
-          "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
-        }
+  "query": {
+    "match": {
+      "clientip": "211.11.9.0"
+    }
+  },
+  "fields" : ["*"]
+}
+
+PUT /my-index/_mapping
+{
+  "runtime": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": {
+        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
       }
-    },
-    "properties": {
-      "timestamp": {"type": "date"}
+    }
+  },
+  "properties": {
+    "timestamp": {
+      "type": "date"
     }
   }
 }

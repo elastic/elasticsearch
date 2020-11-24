@@ -219,14 +219,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,
-            () -> null,
+            this::defaultScript,
             Builder::parseScript,
             initializerNotSupported()
-        ).setValidator(script -> {
-            if (script == null) {
-                throw new IllegalArgumentException("script must be specified for runtime field [" + name + "]");
-            }
-        });
+        );
 
         Builder(String name) {
             super(name);
@@ -238,6 +234,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         }
 
         protected abstract AbstractScriptFieldType<?> buildFieldType();
+
+        protected abstract Script defaultScript();
 
         @Override
         public FieldMapper.Builder init(FieldMapper initializer) {

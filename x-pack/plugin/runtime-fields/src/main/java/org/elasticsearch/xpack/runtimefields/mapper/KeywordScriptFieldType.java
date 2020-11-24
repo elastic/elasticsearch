@@ -47,6 +47,11 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             StringFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), StringFieldScript.CONTEXT);
             return new KeywordScriptFieldType(name, factory, this);
         }
+
+        @Override
+        protected Script defaultScript() {
+            return new Script("emitValues(" + name + ")");
+        }
     });
 
     private KeywordScriptFieldType(String name, StringFieldScript.Factory scriptFactory, Builder builder) {

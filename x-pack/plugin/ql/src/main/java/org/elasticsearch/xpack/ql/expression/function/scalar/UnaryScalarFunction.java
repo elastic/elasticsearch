@@ -32,10 +32,7 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
     }
 
     @Override
-    public final UnaryScalarFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
+    protected final UnaryScalarFunction replaceChildren(List<Expression> newChildren) {
         return replaceChild(newChildren.get(0));
     }
 

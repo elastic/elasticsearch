@@ -23,7 +23,7 @@ public abstract class LeafInput<T> extends Pipe {
     }
 
     @Override
-    public final Pipe replaceChildren(List<Pipe> newChildren) {
+    protected final Pipe replaceChildren(List<Pipe> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 

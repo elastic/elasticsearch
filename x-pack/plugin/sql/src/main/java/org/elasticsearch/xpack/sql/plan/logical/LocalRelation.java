@@ -35,7 +35,7 @@ public class LocalRelation extends LogicalPlan implements Executable {
     }
 
     @Override
-    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+    protected LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 

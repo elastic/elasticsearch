@@ -29,10 +29,7 @@ public class MatchQueryPredicate extends FullTextPredicate {
     }
 
     @Override
-    public MatchQueryPredicate replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
+    protected MatchQueryPredicate replaceChildren(List<Expression> newChildren) {
         return new MatchQueryPredicate(source(), newChildren.get(0), query(), options());
     }
 

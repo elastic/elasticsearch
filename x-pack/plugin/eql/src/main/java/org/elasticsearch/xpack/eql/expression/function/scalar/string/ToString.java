@@ -94,11 +94,7 @@ public class ToString extends ScalarFunction {
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] children but received [" + newChildren.size() + "]");
-        }
-
+    protected Expression replaceChildren(List<Expression> newChildren) {
         return new ToString(source(), newChildren.get(0));
     }
 }

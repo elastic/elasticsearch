@@ -26,10 +26,7 @@ public abstract class UnaryPlan extends LogicalPlan {
     }
 
     @Override
-    public final UnaryPlan replaceChildren(List<LogicalPlan> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
+    protected final UnaryPlan replaceChildren(List<LogicalPlan> newChildren) {
         return replaceChild(newChildren.get(0));
     }
 

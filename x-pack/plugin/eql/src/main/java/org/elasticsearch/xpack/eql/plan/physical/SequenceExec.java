@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.assembler.ExecutionManager;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.session.EqlSession;
@@ -71,12 +70,7 @@ public class SequenceExec extends PhysicalPlan {
     }
 
     @Override
-    public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        if (newChildren.size() != children().size()) {
-            throw new EqlIllegalArgumentException("Expected the same number of children [{}] but got [{}]",
-                    children().size(),
-                    newChildren.size());
-        }
+    protected PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
         return new SequenceExec(source(), newChildren, keys, timestamp, tiebreaker, limit, direction, maxSpan);
     }
 

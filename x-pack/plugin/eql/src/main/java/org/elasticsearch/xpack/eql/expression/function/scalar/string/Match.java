@@ -51,10 +51,7 @@ public class Match extends BaseSurrogateFunction {
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
+    protected Expression replaceChildren(List<Expression> newChildren) {
         return new Match(source(), newChildren);
     }
 

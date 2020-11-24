@@ -32,7 +32,7 @@ public final class AnalyzerRules {
             // otherwise look for binary logic
             if (condition == filter.condition()) {
                 condition = condition.transformUp(b ->
-                        b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
+                        b.replaceEachChild(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
                     , BinaryLogic.class);
             }
 

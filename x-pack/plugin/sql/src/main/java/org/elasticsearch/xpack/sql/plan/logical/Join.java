@@ -45,10 +45,7 @@ public class Join extends BinaryPlan {
     }
 
     @Override
-    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
+    protected LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
         return new Join(source(), newChildren.get(0), newChildren.get(1), type, condition);
     }
 

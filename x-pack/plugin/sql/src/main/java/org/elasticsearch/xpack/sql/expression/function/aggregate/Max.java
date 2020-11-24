@@ -33,7 +33,7 @@ public class Max extends NumericAggregate implements EnclosedAgg {
     }
 
     @Override
-    public Max replaceChildren(List<Expression> newChildren) {
+    protected Max replaceChildren(List<Expression> newChildren) {
         return new Max(source(), newChildren.get(0));
     }
 

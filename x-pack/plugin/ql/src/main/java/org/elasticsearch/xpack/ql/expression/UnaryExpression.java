@@ -23,10 +23,7 @@ public abstract class UnaryExpression extends Expression {
     }
 
     @Override
-    public final UnaryExpression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
+    protected final UnaryExpression replaceChildren(List<Expression> newChildren) {
         return replaceChild(newChildren.get(0));
     }
     protected abstract UnaryExpression replaceChild(Expression newChild);

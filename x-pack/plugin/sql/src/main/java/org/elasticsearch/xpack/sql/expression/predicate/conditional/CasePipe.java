@@ -27,7 +27,7 @@ public class CasePipe extends MultiPipe {
     }
 
     @Override
-    public Pipe replaceChildren(List<Pipe> newChildren) {
+    protected Pipe replaceChildren(List<Pipe> newChildren) {
         return new CasePipe(source(), expression(), newChildren);
     }
 

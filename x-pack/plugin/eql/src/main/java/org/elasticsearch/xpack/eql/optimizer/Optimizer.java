@@ -189,7 +189,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 plan = new Filter(f.source(), f.child(), new And(f.source(), f.condition(), filter.condition()));
             } else if (child instanceof UnaryPlan) {
                 UnaryPlan up = (UnaryPlan) child;
-                plan = child.replaceChildren(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
+                plan = child.replaceEachChild(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
             }
 
             return plan;
@@ -431,13 +431,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         // preserve the order for the base query, everything else needs to be ascending
                         List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
-                        orderedQueries.add((KeyedFilter) filter.replaceChildren(singletonList(order)));
+                        orderedQueries.add((KeyedFilter) filter.replaceEachChild(singletonList(order)));
                         baseFilter = false;
                     }
 
                     KeyedFilter until = join.until();
                     OrderBy order = new OrderBy(until.source(), until.child(), ascendingOrders);
-                    until = (KeyedFilter) until.replaceChildren(singletonList(order));
+                    until = (KeyedFilter) until.replaceEachChild(singletonList(order));
 
                     OrderDirection direction = orderBy.order().get(0).direction();
                     plan = join.with(orderedQueries, until, direction);

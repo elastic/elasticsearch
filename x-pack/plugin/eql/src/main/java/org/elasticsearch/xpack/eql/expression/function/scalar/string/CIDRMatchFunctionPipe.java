@@ -30,10 +30,7 @@ public class CIDRMatchFunctionPipe extends Pipe {
     }
 
     @Override
-    public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
+    protected final Pipe replaceChildren(List<Pipe> newChildren) {
         return replaceChildren(newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 

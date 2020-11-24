@@ -120,11 +120,7 @@ public class Replace extends ScalarFunction {
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
-
+    protected Expression replaceChildren(List<Expression> newChildren) {
         return new Replace(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

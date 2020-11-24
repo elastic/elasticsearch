@@ -29,10 +29,7 @@ public class BetweenFunctionPipe extends Pipe {
     }
 
     @Override
-    public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 5) {
-            throw new IllegalArgumentException("expected [5] children but received [" + newChildren.size() + "]");
-        }
+    protected final Pipe replaceChildren(List<Pipe> newChildren) {
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
     }
 

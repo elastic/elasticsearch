@@ -49,7 +49,7 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    public final Expression replaceChildren(List<Expression> newChildren) {
+    protected final Expression replaceChildren(List<Expression> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 

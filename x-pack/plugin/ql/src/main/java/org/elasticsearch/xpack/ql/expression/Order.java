@@ -57,10 +57,7 @@ public class Order extends Expression {
     }
 
     @Override
-    public Order replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
+    protected Order replaceChildren(List<Expression> newChildren) {
         return new Order(source(), newChildren.get(0), direction, nulls);
     }
 

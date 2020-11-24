@@ -129,11 +129,7 @@ public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgu
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
-
+    protected Expression replaceChildren(List<Expression> newChildren) {
         return new IndexOf(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), configuration());
     }
 

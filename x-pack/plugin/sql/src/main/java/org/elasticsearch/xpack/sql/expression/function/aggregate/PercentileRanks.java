@@ -24,10 +24,7 @@ public class PercentileRanks extends PercentileCompoundAggregate {
     }
 
     @Override
-    public PercentileRanks replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
+    protected PercentileRanks replaceChildren(List<Expression> newChildren) {
         return new PercentileRanks(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), percentilesConfig);
     }
     

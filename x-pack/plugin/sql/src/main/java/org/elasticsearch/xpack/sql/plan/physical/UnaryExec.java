@@ -22,10 +22,7 @@ public abstract class UnaryExec extends PhysicalPlan {
     }
 
     @Override
-    public final PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
+    protected final PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
         return replaceChild(newChildren.get(0));
     }
 

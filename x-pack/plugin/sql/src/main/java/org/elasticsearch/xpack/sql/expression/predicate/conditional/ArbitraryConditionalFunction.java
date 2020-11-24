@@ -54,4 +54,12 @@ public abstract class ArbitraryConditionalFunction extends ConditionalFunction {
 
         return new ScriptTemplate(formatTemplate(template.toString()), params.build(), dataType());
     }
+
+    /**
+     * {@inheritDoc}
+     * 
+     * Note: the visibility of the function is promoted to public.
+     */
+    @Override
+    public abstract Expression replaceChildren(List<Expression> newChildren);
 }

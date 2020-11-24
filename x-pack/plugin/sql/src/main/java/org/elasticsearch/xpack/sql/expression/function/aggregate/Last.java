@@ -26,10 +26,7 @@ public class Last extends TopHits {
     }
 
     @Override
-    public Last replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() > 2) {
-            throw new IllegalArgumentException("expected one or two children but received [" + newChildren.size() + "]");
-        }
+    protected Last replaceChildren(List<Expression> newChildren) {
         return new Last(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
     }
 }

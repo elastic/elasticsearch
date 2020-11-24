@@ -29,7 +29,7 @@ public abstract class Command extends LogicalPlan implements SqlExecutable {
     }
 
     @Override
-    public final LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+    protected final LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 

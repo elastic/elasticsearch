@@ -26,7 +26,7 @@ public class ConcatFunctionPipe extends Pipe {
     }
 
     @Override
-    public final ConcatFunctionPipe replaceChildren(List<Pipe> newChildren) {
+    protected final ConcatFunctionPipe replaceChildren(List<Pipe> newChildren) {
         return new ConcatFunctionPipe(source(), expression(), newChildren);
     }
 
@@ -41,7 +41,7 @@ public class ConcatFunctionPipe extends Pipe {
             return this;
         }
 
-        return replaceChildren(newValues);
+        return replaceEachChild(newValues);
     }
 
     @Override

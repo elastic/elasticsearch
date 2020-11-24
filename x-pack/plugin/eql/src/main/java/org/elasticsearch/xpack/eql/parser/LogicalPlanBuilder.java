@@ -123,7 +123,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 } else {
                     previous = new Tail(defaultLimitSource, defaultSize, previous);
                 }
-                plan = plan.replaceChildren(singletonList(previous));
+                plan = plan.replaceEachChild(singletonList(previous));
             }
             previous = plan;
         }

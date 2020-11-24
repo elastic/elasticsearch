@@ -100,8 +100,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
             final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
-            final String account = "default";
-            final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService().client(account, LocationMode.PRIMARY_ONLY);
+            final AzureBlobServiceClient azureBlobServiceClient =
+                blobStore.getService().client("default", LocationMode.PRIMARY_ONLY);
             final BlobServiceClient client = azureBlobServiceClient.getSyncClient();
             try {
                 SocketAccess.doPrivilegedException(() -> {

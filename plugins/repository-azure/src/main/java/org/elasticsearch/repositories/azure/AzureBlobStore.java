@@ -19,17 +19,13 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.core.http.rest.Response;
 import com.azure.core.http.rest.ResponseBase;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.BlobContainerAsyncClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
-import com.azure.storage.blob.batch.BlobBatch;
-import com.azure.storage.blob.batch.BlobBatchAsyncClient;
-import com.azure.storage.blob.batch.BlobBatchClientBuilder;
-import com.azure.storage.blob.batch.BlobBatchStorageException;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
@@ -81,8 +77,6 @@ import java.util.function.BiPredicate;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
-    // See https://docs.microsoft.com/en-us/rest/api/storageservices/blob-batch#request-body
-    private static final int MAX_ELEMENTS_PER_BATCH = 256;
     // See com.azure.storage.blob.specialized.BlobClientBase.openInputStream(com.azure.storage.blob.options.BlobInputStreamOptions)
     private static final long DEFAULT_READ_CHUNK_SIZE = new ByteSizeValue(4, ByteSizeUnit.MB).getBytes();
 
@@ -230,10 +224,11 @@ public class AzureBlobStore implements BlobStore {
             final BlobServiceClient client = client();
             SocketAccess.doPrivilegedVoidException(() -> {
                 final BlobContainerClient blobContainerClient = client.getBlobContainerClient(container);
-                final List<String> blobURLs = new ArrayList<>();
+                final BlobContainerAsyncClient blobContainerAsyncClient = asyncClient().getBlobContainerAsyncClient(container);
                 final Queue<String> directories = new ArrayDeque<>();
                 directories.offer(path);
                 String directoryName;
+                List<Mono<Void>> deleteTasks = new ArrayList<>();
                 while ((directoryName = directories.poll()) != null) {
                     final BlobListDetails blobListDetails = new BlobListDetails()
                         .setRetrieveMetadata(true);
@@ -246,14 +241,15 @@ public class AzureBlobStore implements BlobStore {
                         if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
                             directories.offer(blobItem.getName());
                         } else {
-                            BlobClient blobClient = blobContainerClient.getBlobClient(blobItem.getName());
-                            blobURLs.add(blobClient.getBlobUrl());
+                            BlobAsyncClient blobAsyncClient = blobContainerAsyncClient.getBlobAsyncClient(blobItem.getName());
+                            deleteTasks.add(blobAsyncClient.delete());
                             bytesDeleted.addAndGet(blobItem.getProperties().getContentLength());
                             blobsDeleted.incrementAndGet();
                         }
                     }
                 }
-                deleteBlobsInBatches(blobURLs);
+
+                executeDeleteTasks(deleteTasks);
             });
         } catch (Exception e) {
             throw new IOException("Deleting directory [" + path + "] failed", e);
@@ -267,65 +263,30 @@ public class AzureBlobStore implements BlobStore {
             return;
         }
 
-        final List<String> blobURLs = new ArrayList<>(blobs.size());
         try {
-            final BlobServiceClient client = client();
+            BlobServiceAsyncClient asyncClient = asyncClient();
             SocketAccess.doPrivilegedVoidException(() -> {
-                // The delete batch API expects the full blob URL, so we need to build it.
-                // This operation won't perform any API call, it just relies on the
-                // sdk client to build the entire URL.
-                final BlobContainerClient blobContainerClient = client.getBlobContainerClient(container);
+                List<Mono<Void>> deleteTasks = new ArrayList<>(blobs.size());
+                final BlobContainerAsyncClient blobContainerClient = asyncClient.getBlobContainerAsyncClient(container);
                 for (String blob : blobs) {
-                    blobURLs.add(blobContainerClient.getBlobClient(blob).getBlobUrl());
+                    deleteTasks.add(blobContainerClient.getBlobAsyncClient(blob).delete());
                 }
+
+                executeDeleteTasks(deleteTasks);
             });
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() != 404) {
+                throw new IOException("Unable to delete blobs " + blobs, e);
+            }
         } catch (Exception e) {
             throw new IOException("Unable to delete blobs " + blobs, e);
         }
-
-        deleteBlobsInBatches(blobURLs);
     }
 
-    private void deleteBlobsInBatches(List<String> blobUrls) throws IOException {
-        if (blobUrls.isEmpty()) {
-            return;
-        }
-
-        try {
-            SocketAccess.doPrivilegedVoidException(() -> {
-                final BlobBatchAsyncClient blobBatchClient =
-                    new BlobBatchClientBuilder(asyncClient())
-                        .buildAsyncClient();
-
-                int numBatches = (int) Math.ceil((double) blobUrls.size() / (double) MAX_ELEMENTS_PER_BATCH);
-                List<BlobBatch> batches = new ArrayList<>(numBatches);
-                for (int batchNumber = 0; batchNumber < numBatches; batchNumber++) {
-                    final BlobBatch blobBatch = blobBatchClient.getBlobBatch();
-                    int rangeStart = batchNumber * MAX_ELEMENTS_PER_BATCH;
-                    for (int i = rangeStart; i < Math.min(rangeStart + MAX_ELEMENTS_PER_BATCH, blobUrls.size()); i++) {
-                        blobBatch.deleteBlob(blobUrls.get(i));
-                    }
-                    batches.add(blobBatch);
-                }
-
-                List<Mono<Response<Void>>> batchResponses = new ArrayList<>(batches.size());
-                for (BlobBatch batch : batches) {
-                    batchResponses.add(blobBatchClient.submitBatchWithResponse(batch, false));
-                }
-
-                Flux.merge(batchResponses)
-                    .collectList()
-                    .block();
-            });
-        } catch (BlobBatchStorageException e) {
-            for (BlobStorageException batchException : e.getBatchExceptions()) {
-                if (batchException.getErrorCode().equals(BlobErrorCode.BLOB_NOT_FOUND) == false) {
-                    throw e;
-                }
-            }
-        } catch (Exception e) {
-            throw new IOException("Unable to delete blobs", e);
-        }
+    private void executeDeleteTasks(List<Mono<Void>> deleteTasks) {
+        Flux.merge(deleteTasks)
+            .collectList()
+            .block();
     }
 
     public InputStream getInputStream(String blob, long position, final @Nullable Long length) throws IOException {

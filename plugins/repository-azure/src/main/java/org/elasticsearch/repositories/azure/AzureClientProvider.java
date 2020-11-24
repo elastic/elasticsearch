@@ -70,6 +70,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
     private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors(), 8) * 2;
+    private static final int PENDING_CONNECTION_QUEUE_SIZE = -1; // see ConnectionProvider.ConnectionPoolSpec.pendingAcquireMaxCount
 
     static final Setting<String> EVENT_LOOP_EXECUTOR = Setting.simpleString(
         "repository.azure.http_client.event_loop_executor_name",
@@ -144,6 +145,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         ConnectionProvider provider =
             ConnectionProvider.builder("azure-sdk-connection-pool")
                 .maxConnections(MAX_OPEN_CONNECTIONS.get(settings))
+                .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
                 .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
                 .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
                 .build();

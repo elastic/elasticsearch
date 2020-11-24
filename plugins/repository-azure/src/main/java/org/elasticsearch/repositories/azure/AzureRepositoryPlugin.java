@@ -19,13 +19,10 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.core.http.netty.implementation.ReactorNettyClientProvider;
-import com.azure.core.implementation.http.HttpClientProviders;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -47,9 +44,6 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.lang.reflect.Field;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -99,7 +93,6 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
                                                NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        setUpDefaultHttpClientProvider();
         AzureClientProvider azureClientProvider = createClientProvider(threadPool, settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
         return List.of(azureClientProvider);
@@ -153,29 +146,5 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         AzureStorageService storageService = azureStoreService.get();
         assert storageService != null;
         storageService.refreshSettings(clientsSettings);
-    }
-
-    @SuppressForbidden(reason = "needs to overcome the eager class loading problem")
-    private void setUpDefaultHttpClientProvider() {
-        // This is a huge hack to overcome a problem in the BlobBatchClient.
-        // It should reuse the provided http client but instead it fallbacks and
-        // tries to create a new one using the default provider.
-        // The problem is that the provider is loaded during class creation and since the jars
-        // are loaded in lexicographical order, the netty provider is not present at that time.
-        // See https://github.com/Azure/azure-sdk-for-java/pull/17627 for a PR with a fix.
-        try {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    final Field storageField = HttpClientProviders.class.getDeclaredField("defaultProvider");
-                    storageField.setAccessible(true);
-                    if (storageField.get(HttpClientProviders.class) == null) {
-                        storageField.set(HttpClientProviders.class, new ReactorNettyClientProvider());
-                    }
-                    return null;
-                } catch (Exception e) {
-                    throw new IllegalStateException("HttpClient default provider could not be set up", e);
-                }
-            });
-        } catch (Exception ignored) { }
     }
 }

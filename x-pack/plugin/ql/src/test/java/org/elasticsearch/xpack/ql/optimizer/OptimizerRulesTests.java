@@ -55,6 +55,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
@@ -1023,12 +1024,12 @@ public class OptimizerRulesTests extends ESTestCase {
     }
     
     public void testBinaryComparisonAndOutOfRangeNotEqualsDifferentFields() {
-        FieldAttribute fDouble = getFieldAttribute("double", DOUBLE);
-        FieldAttribute fDouble2 = getFieldAttribute("double2", DOUBLE);
-        FieldAttribute fInteger = getFieldAttribute("int", INTEGER);
-        FieldAttribute fDatetime = getFieldAttribute("datetime", INTEGER);
-        FieldAttribute fKeyword = getFieldAttribute("keyword", KEYWORD);
-        FieldAttribute fKeyword2 = getFieldAttribute("keyword2", KEYWORD);
+        FieldAttribute fDouble = fieldAttribute("double", DOUBLE);
+        FieldAttribute fDouble2 = fieldAttribute("double2", DOUBLE);
+        FieldAttribute fInteger = fieldAttribute("int", INTEGER);
+        FieldAttribute fDatetime = fieldAttribute("datetime", INTEGER);
+        FieldAttribute fKeyword = fieldAttribute("keyword", KEYWORD);
+        FieldAttribute fKeyword2 = fieldAttribute("keyword2", KEYWORD);
         ZoneId zoneId = randomZone();
 
         for (And and : Arrays.asList(

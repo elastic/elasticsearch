@@ -1,7 +1,7 @@
 {
   "rollup.rollup":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/xpack-rollup.html",
       "description":"Rollup an index"
     },
     "stability":"stable",

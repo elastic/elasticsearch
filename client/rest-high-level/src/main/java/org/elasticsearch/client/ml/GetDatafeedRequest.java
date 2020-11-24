@@ -41,12 +41,12 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
 
     public static final ParseField DATAFEED_IDS = new ParseField("datafeed_ids");
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
-    public static final String FOR_EXPORT = "for_export";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     private static final String ALL_DATAFEEDS = "_all";
     private final List<String> datafeedIds;
     private Boolean allowNoMatch;
-    private Boolean forExport;
+    private Boolean excludeGenerated;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -108,19 +108,19 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
      * This is useful when getting the configuration and wanting to put it in another cluster.
      *
      * Default value is false.
-     * @param forExport Boolean value indicating if certain fields should be removed
+     * @param excludeGenerated Boolean value indicating if certain fields should be removed
      */
-    public void setForExport(boolean forExport) {
-        this.forExport = forExport;
+    public void setExcludeGenerated(boolean excludeGenerated) {
+        this.excludeGenerated = excludeGenerated;
     }
 
-    public Boolean getForExport() {
-        return forExport;
+    public Boolean getExcludeGenerated() {
+        return excludeGenerated;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(datafeedIds, forExport, allowNoMatch);
+        return Objects.hash(datafeedIds, excludeGenerated, allowNoMatch);
     }
 
     @Override
@@ -136,7 +136,7 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
         GetDatafeedRequest that = (GetDatafeedRequest) other;
         return Objects.equals(datafeedIds, that.datafeedIds) &&
             Objects.equals(allowNoMatch, that.allowNoMatch) &&
-            Objects.equals(forExport, that.forExport);
+            Objects.equals(excludeGenerated, that.excludeGenerated);
     }
 
     @Override

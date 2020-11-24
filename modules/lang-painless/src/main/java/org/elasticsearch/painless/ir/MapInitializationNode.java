@@ -20,13 +20,9 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -108,22 +104,4 @@ public class MapInitializationNode extends ExpressionNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeDebugInfo(getLocation());
-
-        methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
-        methodWriter.dup();
-        methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
-
-        for (int index = 0; index < getArgumentsSize(); ++index) {
-            methodWriter.dup();
-            getKeyNode(index).write(writeScope);
-            getValueNode(index).write(writeScope);
-            methodWriter.invokeMethodCall(method);
-            methodWriter.pop();
-        }
-    }
 }

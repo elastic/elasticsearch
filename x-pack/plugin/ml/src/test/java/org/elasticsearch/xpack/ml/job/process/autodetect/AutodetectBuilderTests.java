@@ -19,14 +19,21 @@ import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConf
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class AutodetectBuilderTests extends ESTestCase {
 
@@ -36,11 +43,14 @@ public class AutodetectBuilderTests extends ESTestCase {
     private Settings settings;
     private NativeController nativeController;
     private ProcessPipes processPipes;
+    private ArgumentCaptor<List<String>> commandCaptor;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setUpTests() {
         logger = mock(Logger.class);
-        filesToDelete = Collections.emptyList();
+        filesToDelete = new ArrayList<>();
+        commandCaptor = ArgumentCaptor.forClass((Class)List.class);
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         env = TestEnvironment.newEnvironment(settings);
         nativeController = mock(NativeController.class);
@@ -125,5 +135,19 @@ public class AutodetectBuilderTests extends ESTestCase {
 
     private AutodetectBuilder autodetectBuilder(Job job) {
         return new AutodetectBuilder(job, filesToDelete, logger, env, settings, nativeController, processPipes);
+    }
+
+    public void testBuildAutodetect() throws Exception {
+        Job.Builder job = buildJobBuilder("unit-test-job");
+
+        autodetectBuilder(job.build()).build();
+
+        assertThat(filesToDelete, hasSize(3));
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+        verifyNoMoreInteractions(nativeController);
+
+        List<String> command = commandCaptor.getValue();
+        assertThat(command, hasItem(matchesPattern("--config=.*\\.json")));
     }
 }

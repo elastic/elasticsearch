@@ -43,7 +43,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
-    mustRunAfter(precommit)
+    mustRunAfter("precommit")
     doFirst {
       // Getting the endpoints causes a wait for the cluster
       println "Endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"

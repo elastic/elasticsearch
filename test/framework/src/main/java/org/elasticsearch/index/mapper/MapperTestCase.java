@@ -205,12 +205,28 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
-    protected void assertParseMinimalWarnings() {
-        // Most mappers don't emit any warnings
+    protected final void assertParseMinimalWarnings() {
+        String[] warnings = getParseMinimalWarnings();
+        if (warnings.length > 0) {
+            assertWarnings(warnings);
+        }
     }
 
-    protected void assertParseMaximalWarnings() {
+    protected final void assertParseMaximalWarnings() {
+        String[] warnings = getParseMaximalWarnings();
+        if (warnings.length > 0) {
+            assertWarnings(warnings);
+        }
+    }
+
+    protected String[] getParseMinimalWarnings() {
         // Most mappers don't emit any warnings
+        return Strings.EMPTY_ARRAY;
+    }
+
+    protected String[] getParseMaximalWarnings() {
+        // Most mappers don't emit any warnings
+        return Strings.EMPTY_ARRAY;
     }
 
     /**
@@ -262,7 +278,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 minimalMapping(b);
                 b.field("boost", 2.0);
             }));
-            assertWarnings("Parameter [boost] on field [field] is deprecated and has no effect");
+            String[] warnings = Strings.concatStringArrays(getParseMinimalWarnings(),
+                new String[]{"Parameter [boost] on field [field] is deprecated and has no effect"});
+            assertWarnings(warnings);
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), anyOf(
                 containsString("Unknown parameter [boost]"),
@@ -296,7 +314,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup);
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

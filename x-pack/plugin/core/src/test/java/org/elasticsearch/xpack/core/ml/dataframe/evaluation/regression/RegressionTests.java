@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -74,6 +75,14 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new Regression("foo", "bar", Collections.emptyList()));
         assertThat(e.getMessage(), equalTo("[regression] must have one or more metrics"));
+    }
+
+    public void testConstructor_GivenDefaultMetrics() {
+        Regression regression = new Regression("actual", "predicted", null);
+
+        List<EvaluationMetric> metrics = regression.getMetrics();
+
+        assertThat(metrics, containsInAnyOrder(new Huber(), new MeanSquaredError(), new RSquared()));
     }
 
     public void testGetFields() {

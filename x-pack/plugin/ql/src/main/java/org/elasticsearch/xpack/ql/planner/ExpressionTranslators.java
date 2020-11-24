@@ -391,18 +391,32 @@ public final class ExpressionTranslators {
             if (in.value() instanceof FieldAttribute) {
                 // equality should always be against an exact match (which is important for strings)
                 FieldAttribute fa = (FieldAttribute) in.value();
+                DataType dt = fa.dataType();
+
                 List<Expression> list = in.list();
-
-                // TODO: this needs to be handled inside the optimizer
-                list.removeIf(e -> DataTypes.isNull(e.dataType()));
-                DataType dt = list.get(0).dataType();
                 Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(list.size()));
+                list.forEach(e -> {
+                    // TODO: this needs to be handled inside the optimizer
+                    if (DataTypes.isNull(e.dataType()) == false) {
+                        set.add(handler.convert(valueOf(e), dt));
+                    }
+                });
 
-                for (Expression e : list) {
-                    set.add(handler.convert(valueOf(e), dt));
+                if (dt == DATETIME) {
+                    DateFormatter formatter = DateFormatter.forPattern(DATE_FORMAT);
+
+                    q = null;
+                    for (Object o : set) {
+                        assert o instanceof ZonedDateTime : "expected a ZonedDateTime, but got: " + o.getClass().getName();
+                        // see comment in Ranges#doTranslate() as to why formatting as String is required
+                        String zdt = formatter.format((ZonedDateTime) o);
+                        RangeQuery right = new RangeQuery(in.source(), fa.exactAttribute().name(),
+                                zdt, true, zdt, true, formatter.pattern(), in.zoneId());
+                        q = q == null ? right : new BoolQuery(in.source(), false, q, right);
+                    }
+                } else {
+                    q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
                 }
-
-                q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
             } else {
                 q = new ScriptQuery(in.source(), in.asScript());
             }

@@ -58,11 +58,11 @@ query parameter, which will attempt a single retry round for these shards.
 ==== {api-query-parms-title}
 
 `dry_run`::
-    (Optional, boolean) If `true`, then the request simulates the operation only
+    (Optional, Boolean) If `true`, then the request simulates the operation only
     and returns the resulting state.
 
 `explain`::
-    (Optional, boolean) If `true`, then the response contains an explanation of
+    (Optional, Boolean) If `true`, then the response contains an explanation of
     why the commands can or cannot be executed.
 
 `metric`::
@@ -99,7 +99,7 @@ query parameter, which will attempt a single retry round for these shards.
 
 
 `retry_failed`::
-    (Optional, boolean) If `true`, then retries allocation of shards that are
+    (Optional, Boolean) If `true`, then retries allocation of shards that are
     blocked due to too many subsequent allocation failures.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

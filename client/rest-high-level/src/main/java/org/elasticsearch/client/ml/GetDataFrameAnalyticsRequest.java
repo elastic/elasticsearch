@@ -32,12 +32,12 @@ import java.util.Optional;
 public class GetDataFrameAnalyticsRequest implements Validatable {
 
     public static final String ALLOW_NO_MATCH = "allow_no_match";
-    public static final String FOR_EXPORT = "for_export";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     private final List<String> ids;
     private Boolean allowNoMatch;
     private PageParams pageParams;
-    private Boolean forExport;
+    private Boolean excludeGenerated;
 
     /**
      * Helper method to create a request that will get ALL Data Frame Analytics
@@ -65,14 +65,14 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
      * This is useful when getting the configuration and wanting to put it in another cluster.
      *
      * Default value is false.
-     * @param forExport Boolean value indicating if certain fields should be removed
+     * @param excludeGenerated Boolean value indicating if certain fields should be removed
      */
-    public void setForExport(boolean forExport) {
-        this.forExport = forExport;
+    public void setExcludeGenerated(boolean excludeGenerated) {
+        this.excludeGenerated = excludeGenerated;
     }
 
-    public Boolean getForExport() {
-        return forExport;
+    public Boolean getExcludeGenerated() {
+        return excludeGenerated;
     }
 
     /**
@@ -111,12 +111,12 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
         GetDataFrameAnalyticsRequest other = (GetDataFrameAnalyticsRequest) o;
         return Objects.equals(ids, other.ids)
             && Objects.equals(allowNoMatch, other.allowNoMatch)
-            && Objects.equals(forExport, other.forExport)
+            && Objects.equals(excludeGenerated, other.excludeGenerated)
             && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, allowNoMatch, forExport, pageParams);
+        return Objects.hash(ids, allowNoMatch, excludeGenerated, pageParams);
     }
 }

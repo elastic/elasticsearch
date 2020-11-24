@@ -53,7 +53,7 @@ If set, it must match the value that is passed in the URL parameter.
 (Required, string) The assertion consumer service URL of the service provider.
 
 `enabled`::
-(Optional, boolean) Defines whether this service provider is enabled or not. Defaults to `true`.
+(Optional, Boolean) Defines whether this service provider is enabled or not. Defaults to `true`.
 
 `name_id_format`::
 (Optional, string) The SAML NameID Format that this service provider wants the NameIDs of the authenticating users to have in the SAML

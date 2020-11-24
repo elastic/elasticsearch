@@ -15,7 +15,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -407,11 +406,11 @@ public class AutodetectResultProcessor {
             } else if (memoryStatus == ModelSizeStats.MemoryStatus.HARD_LIMIT) {
                 if (modelSizeStats.getModelBytesMemoryLimit() == null || modelSizeStats.getModelBytesExceeded() == null) {
                     auditor.error(jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2,
-                        new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES).toString()));
+                        ByteSizeValue.ofBytes(modelSizeStats.getModelBytes()).toString()));
                 } else {
                     auditor.error(jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT,
-                        new ByteSizeValue(modelSizeStats.getModelBytesMemoryLimit(), ByteSizeUnit.BYTES).toString(),
-                        new ByteSizeValue(modelSizeStats.getModelBytesExceeded(), ByteSizeUnit.BYTES).toString()));
+                        ByteSizeValue.ofBytes(modelSizeStats.getModelBytesMemoryLimit()).toString(),
+                        ByteSizeValue.ofBytes(modelSizeStats.getModelBytesExceeded()).toString()));
                 }
             }
         }

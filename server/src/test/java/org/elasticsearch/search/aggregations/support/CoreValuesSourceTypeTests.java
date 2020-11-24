@@ -58,7 +58,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     public void testDatePrepareRoundingWithDocs() throws IOException {
-        long min = randomLongBetween(0, 1000000);
+        long min = randomLongBetween(100000, 1000000);   // The minimum has to be fairly large or we might accidentally think its a year....
         long max = randomLongBetween(min + 1, 100000000000L);
         withAggregationContext(dateMapperService(), docsWithDatesBetween(min, max), context -> {
             Rounding rounding = mock(Rounding.class);
@@ -73,7 +73,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         MapperService mapperService = dateMapperService();
         Query query = mapperService.fieldType("field")
             .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createQueryShardContext(mapperService));
-        withAggregationContext(mapperService, List.of(), query, context -> {
+        withAggregationContext(null, mapperService, List.of(), query, context -> {
             Rounding rounding = mock(Rounding.class);
             CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
             verify(rounding).prepare(min, max);
@@ -102,7 +102,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         MapperService mapperService = dateMapperService();
         Query query = mapperService.fieldType("field")
             .rangeQuery(minQuery, maxQuery, true, true, ShapeRelation.CONTAINS, null, null, createQueryShardContext(mapperService));
-        withAggregationContext(mapperService, docsWithDatesBetween(minDocs, maxDocs), query, context -> {
+        withAggregationContext(null, mapperService, docsWithDatesBetween(minDocs, maxDocs), query, context -> {
             Rounding rounding = mock(Rounding.class);
             CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
             verify(rounding).prepare(min, max);

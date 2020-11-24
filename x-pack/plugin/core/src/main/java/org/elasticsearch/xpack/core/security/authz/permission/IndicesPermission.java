@@ -5,17 +5,13 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
@@ -23,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,65 +57,18 @@ public final class IndicesPermission {
         this.groups = groups;
     }
 
-    private static Predicate<String> indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
-        Predicate<String> namePredicate;
+    private static StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
+        StringMatcher matcher;
         if (ordinaryIndices.isEmpty()) {
-            namePredicate = indexMatcher(restrictedIndices);
+            matcher = StringMatcher.of(restrictedIndices);
         } else {
-            namePredicate = indexMatcher(ordinaryIndices)
-                    .and(index -> false == RestrictedIndicesNames.isRestricted(index));
+            matcher = StringMatcher.of(ordinaryIndices)
+                    .and("<not-restricted>", index -> false == RestrictedIndicesNames.isRestricted(index));
             if (restrictedIndices.isEmpty() == false) {
-                namePredicate = indexMatcher(restrictedIndices).or(namePredicate);
+                matcher = StringMatcher.of(restrictedIndices).or(matcher);
             }
         }
-        return namePredicate;
-    }
-
-    /**
-     * Given a collection of index names and patterns, this constructs a {@code Predicate} that tests
-     * {@code true} for the names in the collection as well as for any names matching the patterns in the collection.
-     */
-    public static Predicate<String> indexMatcher(Collection<String> indices) {
-        Set<String> exactMatch = new HashSet<>();
-        List<String> nonExactMatch = new ArrayList<>();
-        for (String indexPattern : indices) {
-            if (indexPattern.startsWith("/") || indexPattern.contains("*") || indexPattern.contains("?")) {
-                nonExactMatch.add(indexPattern);
-            } else {
-                exactMatch.add(indexPattern);
-            }
-        }
-
-        if (exactMatch.isEmpty() && nonExactMatch.isEmpty()) {
-            return s -> false;
-        } else if (exactMatch.isEmpty()) {
-            return buildAutomataPredicate(nonExactMatch);
-        } else if (nonExactMatch.isEmpty()) {
-            return buildExactMatchPredicate(exactMatch);
-        } else {
-            return buildExactMatchPredicate(exactMatch).or(buildAutomataPredicate(nonExactMatch));
-        }
-    }
-
-    private static Predicate<String> buildExactMatchPredicate(Set<String> indices) {
-        if (indices.size() == 1) {
-            final String singleValue = indices.iterator().next();
-            return singleValue::equals;
-        }
-        return indices::contains;
-    }
-
-    private static Predicate<String> buildAutomataPredicate(List<String> indices) {
-        try {
-            return Automatons.predicate(indices);
-        } catch (TooComplexToDeterminizeException e) {
-            LogManager.getLogger(IndicesPermission.class).debug("Index pattern automaton [{}] is too complex", indices);
-            String description = Strings.collectionToCommaDelimitedString(indices);
-            if (description.length() > 80) {
-                description = Strings.cleanTruncate(description, 80) + "...";
-            }
-            throw new ElasticsearchSecurityException("The set of permitted index patterns [{}] is too complex to evaluate", e, description);
-        }
+        return matcher;
     }
 
     public Group[] groups() {
@@ -373,7 +323,7 @@ public final class IndicesPermission {
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
-            this.indexNameMatcher = indexMatcher(Arrays.asList(indices));
+            this.indexNameMatcher = StringMatcher.of(Arrays.asList(indices));
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
             this.allowRestrictedIndices = allowRestrictedIndices;
@@ -445,14 +395,14 @@ public final class IndicesPermission {
                     }
                 }
             }
-            final Predicate<String> namePredicate = indexMatcher(ordinaryIndices, restrictedIndices);
-            final Predicate<String> bwcSpecialCaseNamePredicate = indexMatcher(grantMappingUpdatesOnIndices,
+            final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
+            final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices,
                     grantMappingUpdatesOnRestrictedIndices);
             return indexAbstraction -> {
-                return namePredicate.test(indexAbstraction.getName()) ||
+                return nameMatcher.test(indexAbstraction.getName()) ||
                         (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM &&
                                 (indexAbstraction.getParentDataStream() == null) &&
-                                bwcSpecialCaseNamePredicate.test(indexAbstraction.getName()));
+                                bwcSpecialCaseMatcher.test(indexAbstraction.getName()));
             };
         }
     }

@@ -9,14 +9,14 @@ external websites. For example, you can define a custom URL that provides a way
 for users to drill down to the source data from the results set:
 
 [role="screenshot"]
-image::images/ml-customurl.gif["An example of the custom URL links in the Anomaly Explorer anomalies table"]
+image::images/ml-customurl.jpg["An example of the custom URL links in the Anomaly Explorer anomalies table"]
 
 When you create or edit an {anomaly-job} in {kib}, it simplifies the creation
 of the custom URLs for {kib} dashboards and the *Discover* app and it enables
 you to test your URLs. For example:
 
 [role="screenshot"]
-image::images/ml-customurl-edit.gif["Add a custom URL in {kib}",width=50%]
+image::images/ml-customurl-edit.gif["Add a custom URL in {kib}",width=75%]
 
 For each custom URL, you must supply the URL and a label, which is the link text
 that appears in the anomalies table. You can also optionally supply a time 

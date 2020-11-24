@@ -447,13 +447,12 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskRemoval(newResp.getId());
     }
 
-    public void testSearchPhaseFailureNoCause() throws Exception {
+    public void testSearchPhaseFailure() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
         request.setKeepOnCompletion(true);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
         request.getSearchRequest().allowPartialSearchResults(false);
         request.getSearchRequest()
-            // AlreadyClosedException are ignored by the coordinating node
             .source(new SearchSourceBuilder().query(new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), 0)));
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertFalse(response.isRunning());

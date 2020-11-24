@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
@@ -38,6 +36,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEquals
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
@@ -75,9 +74,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceSurrogateFunction(),
                 new ReplaceRegexMatch());
 
-        Batch syntactic = new Batch("Rewrite Syntactic Sugar", Limiter.ONCE,
-                new AddMissingEquals());
-
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
                 // boolean
@@ -88,6 +84,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
+                new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
                 // prune/elimination
                 new PruneFilters(),
@@ -109,7 +106,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return asList(substitutions, syntactic, operators, constraints, operators, ordering, local, label);
+        return asList(substitutions, operators, constraints, operators, ordering, local, label);
     }
 
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
@@ -150,33 +147,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return value instanceof String && ((String) value).contains("*");
             }
             return false;
-        }
-    }
-
-    private static class AddMissingEquals extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            // check the condition itself
-            Expression condition = replaceRawBoolFieldWithEquals(filter.condition());
-            // otherwise look for binary logic
-            if (condition == filter.condition()) {
-                condition = condition.transformUp(b ->
-                    b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
-                , BinaryLogic.class);
-            }
-
-            if (condition != filter.condition()) {
-                filter = new Filter(filter.source(), filter.child(), condition);
-            }
-            return filter;
-        }
-
-        private Expression replaceRawBoolFieldWithEquals(Expression e) {
-            if (e instanceof FieldAttribute) {
-                e = new Equals(e.source(), e, Literal.of(e, Boolean.TRUE));
-            }
-            return e;
         }
     }
 

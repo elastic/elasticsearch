@@ -11,11 +11,11 @@ the queries and asserts the results that are provided along with the query state
 ### Running the tests
 
 To be able to run the tests locally, one should set the environmental variable `eql_test_credentials_file` pointing to
-a local file holding the service account credentials which allow access to the gcs bucket where the dataset resides. 
+a local file holding the service account credentials which allow access to the gcs bucket where the dataset resides.
 E.g.:
 ```shell script
 export eql_test_credentials_file=/Users/username/credentials.gcs.json
-``` 
+```
 
 To run the tests you can issue:
 ```shell script
@@ -46,7 +46,7 @@ queries executed, e.g.:*
 
 #### Run a specific query
 
-If one wants to run just one query from the set, needs to do it with following command by replacing `<queryNo>` (which 
+If one wants to run just one query from the set, needs to do it with following command by replacing `<queryNo>` (which
 can be found in queries.toml file) with the desired number of the query:
 
 ```shell script
@@ -66,7 +66,7 @@ or
 ./gradlew ':x-pack:plugin:eql:qa:correctness:javaRestTest' --tests "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT.test {<queryNo>}" -Dtests.eql_correctness_debug=true
 ```
 
-### Run an ES node manually and run the tests against it 
+### Run an ES node manually and run the tests against it
 
 If one wants to run an ES node manually (most probably to be able to debug the server), needs to run the following:
 
@@ -76,7 +76,7 @@ If one wants to run an ES node manually (most probably to be able to debug the s
 
 **Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above,**
 
-Once the ES node is up and running, the data can be restored from the snapshot by running the `main` of the 
+Once the ES node is up and running, the data can be restored from the snapshot by running the `main` of the
 `EqlDataLoader` class.
 
 Once the data is loaded, a specific query can be run against the running ES node with:
@@ -85,3 +85,10 @@ Once the data is loaded, a specific query can be run against the running ES node
 ```
 
 **Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above,**
+
+#### Preserve data across node restarts
+If you'd like to preserve the restored index and avoid the network download and delay of restoring them on every run of the node,
+you can set the `eql.test.preserve.data` system property, e.g.:
+```shell script
+./gradlew :x-pack:plugin:eql:qa:correctness:javaRestTest -Deql.test.preserve.data=true
+```

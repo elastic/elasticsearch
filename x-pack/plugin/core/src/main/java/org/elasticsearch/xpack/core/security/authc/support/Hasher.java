@@ -512,7 +512,7 @@ public enum Hasher {
             PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), salt, cost, PBKDF2_KEY_LENGTH);
             result.put(Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded()));
             return result.array();
-        } catch (AssertionError ae){
+        } catch (AssertionError ae) {
             throw new ElasticsearchException("Can't use PBKDF2 implementation from the Security Provider in use", ae);
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);

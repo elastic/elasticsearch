@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -117,30 +118,29 @@ public class ConfigurationUtilsTests extends ESTestCase {
     }
 
     public void testReadMimeProperty() {
-        String[] validMimeTypes = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
-
         // valid mime type
-        String expectedMimeType = randomFrom(validMimeTypes);
+        String expectedMimeType = randomFrom(ConfigurationUtils.VALID_MIME_TYPES);
         config.put("mime_type", expectedMimeType);
         String readMimeType = ConfigurationUtils.readMimeTypeProperty(null, null, config, "mime_type", "");
         assertThat(readMimeType, equalTo(expectedMimeType));
 
         // missing mime type with valid default
-        expectedMimeType = randomFrom(validMimeTypes);
+        expectedMimeType = randomFrom(ConfigurationUtils.VALID_MIME_TYPES);
         config.remove("mime_type");
         readMimeType = ConfigurationUtils.readMimeTypeProperty(null, null, config, "mime_type", expectedMimeType);
         assertThat(readMimeType, equalTo(expectedMimeType));
 
         // invalid mime type
-        expectedMimeType = randomValueOtherThanMany(m -> Arrays.asList(validMimeTypes).contains(m), () -> randomAlphaOfLengthBetween(5, 9));
+        expectedMimeType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MIME_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9));
         config.put("mime_type", expectedMimeType);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
             () -> ConfigurationUtils.readMimeTypeProperty(null, null, config, "mime_type", ""));
         assertThat(e.getMessage(), containsString("property does not contain a supported MIME type [" + expectedMimeType + "]"));
 
         // missing mime type with invalid default
-        final String invalidDefaultMimeType =
-            randomValueOtherThanMany(m -> Arrays.asList(validMimeTypes).contains(m), () -> randomAlphaOfLengthBetween(5, 9));
+        final String invalidDefaultMimeType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MIME_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9));
         config.remove("mime_type");
         e = expectThrows(ElasticsearchException.class,
             () -> ConfigurationUtils.readMimeTypeProperty(null, null, config, "mime_type", invalidDefaultMimeType));

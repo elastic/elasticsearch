@@ -49,6 +49,7 @@ public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
     public static final String DESCRIPTION_KEY = "description";
+    public static final String[] VALID_MIME_TYPES = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
 
     private ConfigurationUtils() {
     }
@@ -309,7 +310,7 @@ public final class ConfigurationUtils {
         String propertyName, String defaultValue) {
         String mimeType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
 
-        if (List.of("application/json", "text/plain", "application/x-www-form-urlencoded").contains(mimeType) == false) {
+        if (Arrays.asList(VALID_MIME_TYPES).contains(mimeType) == false) {
             throw newConfigurationException(processorType, processorTag, propertyName,
                 "property does not contain a supported MIME type [" + mimeType + "]");
         }

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -14,8 +15,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
-import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResults;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
@@ -52,7 +51,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
             .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDeciderResult()))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new IllegalStateException(); }, TreeMap::new));
         AutoscalingCapacity capacity = new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources());
-        return new AutoscalingDeciderResults(capacity, results);
+        return new AutoscalingDeciderResults(capacity, randomNodes(), results);
     }
 
     public static AutoscalingCapacity randomAutoscalingCapacity() {
@@ -85,6 +84,21 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         );
     }
 
+    public static SortedSet<DiscoveryNode> randomNodes() {
+        String prefix = randomAlphaOfLength(5);
+        return IntStream.range(0, randomIntBetween(1, 10))
+            .mapToObj(
+                i -> new DiscoveryNode(
+                    prefix + i,
+                    buildNewFakeTransportAddress(),
+                    org.elasticsearch.common.collect.Map.of(),
+                    randomRoles().stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toSet()),
+                    Version.CURRENT
+                )
+            )
+            .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
+    }
+
     public static ByteSizeValue randomByteSizeValue() {
         // do not want to test any overflow.
         return new ByteSizeValue(randomLongBetween(0, Long.MAX_VALUE >> 16));
@@ -94,20 +108,27 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return randomBoolean() ? randomByteSizeValue() : null;
     }
 
-    public static SortedMap<String, AutoscalingDeciderConfiguration> randomAutoscalingDeciders() {
+    public static SortedMap<String, Settings> randomAutoscalingDeciders() {
         return new TreeMap<>(
             org.elasticsearch.common.collect.List.of(randomFixedDecider())
                 .stream()
-                .collect(Collectors.toMap(AutoscalingDeciderConfiguration::name, Function.identity()))
+                .collect(Collectors.toMap(d -> FixedAutoscalingDeciderService.NAME, Function.identity()))
         );
     }
 
-    public static FixedAutoscalingDeciderConfiguration randomFixedDecider() {
-        return new FixedAutoscalingDeciderConfiguration(
-            randomNullableByteSizeValue(),
-            randomNullableByteSizeValue(),
-            randomFrom(randomInt(1000), null)
-        );
+    public static Settings randomFixedDecider() {
+        Settings.Builder configurationBuilder = Settings.builder();
+        if (randomBoolean()) {
+            configurationBuilder.put(FixedAutoscalingDeciderService.STORAGE.getKey(), randomByteSizeValue());
+        }
+        if (randomBoolean()) {
+            configurationBuilder.put(FixedAutoscalingDeciderService.MEMORY.getKey(), randomByteSizeValue());
+        }
+        if (randomBoolean()) {
+            configurationBuilder.put(FixedAutoscalingDeciderService.NODES.getKey(), randomIntBetween(1, 10));
+        }
+
+        return configurationBuilder.build();
     }
 
     public static AutoscalingPolicy randomAutoscalingPolicy() {
@@ -121,7 +142,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     public static AutoscalingPolicy mutateAutoscalingPolicy(final AutoscalingPolicy instance) {
         String name = instance.name();
         SortedSet<String> roles = instance.roles();
-        SortedMap<String, AutoscalingDeciderConfiguration> deciders = instance.deciders();
+        SortedMap<String, Settings> deciders = instance.deciders();
         BitSet choice = BitSet.valueOf(new long[] { randomIntBetween(1, 7) });
         if (choice.get(0)) {
             name = randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8));
@@ -139,9 +160,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return randomValueOtherThan(roles, AutoscalingTestCase::randomRoles);
     }
 
-    public static SortedMap<String, AutoscalingDeciderConfiguration> mutateAutoscalingDeciders(
-        final SortedMap<String, AutoscalingDeciderConfiguration> deciders
-    ) {
+    public static SortedMap<String, Settings> mutateAutoscalingDeciders(final SortedMap<String, Settings> deciders) {
         if (deciders.size() == 0) {
             return randomAutoscalingDeciders();
         } else {

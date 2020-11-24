@@ -31,7 +31,6 @@ import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
 
@@ -44,7 +43,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.projectDependency;
  * distribution resolution strategies to the 'elasticsearch.download-distribution' plugin
  * to resolve distributions from a local snapshot or a locally built bwc snapshot.
  */
-public class InternalDistributionDownloadPlugin implements Plugin<Project> {
+public class InternalDistributionDownloadPlugin implements InternalPlugin {
 
     private BwcVersions bwcVersions = null;
 
@@ -52,11 +51,9 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
     public void apply(Project project) {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        if (!BuildParams.isInternal()) {
-            throw new GradleException(
-                "Plugin 'elasticsearch.internal-distribution-download' is not supported. "
-                    + "Use 'elasticsearch.distribution-download' plugin instead."
-            );
+        // might be used without the general build plugin so we keep this check for now.
+        if (BuildParams.isInternal() == false) {
+            throw new GradleException(getExternalUseErrorMessage());
         }
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         this.bwcVersions = BuildParams.getBwcVersions();
@@ -138,6 +135,12 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 break;
         }
         return projectPath;
+    }
+
+    @Override
+    public String getExternalUseErrorMessage() {
+        return "Plugin 'elasticsearch.internal-distribution-download' is not supported. "
+            + "Use 'elasticsearch.distribution-download' plugin instead.";
     }
 
     /**

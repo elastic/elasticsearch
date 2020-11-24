@@ -20,7 +20,7 @@
 package org.elasticsearch.gradle.test;
 
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
-import org.elasticsearch.gradle.precommit.ForbiddenPatternsTask;
+import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersAware;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;

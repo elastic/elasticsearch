@@ -670,7 +670,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
-            indexShardOperationPermits.asyncBlockOperations(new ActionListener<Releasable>() {
+            indexShardOperationPermits.blockOperations(new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     boolean success = false;
@@ -2904,7 +2904,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
-            indexShardOperationPermits.asyncBlockOperations(wrappedListener, timeout, timeUnit, ThreadPool.Names.GENERIC);
+            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, ThreadPool.Names.GENERIC);
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;

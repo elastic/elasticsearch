@@ -65,7 +65,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -1098,13 +1097,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return MlAutoscalingNamedWritableProvider.getNamedWriteables();
+    }
+
+    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(MlAutoscalingNamedWritableProvider.getXContentParsers());
         return namedXContent;
     }
 
@@ -1136,7 +1139,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.inferenceModelBreaker.set(circuitBreaker);
     }
 
-    public Collection<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders() {
+    public Collection<AutoscalingDeciderService> deciders() {
         if (enabled) {
             assert mlAutoscalingDeciderService.get() != null;
             return Collections.singletonList(mlAutoscalingDeciderService.get());

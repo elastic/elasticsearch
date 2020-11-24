@@ -79,16 +79,17 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
+                SearchLookup searchLookup = new SearchLookup(null, null, null);
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Collections.emptyMap(),
-                    new SearchLookup(null, null, null),
+                    searchLookup,
                     null,
                     ctx
                 ) {
                     @Override
                     public void execute() {
-                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
+                        for (Object timestamp : (List<?>) searchLookup.source().get("timestamp")) {
                             emit(((Number) timestamp).longValue());
                         }
                     }

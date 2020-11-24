@@ -585,6 +585,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IndexAnalyzers getIndexAnalyzers();
     }
 
+    /**
+     * Superclass for {@link Snapshot} implementations hosted by {@link MapperService}.
+     * This contains a few package private methods which are important for how
+     * {@linkplain MapperService} handles snapshots but aren't exposed outside
+     * of it.
+     * <p>
+     * You may ask "Why have both the interface and the abstract class?" And that is
+     * a reasonable question. Mostly we have two things so there is an obvious
+     * separation of "internal" stuff and "external" stuff. Which makes testing
+     * a little simpler because most tests just rely on the {@linkplain Snapshot}
+     * interface.
+     */
     private abstract static class AbstractSnapshot implements Snapshot {
         protected final MapperService mapperService;
 

@@ -64,6 +64,10 @@ class PluginPropertiesExtension {
      */
     private File noticeFile = null
 
+    /** True if the plugin is available under the Elastic license. */
+    @Input
+    boolean licensed = false
+
     Project project = null
 
     PluginPropertiesExtension(Project project) {

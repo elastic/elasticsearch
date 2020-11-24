@@ -829,14 +829,14 @@ public class InstallPluginCommandTests extends ESTestCase {
                 "if you need to update the plugin, uninstall it first using command 'remove fake'"));
     }
 
-    private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {
+    private void installPlugin(MockTerminal terminal, boolean isBatch, String... additionalProperties) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         // if batch is enabled, we also want to add a security policy
         if (isBatch) {
             writePluginSecurityPolicy(pluginDir, "setFactory");
         }
-        String pluginZip = createPlugin("fake", pluginDir).toUri().toURL().toString();
+        String pluginZip = createPlugin("fake", pluginDir, additionalProperties).toUri().toURL().toString();
         skipJarHellCommand.execute(terminal, pluginZip, isBatch, env.v2());
     }
 

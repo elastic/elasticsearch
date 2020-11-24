@@ -1,6 +1,9 @@
+apply plugin: 'elasticsearch.esplugin'
+
 esplugin {
   description 'A bootstrap plugin that adds support for interfacing with filesystem that enforce user quotas.'
   classname '<none>'
+  licensed true
 }
 
 integTest.enabled = false

@@ -68,7 +68,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -1180,7 +1179,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.inferenceModelBreaker.set(circuitBreaker);
     }
 
-    public Collection<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders() {
+    public Collection<AutoscalingDeciderService> deciders() {
         if (enabled) {
             assert mlAutoscalingDeciderService.get() != null;
             return List.of(mlAutoscalingDeciderService.get());

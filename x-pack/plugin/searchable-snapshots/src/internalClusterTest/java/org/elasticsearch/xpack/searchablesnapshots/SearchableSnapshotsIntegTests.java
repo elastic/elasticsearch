@@ -65,6 +65,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -710,32 +711,34 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
     }
 
-    private void assertRecoveryStats(String indexName, boolean preWarmEnabled) {
+    private void assertRecoveryStats(String indexName, boolean preWarmEnabled) throws Exception {
         int shardCount = getNumShards(indexName).totalNumShards;
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
-        assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
+        assertBusy(() -> {
+            final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+            assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
 
-        for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
-            for (RecoveryState recoveryState : recoveryStates) {
-                ByteSizeValue cacheSize = getCacheSizeForNode(recoveryState.getTargetNode().getName());
-                boolean unboundedCache = cacheSize.equals(new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
-                RecoveryState.Index index = recoveryState.getIndex();
-                assertThat(
-                    Strings.toString(recoveryState, true, true),
-                    index.recoveredFileCount(),
-                    preWarmEnabled && unboundedCache ? equalTo(index.totalRecoverFiles()) : greaterThanOrEqualTo(0)
-                );
+            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
+                for (RecoveryState recoveryState : recoveryStates) {
+                    ByteSizeValue cacheSize = getCacheSizeForNode(recoveryState.getTargetNode().getName());
+                    boolean unboundedCache = cacheSize.equals(new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
+                    RecoveryState.Index index = recoveryState.getIndex();
+                    assertThat(
+                        Strings.toString(recoveryState, true, true),
+                        index.recoveredFileCount(),
+                        preWarmEnabled && unboundedCache ? equalTo(index.totalRecoverFiles()) : greaterThanOrEqualTo(0)
+                    );
 
-                // Since the cache size is variable, the pre-warm phase might fail as some of the files can be evicted
-                // while a part is pre-fetched, in that case the recovery state stage is left as FINALIZE.
-                assertThat(
-                    recoveryState.getStage(),
-                    unboundedCache
-                        ? equalTo(RecoveryState.Stage.DONE)
-                        : anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE))
-                );
+                    // Since the cache size is variable, the pre-warm phase might fail as some of the files can be evicted
+                    // while a part is pre-fetched, in that case the recovery state stage is left as FINALIZE.
+                    assertThat(
+                        recoveryState.getStage(),
+                        unboundedCache
+                            ? equalTo(RecoveryState.Stage.DONE)
+                            : anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE))
+                    );
+                }
             }
-        }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private void assertSearchableSnapshotStats(String indexName, boolean cacheEnabled, List<String> nonCachedExtensions) {

@@ -225,7 +225,7 @@ public class TaskManagerTests extends ESTestCase {
             timeInMillis.addAndGet(randomInt(1000));
             expectedBanParents.values().removeIf(timestamp -> timestamp - timeInMillis.get() > keepAliveInMillis);
             expectedBanParents.put(taskId, timeInMillis.get());
-            assertThat(taskManager.getBannedParentMarkers(), equalTo(expectedBanParents.keySet()));
+            assertThat(taskManager.getBannedParentMarkers().keySet(), equalTo(expectedBanParents.keySet()));
         }
     }
 }

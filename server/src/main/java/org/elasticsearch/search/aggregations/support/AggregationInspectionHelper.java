@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
@@ -121,6 +122,10 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalAutoDateHistogram agg) {
+        return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
+    }
+
+    public static boolean hasValue(InternalVariableWidthHistogram agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 

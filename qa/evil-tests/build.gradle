@@ -27,16 +27,16 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile 'com.google.jimfs:jimfs:1.1'
+  testImplementation 'com.google.jimfs:jimfs:1.1'
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
 
-test {
+tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     'com.ibm.icu.lang.UCharacter'
   )

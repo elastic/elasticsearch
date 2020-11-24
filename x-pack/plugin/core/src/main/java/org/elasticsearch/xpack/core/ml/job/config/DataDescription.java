@@ -10,10 +10,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.DateTimeFormatterTimestampConverter;
@@ -133,8 +131,8 @@ public class DataDescription implements ToXContentObject, Writeable {
         parser.declareString(Builder::setFormat, FORMAT_FIELD);
         parser.declareString(Builder::setTimeField, TIME_FIELD_NAME_FIELD);
         parser.declareString(Builder::setTimeFormat, TIME_FORMAT_FIELD);
-        parser.declareField(Builder::setFieldDelimiter, DataDescription::extractChar, FIELD_DELIMITER_FIELD, ValueType.STRING);
-        parser.declareField(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD, ValueType.STRING);
+        parser.declareString(Builder::setFieldDelimiter, DataDescription::extractChar, FIELD_DELIMITER_FIELD);
+        parser.declareString(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD);
 
         return parser;
     }
@@ -278,15 +276,11 @@ public class DataDescription implements ToXContentObject, Writeable {
         return EPOCH_MS.equals(timeFormat);
     }
 
-    private static Character extractChar(XContentParser parser) throws IOException {
-        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            String charStr = parser.text();
-            if (charStr.length() != 1) {
-                throw new IllegalArgumentException("String must be a single character, found [" + charStr + "]");
-            }
-            return charStr.charAt(0);
+    private static Character extractChar(String charStr) {
+        if (charStr.length() != 1) {
+            throw new IllegalArgumentException("String must be a single character, found [" + charStr + "]");
         }
-        throw new IllegalArgumentException("Unsupported token [" + parser.currentToken() + "]");
+        return charStr.charAt(0);
     }
 
     /**
@@ -324,19 +318,22 @@ public class DataDescription implements ToXContentObject, Writeable {
         private Character fieldDelimiter;
         private Character quoteCharacter;
 
-        public void setFormat(DataFormat format) {
+        public Builder setFormat(DataFormat format) {
             dataFormat = ExceptionsHelper.requireNonNull(format, FORMAT_FIELD.getPreferredName() + " must not be null");
+            return this;
         }
 
-        private void setFormat(String format) {
+        private Builder setFormat(String format) {
             setFormat(DataFormat.forString(format));
+            return this;
         }
 
-        public void setTimeField(String fieldName) {
+        public Builder setTimeField(String fieldName) {
             timeFieldName = ExceptionsHelper.requireNonNull(fieldName, TIME_FIELD_NAME_FIELD.getPreferredName() + " must not be null");
+            return this;
         }
 
-        public void setTimeFormat(String format) {
+        public Builder setTimeFormat(String format) {
             ExceptionsHelper.requireNonNull(format, TIME_FORMAT_FIELD.getPreferredName() + " must not be null");
             switch (format) {
                 case EPOCH:
@@ -351,14 +348,17 @@ public class DataDescription implements ToXContentObject, Writeable {
                     }
             }
             timeFormat = format;
+            return this;
         }
 
-        public void setFieldDelimiter(Character delimiter) {
+        public Builder setFieldDelimiter(Character delimiter) {
             fieldDelimiter = delimiter;
+            return this;
         }
 
-        public void setQuoteCharacter(Character value) {
+        public Builder setQuoteCharacter(Character value) {
             quoteCharacter = value;
+            return this;
         }
 
         public DataDescription build() {

@@ -33,16 +33,21 @@ public class DeleteExpiredDataRequest implements Validatable, ToXContentObject {
 
     static final String REQUESTS_PER_SECOND = "requests_per_second";
     static final String TIMEOUT = "timeout";
+    static final String JOB_ID = "job_id";
+
+    private final String jobId;
     private final Float requestsPerSecond;
     private final TimeValue timeout;
+
    /**
      * Create a new request to delete expired data
      */
     public DeleteExpiredDataRequest() {
-        this(null, null);
+        this(null, null, null);
     }
 
-    public DeleteExpiredDataRequest(Float requestsPerSecond, TimeValue timeout) {
+    public DeleteExpiredDataRequest(String jobId, Float requestsPerSecond, TimeValue timeout) {
+        this.jobId = jobId;
         this.requestsPerSecond = requestsPerSecond;
         this.timeout = timeout;
     }
@@ -67,23 +72,37 @@ public class DeleteExpiredDataRequest implements Validatable, ToXContentObject {
         return timeout;
     }
 
+    /**
+     * The optional job id
+     *
+     * The default is `null` meaning all jobs.
+     * @return The job id or null
+     */
+    public String getJobId() {
+        return jobId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DeleteExpiredDataRequest that = (DeleteExpiredDataRequest) o;
         return Objects.equals(requestsPerSecond, that.requestsPerSecond) &&
-            Objects.equals(timeout, that.timeout);
+            Objects.equals(timeout, that.timeout) &&
+            Objects.equals(jobId, that.jobId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestsPerSecond, timeout);
+        return Objects.hash(requestsPerSecond, timeout, jobId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (jobId != null) {
+            builder.field(JOB_ID, jobId);
+        }
         if (requestsPerSecond != null) {
             builder.field(REQUESTS_PER_SECOND, requestsPerSecond);
         }

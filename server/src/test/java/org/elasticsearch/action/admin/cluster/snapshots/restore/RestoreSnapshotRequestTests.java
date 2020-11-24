@@ -89,6 +89,11 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             instance.masterNodeTimeout(randomTimeValue());
         }
+
+        if (randomBoolean()) {
+            instance.snapshotUuid(randomBoolean() ? null : randomAlphaOfLength(10));
+        }
+
         return instance;
     }
 
@@ -112,6 +117,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     public void testSource() throws IOException {
         RestoreSnapshotRequest original = createTestInstance();
+        original.snapshotUuid(null); // cannot be set via the REST API
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
         XContentParser parser = XContentType.JSON.xContent().createParser(
             NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());

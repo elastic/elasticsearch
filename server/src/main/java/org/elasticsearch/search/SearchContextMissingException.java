@@ -23,20 +23,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
 
 public class SearchContextMissingException extends ElasticsearchException {
 
-    private final SearchContextId contextId;
+    private final ShardSearchContextId contextId;
 
-    public SearchContextMissingException(SearchContextId contextId) {
+    public SearchContextMissingException(ShardSearchContextId contextId) {
         super("No search context found for id [" + contextId.getId() + "]");
         this.contextId = contextId;
     }
 
-    public SearchContextId contextId() {
+    public ShardSearchContextId contextId() {
         return this.contextId;
     }
 
@@ -47,7 +47,7 @@ public class SearchContextMissingException extends ElasticsearchException {
 
     public SearchContextMissingException(StreamInput in) throws IOException{
         super(in);
-        contextId = new SearchContextId(in);
+        contextId = new ShardSearchContextId(in);
     }
 
     @Override

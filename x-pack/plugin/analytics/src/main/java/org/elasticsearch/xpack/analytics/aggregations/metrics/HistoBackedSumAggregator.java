@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
@@ -20,6 +19,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
@@ -32,7 +32,7 @@ import java.util.Map;
  * The aggregator sums each histogram value multiplied by its count.
  * Eg for a histogram of response times, this is an approximate "total time spent".
  */
-class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
+public class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final HistogramValuesSource.Histogram valuesSource;
     private final DocValueFormat format;
@@ -40,14 +40,20 @@ class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray sums;
     private DoubleArray compensations;
 
-    HistoBackedSumAggregator(String name, HistogramValuesSource.Histogram valuesSource, DocValueFormat formatter, SearchContext context,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
+    public HistoBackedSumAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
-        this.format = formatter;
+        // TODO: stop expecting a null here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
+        this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
-            sums = context.bigArrays().newDoubleArray(1, true);
-            compensations = context.bigArrays().newDoubleArray(1, true);
+            sums = bigArrays().newDoubleArray(1, true);
+            compensations = bigArrays().newDoubleArray(1, true);
         }
     }
 
@@ -62,15 +68,14 @@ class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
 
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
+                sums = bigArrays().grow(sums, bucket + 1);
+                compensations = bigArrays().grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();

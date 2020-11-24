@@ -1,0 +1,2 @@
+@Library('DCCSCR@master') _
+dccscrPipeline(version: '${version}')

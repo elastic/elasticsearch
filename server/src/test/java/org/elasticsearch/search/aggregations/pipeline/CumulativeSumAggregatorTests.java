@@ -317,14 +317,9 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(HISTO_FIELD);
-
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                valueFieldType.setHasDocValues(true);
-                valueFieldType.setName("value_field");
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(HISTO_FIELD);
+                MappedFieldType valueFieldType
+                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram;
                 histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[]{fieldType, valueFieldType});

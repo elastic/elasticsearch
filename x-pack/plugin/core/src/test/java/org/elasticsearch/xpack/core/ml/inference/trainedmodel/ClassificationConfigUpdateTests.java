@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -18,6 +19,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests.randomClassificationConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTestCase<ClassificationConfigUpdate> {
 
@@ -72,6 +74,30 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
                 .build()
                 .apply(originalConfig)
             ));
+    }
+
+    public void testDuplicateFieldNamesThrow() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> new ClassificationConfigUpdate(5, "foo", "foo", 1, PredictionFieldType.BOOLEAN));
+
+        assertEquals("Invalid inference config. More than one field is configured as [foo]", e.getMessage());
+    }
+
+    public void testDuplicateWithResultsField() {
+        ClassificationConfigUpdate update = randomClassificationConfigUpdate();
+        String newFieldName = update.getResultsField() + "_value";
+
+        InferenceConfigUpdate updateWithField = update.newBuilder().setResultsField(newFieldName).build();
+
+        assertNotSame(updateWithField, update);
+        assertEquals(newFieldName, updateWithField.getResultsField());
+        // other fields are the same
+        assertThat(updateWithField, instanceOf(ClassificationConfigUpdate.class));
+        ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate)updateWithField;
+        assertEquals(update.getTopClassesResultsField(), classUpdate.getTopClassesResultsField());
+        assertEquals(update.getNumTopClasses(), classUpdate.getNumTopClasses());
+        assertEquals(update.getPredictionFieldType(), classUpdate.getPredictionFieldType());
+        assertEquals(update.getNumTopFeatureImportanceValues(), classUpdate.getNumTopFeatureImportanceValues());
     }
 
     @Override

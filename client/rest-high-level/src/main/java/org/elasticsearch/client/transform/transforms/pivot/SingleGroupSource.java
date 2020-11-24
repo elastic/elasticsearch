@@ -32,6 +32,7 @@ public abstract class SingleGroupSource implements ToXContentObject {
 
     protected static final ParseField FIELD = new ParseField("field");
     protected static final ParseField SCRIPT = new ParseField("script");
+    protected static final ParseField MISSING_BUCKET = new ParseField("missing_bucket");
 
     public enum Type {
         TERMS,
@@ -46,10 +47,12 @@ public abstract class SingleGroupSource implements ToXContentObject {
 
     protected final String field;
     protected final Script script;
+    protected final boolean missingBucket;
 
-    public SingleGroupSource(final String field, final Script script) {
+    public SingleGroupSource(final String field, final Script script, final boolean missingBucket) {
         this.field = field;
         this.script = script;
+        this.missingBucket = missingBucket;
     }
 
     public abstract Type getType();
@@ -62,12 +65,19 @@ public abstract class SingleGroupSource implements ToXContentObject {
         return script;
     }
 
+    public boolean getMissingBucket() {
+        return missingBucket;
+    }
+
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         if (field != null) {
             builder.field(FIELD.getPreferredName(), field);
         }
         if (script != null) {
             builder.field(SCRIPT.getPreferredName(), script);
+        }
+        if (missingBucket) {
+            builder.field(MISSING_BUCKET.getPreferredName(), missingBucket);
         }
     }
 
@@ -83,11 +93,13 @@ public abstract class SingleGroupSource implements ToXContentObject {
 
         final SingleGroupSource that = (SingleGroupSource) other;
 
-        return Objects.equals(this.field, that.field) && Objects.equals(this.script, that.script);
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.script, that.script);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, script);
+        return Objects.hash(field, script, missingBucket);
     }
 }

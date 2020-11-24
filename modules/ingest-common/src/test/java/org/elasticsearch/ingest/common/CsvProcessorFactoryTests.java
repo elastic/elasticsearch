@@ -41,7 +41,7 @@ public class CsvProcessorFactoryTests extends ESTestCase {
         properties.put("empty_value", "empty");
         properties.put("trim", true);
         properties.put("ignore_missing", true);
-        CsvProcessor csv = factory.create(null, "csv", properties);
+        CsvProcessor csv = factory.create(null, "csv", null, properties);
         assertThat(csv, notNullValue());
         assertThat(csv.field, equalTo("field"));
         assertThat(csv.headers, equalTo(new String[]{"target"}));

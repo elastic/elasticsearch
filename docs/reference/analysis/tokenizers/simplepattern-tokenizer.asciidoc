@@ -1,5 +1,8 @@
 [[analysis-simplepattern-tokenizer]]
-=== Simple Pattern Tokenizer
+=== Simple pattern tokenizer
+++++
+<titleabbrev>Simple pattern</titleabbrev>
+++++
 
 The `simple_pattern` tokenizer uses a regular expression to capture matching
 text as terms. The set of regular expression features it supports is more
@@ -17,7 +20,7 @@ For an explanation of the supported features and syntax, see <<regexp-syntax,Reg
 The default pattern is the empty string, which produces no terms. This
 tokenizer should always be configured with a non-default pattern.
 
-[float]
+[discrete]
 === Configuration
 
 The `simple_pattern` tokenizer accepts the following parameters:
@@ -26,7 +29,7 @@ The `simple_pattern` tokenizer accepts the following parameters:
 `pattern`::
     {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expression], defaults to the empty string.
 
-[float]
+[discrete]
 === Example configuration
 
 This example configures the `simple_pattern` tokenizer to produce terms that are
@@ -34,7 +37,7 @@ three-digit numbers
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -53,7 +56,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "fd-786-335-514-x"

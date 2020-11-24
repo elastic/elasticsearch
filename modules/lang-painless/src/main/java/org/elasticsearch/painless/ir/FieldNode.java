@@ -19,11 +19,9 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class FieldNode extends IRNode {
 
@@ -37,7 +35,7 @@ public class FieldNode extends IRNode {
         this.modifiers = modifiers;
     }
 
-    public int getModifiers(int modifiers) {
+    public int getModifiers() {
         return modifiers;
     }
 
@@ -61,11 +59,22 @@ public class FieldNode extends IRNode {
         return name;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, true), name, Type.getType(fieldType).getDescriptor(), null, null).visitEnd();
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitField(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        // do nothing; terminal node
+    }
+
+    /* ---- end visitor ---- */
+
+    public FieldNode(Location location) {
+        super(location);
+    }
+
 }

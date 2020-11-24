@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -29,7 +30,8 @@ public class TransportPreviewTransformActionDeprecated extends TransportPreviewT
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        Settings settings
+        Settings settings,
+        IngestService ingestService
     ) {
         super(
             PreviewTransformActionDeprecated.NAME,
@@ -40,7 +42,8 @@ public class TransportPreviewTransformActionDeprecated extends TransportPreviewT
             licenseState,
             indexNameExpressionResolver,
             clusterService,
-            settings
+            settings,
+            ingestService
         );
     }
 

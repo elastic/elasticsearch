@@ -65,12 +65,14 @@ public class JobDataCountsPersister {
                 ToXContent.EMPTY_PARAMS,
                 WriteRequest.RefreshPolicy.NONE,
                 DataCounts.documentId(jobId),
+                true,
                 () -> true,
-                (msg) -> auditor.warning(jobId, "Job data_counts " + msg));
+                retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage));
         } catch (IOException ioe) {
             logger.error(() -> new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId), ioe);
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("[{}] Failed persisting data_counts stats", jobId), ex);
+            auditor.error(jobId, "Failed persisting data_counts stats: " + ex.getMessage());
         }
     }
 
@@ -88,6 +90,7 @@ public class JobDataCountsPersister {
         try (XContentBuilder content = serialiseCounts(counts)) {
             final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
                 .id(DataCounts.documentId(jobId))
+                .setRequireAlias(true)
                 .source(content);
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, new ActionListener<>() {
                 @Override

@@ -48,7 +48,7 @@ public class PersistentTasksService {
 
     private static final Logger logger = LogManager.getLogger(PersistentTasksService.class);
 
-    private static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
+    public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
 
     private final Client client;
     private final ClusterService clusterService;

@@ -19,10 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -33,17 +34,17 @@ class CompositeAggregationFactory extends AggregatorFactory {
     private final CompositeValuesSourceConfig[] sources;
     private final CompositeKey afterKey;
 
-    CompositeAggregationFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
+    CompositeAggregationFactory(String name, AggregationContext context, AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata,
                                 int size, CompositeValuesSourceConfig[] sources, CompositeKey afterKey) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, context, parent, subFactoriesBuilder, metadata);
         this.size = size;
         this.sources = sources;
         this.afterKey = afterKey;
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         return new CompositeAggregator(name, factories, searchContext, parent, metadata, size, sources, afterKey);
     }

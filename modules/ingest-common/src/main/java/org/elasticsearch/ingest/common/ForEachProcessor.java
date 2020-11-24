@@ -54,8 +54,8 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
     private final Processor processor;
     private final boolean ignoreMissing;
 
-    ForEachProcessor(String tag, String field, Processor processor, boolean ignoreMissing) {
-        super(tag);
+    ForEachProcessor(String tag, String description, String field, Processor processor, boolean ignoreMissing) {
+        super(tag, description);
         this.field = field;
         this.processor = processor;
         this.ignoreMissing = ignoreMissing;
@@ -75,7 +75,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
         } else {
-            innerExecute(0, values, new ArrayList<>(values.size()), ingestDocument, handler);
+            innerExecute(0, new ArrayList<>(values), new ArrayList<>(values.size()), ingestDocument, handler);
         }
     }
 
@@ -134,7 +134,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
 
         @Override
         public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag,
-                                       Map<String, Object> config) throws Exception {
+                                       String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             boolean ignoreMissing = readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
             Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");
@@ -145,7 +145,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
             Processor processor =
                 ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
-            return new ForEachProcessor(tag, field, processor, ignoreMissing);
+            return new ForEachProcessor(tag, description, field, processor, ignoreMissing);
         }
     }
 }

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   description 'Adds advanced field mappers'
@@ -24,6 +26,6 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get' 
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get'
   }
 }

@@ -19,26 +19,31 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class CatchNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    private DeclarationNode declarationNode;
+    private Class<?> exceptionType;
+    private String symbol;
     private BlockNode blockNode;
 
-    public void setDeclarationNode(DeclarationNode declarationNode) {
-        this.declarationNode = declarationNode;
+    public void setExceptionType(Class<?> exceptionType) {
+        this.exceptionType = exceptionType;
     }
 
-    public DeclarationNode getDeclarationNode() {
-        return declarationNode;
+    public Class<?> getExceptionType() {
+        return exceptionType;
+    }
+
+    public void setSymbol(String symbol) {
+        this.symbol = symbol;
+    }
+
+    public String getSymbol() {
+        return symbol;
     }
 
     public void setBlockNode(BlockNode blockNode) {
@@ -49,34 +54,24 @@ public class CatchNode extends StatementNode {
         return blockNode;
     }
 
-    /* ---- end tree structure ---- */
-
-    Label begin = null;
-    Label end = null;
-    Label exception = null;
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeStatementOffset(location);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitCatch(this, scope);
+    }
 
-        declarationNode.write(classWriter, methodWriter, scopeTable);
-        Variable variable = scopeTable.getVariable(declarationNode.getName());
-
-        Label jump = new Label();
-
-        methodWriter.mark(jump);
-        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
-
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
         if (blockNode != null) {
-            blockNode.continueLabel = continueLabel;
-            blockNode.breakLabel = breakLabel;
-            blockNode.write(classWriter, methodWriter, scopeTable);
-        }
-
-        methodWriter.visitTryCatchBlock(begin, end, jump, variable.getAsmType().getInternalName());
-
-        if (exception != null && (blockNode == null || blockNode.doAllEscape() == false)) {
-            methodWriter.goTo(exception);
+            blockNode.visit(irTreeVisitor, scope);
         }
     }
+
+    /* ---- end visitor ---- */
+
+    public CatchNode(Location location) {
+        super(location);
+    }
+
 }

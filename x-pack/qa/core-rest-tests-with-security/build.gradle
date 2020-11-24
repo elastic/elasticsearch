@@ -1,9 +1,10 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
 restResources {
@@ -13,7 +14,6 @@ restResources {
 }
 
 integTest {
-  runner {
     systemProperty 'tests.rest.blacklist',
       [
         'index/10_with_id/Index with ID',
@@ -22,7 +22,6 @@ integTest {
 
     systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
     systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
-  }
 }
 
 testClusters.integTest {
@@ -31,6 +30,7 @@ testClusters.integTest {
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.lifecycle.history_index_enabled', 'false'
 
   user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
     password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')

@@ -18,6 +18,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
@@ -41,7 +42,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -49,6 +49,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -152,14 +153,14 @@ import org.elasticsearch.xpack.watcher.transform.script.ScriptTransformFactory;
 import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
-import org.elasticsearch.xpack.watcher.transport.actions.ack.TransportAckWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.activate.TransportActivateWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.delete.TransportDeleteWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.execute.TransportExecuteWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.get.TransportGetWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.put.TransportPutWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.service.TransportWatcherServiceAction;
-import org.elasticsearch.xpack.watcher.transport.actions.stats.TransportWatcherStatsAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportAckWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportActivateWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportDeleteWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportExecuteWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportGetWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportPutWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportWatcherServiceAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEngine;
@@ -178,8 +179,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -223,7 +222,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             new ByteSizeValue(1, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB), NodeScope);
 
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
-        = new ScriptContext<>("xpack_template", TemplateScript.Factory.class);
+        = new ScriptContext<>("xpack_template", TemplateScript.Factory.class,
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
@@ -270,7 +270,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             throw new UncheckedIOException(e);
         }
 
-        new WatcherIndexTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
+        WatcherIndexTemplateRegistry templateRegistry = new WatcherIndexTemplateRegistry(environment.settings(),
+            clusterService, threadPool, client, xContentRegistry);
+        templateRegistry.initialize();
 
         final SSLService sslService = getSslService();
         // http client
@@ -526,7 +528,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * @return A number between 5 and the number of processors
      */
     static int getWatcherThreadPoolSize(final Settings settings) {
-        return getWatcherThreadPoolSize(Node.NODE_DATA_SETTING.get(settings), EsExecutors.allocatedProcessors(settings));
+        return getWatcherThreadPoolSize(DiscoveryNode.isDataNode(settings), EsExecutors.allocatedProcessors(settings));
     }
 
     static int getWatcherThreadPoolSize(final boolean isDataNode, final int allocatedProcessors) {
@@ -597,7 +599,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{},{},{}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
+                "[{},{}]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -610,15 +612,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         List<String> indices = new ArrayList<>();
         indices.add(".watches");
         indices.add(".triggered_watches");
-        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6)));
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

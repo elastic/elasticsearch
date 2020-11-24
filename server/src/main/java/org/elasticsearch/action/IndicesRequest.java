@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
  * one or more indices. Allows to retrieve which indices the action relates to.
- * In case of internal requests  originated during the distributed execution of an external request,
+ * In case of internal requests originated during the distributed execution of an external request,
  * they will still return the indices that the original request related to.
  */
 public interface IndicesRequest {
@@ -39,6 +39,15 @@ public interface IndicesRequest {
      * accepted, whether an empty array will be converted to _all, and how wildcards will be expanded if needed.
      */
     IndicesOptions indicesOptions();
+
+    /**
+     * Determines whether the request should be applied to data streams. When {@code false}, none of the names or
+     * wildcard expressions in {@link #indices} should be applied to or expanded to any data streams. All layers
+     * involved in the request's fulfillment including security, name resolution, etc., should respect this flag.
+     */
+    default boolean includeDataStreams() {
+        return false;
+    }
 
     interface Replaceable extends IndicesRequest {
         /**

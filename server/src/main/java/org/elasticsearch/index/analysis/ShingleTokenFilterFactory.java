@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
@@ -31,8 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(LogManager.getLogger(ShingleTokenFilterFactory.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ShingleTokenFilterFactory.class);
 
     private final Factory factory;
 

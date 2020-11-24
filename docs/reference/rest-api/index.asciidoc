@@ -17,6 +17,7 @@ endif::[]
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
+* <<data-stream-apis,Data stream APIs>>
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>
 * <<graph-explore-api,Graph Explore API>>
@@ -29,6 +30,7 @@ endif::[]
 * <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
 * <<migration-api,Migration APIs>>
 * <<indices-reload-analyzers,Reload Search Analyzers API>>
+* <<repositories-metering-apis,Repositories Metering APIs>>
 * <<rollup-apis,Rollup APIs>>
 * <<search, Search APIs>>
 * <<searchable-snapshots-apis, Searchable snapshots APIs>>
@@ -47,6 +49,7 @@ endif::[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
+include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
@@ -55,10 +58,11 @@ include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
 include::{es-repo-dir}/ingest/apis/index.asciidoc[]
 include::info.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
-include::{es-repo-dir}/ml/anomaly-detection/apis/ml-api.asciidoc[]
+include::{es-repo-dir}/ml/anomaly-detection/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
+include::{es-repo-dir}/repositories-metering-api/repositories-metering-apis.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
 include::{es-repo-dir}/searchable-snapshots/apis/searchable-snapshots-apis.asciidoc[]

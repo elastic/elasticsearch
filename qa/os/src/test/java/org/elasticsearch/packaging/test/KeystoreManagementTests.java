@@ -27,7 +27,6 @@ import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -44,11 +43,11 @@ import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
+import static org.elasticsearch.packaging.util.DockerRun.builder;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
@@ -121,7 +120,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     public void test20CreateKeystoreManually() throws Exception {
         rmKeystoreIfExists();
-        createKeystore();
+        createKeystore(null);
 
         final Installation.Executables bin = installation.executables();
         verifyKeystorePermissions();
@@ -153,28 +152,27 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "^|<>\\&exit"; // code insertion on Windows if special characters are not escaped
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(startElasticsearchStandardInputPassword(password, true));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, false));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
 
-    public void test41WrongKeystorePasswordOnStandardInput() {
+    public void test41WrongKeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = startElasticsearchStandardInputPassword("wrong", false);
+        Shell.Result result = runElasticsearchStartCommand("wrong", false, false);
         assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), null);
     }
 
-    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test42KeystorePasswordOnTty() throws Exception {
+        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
@@ -182,25 +180,24 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "keystorepass";
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(startElasticsearchTtyPassword(password, true));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
 
-    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test43WrongKeystorePasswordOnTty() throws Exception {
+        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = startElasticsearchTtyPassword("wrong", false);
+        Shell.Result result = runElasticsearchStartCommand("wrong", false, true);
         // error will be on stdout for "expect"
         assertThat(result.stdout, anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
     }
@@ -215,8 +212,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "keystorepass";
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
         Shell.Result r = installation.executables().elasticsearch.run("--help");
@@ -229,8 +225,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
@@ -265,7 +260,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.write(esKeystorePassphraseFile, List.of("wrongpassword"));
 
             Packages.JournaldWrapper journaldWrapper = new Packages.JournaldWrapper(sh);
-            Shell.Result result = runElasticsearchStartCommand(false);
+            Shell.Result result = runElasticsearchStartCommand(null, false, false);
             assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), journaldWrapper);
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
@@ -286,7 +281,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
-        runContainer(distribution(), volumes, envVars);
+        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
     }
@@ -300,7 +295,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Path tempDir = null;
         try {
-            tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
+            tempDir = createTempDir(DockerTests.class.getSimpleName());
 
             String password = "password";
             String passwordFilename = "password.txt";
@@ -315,7 +310,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore, tempDir, Path.of("/run/secrets"));
             Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
-            runContainer(distribution(), volumes, envVars);
+            runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
             waitForElasticsearch(installation);
             ServerUtils.runElasticsearchTests();
@@ -340,7 +335,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
-        Shell.Result r = runContainerExpectingFailure(distribution(), volumes, envVars);
+        Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
     }
 
@@ -354,7 +349,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     private Path getKeystoreFileFromDockerContainer(String password, Path dockerKeystore) throws IOException {
         // Mount a temporary directory for copying the keystore
         Path dockerTemp = Path.of("/usr/tmp/keystore-tmp");
-        Path tempDirectory = Files.createTempDirectory(getTempDir(), KeystoreManagementTests.class.getSimpleName());
+        Path tempDirectory = createTempDir(KeystoreManagementTests.class.getSimpleName());
         Map<Path, Path> volumes = Map.of(tempDirectory, dockerTemp);
 
         // It's very tricky to properly quote a pipeline that you're passing to
@@ -368,7 +363,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
 
-        runContainer(distribution(), volumes, null);
+        runContainer(distribution(), builder().volumes(volumes));
         try {
             waitForPathToExist(dockerTemp);
             waitForPathToExist(dockerKeystore);
@@ -388,7 +383,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         return tempDirectory.resolve("elasticsearch.keystore");
     }
 
-    private void createKeystore() throws Exception {
+    /** Create a keystore. Provide a password to password-protect it, otherwise use null */
+    private void createKeystore(String password) throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
         bin.keystoreTool.run("create");
@@ -405,6 +401,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        if (password != null) {
+            setKeystorePassword(password);
         }
     }
 
@@ -454,6 +454,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 assertThat(keystore, file(File, "root", "elasticsearch", p660));
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:

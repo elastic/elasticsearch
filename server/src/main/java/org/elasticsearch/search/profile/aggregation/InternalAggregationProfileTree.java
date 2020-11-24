@@ -20,7 +20,6 @@
 package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory.MultiBucketAggregatorWrapper;
 import org.elasticsearch.search.profile.AbstractInternalProfileTree;
 
 public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationProfileBreakdown, Aggregator> {
@@ -32,16 +31,7 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
 
     @Override
     protected String getTypeFromElement(Aggregator element) {
-
-        // Anonymous classes (such as NonCollectingAggregator in TermsAgg) won't have a name,
-        // we need to get the super class
-        if (element.getClass().getSimpleName().isEmpty()) {
-            return element.getClass().getSuperclass().getSimpleName();
-        }
-        if (element instanceof MultiBucketAggregatorWrapper) {
-            return ((MultiBucketAggregatorWrapper) element).getWrappedClass().getSimpleName();
-        }
-        return element.getClass().getSimpleName();
+        return typeFromAggregator(element);
     }
 
     @Override
@@ -49,4 +39,16 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
         return element.name();
     }
 
+    public static String typeFromAggregator(Aggregator aggregator) {
+        // Anonymous classes (such as NonCollectingAggregator in TermsAgg) won't have a name,
+        // we need to get the super class
+        if (aggregator.getClass().getSimpleName().isEmpty()) {
+            return aggregator.getClass().getSuperclass().getSimpleName();
+        }
+        Class<?> enclosing = aggregator.getClass().getEnclosingClass();
+        if (enclosing != null) {
+            return enclosing.getSimpleName() + "." + aggregator.getClass().getSimpleName();
+        }
+        return aggregator.getClass().getSimpleName();
+    }
 }

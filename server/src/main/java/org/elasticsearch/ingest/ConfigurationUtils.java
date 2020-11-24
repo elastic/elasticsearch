@@ -48,6 +48,7 @@ import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
+    public static final String DESCRIPTION_KEY = "description";
 
     private ConfigurationUtils() {
     }
@@ -333,7 +334,11 @@ public final class ConfigurationUtils {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     try {
-                        processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        if (entry.getValue() == null) {
+                            throw newConfigurationException(entry.getKey(), null, null, "processor config cannot be [null]");
+                        } else {
+                            processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        }
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
                     }
@@ -410,6 +415,7 @@ public final class ConfigurationUtils {
                                            ScriptService scriptService,
                                            String type, Map<String, Object> config) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
+        String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
         Script conditionalScript = extractConditional(config);
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
@@ -425,7 +431,7 @@ public final class ConfigurationUtils {
             }
 
             try {
-                Processor processor = factory.create(processorFactories, tag, config);
+                Processor processor = factory.create(processorFactories, tag, description, config);
                 if (config.isEmpty() == false) {
                     throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
                         type, Arrays.toString(config.keySet().toArray()));
@@ -434,7 +440,7 @@ public final class ConfigurationUtils {
                     processor = new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
                 }
                 if (conditionalScript != null) {
-                    processor = new ConditionalProcessor(tag, conditionalScript, scriptService, processor);
+                    processor = new ConditionalProcessor(tag, description, conditionalScript, scriptService, processor);
                 }
                 return processor;
             } catch (Exception e) {

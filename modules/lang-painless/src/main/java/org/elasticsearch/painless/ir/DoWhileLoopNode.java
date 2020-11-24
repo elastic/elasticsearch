@@ -19,45 +19,31 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DoWhileLoopNode extends LoopNode {
 
+    /* ---- begin visitor ---- */
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeStatementOffset(location);
-
-        scopeTable = scopeTable.newScope();
-
-        Label start = new Label();
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(start);
-
-        getBlockNode().continueLabel = begin;
-        getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, scopeTable);
-
-        methodWriter.mark(begin);
-
-        if (isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, scopeTable);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        Variable loop = scopeTable.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), Math.max(1, getBlockNode().getStatementCount()), location);
-        }
-
-        methodWriter.goTo(start);
-        methodWriter.mark(end);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitDoWhileLoop(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getBlockNode().visit(irTreeVisitor, scope);
+
+        if (getConditionNode() != null) {
+            getConditionNode().visit(irTreeVisitor, scope);
+        }
+    }
+
+    /* ---- end visitor ---- */
+
+    public DoWhileLoopNode(Location location) {
+        super(location);
+    }
+
 }

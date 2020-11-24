@@ -42,7 +42,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/component_template/put";
 
     private PutComponentTemplateAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     /**

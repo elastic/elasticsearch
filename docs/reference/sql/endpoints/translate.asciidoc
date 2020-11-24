@@ -10,8 +10,8 @@ into native {es} queries. For example:
 --------------------------------------------------
 POST /_sql/translate
 {
-    "query": "SELECT * FROM library ORDER BY page_count DESC",
-    "fetch_size": 10
+  "query": "SELECT * FROM library ORDER BY page_count DESC",
+  "fetch_size": 10
 }
 --------------------------------------------------
 // TEST[setup:library]
@@ -21,35 +21,35 @@ Which returns:
 [source,console-result]
 --------------------------------------------------
 {
-    "size" : 10,
-    "docvalue_fields" : [
-        {
-            "field": "release_date",
-            "format": "epoch_millis"
-        }
+  "size": 10,
+  "docvalue_fields": [
+    {
+      "field": "release_date",
+      "format": "epoch_millis"
+    }
+  ],
+  "_source": {
+    "includes": [
+      "author",
+      "name",
+      "page_count"
     ],
-    "_source": {
-        "includes": [
-            "author",
-            "name",
-            "page_count"
-        ],
-        "excludes": []
-    },
-    "sort" : [
-        {
-            "page_count" : {
-                "order" : "desc",
-                "missing" : "_first",
-                "unmapped_type" : "short"
-            }
-        }
-    ]
+    "excludes": []
+  },
+  "sort": [
+    {
+      "page_count": {
+        "order": "desc",
+        "missing": "_first",
+        "unmapped_type": "short"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 
 Which is the request that SQL will run to provide the results.
-In this case, SQL will use the <<request-body-search-scroll,scroll>>
+In this case, SQL will use the <<scroll-search-results,scroll>>
 API. If the result contained an aggregation then SQL would use
 the normal <<search-request-body,search>> API.
 

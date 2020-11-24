@@ -122,10 +122,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     public MultiSearchResponse(StreamInput in) throws IOException {
         super(in);
-        items = new Item[in.readVInt()];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = new Item(in);
-        }
+        items = in.readArray(Item::new, Item[]::new);
         tookInMillis = in.readVLong();
     }
 
@@ -155,10 +152,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(items.length);
-        for (Item item : items) {
-            item.writeTo(out);
-        }
+        out.writeArray(items);
         out.writeVLong(tookInMillis);
     }
 

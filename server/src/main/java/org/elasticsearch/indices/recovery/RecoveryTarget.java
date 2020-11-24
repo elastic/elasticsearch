@@ -29,6 +29,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -120,6 +121,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return new RecoveryTarget(indexShard, sourceNode, listener);
     }
 
+    @Nullable
     public ActionListener<Void> markRequestReceivedAndCreateListener(long requestSeqNo, ActionListener<Void> listener) {
         return requestTracker.markReceivedAndCreateListener(requestSeqNo, listener);
     }
@@ -287,6 +289,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
+            state().getIndex().setFileDetailsComplete(); // ops-based recoveries don't send the file details
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
             return null;
@@ -328,8 +331,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
-        indexShard.activateWithPrimaryContext(primaryContext);
+    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            indexShard.activateWithPrimaryContext(primaryContext);
+            return null;
+        });
     }
 
     @Override
@@ -403,6 +409,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             for (int i = 0; i < phase1FileNames.size(); i++) {
                 index.addFileDetail(phase1FileNames.get(i), phase1FileSizes.get(i), false);
             }
+            index.setFileDetailsComplete();
             state().getTranslog().totalOperations(totalTranslogOps);
             state().getTranslog().totalOperationsOnStart(totalTranslogOps);
             return null;

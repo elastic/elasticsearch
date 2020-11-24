@@ -2,21 +2,20 @@
 ==== {ccs-cap} and {kib}
 
 When {kib} is used to search across multiple clusters, a two-step authorization
-process determines whether or not the user can access indices on a remote
+process determines whether or not the user can access data streams and indices on a remote
 cluster:
 
 * First, the local cluster determines if the user is authorized to access remote
 clusters. (The local cluster is the cluster {kib} is connected to.)
 * If they are, the remote cluster then determines if the user has access
-to the specified indices.
+to the specified data streams and indices.
 
 To grant {kib} users access to remote clusters, assign them a local role
-with read privileges to indices on the remote clusters. You specify remote
-cluster indices as `<remote_cluster_name>:<index_name>`.
+with read privileges to indices on the remote clusters. You specify data streams and indices in a remote cluster as `<remote_cluster_name>:<target>`.
 
-To enable users to actually read the remote indices, you must create a matching
+To enable users to actually read the remote data streams and indices, you must create a matching
 role on the remote clusters that grants the `read_cross_cluster` privilege
-and access to the appropriate indices.
+and access to the appropriate data streams and indices.
 
 For example, if {kib} is connected to the cluster where you're actively
 indexing {ls} data (your _local cluster_) and you're periodically

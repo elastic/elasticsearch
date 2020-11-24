@@ -260,7 +260,6 @@ setup:
         body: >
           {
             "source": { "index": "airline-data" },
-            "dest": { "pipeline": "missing-pipeline" },
             "pivot": {
               "group_by": {
                 "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
@@ -275,7 +274,6 @@ setup:
         body: >
           {
             "source": { "index": "airline-data" },
-            "dest": { "pipeline": "missing-pipeline" },
             "pivot": {
               "group_by": {
                 "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},

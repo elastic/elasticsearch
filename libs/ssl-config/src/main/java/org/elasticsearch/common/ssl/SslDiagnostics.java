@@ -254,11 +254,11 @@ public class SslDiagnostics {
         final IssuerTrust trust = checkIssuerTrust(trustedIssuers, certificate);
         if (trust.isVerified()) {
             message.append("; the issuing ")
-                .append(trust.issuerCerts.size() == 1 ? "certificate": "certificates")
+                .append(trust.issuerCerts.size() == 1 ? "certificate" : "certificates")
                 .append(" with ")
                 .append(fingerprintDescription(trust.issuerCerts))
                 .append(" ")
-                .append(trust.issuerCerts.size() == 1 ? "is": "are")
+                .append(trust.issuerCerts.size() == 1 ? "is" : "are")
                 .append(" trusted in this ssl context ([")
                 .append(contextName)
                 .append("])");
@@ -277,12 +277,37 @@ public class SslDiagnostics {
             message.append("; this ssl context ([")
                 .append(contextName)
                 .append("]) is not configured to trust that issuer");
+
+            if (trustedIssuers.isEmpty()) {
+                message.append(" or any other issuer");
+            } else {
+                if (trustedIssuers.size() == 1) {
+                    String trustedIssuer = trustedIssuers.keySet().iterator().next();
+                    message.append(", it only trusts the issuer [")
+                        .append(trustedIssuer)
+                        .append("] with ")
+                        .append(fingerprintDescription(trustedIssuers.get(trustedIssuer)));
+                } else {
+                    message.append(" but trusts [")
+                        .append(trustedIssuers.size())
+                        .append("] other issuers");
+                    if (trustedIssuers.size() < 10) {
+                        // 10 is an arbitrary number, but printing out hundreds of trusted issuers isn't helpful
+                        message.append(" ([")
+                            .append(trustedIssuers.keySet().stream().sorted().collect(Collectors.joining(", ")))
+                            .append("])");
+                    }
+                }
+            }
         }
         return message;
     }
 
     private static CharSequence describeSelfIssuedCertificate(X509Certificate certificate, String contextName,
                                                               @Nullable Map<String, List<X509Certificate>> trustedIssuers) {
+        if (trustedIssuers == null) {
+            return "self-issued";
+        }
         final StringBuilder message = new StringBuilder();
         final CertificateTrust trust = resolveCertificateTrust(trustedIssuers, certificate);
         message.append("self-issued; the [").append(certificate.getIssuerX500Principal().getName()).append("] certificate ")
@@ -324,6 +349,7 @@ public class SslDiagnostics {
     }
 
     private static CertificateTrust resolveCertificateTrust(Map<String, List<X509Certificate>> trustedIssuers, X509Certificate cert) {
+        assert trustedIssuers != null : "Do not call `resolveCertificateTrust` with null issuers";
         final List<X509Certificate> trustedCerts = trustedIssuers.get(cert.getSubjectX500Principal().getName());
         if (trustedCerts == null || trustedCerts.isEmpty()) {
             return CertificateTrust.noMatchingIssuer();

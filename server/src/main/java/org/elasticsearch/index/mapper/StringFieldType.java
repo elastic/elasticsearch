@@ -21,23 +21,24 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
-import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,20 +52,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType() {}
-
-    protected StringFieldType(MappedFieldType ref) {
-        super(ref);
-    }
-
-    @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
-        failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
-        }
-        return new TermInSetQuery(name(), bytesRefs);
+    public StringFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
+                           TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override
@@ -80,13 +70,21 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
                     "fields please enable [index_prefixes].");
         }
         failIfNotIndexed();
+        if (caseInsensitive) {
+            AutomatonQuery query = AutomatonQueries.caseInsensitivePrefixQuery((new Term(name(), indexedValueForSearch(value))));
+            if (method != null) {
+                query.setRewriteMethod(method);
+            }
+            return query;
+
+        }
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
         if (method != null) {
             query.setRewriteMethod(method);
@@ -122,10 +120,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
             sb.append(normalized);
         }
         return sb.toBytesRef().utf8ToString();
-    }    
-    
+    }
+
     @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         failIfNotIndexed();
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
@@ -133,27 +131,32 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
 
         Term term;
-        if (searchAnalyzer() != null) {
-            value = normalizeWildcardPattern(name(), value, searchAnalyzer());
+        if (getTextSearchInfo().getSearchAnalyzer() != null) {
+            value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
             term = new Term(name(), value);
         } else {
             term = new Term(name(), indexedValueForSearch(value));
         }
-
+        if (caseInsensitive) {
+            AutomatonQuery query = AutomatonQueries.caseInsensitiveWildcardQuery(term);
+            QueryParsers.setRewriteMethod(query, method);
+            return query;
+        }
         WildcardQuery query = new WildcardQuery(term);
         QueryParsers.setRewriteMethod(query, method);
         return query;
     }
 
     @Override
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
+    public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
             MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[regexp] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         failIfNotIndexed();
-        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
+        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags,
+            matchFlags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
         }

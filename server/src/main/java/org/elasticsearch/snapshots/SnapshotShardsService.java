@@ -24,9 +24,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -54,6 +54,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestDeduplicator;
@@ -122,15 +123,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
-            SnapshotsInProgress previousSnapshots = event.previousState().custom(SnapshotsInProgress.TYPE);
-            SnapshotsInProgress currentSnapshots = event.state().custom(SnapshotsInProgress.TYPE);
-            if ((previousSnapshots == null && currentSnapshots != null)
-                || (previousSnapshots != null && previousSnapshots.equals(currentSnapshots) == false)) {
+            SnapshotsInProgress previousSnapshots = event.previousState().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            SnapshotsInProgress currentSnapshots = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            if (previousSnapshots.equals(currentSnapshots) == false) {
                 synchronized (shardSnapshots) {
                     cancelRemoved(currentSnapshots);
-                    if (currentSnapshots != null) {
-                        startNewSnapshots(currentSnapshots);
-                    }
+                    startNewSnapshots(currentSnapshots);
                 }
             }
 
@@ -141,7 +139,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
 
         } catch (Exception e) {
-            logger.warn("Failed to update snapshot state ", e);
+            assert false : new AssertionError(e);
+            logger.warn("failed to update snapshot state", e);
         }
     }
 
@@ -176,13 +175,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void cancelRemoved(@Nullable SnapshotsInProgress snapshotsInProgress) {
+    private void cancelRemoved(SnapshotsInProgress snapshotsInProgress) {
         // First, remove snapshots that are no longer there
         Iterator<Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>>> it = shardSnapshots.entrySet().iterator();
         while (it.hasNext()) {
             final Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> entry = it.next();
             final Snapshot snapshot = entry.getKey();
-            if (snapshotsInProgress == null || snapshotsInProgress.snapshot(snapshot) == null) {
+            if (snapshotsInProgress.snapshot(snapshot) == null) {
                 // abort any running snapshots of shards for the removed entry;
                 // this could happen if for some reason the cluster state update for aborting
                 // running shards is missed, then the snapshot is removed is a subsequent cluster
@@ -196,12 +195,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     private void startNewSnapshots(SnapshotsInProgress snapshotsInProgress) {
-        // For now we will be mostly dealing with a single snapshot at a time but might have multiple simultaneously running
-        // snapshots in the future
-        // Now go through all snapshots and update existing or create missing
         final String localNodeId = clusterService.localNode().getId();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             final State entryState = entry.state();
+            if (entry.isClone()) {
+                // This is a snapshot clone, it will be executed on the current master
+                continue;
+            }
             if (entryState == State.STARTED) {
                 Map<ShardId, IndexShardSnapshotStatus> startedShards = null;
                 final Snapshot snapshot = entry.snapshot();
@@ -210,10 +210,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // Add all new shards to start processing on
                     final ShardId shardId = shard.key;
                     final ShardSnapshotStatus shardSnapshotStatus = shard.value;
-                    if (localNodeId.equals(shardSnapshotStatus.nodeId())
-                        && shardSnapshotStatus.state() == ShardState.INIT
+                    if (shardSnapshotStatus.state() == ShardState.INIT
+                        && localNodeId.equals(shardSnapshotStatus.nodeId())
                         && snapshotShards.containsKey(shardId) == false) {
-                        logger.trace("[{}] - Adding shard to the queue", shardId);
+                        logger.trace("[{}] adding shard to the queue", shardId);
                         if (startedShards == null) {
                              startedShards = new HashMap<>();
                         }
@@ -233,7 +233,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     if (snapshotStatus == null) {
                         // due to CS batching we might have missed the INIT state and straight went into ABORTED
                         // notify master that abort has completed by moving to FAILED
-                        if (shard.value.state() == ShardState.ABORTED) {
+                        if (shard.value.state() == ShardState.ABORTED && localNodeId.equals(shard.value.nodeId())) {
                             notifyFailedSnapshotShard(snapshot, shard.key, shard.value.reason());
                         }
                     } else {
@@ -254,8 +254,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
                 final IndexId indexId = indicesMap.get(shardId.getIndexName());
                 assert indexId != null;
-                assert SnapshotsService.useShardGenerations(entry.version()) || snapshotStatus.generation() == null :
-                    "Found non-null shard generation [" + snapshotStatus.generation() + "] for snapshot with old-format compatibility";
+                assert SnapshotsService.useShardGenerations(entry.version()) ||
+                        ShardGenerations.fixShardGeneration(snapshotStatus.generation()) == null :
+                        "Found non-null, non-numeric shard generation [" + snapshotStatus.generation() +
+                                "] for snapshot with old-format compatibility";
                 snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(),
                     new ActionListener<>() {
                         @Override
@@ -264,22 +266,50 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             assert newGeneration.equals(snapshotStatus.generation());
                             if (logger.isDebugEnabled()) {
                                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                                logger.debug("snapshot [{}] completed to [{}] with [{}] at generation [{}]",
-                                    snapshot, snapshot.getRepository(), lastSnapshotStatus, snapshotStatus.generation());
+                                logger.debug("[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
+                                    shardId, snapshot, snapshot.getRepository(), lastSnapshotStatus, snapshotStatus.generation());
                             }
                             notifySuccessfulSnapshotShard(snapshot, shardId, newGeneration);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            final String failure = ExceptionsHelper.stackTrace(e);
+                            final String failure;
+                            if (e instanceof AbortedSnapshotException) {
+                                failure = "aborted";
+                                logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
+                            } else {
+                                failure = summarizeFailure(e);
+                                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                            }
                             snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
-                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
                             notifyFailedSnapshotShard(snapshot, shardId, failure);
                         }
                     });
             }
         });
+    }
+
+    //package private for testing
+    static String summarizeFailure(Throwable t) {
+        if (t.getCause() == null) {
+            return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+        } else {
+            StringBuilder sb = new StringBuilder();
+            while (t != null) {
+                sb.append(t.getClass().getSimpleName());
+                if (t.getMessage() != null) {
+                    sb.append("[");
+                    sb.append(t.getMessage());
+                    sb.append("]");
+                }
+                t = t.getCause();
+                if (t != null) {
+                    sb.append("; nested: ");
+                }
+            }
+            return sb.toString();
+        }
     }
 
     /**
@@ -412,36 +442,31 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void aVoid) {
-                    logger.trace("[{}] [{}] updated snapshot state", snapshot, status);
+                    logger.trace("[{}][{}] updated snapshot state to [{}]", shardId, snapshot, status);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn(
-                        () -> new ParameterizedMessage("[{}] [{}] failed to update snapshot state", snapshot, status), e);
+                        () -> new ParameterizedMessage("[{}][{}] failed to update snapshot state to [{}]", shardId, snapshot, status), e);
                 }
             },
             (req, reqListener) -> transportService.sendRequest(transportService.getLocalNode(),
                     SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
-                new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
+                new TransportResponseHandler<ActionResponse.Empty>() {
                     @Override
-                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
-                        return new UpdateIndexShardSnapshotStatusResponse(in);
+                    public ActionResponse.Empty read(StreamInput in) {
+                        return ActionResponse.Empty.INSTANCE;
                     }
 
                     @Override
-                    public void handleResponse(UpdateIndexShardSnapshotStatusResponse response) {
+                    public void handleResponse(ActionResponse.Empty response) {
                         reqListener.onResponse(null);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         reqListener.onFailure(exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
                     }
                 })
         );

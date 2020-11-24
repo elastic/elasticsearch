@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
 
     @Override
@@ -36,10 +38,20 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(1, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, FreezeAction.NAME, FreezeStep.NAME);
-        FreezeStep firstStep = (FreezeStep) steps.get(0);
-        assertEquals(expectedFirstStepKey, firstStep.getKey());
-        assertEquals(nextStepKey, firstStep.getNextStepKey());
+        assertEquals(3, steps.size());
+        StepKey expectedFirstStepKey = new StepKey(phase, FreezeAction.NAME, FreezeAction.CONDITIONAL_SKIP_FREEZE_STEP);
+        StepKey expectedSecondStepKey = new StepKey(phase, FreezeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey expectedThirdStepKey = new StepKey(phase, FreezeAction.NAME, FreezeStep.NAME);
+
+        BranchingStep firstStep = (BranchingStep) steps.get(0);
+        CheckNotDataStreamWriteIndexStep secondStep = (CheckNotDataStreamWriteIndexStep) steps.get(1);
+        FreezeStep thirdStep = (FreezeStep) steps.get(2);
+
+        assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
+
+        assertEquals(expectedSecondStepKey, secondStep.getKey());
+        assertEquals(expectedThirdStepKey, secondStep.getNextStepKey());
+        assertEquals(expectedThirdStepKey, thirdStep.getKey());
+        assertEquals(nextStepKey, thirdStep.getNextStepKey());
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * A {@link MappedFieldType} that has the same value for all documents.
@@ -40,12 +41,8 @@ import java.util.List;
  */
 public abstract class ConstantFieldType extends MappedFieldType {
 
-    public ConstantFieldType() {
-        super();
-    }
-
-    public ConstantFieldType(ConstantFieldType other) {
-        super(other);
+    public ConstantFieldType(String name, Map<String, String> meta) {
+        super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
     }
 
     @Override
@@ -62,7 +59,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
      * Return whether the constant value of this field matches the provided {@code pattern}
      * as documented in {@link Regex#simpleMatch}.
      */
-    protected abstract boolean matches(String pattern, QueryShardContext context);
+    protected abstract boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context);
 
     private static String valueToString(Object value) {
         return value instanceof BytesRef
@@ -73,7 +70,17 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query termQuery(Object value, QueryShardContext context) {
         String pattern = valueToString(value);
-        if (matches(pattern, context)) {
+        if (matches(pattern, false, context)) {
+            return Queries.newMatchAllQuery();
+        } else {
+            return new MatchNoDocsQuery();
+        }
+    }
+
+    @Override
+    public final Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        String pattern = valueToString(value);
+        if (matches(pattern, true, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();
@@ -84,7 +91,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query termsQuery(List<?> values, QueryShardContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
-            if (matches(pattern, context)) {
+            if (matches(pattern, false, context)) {
                 // `terms` queries are a disjunction, so one matching term is enough
                 return Queries.newMatchAllQuery();
             }
@@ -95,9 +102,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query prefixQuery(String prefix,
                              @Nullable MultiTermQuery.RewriteMethod method,
+                             boolean caseInsensitive,
                              QueryShardContext context) {
         String pattern = prefix + "*";
-        if (matches(pattern, context)) {
+        if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();
@@ -107,12 +115,12 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
+                               boolean caseInsensitive,
                                QueryShardContext context) {
-        if (matches(value, context)) {
+        if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();
         }
     }
-
 }

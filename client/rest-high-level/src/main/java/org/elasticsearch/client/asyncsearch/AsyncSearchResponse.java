@@ -184,7 +184,7 @@ public class AsyncSearchResponse implements ToXContentObject  {
 
     private static SearchResponse parseSearchResponse(XContentParser p) throws IOException {
         // we should be before the opening START_OBJECT of the response
-        ensureExpectedToken(Token.START_OBJECT, p.currentToken(), p::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, p.currentToken(), p);
         p.nextToken();
         return SearchResponse.innerFromXContent(p);
     }

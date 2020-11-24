@@ -22,9 +22,9 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -75,14 +76,9 @@ public class MetadataIndexAliasesService {
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
-                               final ActionListener<ClusterStateUpdateResponse> listener) {
+                               final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("index-aliases",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
-
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return applyAliasActions(currentState, request.actions());
@@ -90,7 +86,7 @@ public class MetadataIndexAliasesService {
             });
     }
 
-     /**
+    /**
      * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
      */
      public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
@@ -108,6 +104,7 @@ public class MetadataIndexAliasesService {
                     if (index == null) {
                         throw new IndexNotFoundException(action.getIndex());
                     }
+                    validateAliasTargetIsNotDSBackingIndex(currentState, action);
                     indicesToDelete.add(index.getIndex());
                     changed = true;
                 }
@@ -128,6 +125,7 @@ public class MetadataIndexAliasesService {
                 if (index == null) {
                     throw new IndexNotFoundException(action.getIndex());
                 }
+                validateAliasTargetIsNotDSBackingIndex(currentState, action);
                 NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
                     /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
                      * index and replace it with an alias. */
@@ -152,7 +150,7 @@ public class MetadataIndexAliasesService {
                         // the context is only used for validation so it's fine to pass fake values for the shard id,
                         // but the current timestamp should be set to real value as we may use `now` in a filtered alias
                         aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null,
-                            () -> System.currentTimeMillis(), null), xContentRegistry);
+                            () -> System.currentTimeMillis(), null, emptyMap()), xContentRegistry);
                     }
                 };
                 if (action.apply(newAliasValidator, metadata, index)) {
@@ -187,4 +185,13 @@ public class MetadataIndexAliasesService {
         }
     }
 
+    private void validateAliasTargetIsNotDSBackingIndex(ClusterState currentState, AliasAction action) {
+        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
+        assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
+        if (indexAbstraction.getParentDataStream() != null) {
+            throw new IllegalArgumentException("The provided index [ " + action.getIndex()
+                + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
+                + "]. Data streams and their backing indices don't support alias operations.");
+        }
+    }
 }

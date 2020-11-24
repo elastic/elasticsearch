@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.XPackField;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -41,11 +43,21 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final XPackInfoFeatureAction SPATIAL = new XPackInfoFeatureAction(XPackField.SPATIAL);
     public static final XPackInfoFeatureAction ANALYTICS = new XPackInfoFeatureAction(XPackField.ANALYTICS);
     public static final XPackInfoFeatureAction ENRICH = new XPackInfoFeatureAction(XPackField.ENRICH);
+    public static final XPackInfoFeatureAction SEARCHABLE_SNAPSHOTS = new XPackInfoFeatureAction(XPackField.SEARCHABLE_SNAPSHOTS);
+    public static final XPackInfoFeatureAction DATA_STREAMS = new XPackInfoFeatureAction(XPackField.DATA_STREAMS);
+    public static final XPackInfoFeatureAction DATA_TIERS = new XPackInfoFeatureAction(XPackField.DATA_TIERS);
+    public static final XPackInfoFeatureAction AGGREGATE_METRIC = new XPackInfoFeatureAction(XPackField.AGGREGATE_METRIC);
 
-    public static final List<XPackInfoFeatureAction> ALL = Arrays.asList(
-        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-        TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, ENRICH
-    );
+    public static final List<XPackInfoFeatureAction> ALL;
+    static {
+        final List<XPackInfoFeatureAction> actions = new ArrayList<>();
+        actions.addAll(Arrays.asList(
+            SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
+            TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, ENRICH, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
+            AGGREGATE_METRIC
+        ));
+        ALL = Collections.unmodifiableList(actions);
+    }
 
     private XPackInfoFeatureAction(String name) {
         super(BASE_NAME + name, XPackInfoFeatureResponse::new);

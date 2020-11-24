@@ -43,8 +43,6 @@
 # 8-13:-XX:-UseConcMarkSweepGC
 # 8-13:-XX:-UseCMSInitiatingOccupancyOnly
 14-:-XX:+UseG1GC
-14-:-XX:G1ReservePercent=25
-14-:-XX:InitiatingHeapOccupancyPercent=30
 
 ## JVM temporary directory
 -Djava.io.tmpdir=${ES_TMPDIR}

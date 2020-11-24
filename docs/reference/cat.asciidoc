@@ -21,11 +21,11 @@ All the cat commands accept a query string parameter `help` to see all
 the headers and info they provide, and the `/_cat` command alone lists all
 the available commands.
 
-[float]
+[discrete]
 [[common-parameters]]
 === Common parameters
 
-[float]
+[discrete]
 [[verbose]]
 ==== Verbose
 
@@ -46,7 +46,7 @@ u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
 --------------------------------------------------
 // TESTRESPONSE[s/u_n93zw(xThWHi1PDBJAGAg)?/.+/ non_json]
 
-[float]
+[discrete]
 [[help]]
 ==== Help
 
@@ -70,11 +70,11 @@ node | n | node name
 // TESTRESPONSE[s/[|]/[|]/ non_json]
 
 NOTE: `help` is not supported if any optional url parameter is used.
-For example `GET _cat/shards/twitter?help` or `GET _cat/indices/twi*?help`
+For example `GET _cat/shards/my-index-000001?help` or `GET _cat/indices/my-index-*?help`
 results in an error. Use `GET _cat/shards?help` or `GET _cat/indices?help`
 instead.
 
-[float]
+[discrete]
 [[headers]]
 ==== Headers
 
@@ -98,7 +98,7 @@ You can also request multiple columns using simple wildcards like
 `/_cat/thread_pool?h=ip,queue*` to get all headers (or aliases) starting
 with `queue`.
 
-[float]
+[discrete]
 [[numeric-formats]]
 ==== Numeric formats
 
@@ -121,19 +121,20 @@ by shard storage in descending order.
 --------------------------------------------------
 GET /_cat/indices?bytes=b&s=store.size:desc&v
 --------------------------------------------------
-// TEST[setup:huge_twitter]
-// TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
+// TEST[setup:my_index_huge]
+// TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]
 
 The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
-yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0      72171         72171
-green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0        230          230
+health status index            uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   my-index-000001  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0      72171         72171
+green  open   my-index-000002  nYFWZEO7TUiOjLQXBaYJpA   1   0          0            0        230          230
 --------------------------------------------------
 // TESTRESPONSE[s/72171|230/\\d+/]
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ non_json]
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/51619"]
 
 If you want to change the <<time-units,time units>>, use `time` parameter.
 
@@ -141,7 +142,7 @@ If you want to change the <<size-units,size units>>, use `size` parameter.
 
 If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
 
-[float]
+[discrete]
 ==== Response as text, json, smile, yaml or cbor
 
 [source,sh]
@@ -152,7 +153,7 @@ If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
     "pri.store.size": "650b",
     "health": "yellow",
     "status": "open",
-    "index": "twitter",
+    "index": "my-index-000001",
     "pri": "5",
     "rep": "1",
     "docs.count": "0",
@@ -182,7 +183,7 @@ For example:
     "pri.store.size": "650b",
     "health": "yellow",
     "status": "open",
-    "index": "twitter",
+    "index": "my-index-000001",
     "pri": "5",
     "rep": "1",
     "docs.count": "0",
@@ -193,7 +194,7 @@ For example:
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[sort]]
 ==== Sort
 

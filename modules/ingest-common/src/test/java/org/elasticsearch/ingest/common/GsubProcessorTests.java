@@ -25,7 +25,7 @@ public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> 
 
     @Override
     protected AbstractStringProcessor<String> newProcessor(String field, boolean ignoreMissing, String targetField) {
-        return new GsubProcessor(randomAlphaOfLength(10), field, Pattern.compile("\\."), "-", ignoreMissing, targetField);
+        return new GsubProcessor(randomAlphaOfLength(10), null, field, Pattern.compile("\\."), "-", ignoreMissing, targetField);
     }
 
     @Override

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -46,9 +46,11 @@ public class BytesRestResponse extends RestResponse {
 
     private static final String STATUS = "status";
 
+    private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+
     private final RestStatus status;
     private final BytesReference content;
-    private final String contentType;
+    private final String responseMediaType;
 
     /**
      * Creates a new response based on {@link XContentBuilder}.
@@ -67,24 +69,24 @@ public class BytesRestResponse extends RestResponse {
     /**
      * Creates a new plain text response.
      */
-    public BytesRestResponse(RestStatus status, String contentType, String content) {
-        this(status, contentType, new BytesArray(content));
+    public BytesRestResponse(RestStatus status, String responseMediaType, String content) {
+        this(status, responseMediaType, new BytesArray(content));
     }
 
     /**
      * Creates a binary response.
      */
-    public BytesRestResponse(RestStatus status, String contentType, byte[] content) {
-        this(status, contentType, new BytesArray(content));
+    public BytesRestResponse(RestStatus status, String responseMediaType, byte[] content) {
+        this(status, responseMediaType, new BytesArray(content));
     }
 
     /**
      * Creates a binary response.
      */
-    public BytesRestResponse(RestStatus status, String contentType, BytesReference content) {
+    public BytesRestResponse(RestStatus status, String responseMediaType, BytesReference content) {
         this.status = status;
         this.content = content;
-        this.contentType = contentType;
+        this.responseMediaType = responseMediaType;
     }
 
     public BytesRestResponse(RestChannel channel, Exception e) throws IOException {
@@ -92,10 +94,22 @@ public class BytesRestResponse extends RestResponse {
     }
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
+        ToXContent.Params params = paramsFromRequest(channel.request());
+        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
+            // log exception only if it is not returned in the response
+            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
+                    channel.request().rawPath(), channel.request().params());
+            if (status.getStatus() < 500) {
+                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
+            } else {
+                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
+            }
+        }
         this.status = status;
-        try (XContentBuilder builder = build(channel, status, e)) {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
-            this.contentType = builder.contentType().mediaType();
+            this.responseMediaType = builder.contentType().mediaType();
         }
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));
@@ -104,7 +118,7 @@ public class BytesRestResponse extends RestResponse {
 
     @Override
     public String contentType() {
-        return this.contentType;
+        return this.responseMediaType;
     }
 
     @Override
@@ -117,28 +131,24 @@ public class BytesRestResponse extends RestResponse {
         return this.status;
     }
 
-    private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
-
-    private static XContentBuilder build(RestChannel channel, RestStatus status, Exception e) throws IOException {
-        ToXContent.Params params = channel.request();
-        if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
+    private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
+        ToXContent.Params params = restRequest;
+        if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && false == skipStackTrace()) {
             params =  new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
-        } else if (e != null) {
-            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
-                    channel.request().rawPath(), channel.request().params());
-
-            if (status.getStatus() < 500) {
-                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
-            } else {
-                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
-            }
         }
+        return params;
+    }
 
-        XContentBuilder builder = channel.newErrorBuilder().startObject();
-        ElasticsearchException.generateFailureXContent(builder, params, e, channel.detailedErrorsEnabled());
+    protected boolean skipStackTrace() {
+        return false;
+    }
+
+    private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status,
+                       boolean detailedErrorsEnabled, Exception e) throws IOException {
+        builder.startObject();
+        ElasticsearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
         builder.field(STATUS, status.getStatus());
         builder.endObject();
-        return builder;
     }
 
     static BytesRestResponse createSimpleErrorResponse(RestChannel channel, RestStatus status, String errorMessage) throws IOException {
@@ -150,7 +160,7 @@ public class BytesRestResponse extends RestResponse {
 
     public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         ElasticsearchException exception = null;
         RestStatus status = null;
@@ -162,7 +172,7 @@ public class BytesRestResponse extends RestResponse {
             }
             if (STATUS.equals(currentFieldName)) {
                 if (token != XContentParser.Token.FIELD_NAME) {
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                     status = RestStatus.fromCode(parser.intValue());
                 }
             } else {

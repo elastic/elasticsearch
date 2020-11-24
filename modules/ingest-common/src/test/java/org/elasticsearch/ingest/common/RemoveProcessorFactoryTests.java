@@ -46,7 +46,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAlphaOfLength(10);
-        RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
         assertThat(removeProcessor.getFields().get(0).newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
     }
@@ -55,7 +55,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", Arrays.asList("field1", "field2"));
         String processorTag = randomAlphaOfLength(10);
-        RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
         assertThat(removeProcessor.getFields().stream()
             .map(template -> template.newInstance(Collections.emptyMap()).execute())
@@ -65,7 +65,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
     public void testCreateMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -77,7 +77,8 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "{{field1}}");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }

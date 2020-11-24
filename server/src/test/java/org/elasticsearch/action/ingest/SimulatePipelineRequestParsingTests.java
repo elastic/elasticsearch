@@ -64,7 +64,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         CompoundProcessor pipelineCompoundProcessor = new CompoundProcessor(processor);
         Pipeline pipeline = new Pipeline(SIMULATED_PIPELINE_ID, null, null, pipelineCompoundProcessor);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("mock_processor", (factories, tag, config) -> processor);
+            Collections.singletonMap("mock_processor", (factories, tag, description, config) -> processor);
         ingestService = mock(IngestService.class);
         when(ingestService.getPipeline(SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
         when(ingestService.getProcessorFactories()).thenReturn(registry);

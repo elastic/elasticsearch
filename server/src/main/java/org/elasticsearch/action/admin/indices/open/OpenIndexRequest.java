@@ -110,6 +110,11 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
     }

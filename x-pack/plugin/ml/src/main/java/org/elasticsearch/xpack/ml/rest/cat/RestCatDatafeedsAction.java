@@ -9,6 +9,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestRequest;
@@ -17,6 +18,8 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 
@@ -44,12 +47,17 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         if (Strings.isNullOrEmpty(datafeedId)) {
             datafeedId = GetDatafeedsStatsAction.ALL;
         }
-        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
-        request.setAllowNoDatafeeds(restRequest.paramAsBoolean(GetDatafeedsStatsAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-            request.allowNoDatafeeds()));
+        Request request = new Request(datafeedId);
+        if (restRequest.hasParam(Request.ALLOW_NO_DATAFEEDS)) {
+            LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH);
+        }
+        request.setAllowNoMatch(
+            restRequest.paramAsBoolean(
+                Request.ALLOW_NO_MATCH,
+                restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
         return channel -> client.execute(GetDatafeedsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
             @Override
-            public RestResponse buildResponse(GetDatafeedsStatsAction.Response getDatafeedsStatsRespons) throws Exception {
+            public RestResponse buildResponse(Response getDatafeedsStatsRespons) throws Exception {
                 return RestTable.buildResponse(buildTable(restRequest, getDatafeedsStatsRespons), channel);
             }
         });
@@ -122,7 +130,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, GetDatafeedsStatsAction.Response dfStats) {
+    private Table buildTable(RestRequest request, Response dfStats) {
         Table table = getTableWithHeader(request);
         dfStats.getResponse().results().forEach(df -> {
             table.startRow();

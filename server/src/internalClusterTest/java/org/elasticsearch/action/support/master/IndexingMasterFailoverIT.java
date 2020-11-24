@@ -25,15 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
-import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
@@ -57,15 +52,11 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
     public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
         logger.info("--> start 4 nodes, 3 master, 1 data");
 
-        final Settings sharedSettings = Settings.builder()
-                .put("cluster.join.timeout", "10s")  // still long to induce failures but not too long so test won't time out
-                .build();
-
         internalCluster().setBootstrapMasterNodeIndex(2);
 
-        internalCluster().startMasterOnlyNodes(3, sharedSettings);
+        internalCluster().startMasterOnlyNodes(3, Settings.EMPTY);
 
-        String dataNode = internalCluster().startDataOnlyNode(sharedSettings);
+        String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
 
         logger.info("--> wait for all nodes to join the cluster");
         ensureStableCluster(4);
@@ -103,13 +94,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         barrier.await();
 
         // interrupt communication between master and other nodes in cluster
-        String master = internalCluster().getMasterName();
-        Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
-        otherNodes.remove(master);
-
-        NetworkDisruption partition = new NetworkDisruption(
-            new TwoPartitions(Collections.singleton(master), otherNodes),
-            new NetworkDisconnect());
+        NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 
         logger.info("--> disrupting network");

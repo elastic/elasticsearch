@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -20,8 +21,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
@@ -39,9 +42,8 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("node.data", true)
-                .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
+            .put(addRoles(super.nodeSettings(nodeOrdinal), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 
     @Override

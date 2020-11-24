@@ -9,9 +9,9 @@ apply plugin: 'elasticsearch.test.fixtures'
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "peppa"
 
 dependencies {
-  testCompile project(':x-pack:plugin:core')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 
 testClusters.integTest {
@@ -41,14 +41,14 @@ testClusters.integTest {
   user username: "test_kibana_user", password: "x-pack-test-password", role: "kibana_system"
 }
 
-task copyKeytabToGeneratedResources(type: Copy) {
+tasks.register("copyKeytabToGeneratedResources", Copy) {
   from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "peppa.keytab")
   into "$buildDir/generated-resources/keytabs"
   dependsOn project(':test:fixtures:krb5kdc-fixture').postProcessFixture
 }
 
 String realm = "BUILD.ELASTIC.CO"
-integTest.runner {
+integTest {
   Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
   nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
   nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"

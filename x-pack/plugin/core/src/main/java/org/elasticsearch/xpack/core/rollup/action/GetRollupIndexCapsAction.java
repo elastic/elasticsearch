@@ -84,6 +84,11 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
         }
 
         @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(indices);

@@ -138,9 +138,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
-                TransportRequestOptions.Type.RECOVERY)
-            // TODO: Evaluate if we actually need PING channels?
-            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING);
+                TransportRequestOptions.Type.RECOVERY, TransportRequestOptions.Type.PING)
+            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG);
         return builder.build();
     }
 
@@ -211,7 +210,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static int parsePort(String remoteHost) {
         try {
-            int port = Integer.valueOf(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
+            int port = Integer.parseInt(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
             if (port <= 0) {
                 throw new IllegalArgumentException("port number must be > 0 but was: [" + port + "]");
             }

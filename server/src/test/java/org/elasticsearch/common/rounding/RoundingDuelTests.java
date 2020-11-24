@@ -35,16 +35,16 @@ public class RoundingDuelTests extends ESTestCase  {
     public void testDuellingImplementations() {
         org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
             randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
-        org.elasticsearch.common.Rounding rounding;
+        org.elasticsearch.common.Rounding.Prepared rounding;
         Rounding roundingJoda;
 
         if (randomBoolean()) {
-            rounding = org.elasticsearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
+            rounding = org.elasticsearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
             DateTimeUnit dateTimeUnit = DateTimeUnit.resolve(randomDateTimeUnit.getId());
             roundingJoda = Rounding.builder(dateTimeUnit).timeZone(DateTimeZone.UTC).build();
         } else {
             TimeValue interval = timeValue();
-            rounding = org.elasticsearch.common.Rounding.builder(interval).timeZone(ZoneOffset.UTC).build();
+            rounding = org.elasticsearch.common.Rounding.builder(interval).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
             roundingJoda = Rounding.builder(interval).timeZone(DateTimeZone.UTC).build();
         }
 

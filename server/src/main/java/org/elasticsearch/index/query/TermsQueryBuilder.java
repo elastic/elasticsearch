@@ -38,8 +38,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -427,7 +427,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
                     IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
@@ -440,7 +440,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
             if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+                List<Object> extractedValues = XContentMapValues.    extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
                 terms.addAll(extractedValues);
             }
             delegatedListener.onResponse(terms);
@@ -480,7 +480,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         QueryShardContext context = queryRewriteContext.convertToShardContext();
         if (context != null) {
-            MappedFieldType fieldType = context.fieldMapper(this.fieldName);
+            MappedFieldType fieldType = context.getFieldType(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
             } else if (fieldType instanceof ConstantFieldType) {

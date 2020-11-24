@@ -11,6 +11,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotTests;
@@ -47,6 +48,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         Forecast forecast;
         ForecastRequestStats forecastRequestStats;
         CategoryDefinition categoryDefinition;
+        CategorizerStats.Builder categorizerStats;
         FlushAcknowledgement flushAcknowledgement;
         String jobId = "foo";
         if (randomBoolean()) {
@@ -85,8 +87,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             modelSnapshot = null;
         }
         if (randomBoolean()) {
-            modelSizeStats = new ModelSizeStats.Builder(jobId);
-            modelSizeStats.setModelBytes(randomNonNegativeLong());
+            modelSizeStats = new ModelSizeStats.Builder(jobId).setModelBytes(randomNonNegativeLong());
         } else {
             modelSizeStats = null;
         }
@@ -118,19 +119,22 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             categoryDefinition = null;
         }
         if (randomBoolean()) {
-            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20),
-                randomDate());
+            categorizerStats = new CategorizerStats.Builder(jobId).setCategorizedDocCount(randomNonNegativeLong());
+        } else {
+            categorizerStats = null;
+        }
+        if (randomBoolean()) {
+            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomInstant());
         } else {
             flushAcknowledgement = null;
         }
         return new AutodetectResult(bucket, records, influencers, quantiles, modelSnapshot,
                 modelSizeStats == null ? null : modelSizeStats.build(), modelPlot, annotation, forecast, forecastRequestStats,
-                categoryDefinition, flushAcknowledgement);
+                categoryDefinition, categorizerStats == null ? null : categorizerStats.build(), flushAcknowledgement);
     }
 
     @Override
     protected Reader<AutodetectResult> instanceReader() {
         return AutodetectResult::new;
     }
-
 }

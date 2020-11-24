@@ -55,6 +55,11 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
     }
 
     @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected final Settings restClientSettings() {
         return Settings.builder().put(super.restClientSettings())
             // increase the timeout here to 90 seconds to handle long waits for a green

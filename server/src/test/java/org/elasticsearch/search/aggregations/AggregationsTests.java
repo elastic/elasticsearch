@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissingTests;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNestedTests;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNestedTests;
@@ -50,9 +51,11 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistanceTes
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTests;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSamplerTests;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.LongRareTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.StringRareTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalAvgTests;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinalityTests;
@@ -127,9 +130,12 @@ public class AggregationsTests extends ESTestCase {
             new InternalHistogramTests(),
             new InternalDateHistogramTests(),
             new InternalAutoDateHistogramTests(),
+            new InternalVariableWidthHistogramTests(),
             new LongTermsTests(),
             new DoubleTermsTests(),
             new StringTermsTests(),
+            new LongRareTermsTests(),
+            new StringRareTermsTests(),
             new InternalMissingTests(),
             new InternalNestedTests(),
             new InternalReverseNestedTests(),
@@ -294,8 +300,8 @@ public class AggregationsTests extends ESTestCase {
                     singleBucketAggTestCase.subAggregationsSupplier = () -> InternalAggregations.EMPTY;
                 }
             }
-            aggs.add(testCase.createTestInstance());
+            aggs.add(testCase.createTestInstanceForXContent());
         }
-        return new InternalAggregations(aggs);
+        return InternalAggregations.from(aggs);
     }
 }

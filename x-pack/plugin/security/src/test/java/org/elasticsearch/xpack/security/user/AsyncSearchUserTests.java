@@ -12,6 +12,7 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -24,18 +25,19 @@ import java.util.Arrays;
 import java.util.function.Predicate;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AsyncSearchUserTests extends ESTestCase {
 
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
-            Predicate<String> predicate = AsyncSearchUser.ROLE.indices().allowedIndicesMatcher(action);
-            String index = randomAlphaOfLengthBetween(3, 12);
-            if (false == RestrictedIndicesNames.isRestricted(index)) {
+            Predicate<IndexAbstraction> predicate = AsyncSearchUser.ROLE.indices().allowedIndicesMatcher(action);
+            IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
+            if (false == RestrictedIndicesNames.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
-            index = "." + randomAlphaOfLengthBetween(3, 12);
-            if (false == RestrictedIndicesNames.isRestricted(index)) {
+            index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
+            if (false == RestrictedIndicesNames.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
         }
@@ -43,11 +45,12 @@ public class AsyncSearchUserTests extends ESTestCase {
 
     public void testAsyncSearchUserCanAccessOnlyAsyncSearchRestrictedIndices() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
-            final Predicate<String> predicate = AsyncSearchUser.ROLE.indices().allowedIndicesMatcher(action);
+            final Predicate<IndexAbstraction> predicate = AsyncSearchUser.ROLE.indices().allowedIndicesMatcher(action);
             for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
-                assertThat(predicate.test(index), Matchers.is(false));
+                assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
-            assertThat(predicate.test(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 3)), Matchers.is(true));
+            assertThat(predicate.test(mockIndexAbstraction(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 3))),
+                    Matchers.is(true));
         }
     }
 
@@ -56,5 +59,13 @@ public class AsyncSearchUserTests extends ESTestCase {
             assertThat(AsyncSearchUser.ROLE.cluster().check(action, mock(TransportRequest.class), mock(Authentication.class)),
                     Matchers.is(false));
         }
+    }
+
+    private IndexAbstraction mockIndexAbstraction(String name) {
+        IndexAbstraction mock = mock(IndexAbstraction.class);
+        when(mock.getName()).thenReturn(name);
+        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
+                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        return mock;
     }
 }

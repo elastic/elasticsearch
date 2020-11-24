@@ -21,8 +21,9 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -256,18 +257,43 @@ public class ClusterChangedEvent {
         if (metadataChanged() == false || isNewCluster()) {
             return Collections.emptyList();
         }
-        List<Index> deleted = null;
-        for (ObjectCursor<IndexMetadata> cursor : previousState.metadata().indices().values()) {
+        Set<Index> deleted = null;
+        final Metadata previousMetadata = previousState.metadata();
+        final Metadata currentMetadata = state.metadata();
+
+        for (ObjectCursor<IndexMetadata> cursor : previousMetadata.indices().values()) {
             IndexMetadata index = cursor.value;
-            IndexMetadata current = state.metadata().index(index.getIndex());
+            IndexMetadata current = currentMetadata.index(index.getIndex());
             if (current == null) {
                 if (deleted == null) {
-                    deleted = new ArrayList<>();
+                    deleted = new HashSet<>();
                 }
                 deleted.add(index.getIndex());
             }
         }
-        return deleted == null ? Collections.<Index>emptyList() : deleted;
+
+        final IndexGraveyard currentGraveyard = currentMetadata.indexGraveyard();
+        final IndexGraveyard previousGraveyard = previousMetadata.indexGraveyard();
+
+        // Look for new entries in the index graveyard, where there's no corresponding index in the
+        // previous metadata. This indicates that a dangling index has been explicitly deleted, so
+        // each node should make sure to delete any related data.
+        if (currentGraveyard != previousGraveyard) {
+            final IndexGraveyardDiff indexGraveyardDiff = (IndexGraveyardDiff) currentGraveyard.diff(previousGraveyard);
+
+            final List<IndexGraveyard.Tombstone> added = indexGraveyardDiff.getAdded();
+
+            if (added.isEmpty() == false) {
+                if (deleted == null) {
+                    deleted = new HashSet<>();
+                }
+                for (IndexGraveyard.Tombstone tombstone : added) {
+                    deleted.add(tombstone.getIndex());
+                }
+            }
+        }
+
+        return deleted == null ? Collections.<Index>emptyList() : new ArrayList<>(deleted);
     }
 
     private List<Index> indicesDeletedFromTombstones() {

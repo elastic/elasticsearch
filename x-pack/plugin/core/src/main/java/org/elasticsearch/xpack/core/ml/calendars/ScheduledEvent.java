@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.calendars;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -85,13 +84,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
 
     public ScheduledEvent(StreamInput in) throws IOException {
         description = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            startTime = in.readInstant();
-            endTime = in.readInstant();
-        } else {
-            startTime = Instant.ofEpochMilli(in.readVLong());
-            endTime = Instant.ofEpochMilli(in.readVLong());
-        }
+        startTime = in.readInstant();
+        endTime = in.readInstant();
         calendarId = in.readString();
         eventId = in.readOptionalString();
     }
@@ -146,13 +140,8 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(description);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeInstant(startTime);
-            out.writeInstant(endTime);
-        } else {
-            out.writeVLong(startTime.toEpochMilli());
-            out.writeVLong(endTime.toEpochMilli());
-        }
+        out.writeInstant(startTime);
+        out.writeInstant(endTime);
         out.writeString(calendarId);
         out.writeOptionalString(eventId);
     }

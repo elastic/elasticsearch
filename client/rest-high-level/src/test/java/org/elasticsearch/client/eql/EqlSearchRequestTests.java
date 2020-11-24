@@ -35,33 +35,33 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
 
     @Override
     protected EqlSearchRequest createClientTestInstance() {
-        EqlSearchRequest EqlSearchRequest = new EqlSearchRequest("testindex", randomAlphaOfLength(40));
+        EqlSearchRequest eqlSearchRequest = new EqlSearchRequest("testindex", randomAlphaOfLength(40));
         if (randomBoolean()) {
-            EqlSearchRequest.fetchSize(randomIntBetween(1, Integer.MAX_VALUE));
+            eqlSearchRequest.fetchSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.implicitJoinKeyField(randomAlphaOfLength(10));
+            eqlSearchRequest.size(randomInt(Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.eventCategoryField(randomAlphaOfLength(10));
+            eqlSearchRequest.eventCategoryField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.query(randomAlphaOfLength(10));
+            eqlSearchRequest.query(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.timestampField(randomAlphaOfLength(10));
+            eqlSearchRequest.timestampField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.searchAfter(randomArray(1, 4, Object[]::new, () -> randomAlphaOfLength(3)));
+            eqlSearchRequest.tiebreakerField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             if (randomBoolean()) {
-                EqlSearchRequest.filter(QueryBuilders.matchAllQuery());
+                eqlSearchRequest.filter(QueryBuilders.matchAllQuery());
             } else {
-                EqlSearchRequest.filter(QueryBuilders.termQuery(randomAlphaOfLength(10), randomInt(100)));
+                eqlSearchRequest.filter(QueryBuilders.termQuery(randomAlphaOfLength(10), randomInt(100)));
             }
         }
-        return EqlSearchRequest;
+        return eqlSearchRequest;
     }
 
     @Override
@@ -73,14 +73,14 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
     protected void assertInstances(org.elasticsearch.xpack.eql.action.EqlSearchRequest serverInstance, EqlSearchRequest
         clientTestInstance) {
         assertThat(serverInstance.eventCategoryField(), equalTo(clientTestInstance.eventCategoryField()));
-        assertThat(serverInstance.implicitJoinKeyField(), equalTo(clientTestInstance.implicitJoinKeyField()));
         assertThat(serverInstance.timestampField(), equalTo(clientTestInstance.timestampField()));
+        assertThat(serverInstance.tiebreakerField(), equalTo(clientTestInstance.tiebreakerField()));
         assertThat(serverInstance.filter(), equalTo(clientTestInstance.filter()));
         assertThat(serverInstance.query(), equalTo(clientTestInstance.query()));
-        assertThat(serverInstance.searchAfter(), equalTo(clientTestInstance.searchAfter()));
         assertThat(serverInstance.indicesOptions(), equalTo(clientTestInstance.indicesOptions()));
         assertThat(serverInstance.indices(), equalTo(clientTestInstance.indices()));
         assertThat(serverInstance.fetchSize(), equalTo(clientTestInstance.fetchSize()));
+        assertThat(serverInstance.size(), equalTo(clientTestInstance.size()));
     }
 
     @Override

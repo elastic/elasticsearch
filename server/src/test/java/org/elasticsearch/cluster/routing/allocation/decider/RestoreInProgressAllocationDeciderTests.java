@@ -193,7 +193,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
     private Decision executeAllocation(final ClusterState clusterState, final ShardRouting shardRouting) {
         final AllocationDecider decider = new RestoreInProgressAllocationDecider();
         final RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(), clusterState, null, 0L);
+            clusterState.getRoutingNodes(), clusterState, null, null, 0L);
         allocation.debugDecision(true);
 
         final Decision decision;

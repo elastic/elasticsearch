@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -55,6 +56,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class DelayedAllocationServiceTests extends ESAllocationTestCase {
 
@@ -68,8 +70,10 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
+        when(clusterService.getSettings()).thenReturn(NodeRoles.masterOnlyNode());
         delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
         verify(clusterService).addListener(delayedAllocationService);
+        verify(clusterService).getSettings();
     }
 
     @After

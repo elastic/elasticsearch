@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.java-rest-test'
+
+File repoDir = file("$buildDir/testclusters/repo")
+
+javaRestTest {
+  /* To support taking index snapshots, we have to set path.repo setting */
+  systemProperty 'tests.path.repo', repoDir
+}
+
+testClusters.javaRestTest {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 4
+
+  setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  //disabling ILM history as it disturbs testDSXpackUsage test
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+}

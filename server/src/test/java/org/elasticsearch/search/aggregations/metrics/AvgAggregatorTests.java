@@ -55,6 +55,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
@@ -250,8 +251,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.DOUBLE);
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(),
             iw -> {
                 for (double value : values) {
@@ -281,14 +281,12 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
 
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -314,8 +312,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedField_WithFormatter() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("value");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .format("#")
@@ -335,8 +332,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedFieldWithValueScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("value");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .field("value")
@@ -354,8 +350,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testScriptSingleValued() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("value");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_FIELD_SCRIPT, Collections.emptyMap()));
@@ -372,8 +367,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testScriptSingleValuedWithParams() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("value");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
@@ -409,8 +403,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testScriptMultiValued() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("values");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap()));
@@ -434,8 +427,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         params.put("inc", 1);
         params.put("field", "values");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("values");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params));
@@ -455,8 +447,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedFieldWithValueScriptWithParams() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("value");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
         Map<String, Object> params = Collections.singletonMap("inc", 1);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
@@ -475,8 +466,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMultiValuedFieldWithValueScriptWithParams() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("values");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
 
         Map<String, Object> params = Collections.singletonMap("inc", 1);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
@@ -498,8 +488,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMultiValuedFieldWithValueScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("values");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name")
             .field("values")
@@ -520,9 +509,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testOrderByEmptyAggregation() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("value");
-        fieldType.setHasDocValues(true);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
         AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
             .field("value")
@@ -544,7 +531,6 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();
         assertNotNull(terms);
@@ -574,8 +560,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     private void testAggregation(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalAvg> verify) throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
@@ -610,15 +595,14 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
         IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("value");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg")
             .field("value");
 
-        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        SearchContext context = createSearchContext(indexSearcher, null, fieldType);
+        AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -627,7 +611,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
         // Test that an aggregation not using a script does get cached
-        assertTrue(aggregator.context().getQueryShardContext().isCacheable());
+        assertTrue(context.getQueryShardContext().isCacheable());
 
         multiReader.close();
         directory.close();
@@ -656,16 +640,15 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
         IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("value");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg")
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        SearchContext context = createSearchContext(indexSearcher, null, fieldType);
+        AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -674,16 +657,16 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
         // Test that an aggregation using a deterministic script gets cached
-        assertTrue(aggregator.context().getQueryShardContext().isCacheable());
+        assertTrue(context.getQueryShardContext().isCacheable());
 
         aggregationBuilder = new AvgAggregationBuilder("avg")
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
 
-        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        context = createSearchContext(indexSearcher, null, fieldType);
+        aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
 
         avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -693,7 +676,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
         // Test that an aggregation using a nondeterministic script does not get cached
-        assertFalse(aggregator.context().getQueryShardContext().isCacheable());
+        assertFalse(context.getQueryShardContext().isCacheable());
 
         multiReader.close();
         directory.close();

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -128,11 +127,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         this.maxBucketProcessingTimeMs = in.readOptionalDouble();
         this.avgBucketProcessingTimeMs = in.readOptionalDouble();
         this.exponentialAvgBucketProcessingTimeMs = in.readOptionalDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            this.exponentialAvgCalculationContext = in.readOptionalWriteable(ExponentialAverageCalculationContext::new);
-        } else {
-            this.exponentialAvgCalculationContext = new ExponentialAverageCalculationContext();
-        }
+        this.exponentialAvgCalculationContext = in.readOptionalWriteable(ExponentialAverageCalculationContext::new);
     }
 
     public String getJobId() {
@@ -223,9 +218,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         out.writeOptionalDouble(maxBucketProcessingTimeMs);
         out.writeOptionalDouble(avgBucketProcessingTimeMs);
         out.writeOptionalDouble(exponentialAvgBucketProcessingTimeMs);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeOptionalWriteable(exponentialAvgCalculationContext);
-        }
+        out.writeOptionalWriteable(exponentialAvgCalculationContext);
     }
 
     @Override

@@ -20,10 +20,15 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.script.IngestScript;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -51,22 +56,30 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
     }
 
     public void testFactoryValidationWithDefaultLang() throws Exception {
+        ScriptService mockedScriptService = mock(ScriptService.class);
+        when(mockedScriptService.compile(any(), any())).thenReturn(mock(IngestScript.Factory.class));
+        factory = new ScriptProcessor.Factory(mockedScriptService);
+
         Map<String, Object> configMap = new HashMap<>();
         String randomType = randomFrom("id", "source");
         configMap.put(randomType, "foo");
-        ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
+        ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), null, configMap);
         assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType().toString(), equalTo(INGEST_SCRIPT_PARAM_TO_TYPE.get(randomType)));
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
     }
 
     public void testFactoryValidationWithParams() throws Exception {
+        ScriptService mockedScriptService = mock(ScriptService.class);
+        when(mockedScriptService.compile(any(), any())).thenReturn(mock(IngestScript.Factory.class));
+        factory = new ScriptProcessor.Factory(mockedScriptService);
+
         Map<String, Object> configMap = new HashMap<>();
         String randomType = randomFrom("id", "source");
         Map<String, Object> randomParams = Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));
         configMap.put(randomType, "foo");
         configMap.put("params", randomParams);
-        ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), configMap);
+        ScriptProcessor processor = factory.create(null, randomAlphaOfLength(10), null, configMap);
         assertThat(processor.getScript().getLang(), equalTo(randomType.equals("id") ? null : Script.DEFAULT_SCRIPT_LANG));
         assertThat(processor.getScript().getType().toString(), equalTo(INGEST_SCRIPT_PARAM_TO_TYPE.get(randomType)));
         assertThat(processor.getScript().getParams(), equalTo(randomParams));
@@ -79,7 +92,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("lang", "mockscript");
 
         XContentParseException exception = expectThrows(XContentParseException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), configMap));
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
         assertThat(exception.getMessage(), containsString("[script] failed to parse field [source]"));
     }
 
@@ -88,16 +101,20 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("lang", "mockscript");
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), configMap));
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
 
         assertThat(exception.getMessage(), is("must specify either [source] for an inline script or [id] for a stored script"));
     }
 
     public void testInlineBackcompat() throws Exception {
+        ScriptService mockedScriptService = mock(ScriptService.class);
+        when(mockedScriptService.compile(any(), any())).thenReturn(mock(IngestScript.Factory.class));
+        factory = new ScriptProcessor.Factory(mockedScriptService);
+
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("inline", "code");
 
-        factory.create(null, randomAlphaOfLength(10), configMap);
+        factory.create(null, randomAlphaOfLength(10), null, configMap);
         assertWarnings("Deprecated field [inline] used, expected [source] instead");
     }
 
@@ -113,8 +130,48 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put(randomType, "my_script");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), configMap));
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
 
         assertThat(exception.getMessage(), is("compile-time exception"));
+    }
+
+    public void testInlineIsCompiled() throws Exception {
+        String scriptName = "foo";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+            Collections.singletonMap(
+                Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
+                    Script.DEFAULT_SCRIPT_LANG,
+                    Collections.singletonMap(scriptName, ctx -> {
+                        ctx.put("foo", "bar");
+                        return null;
+                    }),
+                    Collections.emptyMap()
+                )
+            ), new HashMap<>(ScriptModule.CORE_CONTEXTS));
+        factory = new ScriptProcessor.Factory(scriptService);
+
+        Map<String, Object> configMap = new HashMap<>();
+        configMap.put("source", scriptName);
+        ScriptProcessor processor = factory.create(null, null, randomAlphaOfLength(10), configMap);
+        assertThat(processor.getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        assertThat(processor.getScript().getType(), equalTo(ScriptType.INLINE));
+        assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
+        assertNotNull(processor.getPrecompiledIngestScript());
+        Map<String, Object> ctx = new HashMap<>();
+        processor.getPrecompiledIngestScript().execute(ctx);
+        assertThat(ctx.get("foo"), equalTo("bar"));
+    }
+
+    public void testStoredIsNotCompiled() throws Exception {
+        ScriptService mockedScriptService = mock(ScriptService.class);
+        when(mockedScriptService.compile(any(), any())).thenReturn(mock(IngestScript.Factory.class));
+        factory = new ScriptProcessor.Factory(mockedScriptService);
+        Map<String, Object> configMap = new HashMap<>();
+        configMap.put("id", "script_name");
+        ScriptProcessor processor = factory.create(null, null, randomAlphaOfLength(10), configMap);
+        assertNull(processor.getScript().getLang());
+        assertThat(processor.getScript().getType(), equalTo(ScriptType.STORED));
+        assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
+        assertNull(processor.getPrecompiledIngestScript());
     }
 }

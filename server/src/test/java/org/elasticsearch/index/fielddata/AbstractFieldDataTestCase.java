@@ -31,6 +31,7 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -59,6 +59,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -94,35 +95,36 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final BuilderContext context = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final ContentPath contentPath = new ContentPath(1);
         if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName).build(contentPath).fieldType();
             } else {
-                fieldType = new TextFieldMapper.Builder(fieldName).fielddata(true).build(context).fieldType();
+                fieldType = new TextFieldMapper.Builder(fieldName, () -> Lucene.STANDARD_ANALYZER)
+                    .fielddata(true).build(contentPath).fieldType();
             }
         } else if (type.equals("float")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, false, true)
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("double")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, false, true)
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("long")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, false, true)
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("int")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, false, true)
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("short")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, false, true)
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("byte")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, false, true)
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, false).docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(contentPath).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }
@@ -138,7 +140,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         writer = new IndexWriter(
             new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
-        shardContext = indexService.newQueryShardContext(0, null, () -> 0, null);
+        shardContext = indexService.newQueryShardContext(0, null, () -> 0, null, emptyMap());
     }
 
     protected final List<LeafReaderContext> refreshReader() throws Exception {

@@ -19,7 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
-import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTests;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderTestUtils;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -41,13 +41,13 @@ import static org.hamcrest.Matchers.startsWith;
 public class PutSamlServiceProviderRequestTests extends ESTestCase {
 
     public void testValidateSuccessfully() {
-        final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, randomFrom(RefreshPolicy.values()));
         assertThat(request.validate(), nullValue());
     }
 
     public void testValidateAcs() {
-        final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         doc.acs = "this is not a URL";
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, randomFrom(RefreshPolicy.values()));
         final ActionRequestValidationException validationException = request.validate();
@@ -58,7 +58,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
     }
 
     public void testValidateRequiredFields() {
-        final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         doc.name = null;
         doc.entityId = null;
         doc.acs = null;
@@ -81,7 +81,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
         final PutSamlServiceProviderRequest read = copyWriteable(request, new NamedWriteableRegistry(List.of()),
@@ -126,7 +126,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
     }
 
     public void testParseRequestBodyFailsIfTimestampsAreIncluded() throws Exception {
-        final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         final Map<String, Object> fields = convertToMap(XContentType.JSON.xContent(), Strings.toString(doc), randomBoolean());
 
         fields.remove("entity_id");

@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -54,9 +55,9 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         threadPool = new ThreadPool(settings);
-        when(mockLicenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
+        when(mockLicenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
-        when(mockLicenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
+        when(mockLicenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
     }
 
     @Override
@@ -97,7 +98,8 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                     return;
                 }
                 if (invalidateApiKeyRequest.getName() != null && invalidateApiKeyRequest.getName().equals("api-key-name-1")
-                        || invalidateApiKeyRequest.getId() != null && invalidateApiKeyRequest.getId().equals("api-key-id-1")
+                        || invalidateApiKeyRequest.getIds() != null && Arrays.equals(
+                            invalidateApiKeyRequest.getIds(), new String[] {"api-key-id-1"})
                         || invalidateApiKeyRequest.getRealmName() != null && invalidateApiKeyRequest.getRealmName().equals("realm-1")
                         || invalidateApiKeyRequest.getUserName() != null && invalidateApiKeyRequest.getUserName().equals("user-x")) {
                     listener.onResponse((Response) invalidateApiKeyResponseExpected);

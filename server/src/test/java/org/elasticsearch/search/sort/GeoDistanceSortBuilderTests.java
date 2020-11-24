@@ -117,9 +117,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
-        MappedFieldType clone = new GeoPointFieldMapper.GeoPointFieldType();
-        clone.setName(name);
-        return clone;
+        return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
     private static GeoPoint[] points(GeoPoint[] original) {

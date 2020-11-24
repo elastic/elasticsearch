@@ -39,6 +39,9 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginType;
+import org.elasticsearch.search.aggregations.support.AggregationInfo;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -146,14 +149,16 @@ public class NodeInfoStreamingTests extends ESTestCase {
             for (int i = 0; i < numPlugins; i++) {
                 plugins.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
                     randomAlphaOfLengthBetween(3, 10), VersionUtils.randomVersion(random()), "1.8",
-                    randomAlphaOfLengthBetween(3, 10), Collections.emptyList(), randomBoolean()));
+                    randomAlphaOfLengthBetween(3, 10), Collections.emptyList(), randomBoolean(), randomFrom(PluginType.values()),
+                    randomAlphaOfLengthBetween(3, 10), randomBoolean()));
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginInfo> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
                 modules.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
                     randomAlphaOfLengthBetween(3, 10), VersionUtils.randomVersion(random()), "1.8",
-                    randomAlphaOfLengthBetween(3, 10), Collections.emptyList(), randomBoolean()));
+                    randomAlphaOfLengthBetween(3, 10), Collections.emptyList(), randomBoolean(), randomFrom(PluginType.values()),
+                    randomAlphaOfLengthBetween(3, 10), randomBoolean()));
             }
             pluginsAndModules = new PluginsAndModules(plugins, modules);
         }
@@ -168,12 +173,35 @@ public class NodeInfoStreamingTests extends ESTestCase {
             ingestInfo = new IngestInfo(processors);
         }
 
+        AggregationInfo aggregationInfo = null;
+        if (randomBoolean()) {
+            AggregationUsageService.Builder builder = new AggregationUsageService.Builder();
+            int numOfAggs = randomIntBetween(0, 10);
+            for (int i = 0; i < numOfAggs; i++) {
+                String aggName = randomAlphaOfLength(10);
+
+                try {
+                    if (randomBoolean()) {
+                        builder.registerAggregationUsage(aggName);
+                    } else {
+                        int numOfTypes = randomIntBetween(1, 10);
+                        for (int j = 0; j < numOfTypes; j++) {
+                            builder.registerAggregationUsage(aggName, randomAlphaOfLength(10));
+                        }
+                    }
+                } catch (IllegalArgumentException ex) {
+                    // Ignore duplicate strings
+                }
+            }
+            aggregationInfo = builder.build().info();
+        }
+
         ByteSizeValue indexingBuffer = null;
         if (randomBoolean()) {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
         }
         return new NodeInfo(VersionUtils.randomVersion(random()), build, node, settings, osInfo, process, jvm,
-            threadPoolInfo, transport, httpInfo, pluginsAndModules, ingestInfo, indexingBuffer);
+            threadPoolInfo, transport, httpInfo, pluginsAndModules, ingestInfo, aggregationInfo, indexingBuffer);
     }
 }

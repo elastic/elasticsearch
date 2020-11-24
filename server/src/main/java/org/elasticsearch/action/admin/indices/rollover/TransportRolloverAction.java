@@ -39,14 +39,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -68,21 +66,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    MetadataRolloverService rolloverService, Client client) {
         super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, RolloverRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, RolloverResponse::new, ThreadPool.Names.SAME);
         this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected RolloverResponse read(StreamInput in) throws IOException {
-        return new RolloverResponse(in);
     }
 
     @Override
@@ -91,16 +78,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
 
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, true, request.indices()));
+            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request));
     }
 
     @Override
     protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) throws Exception {
+
         MetadataRolloverService.RolloverResult preResult =
             rolloverService.rolloverClusterState(state,
                 rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
-                Collections.emptyList(), true);
+                Collections.emptyList(), true, true);
         Metadata metadata = state.metadata();
         String sourceIndexName = preResult.sourceIndexName;
         String rolloverIndexName = preResult.rolloverIndexName;
@@ -130,7 +118,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             public ClusterState execute(ClusterState currentState) throws Exception {
                                 MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(currentState,
                                     rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(),
-                                    rolloverRequest.getCreateIndexRequest(), metConditions, false);
+                                    rolloverRequest.getCreateIndexRequest(), metConditions, false, false);
                                 if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
                                     throw new ElasticsearchException("Concurrent modification of alias [{}] during rollover",
                                         rolloverRequest.getRolloverTarget());

@@ -23,10 +23,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -40,6 +40,8 @@ import java.util.Objects;
 
 public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilder<DiversifiedAggregationBuilder> {
     public static final String NAME = "diversified_sampler";
+    public static final ValuesSourceRegistry.RegistryKey<DiversifiedAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, DiversifiedAggregatorSupplier.class);
 
     public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;
 
@@ -157,11 +159,11 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
-        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, queryShardContext, parent,
+        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, context, parent,
                 subFactoriesBuilder, metadata);
     }
 
@@ -194,5 +196,10 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

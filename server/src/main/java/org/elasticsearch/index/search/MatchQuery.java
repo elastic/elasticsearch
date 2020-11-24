@@ -27,7 +27,6 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -53,6 +52,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -178,7 +178,7 @@ public class MatchQuery {
     }
 
     public void setAnalyzer(String analyzerName) {
-        this.analyzer = context.getMapperService().getIndexAnalyzers().get(analyzerName);
+        this.analyzer = context.getIndexAnalyzers().get(analyzerName);
         if (analyzer == null) {
             throw new IllegalArgumentException("No analyzer found for [" + analyzerName + "]");
         }
@@ -234,7 +234,7 @@ public class MatchQuery {
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        final MappedFieldType fieldType = context.fieldMapper(fieldName);
+        final MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             return newUnmappedFieldQuery(fieldName);
         }
@@ -244,6 +244,16 @@ public class MatchQuery {
             // this field is a concrete field or an alias so we use the
             // field type name directly
             fieldName = fieldType.name();
+        }
+        // We check here that the field supports text searches -
+        // if it doesn't, we can bail out early without doing any further parsing.
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+            IllegalArgumentException iae = new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" +
+                fieldType.typeName() + "] does not support match queries");
+            if (lenient) {
+                return newLenientFieldQuery(fieldName, iae);
+            }
+            throw iae;
         }
 
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
@@ -297,8 +307,10 @@ public class MatchQuery {
     }
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
+        TextSearchInfo tsi = fieldType.getTextSearchInfo();
+        assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
-            return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
+            return quoted ? tsi.getSearchQuoteAnalyzer() : tsi.getSearchAnalyzer();
         } else {
             return analyzer;
         }
@@ -317,10 +329,6 @@ public class MatchQuery {
         }
     }
 
-    private boolean hasPositions(MappedFieldType fieldType) {
-        return fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
-    }
-
     class MatchQueryBuilder extends QueryBuilder {
         private final MappedFieldType fieldType;
 
@@ -332,7 +340,7 @@ public class MatchQuery {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (hasPositions(fieldType)) {
+            if (fieldType.getTextSearchInfo().hasPositions()) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
@@ -804,7 +812,7 @@ public class MatchQuery {
         }
 
         private void checkForPositions(String field) {
-            if (hasPositions(fieldType) == false) {
+            if (fieldType.getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }

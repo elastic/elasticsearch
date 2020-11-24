@@ -11,7 +11,7 @@ dependencies {
 ["0.0.1", "0.0.2"].forEach { v ->
   ["elasticsearch", "other"].forEach { p ->
     tasks.register("dummy-${p}-${v}", Jar) {
-      destinationDir = file("${buildDir}/testrepo/org/${p}/gradle/dummy-io/${v}/")
+      destinationDirectory = file("${buildDir}/testrepo/org/${p}/gradle/dummy-io/${v}/")
       archiveFileName = "dummy-io-${v}.jar"
       from sourceSets.main.output
       include "**/TestingIO.class"

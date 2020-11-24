@@ -37,6 +37,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -58,15 +59,15 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     private BufferingNestedLeafBucketCollector bufferingNestedLeafBucketCollector;
 
     NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-                     SearchContext context, Aggregator parentAggregator,
-                     Map<String, Object> metadata, boolean collectsFromSingleBucket) throws IOException {
-        super(name, factories, context, parentAggregator, metadata);
+                     SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
+                     Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, cardinality, metadata);
 
         Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
             : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
-        this.collectsFromSingleBucket = collectsFromSingleBucket;
+        this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
     }
 
     @Override
@@ -106,12 +107,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    protected void preGetSubLeafCollectors() throws IOException {
-        processBufferedDocs();
-    }
-
-    @Override
-    protected void doPostCollection() throws IOException {
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
+        super.preGetSubLeafCollectors(ctx);
         processBufferedDocs();
     }
 
@@ -123,6 +120,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        processBufferedDocs();
         return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
             new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }

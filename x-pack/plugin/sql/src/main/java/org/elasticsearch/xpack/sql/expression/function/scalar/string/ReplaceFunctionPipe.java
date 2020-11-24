@@ -17,12 +17,11 @@ import java.util.Objects;
 
 public class ReplaceFunctionPipe extends Pipe {
 
-    private final Pipe source, pattern, replacement;
+    private final Pipe input, pattern, replacement;
 
-    public ReplaceFunctionPipe(Source source, Expression expression, Pipe src,
-            Pipe pattern, Pipe replacement) {
-        super(source, expression, Arrays.asList(src, pattern, replacement));
-        this.source = src;
+    public ReplaceFunctionPipe(Source source, Expression expression, Pipe input, Pipe pattern, Pipe replacement) {
+        super(source, expression, Arrays.asList(input, pattern, replacement));
+        this.input = input;
         this.pattern = pattern;
         this.replacement = replacement;
     }
@@ -37,49 +36,48 @@ public class ReplaceFunctionPipe extends Pipe {
     
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newPattern = pattern.resolveAttributes(resolver);
         Pipe newReplacement = replacement.resolveAttributes(resolver);
-        if (newSource == source && newPattern == pattern && newReplacement == replacement) {
+        if (newInput == input && newPattern == pattern && newReplacement == replacement) {
             return this;
         }
-        return replaceChildren(newSource, newPattern, newReplacement);
+        return replaceChildren(newInput, newPattern, newReplacement);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery() && replacement.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery() && replacement.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved() && pattern.resolved() && replacement.resolved();
+        return input.resolved() && pattern.resolved() && replacement.resolved();
     }
     
-    protected Pipe replaceChildren(Pipe newSource, Pipe newPattern,
-            Pipe newReplacement) {
-        return new ReplaceFunctionPipe(source(), expression(), newSource, newPattern, newReplacement);
+    protected Pipe replaceChildren(Pipe newInput, Pipe newPattern, Pipe newReplacement) {
+        return new ReplaceFunctionPipe(source(), expression(), newInput, newPattern, newReplacement);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
         pattern.collectFields(sourceBuilder);
         replacement.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<ReplaceFunctionPipe> info() {
-        return NodeInfo.create(this, ReplaceFunctionPipe::new, expression(), source, pattern, replacement);
+        return NodeInfo.create(this, ReplaceFunctionPipe::new, expression(), input, pattern, replacement);
     }
 
     @Override
     public ReplaceFunctionProcessor asProcessor() {
-        return new ReplaceFunctionProcessor(source.asProcessor(), pattern.asProcessor(), replacement.asProcessor());
+        return new ReplaceFunctionProcessor(input.asProcessor(), pattern.asProcessor(), replacement.asProcessor());
     }
     
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
     
     public Pipe pattern() {
@@ -92,7 +90,7 @@ public class ReplaceFunctionPipe extends Pipe {
     
     @Override
     public int hashCode() {
-        return Objects.hash(source, pattern, replacement);
+        return Objects.hash(input, pattern, replacement);
     }
 
     @Override
@@ -106,7 +104,7 @@ public class ReplaceFunctionPipe extends Pipe {
         }
 
         ReplaceFunctionPipe other = (ReplaceFunctionPipe) obj;
-        return Objects.equals(source, other.source)
+        return Objects.equals(input, other.input)
                 && Objects.equals(pattern, other.pattern)
                 && Objects.equals(replacement, other.replacement);
     }

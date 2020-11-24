@@ -54,6 +54,7 @@ import org.elasticsearch.client.core.BroadcastResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
@@ -91,6 +92,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             "follower", // <3>
             ActiveShardCount.ONE // <4>
         );
+        Settings settings =
+            Settings.builder().put("index.number_of_replicas", 0L).build();
+        putFollowRequest.setSettings(settings); // <5>
         // end::ccr-put-follow-request
 
         // tag::ccr-put-follow-execute
@@ -484,6 +488,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
                 Arrays.asList("logs-*", "metrics-*") // <3>
         );
         request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <4>
+        Settings settings =
+            Settings.builder().put("index.number_of_replicas", 0L).build();
+        request.setSettings(settings); // <5>
         // end::ccr-put-auto-follow-pattern-request
 
         // tag::ccr-put-auto-follow-pattern-execute

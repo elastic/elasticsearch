@@ -45,7 +45,7 @@ class RestTestPlugin implements Plugin<Project> {
                 + 'requires either elasticsearch.build or '
                 + 'elasticsearch.standalone-rest-test')
         }
-
+        project.getPlugins().apply(RestTestBasePlugin.class);
         project.pluginManager.apply(TestClustersPlugin)
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.description = 'Runs rest tests against an elasticsearch cluster.'

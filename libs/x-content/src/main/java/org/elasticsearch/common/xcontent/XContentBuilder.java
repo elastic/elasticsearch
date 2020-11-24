@@ -48,6 +48,8 @@ import java.util.function.Function;
  */
 public final class XContentBuilder implements Closeable, Flushable {
 
+    private byte compatibleMajorVersion;
+
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
      * <p>
@@ -725,6 +727,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * {@link Long} class.
      */
     public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
+        assert name.equals(readableName) == false :
+            "expected raw and readable field names to differ, but they were both: " + name;
         if (humanReadable) {
             Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);
             if (longTransformer == null) {
@@ -937,6 +941,8 @@ public final class XContentBuilder implements Closeable, Flushable {
     //////////////////////////////////
 
     public XContentBuilder humanReadableField(String rawFieldName, String readableFieldName, Object value) throws IOException {
+        assert rawFieldName.equals(readableFieldName) == false :
+            "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
             field(readableFieldName, Objects.toString(value));
         }
@@ -956,6 +962,8 @@ public final class XContentBuilder implements Closeable, Flushable {
 
 
     public XContentBuilder percentageField(String rawFieldName, String readableFieldName, double percentage) throws IOException {
+        assert rawFieldName.equals(readableFieldName) == false :
+            "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
             field(readableFieldName, String.format(Locale.ROOT, "%1.1f%%", percentage));
         }
@@ -996,6 +1004,25 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
         generator.copyCurrentStructure(parser);
         return this;
+    }
+
+    /**
+     * Sets a version used for serialising a response compatible with a previous version.
+     */
+    public XContentBuilder withCompatibleMajorVersion(byte compatibleMajorVersion) {
+        assert this.compatibleMajorVersion == 0 : "Compatible version has already been set";
+        if (compatibleMajorVersion == 0) {
+            throw new IllegalArgumentException("Compatible major version must not be equal to 0");
+        }
+        this.compatibleMajorVersion = compatibleMajorVersion;
+        return this;
+    }
+
+    /**
+     * Returns a version used for serialising a response compatible with a previous version.
+     */
+    public byte getCompatibleMajorVersion() {
+        return compatibleMajorVersion;
     }
 
     @Override

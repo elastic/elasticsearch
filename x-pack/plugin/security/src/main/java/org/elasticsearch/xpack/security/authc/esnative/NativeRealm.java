@@ -24,21 +24,21 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  */
 public class NativeRealm extends CachingUsernamePasswordRealm {
 
-    private final NativeUsersStore usersStore;
+    private final NativeUsersStore userStore;
 
     public NativeRealm(RealmConfig config, NativeUsersStore usersStore, ThreadPool threadPool) {
         super(config, threadPool);
-        this.usersStore = usersStore;
+        this.userStore = usersStore;
     }
 
     @Override
     protected void doLookupUser(String username, ActionListener<User> listener) {
-        usersStore.getUser(username, listener);
+        userStore.getUser(username, listener);
     }
 
     @Override
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-        usersStore.verifyPassword(token.principal(), token.credentials(), listener);
+        userStore.verifyPassword(token.principal(), token.credentials(), listener);
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
@@ -50,7 +50,7 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
     @Override
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         super.usageStats(ActionListener.wrap(stats ->
-            usersStore.getUserCount(ActionListener.wrap(size -> {
+            userStore.getUserCount(ActionListener.wrap(size -> {
                 stats.put("size", size);
                 listener.onResponse(stats);
             }, listener::onFailure))

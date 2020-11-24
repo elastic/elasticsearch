@@ -24,7 +24,7 @@ The following snippet shows a simple webhook action definition:
       "method" : "POST", <4>
       "host" : "mylisteningserver", <5>
       "port" : 9200, <6>
-      "path": ":/{{ctx.watch_id}", <7>
+      "path": ":/{{ctx.watch_id}}", <7>
       "body" : "{{ctx.watch_id}}:{{ctx.payload.hits.total.value}}" <8>
     }
   }

@@ -9,46 +9,47 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
-import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
+public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
-    public void testRandomReads() throws IOException {
-        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
-        try (CacheService cacheService = createCacheService(random())) {
+    public void testRandomReads() throws Exception {
+        try (CacheService cacheService = randomCacheService()) {
             cacheService.start();
 
             SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -57,6 +58,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
             for (int i = 0; i < 5; i++) {
                 final String fileName = randomAlphaOfLength(10);
+
                 final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
                 final String blobName = randomUnicodeOfLength(10);
@@ -83,11 +85,20 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     blobContainer = singleBlobContainer;
                 }
 
+                final Path shardDir;
+                try {
+                    shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = createTempDir();
                 try (
                     SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
                         () -> snapshot,
+                        new NoopBlobStoreCacheService(),
+                        "_repo",
                         snapshotId,
                         indexId,
                         shardId,
@@ -98,10 +109,12 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         () -> 0L,
                         cacheService,
                         cacheDir,
+                        shardPath,
                         threadPool
                     )
                 ) {
-                    final boolean loaded = directory.loadSnapshot();
+                    RecoveryState recoveryState = createRecoveryState();
+                    final boolean loaded = directory.loadSnapshot(recoveryState);
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
@@ -117,24 +130,32 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 if (blobContainer instanceof CountingBlobContainer) {
                     long numberOfRanges = TestUtils.numberOfRanges(input.length, cacheService.getRangeSize());
                     assertThat(
-                        "Expected " + numberOfRanges + " ranges fetched from the source",
+                        "Expected at most " + numberOfRanges + " ranges fetched from the source",
                         ((CountingBlobContainer) blobContainer).totalOpens.sum(),
-                        equalTo(numberOfRanges)
+                        lessThanOrEqualTo(numberOfRanges)
                     );
                     assertThat(
                         "All bytes should have been read from source",
                         ((CountingBlobContainer) blobContainer).totalBytes.sum(),
                         equalTo((long) input.length)
                     );
+                    // busy assert that closing of all streams happened because they are closed on background fetcher threads
+                    assertBusy(
+                        () -> assertEquals(
+                            "All open streams should have been closed",
+                            0,
+                            ((CountingBlobContainer) blobContainer).openStreams.get()
+                        )
+                    );
                 }
             }
         } finally {
-            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+            assertThreadPoolNotBusy(threadPool);
         }
     }
 
-    public void testThrowsEOFException() throws IOException {
-        try (CacheService cacheService = createCacheService(random())) {
+    public void testThrowsEOFException() throws Exception {
+        try (CacheService cacheService = randomCacheService()) {
             cacheService.start();
 
             SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -157,12 +178,20 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
+            final Path shardDir;
+            try {
+                shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = createTempDir();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
                     () -> snapshot,
+                    new NoopBlobStoreCacheService(),
+                    "_repo",
                     snapshotId,
                     indexId,
                     shardId,
@@ -170,10 +199,12 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     () -> 0L,
                     cacheService,
                     cacheDir,
+                    shardPath,
                     threadPool
                 )
             ) {
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot();
+                RecoveryState recoveryState = createRecoveryState();
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState);
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
                 assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());
@@ -186,7 +217,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     }
                 }
             } finally {
-                terminate(threadPool);
+                assertThreadPoolNotBusy(threadPool);
             }
         }
     }
@@ -215,6 +246,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
         private final LongAdder totalBytes = new LongAdder();
         private final LongAdder totalOpens = new LongAdder();
 
+        private final AtomicInteger openStreams = new AtomicInteger(0);
+
         private final int rangeSize;
 
         CountingBlobContainer(BlobContainer in, int rangeSize) {
@@ -224,7 +257,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         @Override
         public InputStream readBlob(String blobName, long position, long length) throws IOException {
-            return new CountingInputStream(this, super.readBlob(blobName, position, length), length, rangeSize);
+            return new CountingInputStream(this, super.readBlob(blobName, position, length));
         }
 
         @Override
@@ -246,20 +279,16 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
     private static class CountingInputStream extends FilterInputStream {
 
         private final CountingBlobContainer container;
-        private final int rangeSize;
-        private final long length;
 
-        private long bytesRead = 0L;
         private long position = 0L;
         private long start = Long.MAX_VALUE;
         private long end = Long.MIN_VALUE;
 
-        CountingInputStream(CountingBlobContainer container, InputStream input, long length, int rangeSize) {
+        CountingInputStream(CountingBlobContainer container, InputStream input) {
             super(input);
             this.container = Objects.requireNonNull(container);
-            this.rangeSize = rangeSize;
-            this.length = length;
             this.container.totalOpens.increment();
+            this.container.openStreams.incrementAndGet();
         }
 
         @Override
@@ -272,7 +301,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             if (result == -1) {
                 return result;
             }
-            bytesRead += 1L;
+            this.container.totalBytes.increment();
             position += 1L;
 
             if (position > end) {
@@ -288,7 +317,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             }
 
             final int result = in.read(b, offset, len);
-            bytesRead += len;
+            this.container.totalBytes.add(len);
             position += len;
 
             if (position > end) {
@@ -299,32 +328,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         @Override
         public void close() throws IOException {
-            in.close();
-            if (start % rangeSize != 0) {
-                throw new AssertionError("Read operation should start at the beginning of a range");
-            }
-            if (end % rangeSize != 0) {
-                if (end != length) {
-                    throw new AssertionError("Read operation should finish at the end of a range or the end of the file");
-                }
-            }
-            if (length <= rangeSize) {
-                if (bytesRead != length) {
-                    throw new AssertionError("All [" + length + "] bytes should have been read, no more no less but got:" + bytesRead);
-                }
-            } else {
-                if (bytesRead != rangeSize) {
-                    if (end != length) {
-                        throw new AssertionError("Expecting [" + rangeSize + "] bytes to be read but got:" + bytesRead);
-
-                    }
-                    final long remaining = length % rangeSize;
-                    if (bytesRead != remaining) {
-                        throw new AssertionError("Expecting [" + remaining + "] bytes to be read but got:" + bytesRead);
-                    }
-                }
-            }
-            this.container.totalBytes.add(bytesRead);
+            super.close();
+            this.container.openStreams.decrementAndGet();
         }
     }
 }

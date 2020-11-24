@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -113,7 +112,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -241,7 +240,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(),
-                    new InternalAggregations(in), keyed, format));
+                    InternalAggregations.readFrom(in), keyed, format));
         }
         this.ranges = ranges;
     }

@@ -3,7 +3,7 @@
 
 Store plugins offer alternatives to default Lucene stores.
 
-[float]
+[discrete]
 === Core store plugins
 
 The core store plugins are:

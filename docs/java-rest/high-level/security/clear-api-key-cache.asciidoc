@@ -1,0 +1,34 @@
+
+--
+:api: clear-api-key-cache
+:request: ClearApiKeyCacheRequest
+:response: ClearSecurityCacheResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Clear API Key Cache API
+
+[id="{upid}-{api}-request"]
+==== Clear API Key Cache Request
+
+A +{request}+ supports clearing API key cache for the given IDs.
+It can also clear the entire cache if no ID is specified.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> the IDs(s) for the API keys to be evicted from the cache
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Clear API Key Cache Response
+
+The returned +{response}+ allows to retrieve information about where the cache was cleared.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> the list of nodes that the cache was cleared on

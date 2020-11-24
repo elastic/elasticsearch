@@ -23,10 +23,10 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -68,13 +69,16 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptMetadata;
+import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 
@@ -107,14 +111,14 @@ public class ClusterModule extends AbstractModule {
     final ShardsAllocator shardsAllocator;
 
     public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins,
-                         ClusterInfoService clusterInfoService) {
+                         ClusterInfoService clusterInfoService, SnapshotsInfoService snapshotsInfoService, ThreadContext threadContext) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver();
-        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
+        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -138,6 +142,10 @@ public class ClusterModule extends AbstractModule {
         registerMetadataCustom(entries, ComposableIndexTemplateMetadata.TYPE, ComposableIndexTemplateMetadata::new,
             ComposableIndexTemplateMetadata::readDiffFrom);
         registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+
+        if (RollupV2.isEnabled()) {
+            registerMetadataCustom(entries, RollupMetadata.TYPE, RollupMetadata::new, RollupMetadata::readDiffFrom);
+        }
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -162,6 +170,10 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::fromXContent));
         entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(DataStreamMetadata.TYPE),
             DataStreamMetadata::fromXContent));
+        if (RollupV2.isEnabled()) {
+            entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(RollupMetadata.TYPE),
+                RollupMetadata::fromXContent));
+        }
         return entries;
     }
 

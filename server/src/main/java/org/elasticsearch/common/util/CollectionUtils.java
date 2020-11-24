@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;

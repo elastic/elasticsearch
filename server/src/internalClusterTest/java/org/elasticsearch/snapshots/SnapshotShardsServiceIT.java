@@ -19,10 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -50,23 +46,15 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRetryPostingSnapshotStatusMessages() throws Exception {
-        String masterNode = internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
 
-        logger.info("-->  creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-            .setType("mock").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRepository("test-repo", "mock");
 
         final int shards = between(1, 10);
-        assertAcked(prepareCreate("test-index", 0, Settings.builder().put("number_of_shards", shards).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test-index", 0, indexSettingsNoReplicas(shards)));
         ensureGreen();
-        final int numDocs = scaledRandomIntBetween(50, 100);
-        for (int i = 0; i < numDocs; i++) {
-            indexDoc("test-index", Integer.toString(i));
-        }
+        indexRandomDocs("test-index", scaledRandomIntBetween(50, 100));
 
         logger.info("--> blocking repository");
         String blockedNode = blockNodeWithIndex("test-repo", "test-index");
@@ -74,14 +62,12 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             .setWaitForCompletion(false)
             .setIndices("test-index")
             .get();
-        waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
+        waitForBlock(blockedNode, "test-repo");
 
-        final SnapshotId snapshotId = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
-            .get().getSnapshots("test-repo").get(0).snapshotId();
+        final SnapshotId snapshotId = getSnapshot("test-repo", "test-snap").snapshotId();
 
         logger.info("--> start disrupting cluster");
-        final NetworkDisruption networkDisruption = new NetworkDisruption(new NetworkDisruption.TwoPartitions(masterNode, dataNode),
-            NetworkDisruption.NetworkDelay.random(random()));
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.NetworkDelay.random(random()));
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -103,10 +89,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         internalCluster().clearDisruptionScheme(true);
 
         assertBusy(() -> {
-            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                .prepareGetSnapshots("test-repo")
-                .setSnapshots("test-snap").get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
+            SnapshotInfo snapshotInfo = getSnapshot("test-repo", "test-snap");
             logger.info("Snapshot status [{}], successfulShards [{}]", snapshotInfo.state(), snapshotInfo.successfulShards());
             assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
             assertThat(snapshotInfo.successfulShards(), equalTo(shards));

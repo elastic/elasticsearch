@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.TypeFieldType;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
@@ -135,7 +136,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
             String fieldName = expectedFieldName(queryBuilder.fieldName());
             Query expected;
-            if (context.fieldMapper(fieldName) != null) {
+            if (context.getFieldType(fieldName) != null) {
                 expected = new TermInSetQuery(fieldName,
                         terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
             } else {
@@ -280,8 +281,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testGeo() throws Exception {
         TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: "
                 + "[mapped_geo_point]", e.getMessage());
     }
@@ -320,7 +320,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testTypeField() throws IOException {
         TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
         builder.doToQuery(createShardContext());
-        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(TypeFieldType.TYPES_V7_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

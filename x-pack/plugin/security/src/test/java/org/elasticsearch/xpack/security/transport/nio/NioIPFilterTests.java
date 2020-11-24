@@ -61,7 +61,7 @@ public class NioIPFilterTests extends ESTestCase {
             IPFilter.PROFILE_FILTER_DENY_SETTING)));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());

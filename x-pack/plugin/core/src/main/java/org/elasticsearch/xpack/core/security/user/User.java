@@ -118,10 +118,6 @@ public class User implements ToXContentObject {
         return authenticatedUser != null;
     }
 
-    public User withRoles(String[] newRoles) {
-        return new User(username, newRoles, fullName, email, metadata, enabled);
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -242,6 +238,7 @@ public class User implements ToXContentObject {
         ParseField LOOKUP_REALM = new ParseField("lookup_realm");
         ParseField REALM_TYPE = new ParseField("type");
         ParseField REALM_NAME = new ParseField("name");
+        ParseField AUTHENTICATION_TYPE = new ParseField("authentication_type");
     }
 }
 

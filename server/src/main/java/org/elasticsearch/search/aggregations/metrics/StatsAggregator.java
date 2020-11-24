@@ -48,18 +48,23 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray mins;
     DoubleArray maxes;
 
-    StatsAggregator(String name, ValuesSourceConfig valuesSourceConfig, ValuesSource valuesSource,
-                    SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    StatsAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        // TODO: stop using nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
-            final BigArrays bigArrays = context.bigArrays();
-            counts = bigArrays.newLongArray(1, true);
-            sums = bigArrays.newDoubleArray(1, true);
-            compensations = bigArrays.newDoubleArray(1, true);
-            mins = bigArrays.newDoubleArray(1, false);
+            counts = bigArrays().newLongArray(1, true);
+            sums = bigArrays().newDoubleArray(1, true);
+            compensations = bigArrays().newDoubleArray(1, true);
+            mins = bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-            maxes = bigArrays.newDoubleArray(1, false);
+            maxes = bigArrays().newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
         this.format = valuesSourceConfig.format();
@@ -76,7 +81,6 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
@@ -86,11 +90,11 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                 if (bucket >= counts.size()) {
                     final long from = counts.size();
                     final long overSize = BigArrays.overSize(bucket + 1);
-                    counts = bigArrays.resize(counts, overSize);
-                    sums = bigArrays.resize(sums, overSize);
-                    compensations = bigArrays.resize(compensations, overSize);
-                    mins = bigArrays.resize(mins, overSize);
-                    maxes = bigArrays.resize(maxes, overSize);
+                    counts = bigArrays().resize(counts, overSize);
+                    sums = bigArrays().resize(sums, overSize);
+                    compensations = bigArrays().resize(compensations, overSize);
+                    mins = bigArrays().resize(mins, overSize);
+                    maxes = bigArrays().resize(maxes, overSize);
                     mins.fill(from, overSize, Double.POSITIVE_INFINITY);
                     maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
                 }

@@ -77,6 +77,11 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
     }
 
     @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);

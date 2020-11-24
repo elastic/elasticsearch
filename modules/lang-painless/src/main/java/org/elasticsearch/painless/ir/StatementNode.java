@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Location;
 
 public abstract class StatementNode extends IRNode {
 
-    protected Label continueLabel = null;
-    protected Label breakLabel = null;
+    public StatementNode(Location location) {
+        super(location);
+    }
 
 }

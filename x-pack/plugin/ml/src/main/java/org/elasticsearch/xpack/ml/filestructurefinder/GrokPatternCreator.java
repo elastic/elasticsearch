@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
@@ -30,6 +32,7 @@ import java.util.stream.Collectors;
  */
 public final class GrokPatternCreator {
 
+    private static final Logger logger = LogManager.getLogger(GrokPatternCreator.class);
     private static final Map<Character, Boolean> PUNCTUATION_OR_SPACE_NEEDS_ESCAPING;
     static {
         HashMap<Character, Boolean> punctuationOrSpaceNeedsEscaping = new HashMap<>();
@@ -147,9 +150,9 @@ public final class GrokPatternCreator {
         this.mappings = mappings;
         this.fieldStats = fieldStats;
         if (customGrokPatternDefinitions.isEmpty()) {
-            grokPatternDefinitions = Grok.getBuiltinPatterns();
+            grokPatternDefinitions = Grok.BUILTIN_PATTERNS;
         } else {
-            grokPatternDefinitions = new HashMap<>(Grok.getBuiltinPatterns());
+            grokPatternDefinitions = new HashMap<>(Grok.BUILTIN_PATTERNS);
             grokPatternDefinitions.putAll(customGrokPatternDefinitions);
         }
         this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
@@ -454,7 +457,7 @@ public final class GrokPatternCreator {
          */
         ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName) {
             this(grokPatternName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType), fieldName,
-                "\\b", "\\b", Grok.getBuiltinPatterns());
+                "\\b", "\\b", Grok.BUILTIN_PATTERNS);
         }
 
         /**
@@ -478,7 +481,7 @@ public final class GrokPatternCreator {
          */
         ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak, String postBreak) {
             this(grokPatternName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType), fieldName,
-                preBreak, postBreak, Grok.getBuiltinPatterns());
+                preBreak, postBreak, Grok.BUILTIN_PATTERNS);
         }
 
         /**
@@ -498,7 +501,7 @@ public final class GrokPatternCreator {
             grok = new Grok(grokPatternDefinitions,
                 "(?m)%{DATA:" + PREFACE + "}" + Objects.requireNonNull(preBreak) +
                     "%{" + grokPatternName + ":" + VALUE + "}" + Objects.requireNonNull(postBreak) + "%{GREEDYDATA:" + EPILOGUE + "}",
-                TimeoutChecker.watchdog);
+                TimeoutChecker.watchdog, logger::warn);
         }
 
         @Override
@@ -591,8 +594,8 @@ public final class GrokPatternCreator {
             if (fieldName == null) {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
-            Grok grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}\\b" +
-                fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog);
+            Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "(?m)%{DATA:" + PREFACE + "}\\b" +
+                fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog, logger::warn);
             Collection<String> values = new ArrayList<>();
             for (String snippet : snippets) {
                 Map<String, Object> captures = grok.captures(snippet);
@@ -646,7 +649,7 @@ public final class GrokPatternCreator {
         private final Grok grok;
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(String grokPatternName, String timeField) {
-            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, Grok.getBuiltinPatterns());
+            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, Grok.BUILTIN_PATTERNS);
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(String grokPatternName, String timeField,
@@ -655,7 +658,7 @@ public final class GrokPatternCreator {
         }
 
         static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField) {
-            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.getBuiltinPatterns());
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.BUILTIN_PATTERNS);
         }
 
         static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField,
@@ -666,7 +669,7 @@ public final class GrokPatternCreator {
         private FullMatchGrokPatternCandidate(String grokPattern, String timeField, Map<String, String> grokPatternDefinitions) {
             this.grokPattern = grokPattern;
             this.timeField = timeField;
-            grok = new Grok(grokPatternDefinitions, grokPattern, TimeoutChecker.watchdog);
+            grok = new Grok(grokPatternDefinitions, grokPattern, TimeoutChecker.watchdog, logger::warn);
         }
 
         public String getTimeField() {

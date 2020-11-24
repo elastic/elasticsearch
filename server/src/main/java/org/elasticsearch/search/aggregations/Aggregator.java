@@ -28,9 +28,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -65,27 +63,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
-     * Returns whether one of the parents is a {@link BucketsAggregator}.
-     */
-    public static boolean descendsFromBucketAggregator(Aggregator parent) {
-        while (parent != null) {
-            if (parent instanceof BucketsAggregator) {
-                return true;
-            }
-            parent = parent.parent();
-        }
-        return false;
-    }
-
-    /**
      * Return the name of this aggregator.
      */
     public abstract String name();
-
-    /**
-     * Return the {@link SearchContext} attached with this {@link Aggregator}.
-     */
-    public abstract SearchContext context();
 
     /**
      * Return the parent aggregator.
@@ -156,12 +136,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Build the results of this aggregation.
-     * @param owningBucketOrds the ordinals of the buckets that we want to
+     * @param ordsToCollect the ordinals of the buckets that we want to
      *        collect from this aggregation
      * @return the results for each ordinal, in the same order as the array
      *         of ordinals
      */
-    public abstract InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException;
+    public abstract InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException;
 
     /**
      * Build the result of this aggregation if it is at the "top level"
@@ -180,7 +160,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation buildEmptyAggregation();
 
     /**
-     * Collect debug information to add to the profiling results.. This will
+     * Collect debug information to add to the profiling results. This will
      * only be called if the aggregation is being profiled.
      * <p>
      * Well behaved implementations will always call the superclass
@@ -191,6 +171,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * test. 
      */
     public void collectDebugInfo(BiConsumer<String, Object> add) {}
+
+    /**
+     * Get the aggregators running under this one.
+     */
+    public abstract Aggregator[] subAggregators();
 
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode implements Writeable {

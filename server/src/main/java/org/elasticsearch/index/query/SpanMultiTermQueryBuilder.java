@@ -133,7 +133,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
         } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder) {
             PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
-            MappedFieldType fieldType = context.fieldMapper(prefixBuilder.fieldName());
+            MappedFieldType fieldType = context.getFieldType(prefixBuilder.fieldName());
             if (fieldType == null) {
                 throw new IllegalStateException("Rewrite first");
             }

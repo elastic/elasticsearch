@@ -100,7 +100,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
      * @throws IOException If the parsing fails
      */
     public static GetPipelineResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         List<PipelineConfiguration> pipelines = new ArrayList<>();
         while(parser.nextToken().equals(Token.FIELD_NAME)) {
             String pipelineId = parser.currentName();
@@ -112,7 +112,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                 pipelines.add(pipeline);
             }
         }
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
         return new GetPipelineResponse(pipelines);
     }
 

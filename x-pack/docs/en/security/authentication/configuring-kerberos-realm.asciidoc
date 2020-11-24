@@ -46,6 +46,34 @@ For more information on Java GSS, see
 https://docs.oracle.com/javase/10/security/kerberos-requirements1.htm[Java GSS Kerberos requirements]
 --
 
+. Enable TLS for HTTP.
++
+--
+If your {es} cluster is operating in production mode, you must configure the
+HTTP interface to use SSL/TLS before you can enable Kerberos authentication. For
+more information, see <<tls-http>>.
+
+This step is necessary to support Kerberos authentication via {kib}.
+It is not required for Kerberos authentication directly against the {es} Rest API.
+--
+
+. Enable the token service
++
+--
+The {es} Kerberos implementation makes use of the {es} token service. If you
+configure TLS on the HTTP interface, this service is automatically enabled. It
+can be explicitly configured by adding the following setting in your
+`elasticsearch.yml` file:
+
+[source, yaml]
+------------------------------------------------------------
+xpack.security.authc.token.enabled: true
+------------------------------------------------------------
+
+This step is necessary to support Kerberos authentication via {kib}.
+It is not required for Kerberos authentication directly against the {es} Rest API.
+--
+
 [[kerberos-realm-create]]
 ===== Create a Kerberos realm
 

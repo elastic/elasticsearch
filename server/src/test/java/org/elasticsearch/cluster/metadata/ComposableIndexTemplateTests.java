@@ -69,12 +69,14 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
         Template template = null;
-        if (randomBoolean()) {
+        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
+
+        if (dataStreamTemplate != null || randomBoolean()) {
             if (randomBoolean()) {
                 settings = randomSettings();
             }
-            if (randomBoolean()) {
-                mappings = randomMappings();
+            if (dataStreamTemplate != null || randomBoolean()) {
+                mappings = randomMappings(dataStreamTemplate);
             }
             if (randomBoolean()) {
                 aliases = randomAliases();
@@ -87,8 +89,6 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
             meta = randomMeta();
         }
 
-        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
-
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
         List<String> componentTemplates = randomList(0, 10, () -> randomAlphaOfLength(5));
         return new ComposableIndexTemplate(indexPatterns,
@@ -97,7 +97,9 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomNonNegativeLong(),
             meta,
-            dataStreamTemplate);
+            dataStreamTemplate,
+            randomBoolean() ? null : randomBoolean()
+        );
     }
 
     private static Map<String, AliasMetadata> randomAliases() {
@@ -111,9 +113,13 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         return Collections.singletonMap(aliasName, aliasMeta);
     }
 
-    private static CompressedXContent randomMappings() {
+    private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
         try {
-            return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
+            if (dataStreamTemplate != null) {
+                return new CompressedXContent("{\"properties\":{\"" + dataStreamTemplate.getTimestampField() + "\":{\"type\":\"date\"}}}");
+            } else {
+                return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
+            }
         } catch (IOException e) {
             fail("got an IO exception creating fake mappings: " + e);
             return null;
@@ -144,7 +150,7 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         if (randomBoolean()) {
             return null;
         } else {
-            return new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8));
+            return new ComposableIndexTemplate.DataStreamTemplate();
         }
     }
 
@@ -159,15 +165,17 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                 List<String> newIndexPatterns = randomValueOtherThan(orig.indexPatterns(),
                     () -> randomList(1, 4, () -> randomAlphaOfLength(4)));
                 return new ComposableIndexTemplate(newIndexPatterns, orig.template(), orig.composedOf(),
-                    orig.priority(), orig.version(), orig.metadata(), orig.getDataStreamTemplate());
+                    orig.priority(), orig.version(), orig.metadata(), orig.getDataStreamTemplate(), null);
             case 1:
                 return new ComposableIndexTemplate(orig.indexPatterns(),
-                    randomValueOtherThan(orig.template(), () -> new Template(randomSettings(), randomMappings(), randomAliases())),
+                    randomValueOtherThan(orig.template(), () -> new Template(randomSettings(),
+                        randomMappings(orig.getDataStreamTemplate()), randomAliases())),
                     orig.composedOf(),
                     orig.priority(),
                     orig.version(),
                     orig.metadata(),
-                    orig.getDataStreamTemplate());
+                    orig.getDataStreamTemplate(),
+                    orig.getAllowAutoCreate());
             case 2:
                 List<String> newComposedOf = randomValueOtherThan(orig.composedOf(),
                     () -> randomList(0, 10, () -> randomAlphaOfLength(5)));
@@ -177,7 +185,8 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                     orig.priority(),
                     orig.version(),
                     orig.metadata(),
-                    orig.getDataStreamTemplate());
+                    orig.getDataStreamTemplate(),
+                    orig.getAllowAutoCreate());
             case 3:
                 return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
@@ -185,7 +194,8 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                     randomValueOtherThan(orig.priority(), ESTestCase::randomNonNegativeLong),
                     orig.version(),
                     orig.metadata(),
-                    orig.getDataStreamTemplate());
+                    orig.getDataStreamTemplate(),
+                    orig.getAllowAutoCreate());
             case 4:
                 return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
@@ -193,7 +203,8 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                     orig.priority(),
                     randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
                     orig.metadata(),
-                    orig.getDataStreamTemplate());
+                    orig.getDataStreamTemplate(),
+                    orig.getAllowAutoCreate());
             case 5:
                 return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
@@ -201,7 +212,8 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                     orig.priority(),
                     orig.version(),
                     randomValueOtherThan(orig.metadata(), ComposableIndexTemplateTests::randomMeta),
-                    orig.getDataStreamTemplate());
+                    orig.getDataStreamTemplate(),
+                    orig.getAllowAutoCreate());
             case 6:
                 return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
@@ -209,7 +221,8 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
                     orig.priority(),
                     orig.version(),
                     orig.metadata(),
-                    randomValueOtherThan(orig.getDataStreamTemplate(), ComposableIndexTemplateTests::randomDataStreamTemplate));
+                    randomValueOtherThan(orig.getDataStreamTemplate(), ComposableIndexTemplateTests::randomDataStreamTemplate),
+                    orig.getAllowAutoCreate());
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }

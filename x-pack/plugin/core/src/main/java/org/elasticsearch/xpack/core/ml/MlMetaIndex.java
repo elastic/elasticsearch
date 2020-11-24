@@ -6,12 +6,18 @@
 package org.elasticsearch.xpack.core.ml;
 
 public final class MlMetaIndex {
+
+    private static final String INDEX_NAME = ".ml-meta";
+
     /**
      * Where to store the ml info in Elasticsearch - must match what's
      * expected by kibana/engineAPI/app/directives/mlLogUsage.js
+     *
+     * @return The index name
      */
-    public static final String INDEX_NAME = ".ml-meta";
-
+    public static String indexName() {
+        return INDEX_NAME;
+    }
 
     private MlMetaIndex() {}
 }

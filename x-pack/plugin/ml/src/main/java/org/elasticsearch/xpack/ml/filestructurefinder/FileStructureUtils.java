@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.grok.Grok;
@@ -27,12 +29,14 @@ import java.util.stream.Stream;
 
 public final class FileStructureUtils {
 
+    private static final Logger logger = LogManager.getLogger(FileStructureUtils.class);
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final String MAPPING_TYPE_SETTING = "type";
     public static final String MAPPING_FORMAT_SETTING = "format";
     public static final String MAPPING_PROPERTIES_SETTING = "properties";
     public static final Map<String, String> DATE_MAPPING_WITHOUT_FORMAT =
         Collections.singletonMap(MAPPING_TYPE_SETTING, "date");
+    public static final String NANOSECOND_DATE_OUTPUT_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXX";
     public static final Set<String> CONVERTIBLE_TYPES =
         Collections.unmodifiableSet(Sets.newHashSet("integer", "long", "float", "double", "boolean"));
 
@@ -54,17 +58,18 @@ public final class FileStructureUtils {
             "(?:%{WKT_POINT}|%{WKT_LINESTRING}|%{WKT_MULTIPOINT}|%{WKT_POLYGON}|%{WKT_MULTILINESTRING}|%{WKT_MULTIPOLYGON}|%{WKT_BBOX})"
         );
         patterns.put("WKT_GEOMETRYCOLLECTION", "GEOMETRYCOLLECTION \\(%{WKT_ANY}(?:, %{WKT_ANY})\\)");
-        patterns.putAll(Grok.getBuiltinPatterns());
+        patterns.putAll(Grok.BUILTIN_PATTERNS);
         EXTENDED_PATTERNS = Collections.unmodifiableMap(patterns);
     }
 
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
-    private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$",
-        TimeoutChecker.watchdog);
-    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$", TimeoutChecker.watchdog);
-    private static final Grok GEO_POINT_WKT = new Grok(EXTENDED_PATTERNS, "^%{WKT_POINT}$", TimeoutChecker.watchdog);
-    private static final Grok GEO_WKT = new Grok(EXTENDED_PATTERNS, "^(?:%{WKT_ANY}|%{WKT_GEOMETRYCOLLECTION})$", TimeoutChecker.watchdog);
+    private static final Grok NUMBER_GROK = new Grok(Grok.BUILTIN_PATTERNS, "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$",
+        TimeoutChecker.watchdog, logger::warn);
+    private static final Grok IP_GROK = new Grok(Grok.BUILTIN_PATTERNS, "^%{IP}$", TimeoutChecker.watchdog, logger::warn);
+    private static final Grok GEO_POINT_WKT = new Grok(EXTENDED_PATTERNS, "^%{WKT_POINT}$", TimeoutChecker.watchdog, logger::warn);
+    private static final Grok GEO_WKT = new Grok(EXTENDED_PATTERNS, "^(?:%{WKT_ANY}|%{WKT_GEOMETRYCOLLECTION})$", TimeoutChecker.watchdog,
+        logger::warn);
     private static final int KEYWORD_MAX_LEN = 256;
     private static final int KEYWORD_MAX_SPACES = 5;
 
@@ -388,18 +393,21 @@ public final class FileStructureUtils {
      * @param csvProcessorSettings The CSV processor settings for delimited formats.  <code>null</code> for
      *                             non-delimited formats.
      * @param mappingsForConversions Mappings (or partial mappings) that will be considered for field type conversions.
+     *                               The keys in the map are the top level field names - there is no properties layer.
      * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
      *                       <code>null</code> if there is no timestamp.
      * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.
      *                         May be <code>null</code> if {@code timestampField} is also <code>null</code>.
      * @param needClientTimezone Is the timezone of the client supplying data to ingest required to uniquely parse the timestamp?
+     * @param needNanosecondPrecision Does the timestamp have more than millisecond accuracy?
      * @return The ingest pipeline definition, or <code>null</code> if none is required.
      */
     public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, Map<String, String> customGrokPatternDefinitions,
                                                                    Map<String, Object> csvProcessorSettings,
                                                                    Map<String, Object> mappingsForConversions,
                                                                    String timestampField, List<String> timestampFormats,
-                                                                   boolean needClientTimezone) {
+                                                                   boolean needClientTimezone,
+                                                                   boolean needNanosecondPrecision) {
 
         if (grokPattern == null && csvProcessorSettings == null && timestampField == null) {
             return null;
@@ -433,6 +441,9 @@ public final class FileStructureUtils {
                 dateProcessorSettings.put("timezone", "{{ " + BEAT_TIMEZONE_FIELD + " }}");
             }
             dateProcessorSettings.put("formats", timestampFormats);
+            if (needNanosecondPrecision) {
+                dateProcessorSettings.put("output_format", NANOSECOND_DATE_OUTPUT_FORMAT);
+            }
             processors.add(Collections.singletonMap("date", dateProcessorSettings));
         }
 

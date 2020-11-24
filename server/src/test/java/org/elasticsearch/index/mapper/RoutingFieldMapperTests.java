@@ -34,8 +34,7 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
     public void testRoutingMapper() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
@@ -50,15 +49,14 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("_routing", "foo").endObject()),XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), e.getMessage(),
+            assertThat(e.getCause().getMessage(), e.getCause().getMessage(),
                 containsString("Field [_routing] is a metadata field and cannot be added inside a document"));
         }
     }

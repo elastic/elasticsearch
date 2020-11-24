@@ -40,35 +40,32 @@ abstract class OutboundMessage extends NetworkMessage {
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            storedContext.restore();
-            bytesStream.setVersion(version);
-            bytesStream.skip(TcpHeader.headerSize(version));
+        bytesStream.setVersion(version);
+        bytesStream.skip(TcpHeader.headerSize(version));
 
-            // The compressible bytes stream will not close the underlying bytes stream
-            BytesReference reference;
-            int variableHeaderLength = -1;
-            final long preHeaderPosition = bytesStream.position();
+        // The compressible bytes stream will not close the underlying bytes stream
+        BytesReference reference;
+        int variableHeaderLength = -1;
+        final long preHeaderPosition = bytesStream.position();
 
-            if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                writeVariableHeader(bytesStream);
-                variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
-            }
-
-            try (CompressibleBytesOutputStream stream =
-                     new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
-                stream.setVersion(version);
-                if (variableHeaderLength == -1) {
-                    writeVariableHeader(stream);
-                }
-                reference = writeMessage(stream);
-            }
-
-            bytesStream.seek(0);
-            final int contentSize = reference.length() - TcpHeader.headerSize(version);
-            TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
-            return reference;
+        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+            writeVariableHeader(bytesStream);
+            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
         }
+
+        try (CompressibleBytesOutputStream stream =
+                 new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
+            stream.setVersion(version);
+            if (variableHeaderLength == -1) {
+                writeVariableHeader(stream);
+            }
+            reference = writeMessage(stream);
+        }
+
+        bytesStream.seek(0);
+        final int contentSize = reference.length() - TcpHeader.headerSize(version);
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
+        return reference;
     }
 
     protected void writeVariableHeader(StreamOutput stream) throws IOException {

@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -155,6 +154,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders, ConnectionManager connectionManager) {
         this.transport = transport;
+        transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
         this.connectionManager = connectionManager;
@@ -165,7 +165,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         taskManager = createTaskManager(settings, threadPool, taskHeaders);
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
-        this.remoteClusterClient = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+        this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
@@ -174,6 +174,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             if (remoteClusterClient) {
                 remoteClusterService.listenForUpdates(clusterSettings);
             }
+            clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
@@ -353,7 +354,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+            handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
@@ -395,7 +396,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      */
     public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout,
+        final TimeValue handshakeTimeout,
         final ActionListener<DiscoveryNode> listener) {
         handshake(connection, handshakeTimeout, clusterName.getEqualityPredicate(),
             ActionListener.map(listener, HandshakeResponse::getDiscoveryNode));
@@ -416,11 +417,11 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      */
     public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
+        final TimeValue handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
         final ActionListener<HandshakeResponse> listener) {
         final DiscoveryNode node = connection.getNode();
         sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
-            TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
+            TransportRequestOptions.timeout(handshakeTimeout),
             new ActionListenerResponseHandler<>(
                 new ActionListener<>() {
                     @Override
@@ -522,15 +523,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(node);
-        } catch (final NodeNotConnectedException ex) {
-            // the caller might not handle this so we invoke the handler
-            handler.handleException(ex);
-            return;
-        }
-        sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
+        sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
     public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
@@ -561,37 +554,44 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public final <T extends TransportResponse> void sendRequest(final Transport.Connection connection, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
-                                                                TransportResponseHandler<T> handler) {
+                                                                final TransportResponseHandler<T> handler) {
         try {
+            final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
                 final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
-                final TransportResponseHandler<T> delegate = handler;
-                handler = new TransportResponseHandler<>() {
+                delegate = new TransportResponseHandler<>() {
                     @Override
                     public void handleResponse(T response) {
                         unregisterChildNode.close();
-                        delegate.handleResponse(response);
+                        handler.handleResponse(response);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         unregisterChildNode.close();
-                        delegate.handleException(exp);
+                        handler.handleException(exp);
                     }
 
                     @Override
                     public String executor() {
-                        return delegate.executor();
+                        return handler.executor();
                     }
 
                     @Override
                     public T read(StreamInput in) throws IOException {
-                        return delegate.read(in);
+                        return handler.read(in);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
                     }
                 };
+            } else {
+                delegate = handler;
             }
-            asyncSender.sendRequest(connection, action, request, options, handler);
+            asyncSender.sendRequest(connection, action, request, options, delegate);
         } catch (final Exception ex) {
             // the caller might not handle this so we invoke the handler
             final TransportException te;
@@ -939,8 +939,12 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
         if (timeoutInfoHolder != null) {
             long time = threadPool.relativeTimeInMillis();
-            logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, " +
-                    "action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(),
+            long sentMs = time - timeoutInfoHolder.sentTime();
+            long timedOutMs = time - timeoutInfoHolder.timeoutTime();
+            logger.warn("Received response for a request that has timed out, sent [{}/{}ms] ago, timed out [{}/{}ms] ago, " +
+                    "action [{}], node [{}], id [{}]",
+                TimeValue.timeValueMillis(sentMs), sentMs,
+                TimeValue.timeValueMillis(timedOutMs), timedOutMs,
                 timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
             action = timeoutInfoHolder.action();
             sourceNode = timeoutInfoHolder.node();

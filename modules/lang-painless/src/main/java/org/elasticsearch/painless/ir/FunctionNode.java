@@ -19,13 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -119,53 +114,22 @@ public class FunctionNode extends IRNode {
         return maxLoopCounter;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        int access = Opcodes.ACC_PUBLIC;
-
-        if (isStatic) {
-            access |= Opcodes.ACC_STATIC;
-        } else {
-            scopeTable.defineInternalVariable(Object.class, "this");
-        }
-
-        if (hasVarArgs) {
-            access |= Opcodes.ACC_VARARGS;
-        }
-
-        if (isSynthetic) {
-            access |= Opcodes.ACC_SYNTHETIC;
-        }
-
-        Type asmReturnType = MethodWriter.getType(returnType);
-        Type[] asmParameterTypes = new Type[typeParameters.size()];
-
-        for (int index = 0; index < asmParameterTypes.length; ++index) {
-            Class<?> type = typeParameters.get(index);
-            String name = parameterNames.get(index);
-            scopeTable.defineVariable(type, name);
-            asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
-        }
-
-        Method method = new Method(name, asmReturnType, asmParameterTypes);
-
-        methodWriter = classWriter.newMethodWriter(access, method);
-        methodWriter.visitCode();
-
-        if (maxLoopCounter > 0) {
-            // if there is infinite loop protection, we do this once:
-            // int #loop = settings.getMaxLoopCounter()
-
-            Variable loop = scopeTable.defineInternalVariable(int.class, "loop");
-
-            methodWriter.push(maxLoopCounter);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-        }
-
-        blockNode.write(classWriter, methodWriter, scopeTable.newScope());
-
-        methodWriter.endMethod();
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitFunction(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getBlockNode().visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    public FunctionNode(Location location) {
+        super(location);
+    }
+
 }

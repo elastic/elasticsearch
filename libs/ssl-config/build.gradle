@@ -19,15 +19,15 @@
 apply plugin: "elasticsearch.publish"
 
 dependencies {
-  compile project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-core')
 
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
   }
 
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 

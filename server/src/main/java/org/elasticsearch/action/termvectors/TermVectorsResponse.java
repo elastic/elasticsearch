@@ -30,7 +30,6 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -357,15 +355,15 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public void setFields(Fields termVectorsByField, Set<String> selectedFields,
                           EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
-        setFields(termVectorsByField, selectedFields, flags, topLevelFields, null, null);
+        setFields(termVectorsByField, selectedFields, flags, topLevelFields, null);
     }
 
     public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags,
-                          Fields topLevelFields, @Nullable AggregatedDfs dfs, TermVectorsFilter termVectorsFilter) throws IOException {
+                          Fields topLevelFields, TermVectorsFilter termVectorsFilter) throws IOException {
         TermVectorsWriter tvw = new TermVectorsWriter(this);
 
         if (termVectorsByField != null) {
-            tvw.setFields(termVectorsByField, selectedFields, flags, topLevelFields, dfs, termVectorsFilter);
+            tvw.setFields(termVectorsByField, selectedFields, flags, topLevelFields, termVectorsFilter);
         }
     }
 

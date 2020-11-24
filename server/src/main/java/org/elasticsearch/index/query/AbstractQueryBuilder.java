@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -204,6 +205,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             return BytesRefs.toBytesRef(obj);
         } else if (obj instanceof CharBuffer) {
             return new BytesRef((CharBuffer) obj);
+        } else if (obj instanceof BigInteger) {
+            return BytesRefs.toBytesRef(obj);
         }
         return obj;
     }

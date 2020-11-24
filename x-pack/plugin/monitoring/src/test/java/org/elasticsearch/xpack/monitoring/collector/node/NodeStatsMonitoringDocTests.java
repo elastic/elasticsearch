@@ -301,7 +301,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
         indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
-        indicesCommonStats.getStore().add(new StoreStats(++iota));
+        indicesCommonStats.getStore().add(new StoreStats(++iota, no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, ++iota, no, no, no, no, no, false, ++iota);
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));

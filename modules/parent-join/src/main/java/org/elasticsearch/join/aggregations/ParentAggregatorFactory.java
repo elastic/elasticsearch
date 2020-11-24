@@ -20,13 +20,14 @@
 package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -47,20 +48,19 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
                                    ValuesSourceConfig config,
                                    Query childFilter,
                                    Query parentFilter,
-                                   QueryShardContext queryShardContext,
+                                   AggregationContext context,
                                    AggregatorFactory parent,
                                    AggregatorFactories.Builder subFactoriesBuilder,
                                    Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.childFilter = childFilter;
         this.parentFilter = parentFilter;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalParent(name, 0, buildEmptySubAggregations(), metadata());
@@ -69,23 +69,19 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
-                                          SearchContext searchContext, Aggregator children,
-                                          boolean collectsFromSingleBucket,
+    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator children,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
 
+        ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
                 "is not supported for aggregation " + this.name());
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
-        if (collectsFromSingleBucket) {
-            return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
-                parentFilter, valuesSource, maxOrd, metadata);
-        } else {
-            return asMultiBucketAggregator(this, searchContext, children);
-        }
+        return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
+            parentFilter, valuesSource, maxOrd, cardinality, metadata);
     }
 
     @Override

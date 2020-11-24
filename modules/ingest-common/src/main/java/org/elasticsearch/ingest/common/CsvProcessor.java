@@ -22,6 +22,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 
 import java.util.List;
 import java.util.Map;
@@ -54,9 +55,9 @@ public final class CsvProcessor extends AbstractProcessor {
     final boolean ignoreMissing;
     final Object emptyValue;
 
-    CsvProcessor(String tag, String field, String[] headers, boolean trim, char separator, char quote, boolean ignoreMissing,
-                 Object emptyValue) {
-        super(tag);
+    CsvProcessor(String tag, String description, String field, String[] headers, boolean trim, char separator, char quote,
+                 boolean ignoreMissing, Object emptyValue) {
+        super(tag, description);
         this.field = field;
         this.headers = headers;
         this.trim = trim;
@@ -89,8 +90,8 @@ public final class CsvProcessor extends AbstractProcessor {
 
     public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
         @Override
-        public CsvProcessor create(Map<String, org.elasticsearch.ingest.Processor.Factory> registry, String processorTag,
-                                   Map<String, Object> config) {
+        public CsvProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                   String description, Map<String, Object> config) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String quote = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "quote", "\"");
             if (quote.length() != 1) {
@@ -110,8 +111,8 @@ public final class CsvProcessor extends AbstractProcessor {
             if (targetFields.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "target_fields", "target fields list can't be empty");
             }
-            return new CsvProcessor(processorTag, field, targetFields.toArray(String[]::new), trim, separator.charAt(0), quote.charAt(0),
-                ignoreMissing, emptyValue);
+            return new CsvProcessor(processorTag, description, field, targetFields.toArray(String[]::new), trim, separator.charAt(0),
+                quote.charAt(0), ignoreMissing, emptyValue);
         }
     }
 }

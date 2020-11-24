@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
@@ -69,7 +68,6 @@ final class MatrixStatsAggregator extends MetricsAggregator {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final NumericDoubleValues[] values = new NumericDoubleValues[valuesSources.fieldNames().length];
         for (int i = 0; i < values.length; ++i) {
             values[i] = valuesSources.getField(i, ctx);
@@ -83,7 +81,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
             public void collect(int doc, long bucket) throws IOException {
                 // get fields
                 if (includeDocument(doc)) {
-                    stats = bigArrays.grow(stats, bucket + 1);
+                    stats = bigArrays().grow(stats, bucket + 1);
                     RunningStats stat = stats.get(bucket);
                     // add document fields to correlation stats
                     if (stat == null) {

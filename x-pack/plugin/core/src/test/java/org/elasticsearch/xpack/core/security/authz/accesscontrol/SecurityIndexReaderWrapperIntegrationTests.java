@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -74,10 +75,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
         when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
-            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-            ft.setName(fieldName);
-            ft.freeze();
-            return ft;
+            return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -94,12 +92,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true, null);
+                client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
 
         Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
@@ -191,10 +189,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
         when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
-            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-            ft.setName(fieldName);
-            ft.freeze();
-            return ft;
+            return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -229,13 +224,13 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true, null);
+                client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
                 bitsetCache, securityContext, licenseState, scriptService) {
 

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.util.Objects;

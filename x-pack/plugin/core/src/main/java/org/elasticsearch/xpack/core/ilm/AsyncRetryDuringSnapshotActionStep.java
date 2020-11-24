@@ -26,7 +26,7 @@ import java.util.function.Consumer;
  * registers an observer and waits to try again when a snapshot is no longer running.
  */
 public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep {
-    private final Logger logger = LogManager.getLogger(AsyncRetryDuringSnapshotActionStep.class);
+    private static final Logger logger = LogManager.getLogger(AsyncRetryDuringSnapshotActionStep.class);
 
     public AsyncRetryDuringSnapshotActionStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
@@ -134,13 +134,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
         }
 
         private boolean snapshotInProgress(ClusterState state) {
-            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
-                // No snapshots are running, new state is acceptable to proceed
-                return false;
-            }
-
-            for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
+            for (SnapshotsInProgress.Entry snapshot : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
                 if (snapshot.indices().stream()
                     .map(IndexId::getName)
                     .anyMatch(name -> name.equals(indexName))) {
@@ -148,7 +142,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
                     return true;
                 }
             }
-            // There are snapshots, but none for this index, so it's okay to proceed with this state
+            // There are no snapshots for this index, so it's okay to proceed with this state
             return false;
         }
 

@@ -131,10 +131,6 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 int counter = 0;
                 for (String date : datasetTimes) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
-
                     long instant = asLong(date);
                     document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
                     document.add(new LongPoint(INSTANT_FIELD, instant));
@@ -148,14 +144,9 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(aggBuilder.field());
-
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                valueFieldType.setHasDocValues(true);
-                valueFieldType.setName("value_field");
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggBuilder.field());
+                MappedFieldType valueFieldType
+                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalDateHistogram histogram;
                 histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000,

@@ -48,6 +48,19 @@ final class TransportKeepAlive implements Closeable {
 
     static final int PING_DATA_SIZE = -1;
 
+    private static final BytesReference PING_MESSAGE;
+
+    static {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte((byte) 'E');
+            out.writeByte((byte) 'S');
+            out.writeInt(PING_DATA_SIZE);
+            PING_MESSAGE = out.copyBytes();
+        } catch (IOException e) {
+            throw new AssertionError(e.getMessage(), e); // won't happen
+        }
+    }
+
     private final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
     private final CounterMetric successfulPings = new CounterMetric();
     private final CounterMetric failedPings = new CounterMetric();
@@ -55,20 +68,10 @@ final class TransportKeepAlive implements Closeable {
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
     private final AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
-    private final BytesReference pingMessage;
 
     TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeByte((byte) 'E');
-            out.writeByte((byte) 'S');
-            out.writeInt(PING_DATA_SIZE);
-            pingMessage = out.bytes();
-        } catch (IOException e) {
-            throw new AssertionError(e.getMessage(), e); // won't happen
-        }
 
         this.lifecycle.moveToStarted();
     }
@@ -112,7 +115,7 @@ final class TransportKeepAlive implements Closeable {
     }
 
     private void sendPing(TcpChannel channel) {
-        pingSender.apply(channel, pingMessage, new ActionListener<Void>() {
+        pingSender.apply(channel, PING_MESSAGE, new ActionListener<Void>() {
 
             @Override
             public void onResponse(Void v) {

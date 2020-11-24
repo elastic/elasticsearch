@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -117,11 +116,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            int size = in.readVInt();
-            indexTemplates = new HashMap<>();
-            for (int i = 0 ; i < size ; i++) {
-                indexTemplates.put(in.readString(), new ComposableIndexTemplate(in));
-            }
+            indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
         }
 
         public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
@@ -134,11 +129,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(indexTemplates.size());
-            for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : indexTemplates.entrySet()) {
-                out.writeString(indexTemplate.getKey());
-                indexTemplate.getValue().writeTo(out);
-            }
+            out.writeMap(indexTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
 
         @Override

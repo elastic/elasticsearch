@@ -215,6 +215,11 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
+    }
+
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;

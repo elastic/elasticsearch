@@ -56,13 +56,14 @@ public abstract class AbstractRefCounted implements RefCounted {
     }
 
     @Override
-    public final void decRef() {
+    public final boolean decRef() {
         int i = refCount.decrementAndGet();
         assert i >= 0;
         if (i == 0) {
             closeInternal();
+            return true;
         }
-
+        return false;
     }
 
     protected void alreadyClosed() {

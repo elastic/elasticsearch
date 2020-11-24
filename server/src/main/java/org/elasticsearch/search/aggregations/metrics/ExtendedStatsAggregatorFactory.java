@@ -19,15 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -44,41 +41,38 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     ExtendedStatsAggregatorFactory(String name,
                                     ValuesSourceConfig config,
                                     double sigma,
-                                    QueryShardContext queryShardContext,
+                                    AggregationContext context,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
                                     Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(ExtendedStatsAggregationBuilder.NAME,
+        builder.register(
+            ExtendedStatsAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            (ExtendedStatsAggregatorProvider) ExtendedStatsAggregator::new);
+            ExtendedStatsAggregator::new,
+                true);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new ExtendedStatsAggregator(name, null, config.format(), searchContext, parent, sigma, metadata);
+        return new ExtendedStatsAggregator(name, config, searchContext, parent, sigma, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
-                                          Aggregator parent,
-                                          boolean collectsFromSingleBucket,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            ExtendedStatsAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof ExtendedStatsAggregatorProvider == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected ExtendedStatsAggregatorProvider, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((ExtendedStatsAggregatorProvider) aggregatorSupplier).build(name, (Numeric) valuesSource, config.format(), searchContext,
-            parent, sigma, metadata);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return context.getValuesSourceRegistry()
+            .getAggregator(ExtendedStatsAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, config, searchContext, parent, sigma, metadata);
     }
 }

@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -31,9 +29,6 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
         private String calendarId;
         private String jobIdsToAddExpression;
         private String jobIdsToRemoveExpression;
-
-        public Request() {
-        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -93,13 +88,6 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
             Request other = (Request) obj;
             return Objects.equals(calendarId, other.calendarId) && Objects.equals(jobIdsToAddExpression, other.jobIdsToAddExpression)
                     && Objects.equals(jobIdsToRemoveExpression, other.jobIdsToRemoveExpression);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, PutCalendarAction.Response> {
-
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 }

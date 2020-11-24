@@ -24,11 +24,11 @@ dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
 
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-core'
   }
 }
@@ -39,15 +39,17 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // from log4j
-  'org/osgi/framework/AdaptPermission',
-  'org/osgi/framework/AdminPermission',
-  'org/osgi/framework/Bundle',
-  'org/osgi/framework/BundleActivator',
-  'org/osgi/framework/BundleContext',
-  'org/osgi/framework/BundleEvent',
-  'org/osgi/framework/SynchronousBundleListener',
-  'org/osgi/framework/wiring/BundleWire',
-  'org/osgi/framework/wiring/BundleWiring'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // from log4j
+          'org/osgi/framework/AdaptPermission',
+          'org/osgi/framework/AdminPermission',
+          'org/osgi/framework/Bundle',
+          'org/osgi/framework/BundleActivator',
+          'org/osgi/framework/BundleContext',
+          'org/osgi/framework/BundleEvent',
+          'org/osgi/framework/SynchronousBundleListener',
+          'org/osgi/framework/wiring/BundleWire',
+          'org/osgi/framework/wiring/BundleWiring'
+  )
+}

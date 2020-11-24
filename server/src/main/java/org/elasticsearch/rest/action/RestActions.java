@@ -205,7 +205,11 @@ public class RestActions {
     }
 
     public static QueryBuilder getQueryContent(XContentParser requestParser) {
-        return parseTopLevelQueryBuilder(requestParser);
+        return parseTopLevelQueryBuilder("query", requestParser);
+    }
+
+    public static QueryBuilder getQueryContent(String fieldName, XContentParser requestParser) {
+        return parseTopLevelQueryBuilder(fieldName, requestParser);
     }
 
     /**
@@ -238,7 +242,7 @@ public class RestActions {
     /**
      * Parses a top level query including the query element that wraps it
      */
-    private static QueryBuilder parseTopLevelQueryBuilder(XContentParser parser) {
+    private static QueryBuilder parseTopLevelQueryBuilder(String fieldName, XContentParser parser) {
         try {
             QueryBuilder queryBuilder = null;
             XContentParser.Token first = parser.nextToken();
@@ -252,8 +256,8 @@ public class RestActions {
             }
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
-                    String fieldName = parser.currentName();
-                    if ("query".equals(fieldName)) {
+                    String currentName = parser.currentName();
+                    if (fieldName.equals(currentName)) {
                         queryBuilder = parseInnerQueryBuilder(parser);
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");

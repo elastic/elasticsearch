@@ -6,14 +6,21 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.ccr.AutoFollowIT.verifyDataStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FollowIndexIT extends ESCCRRestTestCase {
 
@@ -40,8 +47,26 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         } else if ("follow".equals(targetCluster)) {
             logger.info("Running against follow cluster");
             final String followIndexName = "test_index2";
-            followIndex(leaderIndexName, followIndexName);
-            assertBusy(() -> verifyDocuments(followIndexName, numDocs, "filtered_field:true"));
+            final boolean overrideNumberOfReplicas = randomBoolean();
+            if (overrideNumberOfReplicas) {
+                followIndex(
+                    client(),
+                    "leader_cluster",
+                    leaderIndexName,
+                    followIndexName,
+                    Settings.builder().put("index.number_of_replicas", 0).build()
+                );
+            } else {
+                followIndex(leaderIndexName, followIndexName);
+            }
+            assertBusy(() -> {
+                verifyDocuments(followIndexName, numDocs, "filtered_field:true");
+                if (overrideNumberOfReplicas) {
+                    assertThat(getIndexSettingsAsMap("test_index2"), hasEntry("index.number_of_replicas", "0"));
+                } else {
+                    assertThat(getIndexSettingsAsMap("test_index2"), hasEntry("index.number_of_replicas", "1"));
+                }
+            });
             // unfollow and then follow and then index a few docs in leader index:
             pauseFollow(followIndexName);
             resumeFollow(followIndexName);
@@ -62,6 +87,58 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         }
     }
 
+    public void testFollowThatOverridesRequiredLeaderSetting() throws IOException {
+        if ("leader".equals(targetCluster)) {
+            createIndex("override_leader_index", Settings.EMPTY);
+        } else {
+            final Settings settings = Settings.builder().put("index.number_of_shards", 5).build();
+            final ResponseException responseException = expectThrows(
+                ResponseException.class,
+                () -> followIndex(client(), "leader_cluster", "override_leader_index", "override_follow_index", settings)
+            );
+            final Response response = responseException.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+            final Map<String, Object> responseAsMap = entityAsMap(response);
+            assertThat(responseAsMap, hasKey("error"));
+            assertThat(responseAsMap.get("error"), instanceOf(Map.class));
+            @SuppressWarnings("unchecked") final Map<Object, Object> error = (Map<Object, Object>) responseAsMap.get("error");
+            assertThat(error, hasEntry("type", "illegal_argument_exception"));
+            assertThat(
+                error,
+                hasEntry("reason", "can not put follower index that could override leader settings {\"index.number_of_shards\":\"5\"}")
+            );
+        }
+    }
+
+    public void testFollowThatOverridesNonExistentSetting() throws IOException {
+        if ("leader".equals(targetCluster)) {
+            createIndex("override_leader_index_non_existent_setting", Settings.EMPTY);
+        } else {
+            final Settings settings = Settings.builder().put("index.non_existent_setting", randomAlphaOfLength(3)).build();
+            final ResponseException responseException = expectThrows(
+                ResponseException.class,
+                () -> followIndex(
+                    client(),
+                    "leader_cluster",
+                    "override_leader_index_non_existent_setting",
+                    "override_follow_index_non_existent_setting",
+                    settings
+                )
+            );
+            final Response response = responseException.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+            final Map<String, Object> responseAsMap = entityAsMap(response);
+            assertThat(responseAsMap, hasKey("error"));
+            assertThat(responseAsMap.get("error"), instanceOf(Map.class));
+            @SuppressWarnings("unchecked") final Map<Object, Object> error = (Map<Object, Object>) responseAsMap.get("error");
+            assertThat(error, hasEntry("type", "illegal_argument_exception"));
+            assertThat(
+                error,
+                hasEntry("reason", "unknown setting [index.non_existent_setting]")
+            );
+        }
+    }
+
     public void testFollowNonExistingLeaderIndex() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             logger.info("skipping test, waiting for target cluster [follow]" );
@@ -74,6 +151,41 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         e = expectThrows(ResponseException.class, () -> followIndex("non-existing-index", "non-existing-index"));
         assertThat(e.getMessage(), containsString("no such index [non-existing-index]"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    public void testFollowDataStreamFails() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final String dataStreamName = "logs-syslog-prod";
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Request request = new Request("PUT", "/_data_stream/" + dataStreamName);
+            assertOK(leaderClient.performRequest(request));
+            verifyDataStream(leaderClient, dataStreamName, ".ds-logs-syslog-prod-000001");
+        }
+
+        ResponseException failure = expectThrows(ResponseException.class, () -> followIndex(dataStreamName, dataStreamName));
+        assertThat(failure.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(failure.getMessage(), containsString("cannot follow [logs-syslog-prod], because it is a DATA_STREAM"));
+    }
+
+    public void testChangeBackingIndexNameFails() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final String dataStreamName = "logs-foobar-prod";
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Request request = new Request("PUT", "/_data_stream/" + dataStreamName);
+            assertOK(leaderClient.performRequest(request));
+            verifyDataStream(leaderClient, dataStreamName, ".ds-logs-foobar-prod-000001");
+        }
+
+        ResponseException failure = expectThrows(ResponseException.class,
+            () -> followIndex(".ds-logs-foobar-prod-000001", ".ds-logs-barbaz-prod-000001"));
+        assertThat(failure.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(failure.getMessage(), containsString("a backing index name in the local and remote cluster must remain the same"));
     }
 
 }

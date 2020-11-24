@@ -1,26 +1,25 @@
 [role="xpack"]
 [testenv="gold"]
 [[collecting-monitoring-data]]
-== Collecting monitoring data
+== Collecting monitoring data using legacy collectors
+++++
+<titleabbrev>Legacy collection methods</titleabbrev>
+++++
 
 [IMPORTANT]
 =========================
 {metricbeat} is the recommended method for collecting and shipping monitoring
 data to a monitoring cluster.
 
-If you have previously configured internal collection, you should migrate to
-using {metricbeat} collection. Use either {metricbeat} collection or
-internal collection; do not use both.
+If you have previously configured legacy collection methods, you should migrate
+to using {metricbeat} collection methods. Use either {metricbeat} collection or
+legacy collection methods; do not use both.
 
 Learn more about <<configuring-metricbeat>>.
 =========================
 
-If you enable the Elastic {monitor-features} in your cluster, you can
-optionally collect metrics about {es}. By default, monitoring is enabled but
-data collection is disabled.
-
-This method involves sending the metrics to the monitoring cluster by using
-exporters. For the recommended method, see <<configuring-metricbeat>>.
+This method for collecting metrics about {es} involves sending the metrics to
+the monitoring cluster by using exporters. For the recommended method, see <<configuring-metricbeat>>.
 
 Advanced monitoring settings enable you to control how frequently data is
 collected, configure timeouts, and set the retention period for locally-stored

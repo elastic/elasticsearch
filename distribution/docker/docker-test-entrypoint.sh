@@ -4,4 +4,4 @@ cd /usr/share/elasticsearch/bin/
 echo "testnode" > /tmp/password
 cat /tmp/password  | ./elasticsearch-keystore add -x -f -v 'xpack.security.transport.ssl.keystore.secure_password'
 cat /tmp/password  | ./elasticsearch-keystore add -x -f -v 'xpack.security.http.ssl.keystore.secure_password'
-/usr/local/bin/docker-entrypoint.sh | tee > /usr/share/elasticsearch/logs/console.log
+/usr/local/bin/docker-entrypoint.sh | tee /usr/share/elasticsearch/logs/console.log

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -53,12 +52,13 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TransportResumeFollowAction extends TransportMasterNodeAction<ResumeFollowAction.Request, AcknowledgedResponse> {
+public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
 
     static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
     static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
@@ -89,22 +89,12 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             final IndicesService indicesService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(ResumeFollowAction.NAME, true, transportService, clusterService, threadPool, actionFilters,
-            ResumeFollowAction.Request::new, indexNameExpressionResolver);
+            ResumeFollowAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -142,7 +132,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             listener::onFailure,
             (leaderHistoryUUID, leaderIndexMetadata) -> {
                 try {
-                    start(request, leaderCluster, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
+                    start(request, leaderCluster, leaderIndexMetadata.v1(), followerIndexMetadata, leaderHistoryUUID, listener);
                 } catch (final IOException e) {
                     listener.onFailure(e);
                 }
@@ -236,17 +226,34 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             throw new IllegalArgumentException("the following index [" + request.getFollowerIndex() + "] is not ready " +
                     "to follow; the setting [" + CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey() + "] must be enabled.");
         }
-        // Make a copy, remove settings that are allowed to be different and then compare if the settings are equal.
-        Settings leaderSettings = filter(leaderIndex.getSettings());
-        Settings followerSettings = filter(followIndex.getSettings());
-        if (leaderSettings.equals(followerSettings) == false) {
-            throw new IllegalArgumentException("the leader index setting[" + leaderSettings + "] and follower index settings [" +
-                followerSettings + "] must be identical");
-        }
+
+        validateSettings(leaderIndex.getSettings(), followIndex.getSettings());
 
         // Validates if the current follower mapping is mergable with the leader mapping.
         // This also validates for example whether specific mapper plugins have been installed
         followerMapperService.merge(leaderIndex, MapperService.MergeReason.MAPPING_RECOVERY);
+    }
+
+    /**
+     * Validate that the settings that are required to be identical between the leader and follower index are in fact equal.
+     *
+     * @param leaderIndexSettings   the leader index settings
+     * @param followerIndexSettings the follower index settings
+     * @throws IllegalArgumentException if there are settings that are required to be equal that are not equal
+     */
+    private static void validateSettings(final Settings leaderIndexSettings, final Settings followerIndexSettings) {
+        // make a copy, remove settings that are allowed to be different, and then compare if the settings are equal
+        final Settings leaderSettings = filter(leaderIndexSettings);
+        final Settings followerSettings = filter(followerIndexSettings);
+        if (leaderSettings.equals(followerSettings) == false) {
+            final String message = String.format(
+                Locale.ROOT,
+                "the leader index settings [%s] and follower index settings [%s] must be identical",
+                leaderSettings,
+                followerSettings
+            );
+            throw new IllegalArgumentException(message);
+        }
     }
 
     private static ShardFollowTask createShardFollowTask(
@@ -432,7 +439,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
             EngineConfig.INDEX_CODEC_SETTING);
 
-    static Settings filter(Settings originalSettings) {
+    public static Settings filter(Settings originalSettings) {
         Settings.Builder settings = Settings.builder().put(originalSettings);
         // Remove settings that are always going to be different between leader and follow index:
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());

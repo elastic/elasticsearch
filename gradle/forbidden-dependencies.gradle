@@ -5,7 +5,7 @@ List<String> FORBIDDEN_DEPENDENCIES = [
   'guava'
 ]
 
-Closure checkDeps = { Configuration configuration -> 
+Closure checkDeps = { Configuration configuration ->
   configuration.resolutionStrategy.eachDependency {
     String artifactName = it.target.name
     if (FORBIDDEN_DEPENDENCIES.contains(artifactName)) {

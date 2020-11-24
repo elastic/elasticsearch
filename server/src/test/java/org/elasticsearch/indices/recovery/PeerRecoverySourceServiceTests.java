@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -26,19 +27,25 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
     public void testDuplicateRecoveries() throws IOException {
         IndexShard primary = newStartedShard(true);
+        final IndicesService indicesService = mock(IndicesService.class);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(NodeRoles.dataNode());
+        when(indicesService.clusterService()).thenReturn(clusterService);
         PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
-            mock(TransportService.class), mock(IndicesService.class),
+            mock(TransportService.class), indicesService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(primary.shardId(), randomAlphaOfLength(10),
             getFakeDiscoNode("source"), getFakeDiscoNode("target"), Store.MetadataSnapshot.EMPTY, randomBoolean(), randomLong(),

@@ -19,14 +19,11 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -45,10 +42,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
-
-    private static final Logger logger = LogManager.getLogger(SimulatePipelineRequest.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
     private String id;
     private boolean verbose;
     private BytesReference source;

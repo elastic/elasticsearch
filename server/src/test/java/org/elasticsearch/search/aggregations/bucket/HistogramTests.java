@@ -73,21 +73,21 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
         factory.interval(randomDouble() * 1000);
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(Double.NaN, 1.0); });
-        assertThat(ex.getMessage(), startsWith("minBound must be finite, got: "));
+        assertThat(ex.getMessage(), startsWith("min bound must be finite, got: "));
         ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(Double.POSITIVE_INFINITY, 1.0); });
-        assertThat(ex.getMessage(), startsWith("minBound must be finite, got: "));
+        assertThat(ex.getMessage(), startsWith("min bound must be finite, got: "));
         ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(Double.NEGATIVE_INFINITY, 1.0); });
-        assertThat(ex.getMessage(), startsWith("minBound must be finite, got: "));
+        assertThat(ex.getMessage(), startsWith("min bound must be finite, got: "));
 
         ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(0.0, Double.NaN); });
-        assertThat(ex.getMessage(), startsWith("maxBound must be finite, got: "));
+        assertThat(ex.getMessage(), startsWith("max bound must be finite, got: "));
         ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(0.0, Double.POSITIVE_INFINITY); });
-        assertThat(ex.getMessage(), startsWith("maxBound must be finite, got: "));
+        assertThat(ex.getMessage(), startsWith("max bound must be finite, got: "));
         ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(0.0, Double.NEGATIVE_INFINITY); });
-        assertThat(ex.getMessage(), startsWith("maxBound must be finite, got: "));
+        assertThat(ex.getMessage(), startsWith("max bound must be finite, got: "));
 
         ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(0.5, 0.4); });
-        assertThat(ex.getMessage(), equalTo("maxBound [0.4] must be greater than minBound [0.5]"));
+        assertThat(ex.getMessage(), equalTo("max bound [0.4] must be greater than min bound [0.5]"));
     }
 
     private List<BucketOrder> randomOrder() {

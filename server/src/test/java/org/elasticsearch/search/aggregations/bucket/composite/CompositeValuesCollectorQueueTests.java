@@ -27,7 +27,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -310,7 +309,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             final LeafBucketCollector leafCollector = new LeafBucketCollector() {
                                 @Override
                                 public void collect(int doc, long bucket) throws IOException {
-                                    queue.addIfCompetitive(indexSortSourcePrefix);
+                                    queue.addIfCompetitive(indexSortSourcePrefix, 1);
                                 }
                             };
                             final LeafBucketCollector queueCollector = queue.getLeafCollector(leafReaderContext, leafCollector);
@@ -344,21 +343,11 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     }
 
     private static MappedFieldType createNumber(String name, NumberFieldMapper.NumberType type) {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(type);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setName(name);
-        fieldType.setHasDocValues(true);
-        fieldType.freeze();
-        return fieldType;
+        return new NumberFieldMapper.NumberFieldType(name, type);
     }
 
     private static MappedFieldType createKeyword(String name) {
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setName(name);
-        fieldType.setHasDocValues(true);
-        fieldType.freeze();
-        return fieldType;
+        return new KeywordFieldMapper.KeywordFieldType(name);
     }
 
     private static int compareKey(CompositeKey key1, CompositeKey key2) {

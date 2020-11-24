@@ -18,18 +18,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -62,7 +61,6 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -101,7 +99,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                         Client client, JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
                                         AnomalyDetectionAuditor auditor, NamedXContentRegistry xContentRegistry) {
         super(StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, StartDatafeedAction.Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, NodeAcknowledgedResponse::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -110,7 +108,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.auditor = auditor;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.xContentRegistry = xContentRegistry;
-        this.remoteClusterClient = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+        this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
     }
 
     static void validate(Job job,
@@ -141,22 +139,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     @Override
-    protected String executor() {
-        // This api doesn't do heavy or blocking operations (just delegates PersistentTasksService),
-        // so we can do this on the network thread
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected NodeAcknowledgedResponse read(StreamInput in) throws IOException {
-        return new NodeAcknowledgedResponse(in);
-    }
-
-    @Override
     protected void masterOperation(Task task, StartDatafeedAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }

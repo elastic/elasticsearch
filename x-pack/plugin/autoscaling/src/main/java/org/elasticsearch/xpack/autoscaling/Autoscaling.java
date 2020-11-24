@@ -44,10 +44,8 @@ import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacit
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportPutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
@@ -179,13 +177,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
             new NamedWriteableRegistry.Entry(
-                AutoscalingDeciderConfiguration.class,
-                FixedAutoscalingDeciderConfiguration.NAME,
-                FixedAutoscalingDeciderConfiguration::new
-            ),
-            new NamedWriteableRegistry.Entry(
                 AutoscalingDeciderResult.Reason.class,
-                FixedAutoscalingDeciderConfiguration.NAME,
+                FixedAutoscalingDeciderService.NAME,
                 FixedAutoscalingDeciderService.FixedReason::new
             )
         );
@@ -194,12 +187,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse),
-            new NamedXContentRegistry.Entry(
-                AutoscalingDeciderConfiguration.class,
-                new ParseField(FixedAutoscalingDeciderConfiguration.NAME),
-                FixedAutoscalingDeciderConfiguration::parse
-            )
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse)
         );
     }
 
@@ -213,11 +201,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     }
 
     @Override
-    public Collection<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders() {
+    public Collection<AutoscalingDeciderService> deciders() {
         return List.of(new FixedAutoscalingDeciderService());
     }
 
-    public Set<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> createDeciderServices() {
+    public Set<AutoscalingDeciderService> createDeciderServices() {
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
 }

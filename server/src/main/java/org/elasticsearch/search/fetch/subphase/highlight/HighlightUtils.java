@@ -30,7 +30,6 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 import static java.util.Collections.singleton;
 
@@ -55,7 +54,10 @@ public final class HighlightUtils {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
-            return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
+            if (textsToHighlight == null) {
+                return Collections.emptyList();
+            }
+            return textsToHighlight;
         }
         ValueFetcher fetcher = fieldType.valueFetcher(qsc, null);
         return fetcher.fetchValues(hitContext.sourceLookup());

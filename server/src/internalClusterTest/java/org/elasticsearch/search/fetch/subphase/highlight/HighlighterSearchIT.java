@@ -2785,9 +2785,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         b.endObject();
         b.startObject("foo_copy").field("type", "text").endObject();
         b.endObject().endObject();
-        prepareCreate("test").setMapping(b).get();
+        prepareCreate("test").addMapping("_doc", b).get();
 
-        client().prepareIndex("test").setId("1")
+        client().prepareIndex("test", "_doc").setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "how now brown cow").endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();

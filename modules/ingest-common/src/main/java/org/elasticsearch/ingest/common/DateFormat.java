@@ -94,14 +94,9 @@ enum DateFormat {
                 format = format.substring(1);
             }
 
-            boolean isUtc = ZoneOffset.UTC.equals(zoneId);
-
             DateFormatter dateFormatter = DateFormatter.forPattern(format)
                 .withLocale(locale);
-//            // if UTC zone is set here, the time zone specified in the format will be ignored, leading to wrong dates
-//            if (isUtc == false) {
-//                dateFormatter = dateFormatter.withZone(zoneId);
-//            }
+
             final DateFormatter formatter = dateFormatter;
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
@@ -109,7 +104,7 @@ enum DateFormat {
                 // fill the rest of the date up with the parsed date
                 if (accessor.isSupported(ChronoField.YEAR) == false
                     && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
-                    && accessor.isSupported(WeekFields.of(locale).weekOfWeekBasedYear()) == false) {
+                    && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {
@@ -121,13 +116,9 @@ enum DateFormat {
                     accessor = newTime.withZoneSameLocal(zoneId);
                 }
 
-//                if (isUtc) {
-//                    return DateFormatters.from(accessor, locale).withZoneSameInstant(ZoneOffset.UTC);
-//                } else {
-//                    return DateFormatters.from(accessor, locale);
-//                }
                 return DateFormatters.from(accessor, locale, zoneId)
                     .withZoneSameInstant(zoneId);
+
             };
         }
     };

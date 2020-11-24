@@ -108,6 +108,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         if (hasUnknownRoles(policy)) {
             return new AutoscalingDeciderResults(
                 AutoscalingCapacity.ZERO,
+                Collections.emptySortedSet(),
                 new TreeMap<>(org.elasticsearch.common.collect.Map.of("_unknown_role", new AutoscalingDeciderResult(null, null)))
             );
         }
@@ -117,7 +118,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             .stream()
             .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context)))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
-        return new AutoscalingDeciderResults(context.currentCapacity, results);
+        return new AutoscalingDeciderResults(context.currentCapacity, context.currentNodes, results);
     }
 
     /**
@@ -139,6 +140,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         private final SortedSet<DiscoveryNodeRole> roles;
         private final ClusterState state;
         private final ClusterInfo clusterInfo;
+        private final SortedSet<DiscoveryNode> currentNodes;
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
 
@@ -150,6 +152,9 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             Objects.requireNonNull(clusterInfo);
             this.state = state;
             this.clusterInfo = clusterInfo;
+            this.currentNodes = StreamSupport.stream(state.nodes().spliterator(), false)
+                .filter(this::rolesFilter)
+                .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
             this.currentCapacity = calculateCurrentCapacity();
             this.currentCapacityAccurate = calculateCurrentCapacityAccurate();
         }
@@ -170,13 +175,11 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
         @Override
         public Set<DiscoveryNode> nodes() {
-            return StreamSupport.stream(state.nodes().spliterator(), false).filter(this::rolesFilter).collect(Collectors.toSet());
+            return currentNodes;
         }
 
         private boolean calculateCurrentCapacityAccurate() {
-            return StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(this::rolesFilter)
-                .allMatch(this::nodeHasAccurateCapacity);
+            return currentNodes.stream().allMatch(this::nodeHasAccurateCapacity);
         }
 
         private boolean nodeHasAccurateCapacity(DiscoveryNode node) {
@@ -185,8 +188,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
 
         private AutoscalingCapacity calculateCurrentCapacity() {
-            return StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(this::rolesFilter)
+            return currentNodes.stream()
                 .map(this::resourcesFor)
                 .map(c -> new AutoscalingCapacity(c, c))
                 .reduce(

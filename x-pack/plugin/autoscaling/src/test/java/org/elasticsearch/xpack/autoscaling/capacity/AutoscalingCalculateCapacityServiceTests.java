@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -79,6 +80,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
 
             // there is no nodes in any tier.
             assertThat(results.currentCapacity(), equalTo(AutoscalingCapacity.ZERO));
+            assertThat(results.currentNodes(), equalTo(Collections.emptySortedSet()));
         }
     }
 

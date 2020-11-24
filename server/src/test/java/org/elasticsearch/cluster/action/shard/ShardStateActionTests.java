@@ -42,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -75,6 +76,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -423,7 +425,7 @@ public class ShardStateActionTests extends ESTestCase {
         final ShardRouting shardRouting = getRandomShardRouting(index);
         final long primaryTerm = clusterService.state().metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
         final TestListener listener = new TestListener();
-        shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", listener);
+        shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", ShardLongFieldRange.MUTABLE, listener);
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests[0].request, instanceOf(ShardStateAction.StartedShardEntry.class));
@@ -432,6 +434,7 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(entry.shardId, equalTo(shardRouting.shardId()));
         assertThat(entry.allocationId, equalTo(shardRouting.allocationId().getId()));
         assertThat(entry.primaryTerm, equalTo(primaryTerm));
+        assertThat(entry.timestampMillisRange, sameInstance(ShardLongFieldRange.MUTABLE));
 
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
         listener.await();
@@ -514,13 +517,21 @@ public class ShardStateActionTests extends ESTestCase {
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
 
         final Version version = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
-        try (StreamInput in = serialize(new StartedShardEntry(shardId, allocationId, primaryTerm, message), version).streamInput()) {
+        final ShardLongFieldRange timestampMillisRange = randomBoolean() ? ShardLongFieldRange.MUTABLE : ShardLongFieldRange.EMPTY;
+        final StartedShardEntry startedShardEntry = new StartedShardEntry(
+                shardId,
+                allocationId,
+                primaryTerm,
+                message,
+                timestampMillisRange);
+        try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
             in.setVersion(version);
             final StartedShardEntry deserialized = new StartedShardEntry(in);
             assertThat(deserialized.shardId, equalTo(shardId));
             assertThat(deserialized.allocationId, equalTo(allocationId));
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
+            assertThat(deserialized.timestampMillisRange, sameInstance(timestampMillisRange));
         }
     }
 

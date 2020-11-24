@@ -47,6 +47,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -105,9 +106,11 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -1713,6 +1716,46 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.recoveryState;
     }
 
+    @Override
+    public ShardLongFieldRange getTimestampMillisRange() {
+        assert isReadAllowed();
+
+        if (mapperService() == null) {
+            return ShardLongFieldRange.MUTABLE; // no mapper service, no idea if the field even exists
+        }
+        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final boolean hasMappedTimestampField = mappedFieldType instanceof DateFieldMapper.DateFieldType;
+
+        final Engine engine = getEngine();
+        final ShardLongFieldRange rawTimestampFieldRange;
+        try {
+            rawTimestampFieldRange = engine.getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, hasMappedTimestampField);
+        } catch (IOException e) {
+            logger.debug("exception obtaining range for timestamp field", e);
+            return ShardLongFieldRange.MUTABLE;
+        }
+        if (rawTimestampFieldRange == ShardLongFieldRange.MUTABLE) {
+            return ShardLongFieldRange.MUTABLE;
+        }
+        if (rawTimestampFieldRange == ShardLongFieldRange.EMPTY) {
+            return ShardLongFieldRange.EMPTY;
+        }
+
+        if (hasMappedTimestampField == false) {
+            return ShardLongFieldRange.EMPTY;
+        }
+        final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) mappedFieldType;
+
+        try {
+            return ShardLongFieldRange.of(
+                    dateFieldType.resolution().roundDownToMillis(rawTimestampFieldRange.getMin()),
+                    dateFieldType.resolution().roundUpToMillis(rawTimestampFieldRange.getMax()));
+        } catch (IllegalArgumentException e) {
+            logger.debug(new ParameterizedMessage("could not convert {} to a millisecond time range", rawTimestampFieldRange), e);
+            return ShardLongFieldRange.of(Long.MIN_VALUE, Long.MAX_VALUE); // any search might match this shard
+        }
+    }
+
     /**
      * perform the last stages of recovery once all translog operations are done.
      * note that you should still call {@link #postRecovery(String)}.
@@ -2628,7 +2671,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
                 if (r) {
-                    recoveryListener.onRecoveryDone(recoveryState);
+                    recoveryListener.onRecoveryDone(recoveryState, getTimestampMillisRange());
                 }
             },
             e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));

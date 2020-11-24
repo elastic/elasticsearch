@@ -97,6 +97,16 @@ public final class DateFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long roundDownToMillis(long value) {
+                return value;
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                return value;
+            }
+
+            @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
@@ -119,7 +129,22 @@ public final class DateFieldMapper extends FieldMapper {
 
             @Override
             public long parsePointAsMillis(byte[] value) {
-                return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
+                return roundDownToMillis(LongPoint.decodeDimension(value, 0));
+            }
+
+            @Override
+            public long roundDownToMillis(long value) {
+                return DateUtils.toMilliSeconds(value);
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                if (value <= 0L) {
+                    // if negative then throws an IAE; if zero then return zero
+                    return DateUtils.toMilliSeconds(value);
+                } else {
+                    return DateUtils.toMilliSeconds(value - 1L) + 1L;
+                }
             }
 
             @Override
@@ -164,6 +189,16 @@ public final class DateFieldMapper extends FieldMapper {
          * Decode the points representation of this field as milliseconds.
          */
         public abstract long parsePointAsMillis(byte[] value);
+
+        /**
+         * Round the given raw value down to a number of milliseconds since the epoch.
+         */
+        public abstract long roundDownToMillis(long value);
+
+        /**
+         * Round the given raw value up to a number of milliseconds since the epoch.
+         */
+        public abstract long roundUpToMillis(long value);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {

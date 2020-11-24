@@ -97,13 +97,14 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'requiresKeystore'    : extension1.requiresKeystore,
                     'type'                : extension1.type.toString(),
                     'javaOpts'            : extension1.javaOpts,
+                    'licensed'            : extension1.licensed,
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)
                 inputs.properties(properties)
             }
             BuildParams.withInternalBuild {
-                boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+                boolean isXPackModule = project.path.startsWith(':x-pack:plugin') || project.path.startsWith('x-pack:quota-aware-fs')
                 boolean isModule = project.path.startsWith(':modules:') || isXPackModule
                 if (isModule == false || isXPackModule) {
                     addNoticeGeneration(project, extension1)

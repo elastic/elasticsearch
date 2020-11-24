@@ -60,7 +60,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
         responseMediaType = sqlMediaTypeParser.getMediaType(request, sqlRequest);
         if (responseMediaType == null) {
-            String msg = String.format(Locale.ROOT, "Invalid response content type. Accept=%s Content-Type=%s format=%s",
+            String msg = String.format(Locale.ROOT, "Invalid request content type: Accept=[%s], Content-Type=[%s], format=[%s]",
                 request.header("Accept"), request.header("Content-Type"), request.param("format"));
             throw new IllegalArgumentException(msg);
         }

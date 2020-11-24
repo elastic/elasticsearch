@@ -17,8 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit
+package org.elasticsearch.gradle.internal.precommit
 
+import org.elasticsearch.gradle.internal.InternalPlugin
+import org.elasticsearch.gradle.precommit.PrecommitPlugin
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -28,7 +30,7 @@ import org.gradle.api.tasks.TaskProvider
 
 import javax.inject.Inject
 
-class LicenseHeadersPrecommitPlugin extends PrecommitPlugin {
+class LicenseHeadersPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
 
     private ProviderFactory providerFactory
 

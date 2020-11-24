@@ -17,13 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.precommit;
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis;
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin;
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.InternalPlugin;
+import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
@@ -38,7 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
+public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPluginManager().apply(ForbiddenApisPlugin.class);

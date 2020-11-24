@@ -20,21 +20,15 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.gradle.api.Project;
-import org.gradle.api.Task;
-import org.gradle.api.tasks.TaskProvider;
 
-public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
-    @Override
-    public TaskProvider<? extends Task> createTask(Project project) {
-        TaskProvider<TestingConventionsTasks> testingConventions = project.getTasks()
-            .register("testingConventions", TestingConventionsTasks.class);
-        testingConventions.configure(t -> {
-            TestingConventionRule testsRule = t.getNaming().maybeCreate("Tests");
-            testsRule.baseClass("org.apache.lucene.util.LuceneTestCase");
-            TestingConventionRule itRule = t.getNaming().maybeCreate("IT");
-            itRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
-            itRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");
-        });
-        return testingConventions;
+/**
+ * Validation tasks which should be run before committing. These run before tests.
+ */
+public class PrecommitTasks {
+    /**
+     * Adds a precommit task, which depends on non-test verification tasks.
+     */
+    public static void create(Project project) {
+        project.getPluginManager().apply(JarHellPrecommitPlugin.class);
     }
 }

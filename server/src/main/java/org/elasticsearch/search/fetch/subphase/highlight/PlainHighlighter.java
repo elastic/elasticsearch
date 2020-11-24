@@ -36,7 +36,6 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -101,20 +100,14 @@ public class PlainHighlighter implements Highlighter {
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
         Analyzer analyzer = context.getQueryShardContext().getFieldNameIndexAnalyzer();
-        Integer keywordIgnoreAbove = null;
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            keywordIgnoreAbove = ((KeywordFieldMapper.KeywordFieldType)fieldType).ignoreAbove();
-        }
         final int maxAnalyzedOffset = context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
 
-        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, hitContext, fieldContext.forceSource);
+        textsToHighlight
+            = HighlightUtils.loadFieldValues(fieldType, context.getQueryShardContext(), hitContext, fieldContext.forceSource);
 
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if (keywordIgnoreAbove != null && textLength > keywordIgnoreAbove) {
-                continue; // skip highlighting keyword terms that were ignored during indexing
-            }
             if (textLength > maxAnalyzedOffset) {
                 throw new IllegalArgumentException(
                     "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +

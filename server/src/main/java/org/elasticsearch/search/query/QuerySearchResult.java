@@ -124,6 +124,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public boolean hasPIT() {
+        return getShardSearchRequest() != null ? getShardSearchRequest().readerId() != null : false;
+    }
+
     public void searchTimedOut(boolean searchTimedOut) {
         this.searchTimedOut = searchTimedOut;
     }

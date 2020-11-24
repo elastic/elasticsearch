@@ -21,6 +21,9 @@ package org.elasticsearch.search.searchafter;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -38,6 +41,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -288,5 +292,43 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
         type = extractSortType(new SortedSetSortField("field", false));
         assertThat(type, equalTo(SortField.Type.STRING));
+    }
+
+    public void testFieldDocWithPIT() {
+        int shardIndex = randomIntBetween(1, 100);
+        int docID = randomIntBetween(0, 10000);
+        ScoreDoc scoreDoc = new ScoreDoc(docID, Float.NaN);
+        scoreDoc.shardIndex = shardIndex;
+        long tiebreaker = SearchAfterBuilder.createTiebreaker(scoreDoc);
+        Sort sort = new Sort(new SortField("field", SortField.Type.INT));
+        SortAndFormats sortAndFormats = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW });
+        final Object[] values = new Object[2];
+        values[0] = randomInt();
+        values[1] = tiebreaker;
+
+        FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDocWithPIT(shardIndex, sortAndFormats, values);
+        assertThat(fieldDoc.doc, equalTo(docID));
+        assertThat(fieldDoc.fields.length, equalTo(1));
+        assertThat(fieldDoc.fields[0], equalTo(values[0]));
+
+        fieldDoc = SearchAfterBuilder.buildFieldDocWithPIT(shardIndex-1, sortAndFormats, values);
+        assertThat(fieldDoc.doc, equalTo(Integer.MAX_VALUE));
+        assertThat(fieldDoc.fields.length, equalTo(1));
+        assertThat(fieldDoc.fields[0], equalTo(values[0]));
+
+        fieldDoc = SearchAfterBuilder.buildFieldDocWithPIT(shardIndex+1, sortAndFormats, values);
+        assertThat(fieldDoc.doc, equalTo(-1));
+        assertThat(fieldDoc.fields.length, equalTo(1));
+        assertThat(fieldDoc.fields[0], equalTo(values[0]));
+
+        Exception exc = expectThrows(Exception.class, () -> SearchAfterBuilder.buildFieldDocWithPIT(-1, sortAndFormats, values));
+        assertThat(exc.getMessage(), containsString("search_after"));
+
+        Object[] newValues = new Object[1];
+        newValues[0] = values[0];
+        fieldDoc = SearchAfterBuilder.buildFieldDocWithPIT(-1, sortAndFormats, newValues);
+        assertThat(fieldDoc.doc, equalTo(Integer.MAX_VALUE));
+        assertThat(fieldDoc.fields.length, equalTo(1));
+        assertThat(fieldDoc.fields[0], equalTo(values[0]));
     }
 }

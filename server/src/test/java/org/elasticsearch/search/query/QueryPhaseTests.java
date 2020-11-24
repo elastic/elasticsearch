@@ -308,7 +308,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    public void testInOrderScrollOptimization() throws Exception {
+    public void testInOrderOptimization() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
         IndexWriterConfig iwc = newIndexWriterConfig()
@@ -320,28 +320,49 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         w.close();
         IndexReader reader = DirectoryReader.open(dir);
-        ScrollContext scrollContext = new ScrollContext();
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
-        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        scrollContext.lastEmittedDoc = null;
-        scrollContext.maxScore = Float.NaN;
-        scrollContext.totalHits = null;
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        int size = randomIntBetween(2, 5);
-        context.setSize(size);
 
-        QueryPhase.executeInternal(context);
-        assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertNull(context.queryResult().terminatedEarly());
-        assertThat(context.terminateAfter(), equalTo(0));
-        assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
+        // Inside a scroll
+        {
+            ScrollContext scrollContext = new ScrollContext();
+            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            scrollContext.lastEmittedDoc = null;
+            scrollContext.maxScore = Float.NaN;
+            scrollContext.totalHits = null;
+            context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            int size = randomIntBetween(2, 5);
+            context.setSize(size);
 
-        context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
-        QueryPhase.executeInternal(context);
-        assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertThat(context.terminateAfter(), equalTo(size));
-        assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
-        assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
+            QueryPhase.executeInternal(context);
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertNull(context.queryResult().terminatedEarly());
+            assertThat(context.terminateAfter(), equalTo(0));
+            assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
+
+            context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
+            QueryPhase.executeInternal(context);
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(context.terminateAfter(), equalTo(size));
+            assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
+        }
+
+        // When total hits are not tracked
+        {
+            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), null);
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
+            context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            int size = randomIntBetween(2, 5);
+            context.setSize(size);
+
+            context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
+            QueryPhase.executeInternal(context);
+            assertThat(context.queryResult().getTotalHits().value, equalTo(0L));
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(size));
+            assertThat(context.terminateAfter(), equalTo(size));
+        }
+
         reader.close();
         dir.close();
     }

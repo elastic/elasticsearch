@@ -20,6 +20,8 @@
 package org.elasticsearch.search.searchafter;
 
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -102,6 +104,46 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     public Object[] getSortValues() {
         return Arrays.copyOf(sortValues, sortValues.length);
+    }
+
+    /**
+     * Returns a value that can be used to tiebreak documents within a point in time reader.
+     */
+    public static long createTiebreaker(ScoreDoc fieldDoc) {
+        return (((long) fieldDoc.shardIndex) << 32) | (fieldDoc.doc & 0xFFFFFFFFL);
+    }
+
+    private static int decodeShardIndex(long value) {
+        return (int) (value >> 32);
+    }
+
+    private static int decodeDocID(long value) {
+        return (int) value;
+    }
+
+    public static FieldDoc buildFieldDocWithPIT(int shardIndex, SortAndFormats sort, Object[] values) {
+        if (sort == null || sort.sort.getSort() == null || sort.sort.getSort().length == 0) {
+            throw new IllegalArgumentException("Sort must contain at least one field.");
+        }
+        SortField[] sortFields = sort.sort.getSort();
+        if (shardIndex >= 0 && sortFields.length == values.length-1) {
+            Object[] sortValues = new Object[values.length - 1];
+            System.arraycopy(values, 0, sortValues, 0, values.length - 1);
+            FieldDoc fieldDoc = buildFieldDoc(sort, sortValues);
+            final long tiebreaker = (long) convertValueFromSortType("_tie_breaker", SortField.Type.LONG,
+                values[values.length - 1], DocValueFormat.RAW);
+            final int fieldDocShard = decodeShardIndex(tiebreaker);
+            if (Sort.RELEVANCE.equals(sort) || shardIndex == fieldDocShard) {
+                fieldDoc.doc = decodeDocID(tiebreaker);
+            } else if (shardIndex < fieldDocShard) {
+                fieldDoc.doc = Integer.MAX_VALUE;
+            } else {
+                fieldDoc.doc = -1;
+            }
+            return fieldDoc;
+        } else {
+            return buildFieldDoc(sort, values);
+        }
     }
 
     public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values) {

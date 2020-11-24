@@ -55,6 +55,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -349,7 +350,11 @@ public final class SearchPhaseController {
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
-                    searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
+                    if (reducedQueryPhase.hasPIT) {
+                        addSortValuesTie(searchHit, fieldDoc, reducedQueryPhase.sortValueFormats);
+                    } else {
+                        searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);
+                    }
                     if (sortScoreIndex != -1) {
                         searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
                     }
@@ -361,6 +366,16 @@ public final class SearchPhaseController {
         }
         return new SearchHits(hits.toArray(new SearchHit[0]), reducedQueryPhase.totalHits,
             reducedQueryPhase.maxScore, sortedTopDocs.sortFields, sortedTopDocs.collapseField, sortedTopDocs.collapseValues);
+    }
+
+    private void addSortValuesTie(SearchHit searchHit, FieldDoc fieldDoc, DocValueFormat[] sortValueFormats) {
+        Object[] newFields = new Object[fieldDoc.fields.length+1];
+        DocValueFormat[] dvFormats = new DocValueFormat[newFields.length];
+        System.arraycopy(fieldDoc.fields, 0, newFields, 0, fieldDoc.fields.length);
+        System.arraycopy(sortValueFormats, 0, dvFormats, 0, fieldDoc.fields.length);
+        newFields[newFields.length-1] = SearchAfterBuilder.createTiebreaker(fieldDoc);
+        dvFormats[newFields.length-1] = DocValueFormat.RAW;
+        searchHit.sortValues(newFields, dvFormats);
     }
 
     /**
@@ -416,7 +431,7 @@ public final class SearchPhaseController {
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             final TotalHits totalHits = topDocsStats.getTotalHits();
             return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
-                false, null, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
+                false, null, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true, false);
         }
         int total = queryResults.size();
         queryResults = queryResults.stream()
@@ -477,7 +492,7 @@ public final class SearchPhaseController {
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, shardResults, sortedTopDocs,
-            firstResult.sortValueFormats(), numReducePhases, size, from, false);
+            firstResult.sortValueFormats(), numReducePhases, size, from, false, firstResult.hasPIT());
     }
 
     private static InternalAggregations reduceAggs(InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
@@ -558,10 +573,23 @@ public final class SearchPhaseController {
         final int from;
         // sort value formats used to sort / format the result
         final DocValueFormat[] sortValueFormats;
+        // <code>true</code> if the search request uses a point in time reader
+        final  boolean hasPIT;
 
-        ReducedQueryPhase(TotalHits totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly, Suggest suggest,
-                          InternalAggregations aggregations, SearchProfileShardResults shardResults, SortedTopDocs sortedTopDocs,
-                          DocValueFormat[] sortValueFormats, int numReducePhases, int size, int from, boolean isEmptyResult) {
+        ReducedQueryPhase(TotalHits totalHits,
+                          long fetchHits,
+                          float maxScore,
+                          boolean timedOut,
+                          Boolean terminatedEarly,
+                          Suggest suggest,
+                          InternalAggregations aggregations,
+                          SearchProfileShardResults shardResults,
+                          SortedTopDocs sortedTopDocs,
+                          DocValueFormat[] sortValueFormats,
+                          int numReducePhases,
+                          int size, int from,
+                          boolean isEmptyResult,
+                          boolean hasPIT) {
             if (numReducePhases <= 0) {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
             }
@@ -579,6 +607,7 @@ public final class SearchPhaseController {
             this.from = from;
             this.isEmptyResult = isEmptyResult;
             this.sortValueFormats = sortValueFormats;
+            this.hasPIT = hasPIT;
         }
 
         /**

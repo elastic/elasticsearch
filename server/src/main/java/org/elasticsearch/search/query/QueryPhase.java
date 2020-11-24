@@ -179,35 +179,29 @@ public class QueryPhase {
             assert query == searcher.rewrite(query); // already rewritten
 
             final ScrollContext scrollContext = searchContext.scrollContext();
-            if (scrollContext != null) {
-                if (scrollContext.totalHits == null) {
-                    // first round
-                    assert scrollContext.lastEmittedDoc == null;
-                    // there is not much that we can optimize here since we want to collect all
-                    // documents in order to get the total number of hits
+            final ScoreDoc after = scrollContext != null ? scrollContext.lastEmittedDoc : searchContext.searchAfter();
+            if (searchContext.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_DISABLED
+                    || (scrollContext != null && scrollContext.lastEmittedDoc != null)) {
 
-                } else {
-                    final ScoreDoc after = scrollContext.lastEmittedDoc;
-                    if (returnsDocsInOrder(query, searchContext.sort())) {
+                if (returnsDocsInOrder(query, searchContext.sort())) {
+                    if (after != null) {
                         // now this gets interesting: since we sort in index-order, we can directly
                         // skip to the desired doc
-                        if (after != null) {
-                            query = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
-                                .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
-                                .build();
-                        }
-                        // ... and stop collecting after ${size} matches
-                        searchContext.terminateAfter(searchContext.size());
-                    } else if (canEarlyTerminate(reader, searchContext.sort())) {
+                        query = new BooleanQuery.Builder()
+                            .add(query, BooleanClause.Occur.MUST)
+                            .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
+                            .build();
+                    }
+                    // ... and stop collecting after ${size} matches
+                    searchContext.terminateAfter(searchContext.size());
+                } else if (canEarlyTerminate(reader, searchContext.sort())) {
+                    if (after != null) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
-                        if (after != null) {
-                            query = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
-                                .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
-                                .build();
-                        }
+                        query = new BooleanQuery.Builder()
+                            .add(query, BooleanClause.Occur.MUST)
+                            .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
+                            .build();
                     }
                 }
             }

@@ -728,7 +728,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
-            parseSource(context, request.source(), includeAggregations);
+            parseSource(context, request, includeAggregations);
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
@@ -878,7 +878,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) {
+    private void parseSource(DefaultSearchContext context, ShardSearchRequest request, boolean includeAggregations) {
+        final SearchSourceBuilder source = request.source();
         // nothing to parse...
         if (source == null) {
             return;
@@ -1022,7 +1023,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.from() > 0) {
                 throw new SearchException(shardTarget, "`from` parameter must be set to 0 when `search_after` is used.");
             }
-            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
+
+
+            FieldDoc fieldDoc = source.pointInTimeBuilder() == null ?
+                SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter()) :
+                    SearchAfterBuilder.buildFieldDocWithPIT(request.getShardIndex(), context.sort(), source.searchAfter());
             context.searchAfter(fieldDoc);
         }
 

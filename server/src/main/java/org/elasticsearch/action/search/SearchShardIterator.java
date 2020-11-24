@@ -52,6 +52,8 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final TimeValue searchContextKeepAlive;
     private final PlainIterator<String> targetNodesIterator;
 
+    private int searchShardIndex;
+
     /**
      * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
@@ -76,6 +78,17 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         this.searchContextId = searchContextId;
         this.searchContextKeepAlive = searchContextKeepAlive;
         assert searchContextKeepAlive == null || searchContextId != null;
+    }
+
+    void setShardIndex(int shardIndex) {
+        this.searchShardIndex = shardIndex;
+    }
+
+    /**
+     * Returns the shard index that is used to tiebreak identical sort values coming from different shards.
+     */
+    int getShardIndex() {
+        return searchShardIndex;
     }
 
     /**

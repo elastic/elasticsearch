@@ -149,6 +149,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
+        iterator.setShardIndex(10);
+
         ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
@@ -158,6 +160,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertArrayEquals(new String[] {"bar", "baz"}, shardSearchTransportRequest.indexRoutings());
         assertEquals("_shards:1,3", shardSearchTransportRequest.preference());
         assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
+        assertEquals(10, shardSearchTransportRequest.getShardIndex());
     }
 
     public void testSendSearchResponseDisallowPartialFailures() {

@@ -25,8 +25,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -50,6 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -369,6 +373,58 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertHitCount(resp, numDocs2);
         } finally {
             closePointInTime(pitId);
+        }
+    }
+
+    public void testTiebreakWithPIT() {
+        assertAcked(client().admin().indices().prepareDelete("index-*").get());
+        int numIndex = randomIntBetween(2, 10);
+        int expectedNumDocs = 0;
+        for (int i = 0; i < numIndex; i++) {
+            String index = "index-" + i;
+            createIndex(index, Settings.builder().put("index.number_of_shards", 1).build());
+            int numDocs = randomIntBetween(3, 20);
+            for (int j = 0; j < numDocs; j++) {
+                client().prepareIndex(index).setSource("value", 0).get();
+                expectedNumDocs ++;
+            }
+        }
+        refresh("index-*");
+        String pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueHours(1));
+        try {
+            for (String sortField : new String[] {"value", "_doc"}) {
+                for (int i = 1; i <= numIndex; i++) {
+                    Comparable lastSortValue = null;
+                    Set<String> seen = new HashSet<>();
+                    SearchResponse response = client().prepareSearch()
+                        .setSize(i)
+                        .addSort(SortBuilders.fieldSort(sortField))
+                        .setPointInTime(new PointInTimeBuilder(pit))
+                        .get();
+                    while (response.getHits().getHits().length > 0) {
+                        for (SearchHit hit : response.getHits().getHits()) {
+                            assertTrue(seen.add(hit.getIndex() + hit.getId()));
+                        }
+                        int len = response.getHits().getHits().length;
+                        SearchHit last = response.getHits().getHits()[len - 1];
+                        Comparable sortValue = (Comparable) last.getSortValues()[0];
+                        if (lastSortValue != null) {
+                            assertThat(sortValue.compareTo(lastSortValue), greaterThanOrEqualTo(0));
+                        }
+                        lastSortValue = sortValue;
+                        assertThat(last.getSortValues().length, equalTo(2));
+                        response = client().prepareSearch()
+                            .setSize(i)
+                            .addSort(SortBuilders.fieldSort(sortField))
+                            .searchAfter(last.getSortValues())
+                            .setPointInTime(new PointInTimeBuilder(pit))
+                            .get();
+                    }
+                    assertThat(seen.size(), equalTo(expectedNumDocs));
+                }
+            }
+        } finally {
+            closePointInTime(pit);
         }
     }
 

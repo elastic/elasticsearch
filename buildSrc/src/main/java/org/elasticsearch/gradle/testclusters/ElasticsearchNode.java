@@ -1012,9 +1012,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         if (foundNettyLeaks) {
             final ExtraPropertiesExtension extension = project.getExtensions().getExtraProperties();
-            final boolean leakTestsEnabled = extension.has("netty_leak_tests_enabled")
-                ? (Boolean) extension.get("netty_leak_tests_enabled")
-                : true;
+            final boolean leakTestsEnabled = extension.has("netty_leak_tests_enabled") == false
+                || (Boolean) extension.get("netty_leak_tests_enabled");
             if (leakTestsEnabled) {
                 throw new TestClustersException(
                     "Found Netty ByteBuf leaks in node logs. In order to temporarily mute this check, set "

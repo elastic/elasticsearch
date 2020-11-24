@@ -59,9 +59,8 @@ privilege to use this API. See <<security-privileges>>.
 Index to roll up. Does not support <<multi-index,multi-target syntax>> or
 wildcards (`*`).
 +
-You can't use this argument to directly target a <<data-streams,data stream>> or
-<<indices-aliases,index alias>>. However, you can target their backing or
-concrete indices.
+Cannot be a <<data-streams,data stream>> or <<indices-aliases,index alias>>.
+Instead, target the stream's backing indices or the alias's concrete indices.
 
 
 [role="child_attributes"]

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
@@ -55,18 +57,18 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         assertThat(resultsMap.keySet(), equalTo(policyNames));
         for (Map.Entry<String, AutoscalingDeciderResults> entry : resultsMap.entrySet()) {
             AutoscalingDeciderResults results = entry.getValue();
-            SortedMap<String, AutoscalingDeciderConfiguration> deciders = policies.get(entry.getKey()).policy().deciders();
+            SortedMap<String, Settings> deciders = policies.get(entry.getKey()).policy().deciders();
             assertThat(deciders.size(), equalTo(1));
-            FixedAutoscalingDeciderConfiguration configuration = (FixedAutoscalingDeciderConfiguration) deciders.values().iterator().next();
+            Settings configuration = deciders.values().iterator().next();
             AutoscalingCapacity requiredCapacity = calculateFixedDeciderCapacity(configuration);
             assertThat(results.requiredCapacity(), equalTo(requiredCapacity));
             assertThat(results.results().size(), equalTo(1));
             AutoscalingDeciderResult deciderResult = results.results().get(deciders.firstKey());
             assertNotNull(deciderResult);
             assertThat(deciderResult.requiredCapacity(), equalTo(requiredCapacity));
-            ByteSizeValue storage = configuration.storage();
-            ByteSizeValue memory = configuration.memory();
-            int nodes = configuration.nodes();
+            ByteSizeValue storage = configuration.getAsBytesSize(FixedAutoscalingDeciderService.STORAGE.getKey(), null);
+            ByteSizeValue memory = configuration.getAsMemory(FixedAutoscalingDeciderService.MEMORY.getKey(), null);
+            int nodes = FixedAutoscalingDeciderService.NODES.get(configuration);
             assertThat(deciderResult.reason(), equalTo(new FixedAutoscalingDeciderService.FixedReason(storage, memory, nodes)));
             assertThat(
                 deciderResult.reason().summary(),
@@ -78,33 +80,31 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         }
     }
 
-    private SortedMap<String, AutoscalingDeciderConfiguration> randomFixedDeciders() {
-        return new TreeMap<>(
-            Map.of(
-                FixedAutoscalingDeciderConfiguration.NAME,
-                new FixedAutoscalingDeciderConfiguration(
-                    randomNullableByteSizeValue(),
-                    randomNullableByteSizeValue(),
-                    randomIntBetween(1, 10)
-                )
-            )
-        );
+    private SortedMap<String, Settings> randomFixedDeciders() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(FixedAutoscalingDeciderService.STORAGE.getKey(), randomByteSizeValue());
+        }
+        if (randomBoolean()) {
+            settings.put(FixedAutoscalingDeciderService.MEMORY.getKey(), randomByteSizeValue());
+        }
+        settings.put(FixedAutoscalingDeciderService.NODES.getKey(), randomIntBetween(1, 10));
+        return new TreeMap<>(Map.of(FixedAutoscalingDeciderService.NAME, settings.build()));
     }
 
-    private AutoscalingCapacity calculateFixedDeciderCapacity(FixedAutoscalingDeciderConfiguration configuration) {
-        ByteSizeValue totalStorage = configuration.storage() != null
-            ? new ByteSizeValue(configuration.storage().getBytes() * configuration.nodes())
-            : null;
-        ByteSizeValue totalMemory = configuration.memory() != null
-            ? new ByteSizeValue(configuration.memory().getBytes() * configuration.nodes())
-            : null;
+    private AutoscalingCapacity calculateFixedDeciderCapacity(Settings configuration) {
+        ByteSizeValue storage = configuration.getAsBytesSize(FixedAutoscalingDeciderService.STORAGE.getKey(), null);
+        ByteSizeValue memory = configuration.getAsBytesSize(FixedAutoscalingDeciderService.MEMORY.getKey(), null);
+        int nodes = FixedAutoscalingDeciderService.NODES.get(configuration);
+        ByteSizeValue totalStorage = storage != null ? new ByteSizeValue(storage.getBytes() * nodes) : null;
+        ByteSizeValue totalMemory = memory != null ? new ByteSizeValue(memory.getBytes() * nodes) : null;
 
         if (totalStorage == null && totalMemory == null) {
             return null;
         } else {
             return new AutoscalingCapacity(
                 new AutoscalingCapacity.AutoscalingResources(totalStorage, totalMemory),
-                new AutoscalingCapacity.AutoscalingResources(configuration.storage(), configuration.memory())
+                new AutoscalingCapacity.AutoscalingResources(storage, memory)
             );
         }
     }
@@ -176,5 +176,57 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         // todo: fix these once we know memory of all nodes on master.
         assertThat(capacity.node().memory(), equalTo(ByteSizeValue.ZERO));
         assertThat(capacity.tier().memory(), equalTo(ByteSizeValue.ZERO));
+    }
+
+    public void testValidateDeciderName() {
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
+        String badDeciderName = randomValueOtherThan(FixedAutoscalingDeciderService.NAME, () -> randomAlphaOfLength(8));
+        AutoscalingPolicy policy = new AutoscalingPolicy(
+            randomAlphaOfLength(8),
+            randomRoles(),
+            new TreeMap<>(Map.of(badDeciderName, Settings.EMPTY))
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(exception.getMessage(), equalTo("unknown decider [" + badDeciderName + "]"));
+    }
+
+    public void testValidateSettingName() {
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
+        Set<String> legalNames = Set.of(
+            FixedAutoscalingDeciderService.STORAGE.getKey(),
+            FixedAutoscalingDeciderService.MEMORY.getKey(),
+            FixedAutoscalingDeciderService.NODES.getKey()
+        );
+        String badSettingName = randomValueOtherThanMany(legalNames::contains, () -> randomAlphaOfLength(8));
+        AutoscalingPolicy policy = new AutoscalingPolicy(
+            randomAlphaOfLength(8),
+            randomRoles(),
+            new TreeMap<>(
+                Map.of(FixedAutoscalingDeciderService.NAME, Settings.builder().put(badSettingName, randomAlphaOfLength(1)).build())
+            )
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(
+            exception.getMessage(),
+            equalTo("unknown setting [" + badSettingName + "] for decider [" + FixedAutoscalingDeciderService.NAME + "]")
+        );
+    }
+
+    public void testValidateSettingValue() {
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
+        String value = randomValueOtherThanMany(s -> Character.isDigit(s.charAt(0)), () -> randomAlphaOfLength(5));
+        AutoscalingPolicy policy = new AutoscalingPolicy(
+            randomAlphaOfLength(8),
+            randomRoles(),
+            new TreeMap<>(
+                Map.of(
+                    FixedAutoscalingDeciderService.NAME,
+                    Settings.builder().put(FixedAutoscalingDeciderService.STORAGE.getKey(), value).build()
+                )
+            )
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(exception.getMessage(), containsString("[" + value + "]"));
+        assertThat(exception.getMessage(), containsString("[" + FixedAutoscalingDeciderService.STORAGE.getKey() + "]"));
     }
 }

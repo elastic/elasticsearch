@@ -1024,25 +1024,24 @@ public class OptimizerRulesTests extends ESTestCase {
     }
     
     public void testBinaryComparisonAndOutOfRangeNotEqualsDifferentFields() {
-        FieldAttribute fDouble = fieldAttribute("double", DOUBLE);
-        FieldAttribute fDouble2 = fieldAttribute("double2", DOUBLE);
-        FieldAttribute fInteger = fieldAttribute("int", INTEGER);
-        FieldAttribute fDatetime = fieldAttribute("datetime", INTEGER);
-        FieldAttribute fKeyword = fieldAttribute("keyword", KEYWORD);
-        FieldAttribute fKeyword2 = fieldAttribute("keyword2", KEYWORD);
-        ZoneId zoneId = randomZone();
+        FieldAttribute doubleOne = fieldAttribute("double", DOUBLE);
+        FieldAttribute doubleTwo = fieldAttribute("double2", DOUBLE);
+        FieldAttribute intOne = fieldAttribute("int", INTEGER);
+        FieldAttribute datetimeOne = fieldAttribute("datetime", INTEGER);
+        FieldAttribute keywordOne = fieldAttribute("keyword", KEYWORD);
+        FieldAttribute keywordTwo = fieldAttribute("keyword2", KEYWORD);
 
-        for (And and : Arrays.asList(
+        List<And> testCases = Arrays.asList(
             // double > 10 AND integer != -10
-            new And(EMPTY, new GreaterThan(EMPTY, fDouble, L(10), zoneId), new NotEquals(EMPTY, fInteger, L(-10), zoneId)),
+            new And(EMPTY, greaterThanOf(doubleOne, L(10)), notEqualsOf(intOne, L(-10))),
             // keyword > '5' AND keyword2 != '48'
-            new And(EMPTY, new GreaterThan(EMPTY, fKeyword, L("5"), zoneId), new NotEquals(EMPTY, fKeyword2, L("48"), zoneId)),
+            new And(EMPTY, greaterThanOf(keywordOne, L("5")), notEqualsOf(keywordTwo, L("48"))),
             // keyword != '2021' AND datetime <= '2020-12-04T17:48:22.954240Z'
-            new And(EMPTY, new NotEquals(EMPTY, fKeyword, L("2021"), zoneId), 
-                new LessThanOrEqual(EMPTY, fDatetime, L("2020-12-04T17:48:22.954240Z"), zoneId)),
+            new And(EMPTY, notEqualsOf(keywordOne, L("2021")), lessThanOrEqualOf(datetimeOne, L("2020-12-04T17:48:22.954240Z"))),
             // double > 10.1 AND double2 != -10.1
-            new And(EMPTY, new GreaterThan(EMPTY, fDouble, L(10.1d), zoneId), new NotEquals(EMPTY, fDouble2, L(-10.1d), zoneId))
-        )) {
+            new And(EMPTY, greaterThanOf(doubleOne, L(10.1d)), notEqualsOf(doubleTwo, L(-10.1d))));
+        
+        for (And and : testCases) {
             CombineBinaryComparisons rule = new CombineBinaryComparisons();
             Expression exp = rule.rule(and);
             assertEquals("Rule should not have transformed [" + and.nodeString() + "]", and, exp);

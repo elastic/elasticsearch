@@ -13,7 +13,7 @@ tasks.named("integTest").configure {
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.matching { it.name.equals("integTest") }.configureEach {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

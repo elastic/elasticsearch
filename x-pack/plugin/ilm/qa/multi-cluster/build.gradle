@@ -18,7 +18,7 @@ tasks.register('leader-cluster', RestIntegTestTask) {
     systemProperty 'tests.path.repo', repoDir.absolutePath
 }
 
-testClusters.matching { it.name.equals('leader-cluster') }.configureEach {
+testClusters.matching { it.name == 'leader-cluster' }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.ccr.enabled', 'true'
@@ -41,7 +41,7 @@ tasks.register('follow-cluster', RestIntegTestTask) {
   systemProperty 'tests.path.repo', repoDir.absolutePath
 }
 
-testClusters.matching{ it.name.equals('follow-cluster') }.configureEach {
+testClusters.matching{ it.name == 'follow-cluster' }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.ccr.enabled', 'true'

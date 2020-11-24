@@ -16,8 +16,8 @@ to `_source` to gain faster search speed.
 
 Alternatively, you can specify a `runtime_mappings` section in a search request
 to use runtime fields that exist only as part of the query. This
-flexibility allows you to override fields in `_source` for the duration of the
-query without modifying the field itself.
+flexibility allows you to create or override field values in `_source` for the
+duration of the query without modifying the field itself.
 
 Runtime fields help to alleviate several common issues when using {es}:
 
@@ -105,6 +105,82 @@ definition.
 <2> Each runtime has its own field type, just like any other field.
 <3> The script defines the evaluation to calculate at search time.
 
+[[runtime-search-request]]
+==== Defining runtime fields in a search request
+You can specify a `runtime_mappings` section in a search request to create
+runtime fields that exist only as part of the query. You must specify a script
+as part of the `runtime_mappings` section, just as you would if adding a
+runtime field to the mappings.
+
+In the following request, the values for the `day_of_week` field are calculated
+dynamically, and only within the context of this search request.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "runtime_mappings": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": {
+        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      }
+    }
+  },
+  "aggs": {
+    "day_of_week": {
+      "terms": {
+        "field": "day_of_week"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+[[runtime-overriding-fields]]
+===== Overriding fields in the search request
+You can use the `runtime_mappings` section of the `_search` request to override
+field values inside objects by naming the runtime fields with dot notation. For
+example, index the following documents.
+
+[source, console]
+----
+POST my-index/_bulk?refresh=true
+{"index":{}}
+{"name":{"first":"Jose","last":"Hickman"}}
+{"index":{}}
+{"name":{"first":"India","last":"Avila","suffix":"II"}}
+----
+
+In the `runtime_mappings` section of the `_search` request, define a script
+that operates on the `name.first` field. The values you specify will override
+fields in `_source` for the duration of the query without modifying the field
+itself.
+
+The following request evaluates the `name.last` field and overrides the
+`name.first` field in the search request based on the script valuation.
+
+[source,console]
+----
+POST my-index/_search
+{
+  "runtime_mappings": {
+    "name.first": {
+      "type": "keyword",
+      "script": {
+        "source": "if (\"Hickman\".equals(doc[\"name.last.keyword\"].value)) {emit(\"Guile\");} else if (\"Avila\".equals(doc[\"name.last.keyword\"].value)) {emit(\"Anastasia\");}"
+      }
+    }
+  },
+  "query": {
+    "match": {
+      "name.first": "Anastasia"
+    }
+  }
+}
+----
+
 [[runtime-params]]
 ==== Parameters for `runtime` fields
 Runtime fields accept the following parameters:
@@ -130,23 +206,29 @@ time to produce the value of the runtime field.
 [[runtime-retrieving-fields]]
 ==== Retrieving a runtime field
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
-the values of runtime fields. This API works for all fields, even those that
-were not sent as part of the original `_source`.
+the values of runtime fields. Runtime fields won't display in `_source`, but
+the `fields` API works for all fields, even those that were not sent as part of
+the original `_source`.
 
 The following request uses the search API to retrieve the `day_of_week` field
-that the previous request defined in the mapping.
+that the previous request defined as a runtime field in the mapping. The value
+for the `day_of_week` field is calculated dynamically at search time, and the
+following search request retrieves any documents where the calculated value is
+equal to `Thursday`.
 
 [source,console]
 ----
-GET /my-index/_search
+GET my-index/_search
 {
-  "aggs": {
-    "days_of_week": {
-      "terms": {
-        "field": "day_of_week"
-      }
+  "query": {
+    "match": {
+      "day_of_week": "Thursday"
     }
-  }
+  },
+  "fields": [
+    "@timestamp", "day_of_week"
+  ],
+  "_source": false
 }
 ----
 // TEST[continued]

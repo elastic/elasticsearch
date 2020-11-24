@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.index.store.cache;
 
-import org.apache.lucene.mockfile.FilterFileChannel;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
+import org.elasticsearch.index.store.cache.TestUtils.FSyncTrackingFileSystemProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
@@ -22,28 +21,19 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
-import static java.util.Collections.synchronizedNavigableSet;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.store.cache.TestUtils.mergeContiguousRanges;
+import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -53,9 +43,11 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class CacheFileTests extends ESTestCase {
 
+    private static final Runnable NOOP = () -> {};
+
     public void testAcquireAndRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
 
         assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
@@ -94,7 +86,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testCacheFileNotAcquired() throws IOException {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
 
         assertThat(Files.exists(file), is(false));
         assertThat(cacheFile.getChannel(), nullValue());
@@ -116,7 +108,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testDeleteOnCloseAfterLastRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
 
         final List<TestEvictionListener> acquiredListeners = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
@@ -148,7 +140,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testConcurrentAccess() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
 
         final TestEvictionListener evictionListener = new TestEvictionListener();
         cacheFile.acquire(evictionListener);
@@ -194,9 +186,17 @@ public class CacheFileTests extends ESTestCase {
     }
 
     public void testFSync() throws Exception {
-        try (FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem()) {
-            final CacheFile cacheFile = new CacheFile("test", randomLongBetween(100, 1000), fileSystem.resolve("test"));
+        final FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
+        try {
+            final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
+            final CacheFile cacheFile = new CacheFile(
+                "test",
+                randomLongBetween(100, 1000),
+                fileSystem.resolve("test"),
+                () -> assertFalse(needsFSyncCalled.getAndSet(true))
+            );
             assertFalse(cacheFile.needsFsync());
+            assertFalse(needsFSyncCalled.get());
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
@@ -204,65 +204,100 @@ public class CacheFileTests extends ESTestCase {
             try {
                 if (randomBoolean()) {
                     final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
-                    assertNumberOfFSyncs(cacheFile.getFile(), equalTo(0L));
+                    assertNumberOfFSyncs(cacheFile.getFile(), equalTo(0));
                     assertThat(completedRanges, hasSize(0));
                     assertFalse(cacheFile.needsFsync());
+                    assertFalse(needsFSyncCalled.get());
                 }
 
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
+                    assertTrue(needsFSyncCalled.getAndSet(false));
                 } else {
                     assertFalse(cacheFile.needsFsync());
+                    assertFalse(needsFSyncCalled.get());
                 }
 
                 final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
-                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0L : 1L));
+                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
                 assertFalse(cacheFile.needsFsync());
+                assertFalse(needsFSyncCalled.get());
             } finally {
                 cacheFile.release(listener);
             }
+        } finally {
+            fileSystem.tearDown();
         }
     }
 
     public void testFSyncOnEvictedFile() throws Exception {
-        try (FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem()) {
-            final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1L, 1000L), fileSystem.resolve("test"));
+        final FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
+        try {
+            final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
+            final CacheFile cacheFile = new CacheFile(
+                "test",
+                randomLongBetween(1L, 1000L),
+                fileSystem.resolve("test"),
+                () -> assertFalse(needsFSyncCalled.getAndSet(true))
+            );
             assertFalse(cacheFile.needsFsync());
+            assertFalse(needsFSyncCalled.get());
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
 
+            final RunOnce releaseOnce = new RunOnce(() -> cacheFile.release(listener));
             try {
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
+                    assertTrue(needsFSyncCalled.getAndSet(false));
+
                     final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                     assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
-                    assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1L));
-                    assertFalse(cacheFile.needsFsync());
+                    assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1));
                 }
                 assertFalse(cacheFile.needsFsync());
+                assertFalse(needsFSyncCalled.get());
 
                 cacheFile.startEviction();
 
+                if (rarely()) {
+                    assertThat("New ranges should not be written after cache file eviction", randomPopulateAndReads(cacheFile), hasSize(0));
+                }
+                if (randomBoolean()) {
+                    releaseOnce.run();
+                }
+
                 final SortedSet<Tuple<Long, Long>> completedRangesAfterEviction = cacheFile.fsync();
-                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0L : 1L));
+                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertThat(completedRangesAfterEviction, hasSize(0));
                 assertFalse(cacheFile.needsFsync());
+                assertFalse(needsFSyncCalled.get());
             } finally {
-                cacheFile.release(listener);
+                releaseOnce.run();
             }
+        } finally {
+            fileSystem.tearDown();
         }
     }
 
     public void testFSyncFailure() throws Exception {
-        try (FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem()) {
-            fileSystem.failFSyncs.set(true);
+        final FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
+        try {
+            fileSystem.failFSyncs(true);
 
-            final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1L, 1000L), fileSystem.resolve("test"));
+            final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
+            final CacheFile cacheFile = new CacheFile(
+                "test",
+                randomLongBetween(1L, 1000L),
+                fileSystem.resolve("test"),
+                () -> assertFalse(needsFSyncCalled.getAndSet(true))
+            );
             assertFalse(cacheFile.needsFsync());
+            assertFalse(needsFSyncCalled.get());
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
@@ -271,23 +306,30 @@ public class CacheFileTests extends ESTestCase {
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
-                    expectThrows(IOException.class, cacheFile::fsync);
+                    assertTrue(needsFSyncCalled.getAndSet(false));
+                    IOException exception = expectThrows(IOException.class, cacheFile::fsync);
+                    assertThat(exception.getMessage(), containsString("simulated"));
+                    assertTrue(cacheFile.needsFsync());
+                    assertTrue(needsFSyncCalled.getAndSet(false));
                 } else {
                     assertFalse(cacheFile.needsFsync());
                     final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                     assertTrue(completedRanges.isEmpty());
                 }
-                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(0L));
+                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(0));
 
-                fileSystem.failFSyncs.set(false);
+                fileSystem.failFSyncs(false);
 
                 final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                 assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
-                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0L : 1L));
+                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertFalse(cacheFile.needsFsync());
+                assertFalse(needsFSyncCalled.get());
             } finally {
                 cacheFile.release(listener);
             }
+        } finally {
+            fileSystem.tearDown();
         }
     }
 
@@ -309,34 +351,11 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
-    private SortedSet<Tuple<Long, Long>> randomPopulateAndReads(final CacheFile cacheFile) {
-        final SortedSet<Tuple<Long, Long>> ranges = synchronizedNavigableSet(new TreeSet<>(Comparator.comparingLong(Tuple::v1)));
-        final List<Future<Integer>> futures = new ArrayList<>();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            builder().put(NODE_NAME_SETTING.getKey(), getTestName()).build(),
-            random()
-        );
-        for (int i = 0; i < between(0, 10); i++) {
-            final long start = randomLongBetween(0L, cacheFile.getLength() - 1L);
-            final long end = randomLongBetween(start + 1L, cacheFile.getLength());
-            final Tuple<Long, Long> range = Tuple.tuple(start, end);
-            futures.add(
-                cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
-                    ranges.add(Tuple.tuple(from, to));
-                    progressUpdater.accept(to);
-                }, deterministicTaskQueue.getThreadPool().generic())
-            );
-        }
-        deterministicTaskQueue.runAllRunnableTasks();
-        assertTrue(futures.stream().allMatch(Future::isDone));
-        return mergeContiguousRanges(ranges);
-    }
-
-    public static void assertNumberOfFSyncs(final Path path, final Matcher<Long> matcher) {
+    public static void assertNumberOfFSyncs(final Path path, final Matcher<Integer> matcher) {
         final FSyncTrackingFileSystemProvider provider = (FSyncTrackingFileSystemProvider) path.getFileSystem().provider();
-        final AtomicLong fsyncCounter = provider.files.get(path);
-        assertThat("File [" + path + "] was never fsynced", notNullValue());
-        assertThat("Mismatching number of fsync for [" + path + "]", fsyncCounter.get(), matcher);
+        final Integer fsyncCount = provider.getNumberOfFSyncs(path);
+        assertThat("File [" + path + "] was never fsynced", fsyncCount, notNullValue());
+        assertThat("Mismatching number of fsync for [" + path + "]", fsyncCount, matcher);
     }
 
     private static FSyncTrackingFileSystemProvider setupFSyncCountingFileSystem() {
@@ -344,49 +363,5 @@ public class CacheFileTests extends ESTestCase {
         final FSyncTrackingFileSystemProvider provider = new FSyncTrackingFileSystemProvider(defaultFileSystem, createTempDir());
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         return provider;
-    }
-
-    /**
-     * A {@link FileSystemProvider} that counts the number of times the method {@link FileChannel#force(boolean)} is executed on every
-     * files. It reinstates the default file system when this file system provider is closed.
-     */
-    private static class FSyncTrackingFileSystemProvider extends FilterFileSystemProvider implements AutoCloseable {
-
-        private final Map<Path, AtomicLong> files = new ConcurrentHashMap<>();
-        private final AtomicBoolean failFSyncs = new AtomicBoolean();
-        private final FileSystem delegateInstance;
-        private final Path rootDir;
-
-        FSyncTrackingFileSystemProvider(FileSystem delegate, Path rootDir) {
-            super("fsynccounting://", delegate);
-            this.rootDir = new FilterPath(rootDir, this.fileSystem);
-            this.delegateInstance = delegate;
-        }
-
-        public Path resolve(String other) {
-            return rootDir.resolve(other);
-        }
-
-        @Override
-        public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
-            return new FilterFileChannel(delegate.newFileChannel(toDelegate(path), options, attrs)) {
-
-                final AtomicLong counter = files.computeIfAbsent(path, p -> new AtomicLong(0L));
-
-                @Override
-                public void force(boolean metaData) throws IOException {
-                    if (failFSyncs.get()) {
-                        throw new IOException("simulated");
-                    }
-                    super.force(metaData);
-                    counter.incrementAndGet();
-                }
-            };
-        }
-
-        @Override
-        public void close() {
-            PathUtilsForTesting.installMock(delegateInstance);
-        }
     }
 }

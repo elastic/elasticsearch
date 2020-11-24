@@ -272,3 +272,72 @@ setup:
             the_filter:
               filters:
                 filters: []
+
+
+---
+"cache":
+  - skip:
+      version: " - 7.99.99"
+      reason:  cache fixed in 8.0.0 to be backported to 7.11.0
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    100
+           - int_field: 1
+             double_field: 1.0
+             string_field: foo bar
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match:
+                      string_field: foo
+                  foo_bar:
+                    match:
+                      string_field: foo bar
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 2 }
+  - match: { aggregations.f.buckets.foo.doc_count: 4 }
+  - match: { aggregations.f.buckets.foo_bar.doc_count: 1 }
+
+  # Modify the mapping configuration that generates queries. This should bust the cache.
+  - do:
+      indices.put_mapping:
+        index: test_1
+        body:
+          properties:
+            string_field:
+              type: keyword
+              split_queries_on_whitespace: true
+
+  # This should be entirely fresh because updating the mapping busted the cache.
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match:
+                      string_field: foo
+                  foo_bar:
+                    match:
+                      string_field: foo bar
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 2 }
+  - match: { aggregations.f.buckets.foo.doc_count: 4 }
+  - match: { aggregations.f.buckets.foo_bar.doc_count: 4 }

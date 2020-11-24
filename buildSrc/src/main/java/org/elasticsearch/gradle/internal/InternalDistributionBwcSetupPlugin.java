@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
@@ -49,7 +48,7 @@ import static java.util.Arrays.stream;
  * unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  * and configure them to build various versions here.
  */
-public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
+public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
 
     private ProviderFactory providerFactory;
 

@@ -20,7 +20,16 @@ dependencies {
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 
-File serviceAccountFile = (System.getenv("eql_test_credentials_file") ?: System.getProperty("eql.test.credentials.file")) as File
+File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
+  .forUseAtConfigurationTime()
+  .orElse(providers.systemProperty('eql.test.credentials.file').forUseAtConfigurationTime())
+  .map { s -> new File(s)}
+  .getOrNull()
+
+Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
+  .forUseAtConfigurationTime()
+  .map { s -> Boolean.parseBoolean(s) }
+  .getOrElse(false)
 
 testClusters {
   all {
@@ -28,7 +37,7 @@ testClusters {
     if (serviceAccountFile) {
       keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
     }
-    if (Boolean.parseBoolean(System.getProperty('eql.test.preserve.data', 'false'))) {
+    if (preserveData) {
       preserveDataDir = true
     }
     testDistribution = 'DEFAULT'

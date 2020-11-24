@@ -21,8 +21,9 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -47,13 +48,14 @@ public class SystemIndexDescriptor {
     private final int indexFormat;
     private final String versionMetaKey;
     private final String origin;
+    private final String primaryIndex;
 
     /**
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, description, null, null, null, 0, null, null);
+        this(indexPattern, indexPattern, description, null, null, null, 0, null, null);
     }
 
     /**
@@ -67,8 +69,8 @@ public class SystemIndexDescriptor {
      *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
      */
-    private SystemIndexDescriptor(String indexPattern, String description, String mappings, Settings settings, String aliasName,
-                                 int indexFormat, String versionMetaKey, String origin) {
+    private SystemIndexDescriptor(String indexPattern, String primaryIndex, String description, String mappings, Settings settings,
+                                  String aliasName, int indexFormat, String versionMetaKey, String origin) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
             throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
@@ -82,14 +84,24 @@ public class SystemIndexDescriptor {
             throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
                 "] but must not start with the character sequence [.*] to prevent conflicts");
         }
+
+        Objects.requireNonNull(primaryIndex, "system primary index must not be null");
+        if (primaryIndex.charAt(0) != '.') {
+            throw new IllegalArgumentException("system primary index provided as [" + indexPattern +
+                "] but must start with the character [.]");
+        }
+        if (primaryIndex.matches("^\\.[\\w-]+$") == false) {
+            throw new IllegalArgumentException("system primary index provided as [" + primaryIndex +
+                "] but cannot contain special characters or pattern");
+        }
+
         if (indexFormat < 0) {
             throw new IllegalArgumentException("Index format cannot be negative");
         }
         this.indexPattern = indexPattern;
+        this.primaryIndex = primaryIndex;
 
-        final Automaton automaton = aliasName == null
-            ? Regex.simpleMatchToAutomaton(indexPattern)
-            : Regex.simpleMatchToAutomaton(indexPattern, aliasName);
+        final Automaton automaton = buildAutomaton(indexPattern, aliasName);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
 
         this.description = description;
@@ -106,6 +118,10 @@ public class SystemIndexDescriptor {
      */
     public String getIndexPattern() {
         return indexPattern;
+    }
+
+    public String getPrimaryIndex() {
+        return primaryIndex;
     }
 
     /**
@@ -166,6 +182,7 @@ public class SystemIndexDescriptor {
 
     public static class Builder {
         private String indexPattern;
+        private String primaryIndex;
         private String description;
         private XContentBuilder mappingsBuilder = null;
         private Settings settings = null;
@@ -176,6 +193,11 @@ public class SystemIndexDescriptor {
 
         public Builder setIndexPattern(String indexPattern) {
             this.indexPattern = indexPattern;
+            return this;
+        }
+
+        public Builder setPrimaryIndex(String primaryIndex) {
+            this.primaryIndex = primaryIndex;
             return this;
         }
 
@@ -217,7 +239,37 @@ public class SystemIndexDescriptor {
         public SystemIndexDescriptor build() {
             String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
-            return new SystemIndexDescriptor(indexPattern, description, mappings, settings, aliasName, indexFormat, versionMetaKey, origin);
+            return new SystemIndexDescriptor(indexPattern, primaryIndex, description, mappings, settings, aliasName, indexFormat, versionMetaKey, origin);
         }
+    }
+
+    static Automaton buildAutomaton(String pattern, String alias) {
+        final String patternAsRegex = patternToRegex(pattern);
+        final String aliasAsRegex = alias == null ? null : patternToRegex(alias);
+
+        final Automaton patternAutomaton = new RegExp(patternAsRegex).toAutomaton();
+
+        if (aliasAsRegex == null) {
+            return patternAutomaton;
+        }
+
+        final Automaton aliasAutomaton = new RegExp(aliasAsRegex).toAutomaton();
+
+        return Operations.union(patternAutomaton, aliasAutomaton);
+    }
+
+    /**
+     * Translate a simple string pattern into a regular expression, suitable for creating a
+     * {@link RegExp} instance. This exists because although
+     * {@link org.elasticsearch.common.regex.Regex#simpleMatchToAutomaton(String)} is useful
+     * for simple patterns, it doesn't support character ranges.
+     * @param input the string to translate
+     * @return the translate string
+     */
+    private static String patternToRegex(String input) {
+        String output = input;
+        output = output.replaceAll("\\.", "\\.");
+        output = output.replaceAll("\\*", ".*");
+        return output;
     }
 }

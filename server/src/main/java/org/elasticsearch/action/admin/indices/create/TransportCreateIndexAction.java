@@ -88,11 +88,11 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             // System indices define their own settings and mappings, which cannot be overridden.
             mappings = descriptor.getMappings();
             settings = descriptor.getSettings();
+            concreteIndexName = descriptor.getPrimaryIndex();
 
             if (descriptor.getAliasName() == null) {
                 aliases = Set.of();
             } else {
-                concreteIndexName = descriptor.getIndexPattern();
                 aliases = Set.of(new Alias(descriptor.getAliasName()));
             }
         }

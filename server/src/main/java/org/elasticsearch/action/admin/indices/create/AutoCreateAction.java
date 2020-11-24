@@ -173,10 +173,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         mappings = descriptor.getMappings();
                         settings = descriptor.getSettings();
                         aliasName = descriptor.getAliasName();
-
-                        if (aliasName != null) {
-                            concreteIndexName = descriptor.getIndexPattern();
-                        }
+                        concreteIndexName = descriptor.getPrimaryIndex();
                     }
 
                     CreateIndexClusterStateUpdateRequest updateRequest =

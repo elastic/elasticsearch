@@ -82,7 +82,7 @@ public class SystemIndexManager implements ClusterStateListener {
 
     private void upgradeIndexMetadataIfNecessary(ClusterState state, SystemIndexDescriptor descriptor) {
         final Metadata metadata = state.metadata();
-        final String indexName = descriptor.getIndexPattern();
+        final String indexName = descriptor.getPrimaryIndex();
         final String aliasName = descriptor.getAliasName();
 
         if (metadata.hasIndex(indexName) == false) {
@@ -101,7 +101,7 @@ public class SystemIndexManager implements ClusterStateListener {
                 aliasName
             );
         } else if (indexState.mappingUpToDate == false) {
-            logger.info("Index [{}] (alias [{}]) is not up to date. Updating mapping", concreteIndexName, aliasName);
+            logger.info("Index [{}] (alias [{}]) mappings are not up to date and will be updated", concreteIndexName, aliasName);
             PutMappingRequest request = new PutMappingRequest(concreteIndexName).source(descriptor.getMappings(), XContentType.JSON);
 
             final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
@@ -125,12 +125,7 @@ public class SystemIndexManager implements ClusterStateListener {
     }
 
     private State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
-        String aliasOrIndexName = descriptor.getAliasName();
-        if (aliasOrIndexName == null) {
-            aliasOrIndexName = descriptor.getIndexPattern();
-        }
-
-        final IndexMetadata indexMetadata = resolveConcreteIndex(state.metadata(), aliasOrIndexName);
+        final IndexMetadata indexMetadata = resolveConcreteIndex(state.metadata(), descriptor.getPrimaryIndex());
         assert indexMetadata != null;
 
         final boolean isIndexUpToDate = INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == descriptor.getIndexFormat();

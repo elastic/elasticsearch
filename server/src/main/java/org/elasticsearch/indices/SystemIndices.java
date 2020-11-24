@@ -26,7 +26,6 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.TaskResultsService;
 
@@ -133,12 +132,9 @@ public class SystemIndices {
     }
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
-        Optional<Automaton> automaton = descriptors.stream().map(descriptor -> {
-            if (descriptor.getAliasName() != null) {
-                return Regex.simpleMatchToAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName());
-            }
-            return Regex.simpleMatchToAutomaton(descriptor.getIndexPattern());
-        }).reduce(Operations::union);
+        Optional<Automaton> automaton = descriptors.stream()
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
+            .reduce(Operations::union);
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
     }
 
@@ -175,8 +171,8 @@ public class SystemIndices {
     }
 
     private static boolean overlaps(SystemIndexDescriptor a1, SystemIndexDescriptor a2) {
-        Automaton a1Automaton = Regex.simpleMatchToAutomaton(a1.getIndexPattern());
-        Automaton a2Automaton = Regex.simpleMatchToAutomaton(a2.getIndexPattern());
+        Automaton a1Automaton = SystemIndexDescriptor.buildAutomaton(a1.getIndexPattern(), null);
+        Automaton a2Automaton = SystemIndexDescriptor.buildAutomaton(a2.getIndexPattern(), null);
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 

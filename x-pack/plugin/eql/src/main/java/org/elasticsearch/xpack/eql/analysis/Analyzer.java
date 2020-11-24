@@ -21,8 +21,9 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 
-import static java.util.Collections.singletonList;
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
+import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
@@ -42,7 +43,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveRefs(),
                 new ResolveFunctions());
 
-        return singletonList(resolution);
+        Batch cleanup = new Batch("Finish Analysis", Limiter.ONCE,
+                new AddMissingEqualsToBoolField());
+
+        return asList(resolution, cleanup);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {

@@ -118,7 +118,6 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             noMatchSize,
             expectedPassages.length,
             name -> "text".equals(name),
-            Integer.MAX_VALUE,
             Integer.MAX_VALUE
         );
         highlighter.setFieldMatcher((name) -> "text".equals(name));

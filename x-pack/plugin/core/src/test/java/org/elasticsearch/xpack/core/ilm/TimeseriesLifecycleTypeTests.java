@@ -7,7 +7,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,6 +60,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = new MigrateAction(false);
+    private static final RollupILMAction TEST_ROLLUP_ACTION =new RollupILMAction(new RollupActionConfig(
+        new GroupConfig(new DateHistogramGroupConfig.FixedInterval("field", DateHistogramInterval.DAY)),
+        Collections.emptyList(), null, "rollup"), false, null);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -215,6 +222,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         for (String phaseName : randomSubsetOf(randomIntBetween(0, VALID_PHASES.size()), VALID_PHASES)) {
             phaseMap.put(phaseName, new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
         }
+
 
         assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, VALID_PHASES));
     }
@@ -620,6 +628,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return new UnfollowAction();
             case MigrateAction.NAME:
                 return new MigrateAction(true);
+            case RollupILMAction.NAME:
+                return TEST_ROLLUP_ACTION;
             }
             return new DeleteAction();
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
@@ -693,6 +703,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             case MigrateAction.NAME:
                 return TEST_MIGRATE_ACTION;
+            case RollupILMAction.NAME:
+                return TEST_ROLLUP_ACTION;
             default:
                 throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         }

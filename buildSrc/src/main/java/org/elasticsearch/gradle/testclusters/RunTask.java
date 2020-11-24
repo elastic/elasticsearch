@@ -72,7 +72,7 @@ public class RunTask extends DefaultTestClustersTask {
         return preserveData;
     }
 
-    @Option(option = "preserve-data", description = "Preserves data directory from previous runs (path provided to --data-dir is always preserved)")
+    @Option(option = "preserve-data", description = "Preserves data directory contents (path provided to --data-dir is always preserved)")
     public void setPreserveData(Boolean preserveData) {
         this.preserveData = preserveData;
     }

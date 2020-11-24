@@ -276,12 +276,12 @@ public enum Hasher {
     PBKDF2_STRETCH() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(new SecureString(SHA512.hash(data)), PBKDF2_DEFAULT_COST, PBKDF2_STRETCH_PREFIX);
+            return getPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), PBKDF2_DEFAULT_COST, PBKDF2_STRETCH_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(SHA512.hash(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), hash, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -289,12 +289,12 @@ public enum Hasher {
     PBKDF2_STRETCH_1000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(new SecureString(SHA512.hash(data)), 1000, PBKDF2_STRETCH_PREFIX);
+            return getPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), 1000, PBKDF2_STRETCH_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(SHA512.hash(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), hash, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -302,12 +302,12 @@ public enum Hasher {
     PBKDF2_STRETCH_10000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(new SecureString(SHA512.hash(data)), 10000, PBKDF2_STRETCH_PREFIX);
+            return getPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), 10000, PBKDF2_STRETCH_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(SHA512.hash(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), hash, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -315,12 +315,12 @@ public enum Hasher {
     PBKDF2_STRETCH_50000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(new SecureString(SHA512.hash(data)), 50000, PBKDF2_STRETCH_PREFIX);
+            return getPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), 50000, PBKDF2_STRETCH_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(SHA512.hash(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), hash, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -328,12 +328,12 @@ public enum Hasher {
     PBKDF2_STRETCH_100000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(new SecureString(SHA512.hash(data)), 100000, PBKDF2_STRETCH_PREFIX);
+            return getPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), 100000, PBKDF2_STRETCH_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(SHA512.hash(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), hash, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -341,12 +341,12 @@ public enum Hasher {
     PBKDF2_STRETCH_500000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(new SecureString(SHA512.hash(data)), 500000, PBKDF2_STRETCH_PREFIX);
+            return getPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), 500000, PBKDF2_STRETCH_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(SHA512.hash(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), hash, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -354,12 +354,12 @@ public enum Hasher {
     PBKDF2_STRETCH_1000000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(new SecureString(SHA512.hash(data)), 1000000, PBKDF2_STRETCH_PREFIX);
+            return getPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), 1000000, PBKDF2_STRETCH_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(new SecureString(SHA512.hash(data)), hash, PBKDF2_STRETCH_PREFIX);
+            return verifyPbkdf2Hash(new SecureString(hashSha512NoSalt(data)), hash, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -461,24 +461,6 @@ public enum Hasher {
             return CharArrays.constantTimeEquals(Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray(), hash);
         }
     },
-    /*
-     * Unsalted SHA-512 , not suited for password storage.
-     */
-    SHA512() {
-        @Override
-        public char[] hash(SecureString text) {
-            MessageDigest md = MessageDigests.sha512();
-            md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray();
-        }
-
-        @Override
-        public boolean verify(SecureString text, char[] hash) {
-            MessageDigest md = MessageDigests.sha512();
-            md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            return CharArrays.constantTimeEquals(Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray(), hash);
-        }
-    },
 
     NOOP() {
         @Override
@@ -557,7 +539,7 @@ public enum Hasher {
             case "pbkdf2_stretch_1000":
                 return PBKDF2_STRETCH_1000;
             case "pbkdf2_stretch_10000":
-                return PBKDF2_STRETCH;
+                return PBKDF2_STRETCH_10000;
             case "pbkdf2_stretch_50000":
                 return PBKDF2_STRETCH_50000;
             case "pbkdf2_stretch_100000":
@@ -723,5 +705,11 @@ public enum Hasher {
         byte[] salt = new byte[length];
         SECURE_RANDOM.nextBytes(salt);
         return salt;
+    }
+
+    private static char[] hashSha512NoSalt(SecureString text) {
+        MessageDigest md = MessageDigests.sha512();
+        md.update(CharArrays.toUtf8Bytes(text.getChars()));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray();
     }
 }

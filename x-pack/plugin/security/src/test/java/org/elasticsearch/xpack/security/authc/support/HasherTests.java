@@ -87,7 +87,7 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolve("pbkdf2_1000000"), sameInstance(Hasher.PBKDF2_1000000));
         assertThat(Hasher.resolve("pbkdf2_stretch"), sameInstance(Hasher.PBKDF2_STRETCH));
         assertThat(Hasher.resolve("pbkdf2_stretch_1000"), sameInstance(Hasher.PBKDF2_STRETCH_1000));
-        assertThat(Hasher.resolve("pbkdf2_stretch_10000"), sameInstance(Hasher.PBKDF2_STRETCH));
+        assertThat(Hasher.resolve("pbkdf2_stretch_10000"), sameInstance(Hasher.PBKDF2_STRETCH_10000));
         assertThat(Hasher.resolve("pbkdf2_stretch_50000"), sameInstance(Hasher.PBKDF2_STRETCH_50000));
         assertThat(Hasher.resolve("pbkdf2_stretch_100000"), sameInstance(Hasher.PBKDF2_STRETCH_100000));
         assertThat(Hasher.resolve("pbkdf2_stretch_500000"), sameInstance(Hasher.PBKDF2_STRETCH_500000));

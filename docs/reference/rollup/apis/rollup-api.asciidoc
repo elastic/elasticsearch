@@ -48,8 +48,8 @@ POST /my-index-000001/_rollup
 [[rollup-api-prereqs]]
 ==== {api-prereq-title}
 
-If {es}'s {security-features} are enabled, the `manage` cluster privilege is
-required to use this API. See <<security-privileges>>.
+If the {es} {security-features} are enabled, you must have the `manage` cluster
+privilege to use this API. See <<security-privileges>>.
 
 [[rollup-api-path-params]]
 ==== {api-path-parms-title}
@@ -73,9 +73,9 @@ concrete indices.
 Index that stores the rollup results. Cannot be a <<data-streams,data stream>>
 or <<indices-aliases,index alias>>.
 +
-If the rollup index does not exist, the request creates it. If the `<index>` is
-a backing index for a data stream, the new rollup index becomes a backing index
-for the same stream.
+If this index does not exist, the request creates it. If the `<index>` is a
+backing index for a data stream, this new index is a backing index of the same
+stream.
 
 `groups`::
 (Required, object)
@@ -88,7 +88,7 @@ Aggregates and stores fields in the rollup.
 (Required,
 <<search-aggregations-bucket-datehistogram-aggregation,`date_histogram`
 aggregation>> object)
-Aggregates the `<index>` based on a provided time interval.
+Groups documents in the original `<index>` based on a provided time interval.
 +
 .Properties of `date_histogram`
 [%collapsible%open]
@@ -101,7 +101,7 @@ Common Schema (ECS)], we recommend using `@timestamp`.
 
 `calendar_interval` or `fixed_interval`::
 (Required, <<time-units,time units>>)
-Time interval used to aggregate the `<index>`. For differences between
+Time interval used to group documents. For differences between
 `calendar_interval` and `fixed_interval`, see <<calendar_and_fixed_intervals>>.
 +
 TIP: Choose this value carefully. You won't be able to use a smaller interval
@@ -119,7 +119,7 @@ Defaults to `+00:00` (UTC).
 `histogram`::
 (Optional, <<search-aggregations-bucket-histogram-aggregation,`histogram`
 aggregation>> object)
-Groups <<number,numeric>> field values based on a provided interval.
+Groups and stores <<number,numeric>> field values based on a provided interval.
 +
 .Properties of `histogram`
 [%collapsible%open]

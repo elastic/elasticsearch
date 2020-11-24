@@ -36,7 +36,6 @@ testClusters {
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
-      systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
     }
   }
 }

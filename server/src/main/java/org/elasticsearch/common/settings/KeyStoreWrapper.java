@@ -29,6 +29,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
@@ -310,7 +311,12 @@ public class KeyStoreWrapper implements SecureSettings {
     private Cipher createCipher(int opmode, char[] password, byte[] salt, byte[] iv) throws GeneralSecurityException {
         PBEKeySpec keySpec = new PBEKeySpec(password, salt, KDF_ITERS, CIPHER_KEY_BITS);
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KDF_ALGO);
-        SecretKey secretKey = keyFactory.generateSecret(keySpec);
+        SecretKey secretKey;
+        try {
+            secretKey = keyFactory.generateSecret(keySpec);
+        } catch (AssertionError ae) {
+            throw new GeneralSecurityException("Error generating an encryption key from the provided password. ", ae);
+        }
         SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), CIPHER_ALGO);
 
         GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_BITS, iv);

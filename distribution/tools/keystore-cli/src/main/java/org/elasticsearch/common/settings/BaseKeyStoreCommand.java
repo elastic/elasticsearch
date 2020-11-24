@@ -68,7 +68,7 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
                 keyStore.decrypt(keyStorePassword.getChars());
             }
             executeCommand(terminal, options, env);
-        } catch (SecurityException e) {
+        } catch (Exception e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         } finally {
             if (keyStorePassword != null) {

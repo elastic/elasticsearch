@@ -20,9 +20,11 @@ restResources {
   }
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'basic'
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+tasks.named("integTest").configure {
+  cluster {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'basic'
+    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+  }
 }
 

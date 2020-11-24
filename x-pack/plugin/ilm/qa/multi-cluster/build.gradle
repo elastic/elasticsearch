@@ -41,7 +41,7 @@ tasks.register('follow-cluster', RestIntegTestTask) {
   systemProperty 'tests.path.repo', repoDir.absolutePath
 }
 
-testClusters.matching{ it.equals('follow-cluster') }.configureEach {
+testClusters.matching{ it.name.equals('follow-cluster') }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.ccr.enabled', 'true'

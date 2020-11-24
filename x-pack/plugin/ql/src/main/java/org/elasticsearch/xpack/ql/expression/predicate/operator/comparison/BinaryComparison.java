@@ -37,11 +37,6 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     }
 
     @Override
-    protected Expression canonicalize() {
-        return left().hashCode() > right().hashCode() ? swapLeftAndRight() : this;
-    }
-
-    @Override
     public DataType dataType() {
         return DataTypes.BOOLEAN;
     }

@@ -440,7 +440,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             fail("Shouldn't be here");
         }, dateType, numType, keywordType));
         if (millisecondBasedRate) {
-            assertEquals("Cannot use non month-based rate unit [" + rate + "] with month-based calendar interval histogram [" +
+            assertEquals("Cannot use non month-based rate unit [" + rate + "] with calendar interval histogram [" +
                 histogram + "] only month, quarter and year are supported for this histogram", ex.getMessage());
         } else {
             assertEquals("Cannot use month-based rate unit [" + rate + "] with non-month based calendar interval histogram [" +

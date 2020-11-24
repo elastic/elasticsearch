@@ -347,7 +347,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public double bucketSize(Rounding.DateTimeUnit unitSize) {
         if (unitSize != null) {
-            return preparedRounding.roundingSize(null, unitSize);
+            return preparedRounding.roundingSize(unitSize);
         } else {
             return 1.0;
         }
@@ -444,7 +444,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Override
         public double bucketSize(DateTimeUnit unitSize) {
             if (unitSize != null) {
-                return preparedRounding.roundingSize(null, unitSize);
+                return preparedRounding.roundingSize(unitSize);
             } else {
                 return 1.0;
             }

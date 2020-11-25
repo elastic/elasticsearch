@@ -100,19 +100,13 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
-        String responseContentTypeString = null;
-        if (responseContentType!=null) {
-            responseContentTypeString = responseContentType.mediaType();
-        }
 
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
-                responseContentTypeString = responseContentType.mediaType();
             }
             if (responseContentType == null && Strings.hasText(acceptHeader)) {
                 responseContentType = XContentType.fromMediaType(acceptHeader);
-                responseContentTypeString = acceptHeader;
             }
         }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter
@@ -126,7 +120,6 @@ public abstract class AbstractRestChannel implements RestChannel {
                 // default to JSON output when all else fails
                 responseContentType = XContentType.JSON;
             }
-            responseContentTypeString = responseContentType.mediaType();
         }
 
         Set<String> includes = Collections.emptySet();
@@ -140,7 +133,7 @@ public abstract class AbstractRestChannel implements RestChannel {
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
         XContentBuilder builder =
             new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
-                includes, excludes, responseContentTypeString);
+                includes, excludes, responseContentType.responseContentTypeHeader(request.getParsedAccept().getParameters()));
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

@@ -11,7 +11,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.example.actions.GetActionsAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -89,7 +88,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
         List<String> allActions = (List<String>) response.get("actions");
-        allActions.remove(GetActionsAction.NAME);
+        assertFalse(allActions.isEmpty());
         allActions.removeAll(OperatorOnly.SIMPLE_ACTIONS);
         allActions.removeAll(Constants.NON_OPERATOR_ACTIONS);
         assertTrue(allActions.isEmpty());

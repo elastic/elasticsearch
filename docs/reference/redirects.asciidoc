@@ -611,6 +611,11 @@ See <<snapshot-restore>>.
 
 See <<snapshots-repository-plugins>>.
 
+[role="exclude",id="_changing_index_settings_during_restore"]
+==== Change index settings during restore
+
+See <<change-index-settings-during-restore>>.
+
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
 
@@ -1249,7 +1254,7 @@ See <<transforms>>.
 
 See <<search-aggregations-matrix-stats-aggregation>>.
 
-[[fielddata]]
+[role="exclude",id="fielddata"]
 === `fielddata` mapping parameter
 
 See <<fielddata-mapping-param>>.

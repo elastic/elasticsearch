@@ -38,19 +38,21 @@ public class RestGetActionsAction extends BaseRestHandler {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final Map<ActionType, TransportAction> actions =
-            AccessController.doPrivileged((PrivilegedAction<Map<ActionType, TransportAction>>) () -> {
-            try {
-                final Field actionsField = client.getClass().getDeclaredField("actions");
-                actionsField.setAccessible(true);
-                return (Map<ActionType, TransportAction>) actionsField.get(client);
-            } catch (NoSuchFieldException | IllegalAccessException e) {
-                throw new ElasticsearchException(e);
+        final Map<ActionType, TransportAction> actions = AccessController.doPrivileged(
+            (PrivilegedAction<Map<ActionType, TransportAction>>) () -> {
+                try {
+                    final Field actionsField = client.getClass().getDeclaredField("actions");
+                    actionsField.setAccessible(true);
+                    return (Map<ActionType, TransportAction>) actionsField.get(client);
+                } catch (NoSuchFieldException | IllegalAccessException e) {
+                    throw new ElasticsearchException(e);
+                }
             }
-        });
+        );
 
         final List<String> actionNames = actions.keySet().stream().map(ActionType::name).collect(Collectors.toList());
         return channel -> new RestToXContentListener<>(channel).onResponse(
-            (builder, params) -> builder.startObject().field("actions", actionNames).endObject());
+            (builder, params) -> builder.startObject().field("actions", actionNames).endObject()
+        );
     }
 }

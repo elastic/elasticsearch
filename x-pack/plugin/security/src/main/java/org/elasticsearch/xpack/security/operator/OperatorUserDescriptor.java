@@ -124,9 +124,9 @@ public class OperatorUserDescriptor {
             if (o == null || getClass() != o.getClass())
                 return false;
             Group group = (Group) o;
-            return usernames.equals(group.usernames) 
-              && Objects.equals(realmName, group.realmName) 
-              && realmType.equals(group.realmType) 
+            return usernames.equals(group.usernames)
+              && Objects.equals(realmName, group.realmName)
+              && realmType.equals(group.realmType)
               && authenticationType == group.authenticationType;
         }
 

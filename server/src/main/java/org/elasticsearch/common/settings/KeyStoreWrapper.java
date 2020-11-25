@@ -314,7 +314,7 @@ public class KeyStoreWrapper implements SecureSettings {
         try {
             secretKey = keyFactory.generateSecret(keySpec);
         } catch (AssertionError ae) {
-            throw new GeneralSecurityException("Error generating an encryption key from the provided password. ", ae);
+            throw new GeneralSecurityException("Error generating an encryption key from the provided password", ae);
         }
         SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), CIPHER_ALGO);
 

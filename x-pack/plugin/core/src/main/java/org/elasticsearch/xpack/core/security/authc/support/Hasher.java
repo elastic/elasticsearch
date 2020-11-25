@@ -513,9 +513,9 @@ public enum Hasher {
             result.put(Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded()));
             return result.array();
         } catch (AssertionError ae) {
-            throw new ElasticsearchException("Can't use PBKDF2 implementation from the Security Provider in use", ae);
+            throw new ElasticsearchException("Error using PBKDF2 implementation from the selected Security Provider", ae);
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
+            throw new ElasticsearchException("Error using PBKDF2 for password hashing", e);
         }
     }
 
@@ -541,9 +541,9 @@ public enum Hasher {
             final boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
             return result;
         } catch (AssertionError ae) {
-            throw new ElasticsearchException("Can't use PBKDF2 implementation from the Security Provider in use.", ae);
+            throw new ElasticsearchException("Error using PBKDF2 implementation from the selected Security Provider", ae);
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
+            throw new ElasticsearchException("Error using PBKDF2 for password hashing", e);
         } finally {
             if (null != hashChars) {
                 Arrays.fill(hashChars, '\u0000');

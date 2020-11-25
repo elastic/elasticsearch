@@ -97,7 +97,22 @@ public class NodeClient extends AbstractClient {
                 Response extends ActionResponse
             > Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         return taskManager.registerAndExecute("transport", transportAction(action), request,
-            (t, r) -> listener.onResponse(r), (t, e) -> listener.onFailure(e));
+                (t, r) -> {
+                    try {
+                        listener.onResponse(r);
+                    } catch (Exception e) {
+                        assert false : new AssertionError("callback must handle its own exceptions", e);
+                        throw e;
+                    }
+                }, (t, e) -> {
+                    try {
+                        listener.onFailure(e);
+                    } catch (Exception ex) {
+                        ex.addSuppressed(e);
+                        assert false : new AssertionError("callback must handle its own exceptions", ex);
+                        throw ex;
+                    }
+                });
     }
 
     /**

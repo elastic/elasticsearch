@@ -17,7 +17,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -44,7 +43,6 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65473")
 public class GeoLineAggregatorTests extends AggregatorTestCase {
 
     @Override
@@ -133,7 +131,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         Map<Integer, double[]> indexedSortValues = new HashMap<>(numGroups);
         for (int groupOrd = 0; groupOrd < numGroups; groupOrd++) {
             int numPoints = randomIntBetween(2, 2 * size);
-            boolean complete = numPoints <= size;
+            boolean complete = numPoints < size;
             long[] points = new long[numPoints];
             double[] sortValues = new double[numPoints];
             for (int i = 0; i < numPoints; i++) {

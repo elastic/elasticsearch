@@ -49,4 +49,22 @@ public class MergedGeoLinesTests extends ESTestCase {
         assertArrayEquals(sortedValues, mergedGeoLines.getFinalSortValues(), 0d);
         assertArrayEquals(sortedPoints, mergedGeoLines.getFinalPoints());
     }
+
+    public void testMergeWithEmptyGeoLine() {
+        int maxLength = 10;
+        SortOrder sortOrder = SortOrder.ASC;
+        InternalGeoLine lineWithPoints = randomLine(sortOrder, maxLength, 0.0);
+        InternalGeoLine emptyLine = new InternalGeoLine("name", new long[]{}, new double[]{}, Collections.emptyMap(),
+            true, randomBoolean(), sortOrder, maxLength);
+        List<InternalGeoLine> geoLines = List.of(lineWithPoints, emptyLine);
+        MergedGeoLines mergedGeoLines = new MergedGeoLines(geoLines, lineWithPoints.length(), sortOrder);
+        mergedGeoLines.merge();
+
+        // assert that the mergedGeoLines are sorted (does not necessarily validate correctness, but it is a good heuristic)
+        long[] sortedPoints = Arrays.copyOf(mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalPoints().length);
+        double[] sortedValues = Arrays.copyOf(mergedGeoLines.getFinalSortValues(), mergedGeoLines.getFinalSortValues().length);
+        new PathArraySorter(sortedPoints, sortedValues, sortOrder).sort();
+        assertArrayEquals(sortedValues, mergedGeoLines.getFinalSortValues(), 0d);
+        assertArrayEquals(sortedPoints, mergedGeoLines.getFinalPoints());
+    }
 }

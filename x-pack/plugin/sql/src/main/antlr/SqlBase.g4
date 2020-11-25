@@ -512,7 +512,6 @@ ASTERISK: '*';
 SLASH: '/';
 PERCENT: '%';
 CAST_OP: '::';
-CONCAT: '||';
 DOT: '.';
 PARAM: '?';
 

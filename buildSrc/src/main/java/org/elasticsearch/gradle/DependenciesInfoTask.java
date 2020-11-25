@@ -144,7 +144,7 @@ public class DependenciesInfoTask extends ConventionTask {
             }
 
             final String url = createURL(dep.getGroup(), dep.getName(), dep.getVersion());
-            final String dependencyName = DependencyLicensesTask.getDependencyName(getMappings(), dep.getName());
+            final String dependencyName = DependencyLicensesTask.getDepen   dencyName(getMappings(), dep.getName());
             getLogger().info("mapped dependency " + dep.getGroup() + ":" + dep.getName() + " to " + dependencyName + " for license info");
 
             final String licenseType = getLicenseType(dep.getGroup(), dependencyName);
@@ -215,7 +215,7 @@ public class DependenciesInfoTask extends ConventionTask {
 
     protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {
         java.util.Optional<File> license = licensesDir != null
-            ? Arrays.stream(licensesDir.listFiles((dir, name1) -> Pattern.matches("/" + ".*-" + infoFileSuffix + ".*" + "/", name1)))
+            ? Arrays.stream(licensesDir.listFiles((dir, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName)))
                 .filter(file -> {
                     String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
                     return group.contains(prefix) || name.contains(prefix);

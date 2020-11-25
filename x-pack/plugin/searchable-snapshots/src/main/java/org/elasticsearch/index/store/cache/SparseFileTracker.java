@@ -37,11 +37,55 @@ public class SparseFileTracker {
 
     private final long length;
 
+    /**
+     * Creates a new empty {@link SparseFileTracker}
+     *
+     * @param description a description for the sparse file tracker
+     * @param length      the length of the file tracked by the sparse file tracker
+     */
     public SparseFileTracker(String description, long length) {
+        this(description, length, Collections.emptySortedSet());
+    }
+
+    /**
+     * Creates a {@link SparseFileTracker} with some ranges already present
+     *
+     * @param description a description for the sparse file tracker
+     * @param length      the length of the file tracked by the sparse file tracker
+     * @param ranges      the set of ranges to be considered present
+     */
+    public SparseFileTracker(String description, long length, SortedSet<Tuple<Long, Long>> ranges) {
         this.description = description;
         this.length = length;
         if (length < 0) {
             throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
+        }
+        if (ranges.isEmpty() == false) {
+            synchronized (mutex) {
+                for (Tuple<Long, Long> next : ranges) {
+                    final Range range = new Range(next.v1(), next.v2(), null);
+                    if (range.end <= range.start) {
+                        throw new IllegalArgumentException("Range " + range + " cannot be empty");
+                    }
+                    if (length < range.end) {
+                        throw new IllegalArgumentException("Range " + range + " is exceeding maximum length [" + length + ']');
+                    }
+
+                    final SortedSet<Range> previousRanges = this.ranges.headSet(range);
+                    if (previousRanges.isEmpty() == false) {
+                        final Range previous = previousRanges.last();
+                        if (range.start <= previous.end) {
+                            throw new IllegalArgumentException("Range " + range + " is overlapping a previous range " + previous);
+                        }
+                    }
+                    final boolean added = this.ranges.add(range);
+                    if (added == false) {
+                        assert false : range + " already exist in " + this.ranges;
+                        throw new IllegalArgumentException("Range [" + range + "] already exists");
+                    }
+                }
+                assert invariant();
+            }
         }
     }
 

@@ -26,17 +26,17 @@ hashing algorithm by setting the <<static-cluster-setting,static>>
 | `pbkdf2`                | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
                              pseudorandom function using 10000 iterations.
 | `pbkdf2_1000`           | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
-                             pseudorandom function over SHA512 hash using 1000 iterations.
+                             pseudorandom function using 1000 iterations.
 | `pbkdf2_10000`          | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
-                             pseudorandom function over SHA512 hash using 10000 iterations.
+                             pseudorandom function using 10000 iterations.
 | `pbkdf2_50000`          | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
-                             pseudorandom function over SHA512 hash using 50000 iterations.
+                             pseudorandom function using 50000 iterations.
 | `pbkdf2_100000`         | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
-                             pseudorandom function over SHA512 hash using 100000 iterations.
+                             pseudorandom function using 100000 iterations.
 | `pbkdf2_500000`         | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
-                              pseudorandom function over SHA512 hash using 500000 iterations.
+                              pseudorandom function using 500000 iterations.
 | `pbkdf2_1000000`        | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
-                             pseudorandom function over SHA512 hash using 1000000 iterations.
+                             pseudorandom function using 1000000 iterations.
 | `pbkdf2_stretch`        | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
                              pseudorandom function using 10000 iterations, after hashing the
                              initial input with SHA512 first.

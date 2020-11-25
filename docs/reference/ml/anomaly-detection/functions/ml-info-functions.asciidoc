@@ -4,7 +4,7 @@
 The information content functions detect anomalies in the amount of information
 that is contained in strings within a bucket. These functions can be used as
 a more sophisticated method to identify incidences of data exfiltration or
-C2C activity, when analyzing the size in bytes of the data might not be sufficient.
+C2 (Command and Control) activity, when analyzing the size in bytes of the data might not be sufficient.
 
 The {ml-features} include the following information content functions:
 

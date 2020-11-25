@@ -36,6 +36,24 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         BooleanFieldScript newInstance(LeafReaderContext ctx);
     }
 
+    public static final Factory PARSE_FROM_SOURCE =
+        (field, params, lookup) -> (LeafFactory) ctx -> new BooleanFieldScript(field, params, lookup, ctx) {
+            @Override
+            public void execute() {
+                for (Object v : extractFromSource(field)) {
+                    if (v instanceof Boolean) {
+                        emit((Boolean)v);
+                    } else if (v instanceof String) {
+                        try {
+                            emit(Booleans.parseBoolean((String)v));
+                        } catch (IllegalArgumentException e) {
+                            // ignore
+                        }
+                    }
+                }
+            }
+        };
+
     private int trues;
     private int falses;
 
@@ -84,28 +102,6 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
 
         public void value(boolean v) {
             script.emit(v);
-        }
-    }
-
-    public static class EmitValues {
-        private final BooleanFieldScript script;
-
-        public EmitValues(BooleanFieldScript script) {
-            this.script = script;
-        }
-
-        public void emitFromPath(String path) {
-            for (Object v : script.extractFromSource(path)) {
-                if (v instanceof Boolean) {
-                    script.emit((Boolean) v);
-                } else if (v instanceof String) {
-                    try {
-                        script.emit(Booleans.parseBoolean((String) v));
-                    } catch (Exception e) {
-                        // ignore
-                    }
-                }
-            }
         }
     }
 }

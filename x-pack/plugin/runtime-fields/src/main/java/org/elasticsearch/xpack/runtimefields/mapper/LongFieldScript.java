@@ -34,6 +34,24 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
         LongFieldScript newInstance(LeafReaderContext ctx);
     }
 
+    public static final Factory PARSE_FROM_SOURCE =
+        (field, params, lookup) -> (LeafFactory) ctx -> new LongFieldScript(field, params, lookup, ctx) {
+            @Override
+            public void execute() {
+                for (Object v : extractFromSource(field)) {
+                    if (v instanceof Number) {
+                        emit(((Number) v).longValue());
+                    } else if (v instanceof String) {
+                        try {
+                            emit(Long.parseLong((String)v));
+                        } catch (NumberFormatException e) {
+                            // ignore
+                        }
+                    }
+                }
+            }
+        };
+
     public LongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
@@ -47,28 +65,6 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
 
         public void emit(long v) {
             script.emit(v);
-        }
-    }
-
-    public static class EmitValues {
-        private final LongFieldScript script;
-
-        public EmitValues(LongFieldScript script) {
-            this.script = script;
-        }
-
-        public void emitFromPath(String path) {
-            for (Object v : script.extractFromSource(path)) {
-                if (v instanceof Number) {
-                    script.emit(((Number) v).longValue());
-                } else if (v instanceof String) {
-                    try {
-                        script.emit(Long.parseLong((String) v));
-                    } catch (Exception e) {
-                        // ignore
-                    }
-                }
-            }
         }
     }
 }

@@ -41,6 +41,18 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         StringFieldScript newInstance(LeafReaderContext ctx);
     }
 
+    public static final Factory PARSE_FROM_SOURCE =
+        (field, params, lookup) -> (LeafFactory) ctx -> new StringFieldScript(field, params, lookup, ctx) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v != null) {
+                    emit(v.toString());
+                }
+            }
+        }
+    };
+
     private final List<String> results = new ArrayList<>();
     private long chars;
 
@@ -88,22 +100,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
         public void emit(String v) {
             script.emit(v);
-        }
-    }
-
-    public static class EmitValues {
-        private final StringFieldScript script;
-
-        public EmitValues(StringFieldScript script) {
-            this.script = script;
-        }
-
-        public void emitFromPath(String path) {
-            for (Object v : script.extractFromSource(path)) {
-                if (v != null) {
-                    script.emit(v.toString());
-                }
-            }
         }
     }
 }

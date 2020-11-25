@@ -50,7 +50,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     private final CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent;
 
     AbstractScriptFieldType(String name, TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory, Builder builder) {
-        this(name, factory, builder.script.getValue(), builder.meta.getValue(), builder::toXContent);
+        this(name, factory, builder.getScript(), builder.meta.getValue(), builder::toXContent);
     }
 
     AbstractScriptFieldType(
@@ -206,6 +206,9 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         toXContent.accept(builder, includeDefaults);
     }
 
+    // Placeholder Script for source-only fields
+    private static final Script DEFAULT_SCRIPT = new Script("");
+
     /**
      *  For runtime fields the {@link RuntimeFieldType.Parser} returns directly the {@link MappedFieldType}.
      *  Internally we still create a {@link Builder} so we reuse the {@link FieldMapper.Parameter} infrastructure,
@@ -219,7 +222,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,
-            this::defaultScript,
+            () -> null,
             Builder::parseScript,
             initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
@@ -235,8 +238,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
 
         protected abstract AbstractScriptFieldType<?> buildFieldType();
 
-        protected final Script defaultScript() {
-            return new Script("emitValues(\"" + name + "\")");
+        protected final Script getScript() {
+            if (script.get() == null) {
+                return DEFAULT_SCRIPT;
+            }
+            return script.get();
         }
 
         @Override

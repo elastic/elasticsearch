@@ -144,7 +144,7 @@ public class DependenciesInfoTask extends ConventionTask {
             }
 
             final String url = createURL(dep.getGroup(), dep.getName(), dep.getVersion());
-            final String dependencyName = DependencyLicensesTask.getDepen   dencyName(getMappings(), dep.getName());
+            final String dependencyName = DependencyLicensesTask.getDependencyName(getMappings(), dep.getName());
             getLogger().info("mapped dependency " + dep.getGroup() + ":" + dep.getName() + " to " + dependencyName + " for license info");
 
             final String licenseType = getLicenseType(dep.getGroup(), dependencyName);

@@ -810,8 +810,8 @@ This section was deleted.
 
 This page was deleted.
 
-[role="exclude",id="_actions"]	
-=== {ilm-init} actions	
+[role="exclude",id="_actions"]
+=== {ilm-init} actions
 
 See <<ilm-actions>>.
 

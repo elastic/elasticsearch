@@ -82,12 +82,13 @@ password: `elastic-password`.
 
 ==== Other useful arguments
 
-In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
-In order to disable assertions add: `-Dtests.asserts=false`
-In order to use a custom data directory: `--data-dir=/tmp/foo`
-In order to remotely attach a debugger to the process: `--debug-jvm`
-In order to set a different keystore password: `--keystore-password`
-In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
+- In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
+- In order to disable assertions add: `-Dtests.asserts=false`
+- In order to use a custom data directory: `--data-dir=/tmp/foo`
+- In order to preserve data in between executions: `--preserve-data`
+- In order to remotely attach a debugger to the process: `--debug-jvm`
+- In order to set a different keystore password: `--keystore-password`
+- In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 
 === Test case filtering.
 
@@ -308,7 +309,7 @@ The REST tests are run automatically when executing the "./gradlew check" comman
 YAML REST tests use the following command (modules and plugins may also include YAML REST tests):
 
 ---------------------------------------------------------------------------
-./gradlew :rest-api-spec:yamlRestTest 
+./gradlew :rest-api-spec:yamlRestTest
 ---------------------------------------------------------------------------
 
 A specific test case can be run with the following command:
@@ -316,7 +317,7 @@ A specific test case can be run with the following command:
 ---------------------------------------------------------------------------
 ./gradlew ':rest-api-spec:yamlRestTest' \
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
-  -Dtests.method="test {p0=cat.segments/10_basic/Help}" 
+  -Dtests.method="test {p0=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
 The YAML REST tests support all the options provided by the randomized runner, plus the following:
@@ -334,14 +335,14 @@ Java REST tests can be run with the "javaRestTest" task.
 
 For example :
 ---------------------------------------------------------------------------
-./gradlew :modules:mapper-extras:javaRestTest 
+./gradlew :modules:mapper-extras:javaRestTest
 ---------------------------------------------------------------------------
 
 A specific test case can be run with the following syntax (fqn.test {params}):
 
 ---------------------------------------------------------------------------
 ./gradlew ':modules:mapper-extras:javaRestTest' \
-  --tests "org.elasticsearch.index.mapper.TokenCountFieldMapperIntegrationIT.testSearchByTokenCount {storeCountedFields=true loadCountedFields=false}" 
+  --tests "org.elasticsearch.index.mapper.TokenCountFieldMapperIntegrationIT.testSearchByTokenCount {storeCountedFields=true loadCountedFields=false}"
 ---------------------------------------------------------------------------
 
 yamlRestTest's and javaRestTest's are easy to identify, since they are found in a

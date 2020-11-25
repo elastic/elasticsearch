@@ -331,6 +331,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public boolean profiling() {
+                return false;
+            }
+
+            @Override
             public Query query() {
                 return query;
             }

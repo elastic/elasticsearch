@@ -75,6 +75,11 @@ public abstract class AggregationContext {
     public abstract Aggregator profileIfEnabled(Aggregator agg) throws IOException;
 
     /**
+     * Are we profiling the aggregation?
+     */
+    public abstract boolean profiling();
+
+    /**
      * The time in milliseconds that is shared across all resources involved. Even across shards and nodes.
      */
     public abstract long nowInMillis();
@@ -286,6 +291,11 @@ public abstract class AggregationContext {
                 return agg;
             }
             return new ProfilingAggregator(agg, profiler);
+        }
+
+        @Override
+        public boolean profiling() {
+            return profiler != null;
         }
 
         @Override

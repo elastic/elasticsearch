@@ -154,7 +154,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
         MappedFieldType fieldType = new RuntimeFieldType("field", Collections.emptyMap()) {
             @Override
-            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            public ValueFetcher valueFetcher(QueryShardContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 

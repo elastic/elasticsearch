@@ -7,7 +7,7 @@ Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
 [discrete]
 === Known issues
 
-* SQL: If a WHERE clause contains at least two relational operators joined by
+* SQL: If a `WHERE` clause contains at least two relational operators joined by
 `AND`, of which one is a comparison (`<=`, `<`, `>=`, `>`) and another one is
 an inequality (`!=`, `<>`), both against literals or foldable expressions, the
 inequality will be ignored. The workaround is to substitute the inequality
@@ -152,7 +152,7 @@ Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
 [discrete]
 === Known issues
 
-* SQL: If a WHERE clause contains at least two relational operators joined by
+* SQL: If a `WHERE` clause contains at least two relational operators joined by
 `AND`, of which one is a comparison (`<=`, `<`, `>=`, `>`) and another one is
 an inequality (`!=`, `<>`), both against literals or foldable expressions, the
 inequality will be ignored. The workaround is to substitute the inequality

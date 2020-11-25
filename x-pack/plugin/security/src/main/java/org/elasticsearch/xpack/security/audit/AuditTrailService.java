@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -16,14 +18,21 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 
 public class AuditTrailService {
 
+    private static final Logger logger = LogManager.getLogger(AuditTrailService.class);
+
     private static final AuditTrail NOOP_AUDIT_TRAIL = new NoopAuditTrail();
     private final CompositeAuditTrail compositeAuditTrail;
     private final XPackLicenseState licenseState;
+    private final Duration minLogPeriod = Duration.ofMinutes(30);
+    // protected for tests
+    protected Instant lastLogInstant = Instant.EPOCH;
 
     public AuditTrailService(List<AuditTrail> auditTrails, XPackLicenseState licenseState) {
         this.compositeAuditTrail = new CompositeAuditTrail(Collections.unmodifiableList(auditTrails));
@@ -31,9 +40,18 @@ public class AuditTrailService {
     }
 
     public AuditTrail get() {
-        if (compositeAuditTrail.isEmpty() == false &&
-            licenseState.isSecurityEnabled() && licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
-            return compositeAuditTrail;
+        if (compositeAuditTrail.isEmpty() == false) {
+            if (licenseState.isSecurityEnabled() && licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
+                return compositeAuditTrail;
+            } else {
+                Instant nowInstant = Instant.now();
+                if (lastLogInstant.plus(minLogPeriod).isBefore(nowInstant)) {
+                    lastLogInstant = nowInstant;
+                    logger.warn("Security auditing is DISABLED because the currently active license [" +
+                            licenseState.getOperationMode() + "] does not permit it");
+                }
+                return NOOP_AUDIT_TRAIL;
+            }
         } else {
             return NOOP_AUDIT_TRAIL;
         }

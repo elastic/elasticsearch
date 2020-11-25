@@ -5,10 +5,16 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -56,6 +62,35 @@ public class AuditTrailServiceTests extends ESTestCase {
         token = mock(AuthenticationToken.class);
         request = mock(TransportRequest.class);
         restRequest = mock(RestRequest.class);
+    }
+
+    public void testLogWhenLicenseProhibitsAuditing() throws Exception {
+        MockLogAppender mockLogAppender = new MockLogAppender();
+        mockLogAppender.start();
+        Logger auditTrailServiceLogger = LogManager.getLogger(AuditTrailService.class);
+        Loggers.addAppender(auditTrailServiceLogger, mockLogAppender);
+        when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.values()));
+        if (isAuditingAllowed) {
+            mockLogAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                    "audit disabled because of license",
+                    AuditTrailService.class.getName(),
+                    Level.WARN,
+                    "Security auditing is DISABLED because the currently active license [" +
+                            licenseState.getOperationMode() + "] does not permit it"
+            ));
+        } else {
+            mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                    "audit disabled because of license",
+                    AuditTrailService.class.getName(),
+                    Level.WARN,
+                    "Security auditing is DISABLED because the currently active license [" +
+                            licenseState.getOperationMode() + "] does not permit it"
+            ));
+        }
+        for (int i = 1; i <= randomIntBetween(2, 6); i++) {
+            service.get();
+        }
+        mockLogAppender.assertAllExpectationsMatched();
     }
 
     public void testAuthenticationFailed() throws Exception {

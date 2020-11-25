@@ -29,7 +29,7 @@ Using a policy that makes use of the <<ilm-rollover, rollover>> action
 in the hot phase will avoid this situation and the need for a manual rollover for future
 managed indices.
 
-By default, this snapshot is deleted by the <<ilm-delete-action, delete action>> in the delete phase.
+By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.
 
 [[ilm-searchable-snapshot-options]]

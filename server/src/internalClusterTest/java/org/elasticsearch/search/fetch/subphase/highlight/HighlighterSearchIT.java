@@ -2720,6 +2720,34 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 equalTo("<em>some text</em>"));
     }
 
+    public void testCopyToFields() throws Exception {
+        XContentBuilder b = jsonBuilder().startObject().startObject("properties");
+        b.startObject("foo");
+        {
+            b.field("type", "text");
+            b.field("copy_to", "foo_copy");
+        }
+        b.endObject();
+        b.startObject("foo_copy").field("type", "text").endObject();
+        b.endObject().endObject();
+        prepareCreate("test").setMapping(b).get();
+
+        client().prepareIndex("test").setId("1")
+            .setSource(jsonBuilder().startObject().field("foo", "how now brown cow").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(matchQuery("foo_copy", "brown"))
+            .highlighter(new HighlightBuilder().field(new Field("foo_copy")))
+            .get();
+
+        assertHitCount(response, 1);
+        HighlightField field = response.getHits().getAt(0).getHighlightFields().get("foo_copy");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("how now <em>brown</em> cow"));
+    }
+
     public void testACopyFieldWithNestedQuery() throws Exception {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("properties")
                     .startObject("foo")
@@ -2931,7 +2959,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>hello world</em>"));
         }
     }
 

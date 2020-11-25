@@ -573,7 +573,7 @@ public class SparseFileTrackerTests extends ESTestCase {
             long start = randomLongBetween(i, Math.max(0L, length - 1L));
             long end = randomLongBetween(start + 1L, length); // +1 for non empty ranges
             randomRanges.add(Tuple.tuple(start, end));
-            i = end + 2L + randomLongBetween(0L, Math.max(0L, length - end)); // +2 for non contiguous ranges
+            i = end + 1L + randomLongBetween(0L, Math.max(0L, length - end)); // +1 for non contiguous ranges
         }
         return randomRanges;
     }

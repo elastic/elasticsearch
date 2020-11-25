@@ -58,7 +58,7 @@ public class SystemIndexDescriptor {
     /** For internally-managed indices, contains the index settings */
     private final Settings settings;
 
-     /** For internally-managed indices, an optional alias to create */
+    /** For internally-managed indices, an optional alias to create */
     private final String aliasName;
 
     /** For internally-managed indices, an optional {@link IndexMetadata#INDEX_FORMAT_SETTING} value to expect */
@@ -92,30 +92,46 @@ public class SystemIndexDescriptor {
      *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
      */
-    private SystemIndexDescriptor(String indexPattern, String primaryIndex, String description, String mappings, Settings settings,
-                                  String aliasName, int indexFormat, String versionMetaKey, String origin) {
+    private SystemIndexDescriptor(
+        String indexPattern,
+        String primaryIndex,
+        String description,
+        String mappings,
+        Settings settings,
+        String aliasName,
+        int indexFormat,
+        String versionMetaKey,
+        String origin
+    ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
-            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
-                "] but must at least 2 characters in length");
+            throw new IllegalArgumentException(
+                "system index pattern provided as [" + indexPattern + "] but must at least 2 characters in length"
+            );
         }
         if (indexPattern.charAt(0) != '.') {
-            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
-                "] but must start with the character [.]");
+            throw new IllegalArgumentException(
+                "system index pattern provided as [" + indexPattern + "] but must start with the character [.]"
+            );
         }
         if (indexPattern.charAt(1) == '*') {
-            throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
-                "] but must not start with the character sequence [.*] to prevent conflicts");
+            throw new IllegalArgumentException(
+                "system index pattern provided as ["
+                    + indexPattern
+                    + "] but must not start with the character sequence [.*] to prevent conflicts"
+            );
         }
 
         if (primaryIndex != null) {
             if (primaryIndex.charAt(0) != '.') {
                 throw new IllegalArgumentException(
-                    "system primary index provided as [" + indexPattern + "] but must start with the character [.]");
+                    "system primary index provided as [" + indexPattern + "] but must start with the character [.]"
+                );
             }
             if (primaryIndex.matches("^\\.[\\w-]+$") == false) {
                 throw new IllegalArgumentException(
-                    "system primary index provided as [" + primaryIndex + "] but cannot contain special characters or pattern");
+                    "system primary index provided as [" + primaryIndex + "] but cannot contain special characters or pattern"
+                );
             }
         }
 
@@ -267,7 +283,17 @@ public class SystemIndexDescriptor {
         public SystemIndexDescriptor build() {
             String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
-            return new SystemIndexDescriptor(indexPattern, primaryIndex, description, mappings, settings, aliasName, indexFormat, versionMetaKey, origin);
+            return new SystemIndexDescriptor(
+                indexPattern,
+                primaryIndex,
+                description,
+                mappings,
+                settings,
+                aliasName,
+                indexFormat,
+                versionMetaKey,
+                origin
+            );
         }
     }
 

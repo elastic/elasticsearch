@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 
 import java.util.Arrays;
@@ -19,9 +18,6 @@ public final class MlAutoscalingNamedWritableProvider {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
-            new NamedWriteableRegistry.Entry(AutoscalingDeciderConfiguration.class,
-                MlAutoscalingDeciderConfiguration.NAME,
-                MlAutoscalingDeciderConfiguration::new),
             new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class,
                 MlScalingReason.NAME,
                 MlScalingReason::new)

@@ -56,6 +56,34 @@ process where process_name : "test"
 "term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
 ;
 
+caseInsensitiveEqualsWithPattern
+process where process_name : "test*"
+;
+"wildcard":{"process_name":{"wildcard":"test*","case_insensitive":true,"boost":1.0}
+;
+
+caseInsensitiveEqualsListSingleValue
+process where process_name : ("test")
+;
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+;
+
+caseInsensitiveEqualsList
+process where process_name : ("test", "best")
+;
+{"bool":{"should":[{"term"
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+"term":{"process_name":{"value":"best","case_insensitive":true,"boost":1.0}
+;
+
+caseInsensitiveEqualsListWildcard
+process where process_name : ("test*", "best")
+;
+{"bool":{"should":[{"wildcard"
+"wildcard":{"process_name":{"wildcard":"test*","case_insensitive":true,"boost":1.0}
+"term":{"process_name":{"value":"best","case_insensitive":true,"boost":1.0}
+;
+
 mixedTypeFilter
 process where process_name : "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
 ;
@@ -437,8 +465,8 @@ addOperatorReversed
 process where 2 + serial_event_id == 41
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.add(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":2,"v1":"serial_event_id","v2":41}
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 addFunction
@@ -453,8 +481,8 @@ addFunctionReversed
 process where add(2, serial_event_id) == 41
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.add(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":2,"v1":"serial_event_id","v2":41}
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 divideOperator
@@ -533,8 +561,8 @@ multiplyOperatorReversed
 process where 2 * serial_event_id == 41
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":2,"v1":"serial_event_id","v2":41}
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 multiplyFunction
@@ -549,8 +577,8 @@ multiplyFunctionReversed
 process where multiply(2, serial_event_id) == 41
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":2,"v1":"serial_event_id","v2":41}
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 subtractOperator

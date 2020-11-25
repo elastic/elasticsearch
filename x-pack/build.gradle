@@ -1,5 +1,5 @@
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.precommit.LicenseHeadersTask
+import org.elasticsearch.gradle.internal.precommit.LicenseHeadersTask
 
 Project xpackRootProject = project
 

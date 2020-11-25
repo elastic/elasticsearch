@@ -28,11 +28,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -278,11 +278,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService mapperService() {
-        return indexService == null ? null : indexService.mapperService();
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }
@@ -514,6 +509,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return null;
+    }
+
+    @Override
+    public NestedDocuments getNestedDocuments() {
+        return new NestedDocuments(indexService.mapperService(), bitsetFilterCache()::getBitSetProducer);
     }
 
     @Override

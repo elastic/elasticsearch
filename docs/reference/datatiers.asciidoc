@@ -106,7 +106,7 @@ If you set the tier preference to `null`, {es} ignores the data tier roles durin
 === Automatic data tier migration
 
 {ilm-init} automatically transitions managed
-indices through the available data tiers using the <<ilm-migrate-action, migrate>> action. 
+indices through the available data tiers using the <<ilm-migrate, migrate>> action. 
 By default, this action is automatically injected in every phase. 
 You can explicitly specify the migrate action to override the default behavior, 
-or use the <<ilm-allocate-action, allocate action>> to manually specify allocation rules.
+or use the <<ilm-allocate, allocate action>> to manually specify allocation rules.

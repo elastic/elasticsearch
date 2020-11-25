@@ -125,7 +125,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                                                                           final IntFunction<DocsStats> perShardDocStats,
                                                                           final String targetIndexName) {
         final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
-
         final Settings.Builder targetIndexSettingsBuilder = Settings.builder().put(targetIndex.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);

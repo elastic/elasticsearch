@@ -181,20 +181,8 @@ aggregation and the Slack action:
 You configure the accounts {watcher} can use to communicate with Slack in the
 `xpack.notification.slack` namespace in `elasticsearch.yml`.
 
-You need a https://api.slack.com/incoming-webhooks[Slack webhook URL] to 
-configure a Slack account. To create a webhook
-URL, set up an an _Incoming Webhook Integration_ through the Slack console:
-
-. Log in to http://slack.com[slack.com] as a team administrator.
-. Go to https://my.slack.com/services/new/incoming-webhook.
-. Select a default channel for the integration.
-+
-image::images/slack-add-webhook-integration.jpg[]
-. Click *Add Incoming Webhook Integration*.
-. Copy the generated webhook URL so you can paste it into your Slack account
-  configuration in `elasticsearch.yml`.
-+
-image::images/slack-copy-webhook-url.jpg[]
+You need a Slack App with the https://api.slack.com/messaging/webhooks[Incoming Webhooks feature] 
+to configure a Slack account. Use the generated webhook URL to set up your Slack account in {es}.
 
 To configure a Slack account, at a minimum you need to specify the account 
 name and webhook URL in the {es} keystore (see {ref}/secure-settings.html[secure settings]):
@@ -230,6 +218,9 @@ xpack.notification.slack:
           text: "One of your watches generated this notification."
           mrkdwn_in: "pretext, text"
 --------------------------------------------------
+
+To notify multiple channels, create a webhook URL for each channel in Slack 
+and multiple Slack accounts in {es} (one for each webhook URL).
 
 If you configure multiple Slack accounts, you either need to configure a default 
 account or specify which account the notification should be sent with in the

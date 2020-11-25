@@ -48,8 +48,8 @@ POST /my-index-000001/_rollup
 [[rollup-api-prereqs]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the `manage` cluster
-privilege to use this API. See <<security-privileges>>.
+If the {es} {security-features} are enabled, you must have the `manage` or
+`manage_rollup` cluster privilege to use this API. See <<security-privileges>>.
 
 [[rollup-api-path-params]]
 ==== {api-path-parms-title}

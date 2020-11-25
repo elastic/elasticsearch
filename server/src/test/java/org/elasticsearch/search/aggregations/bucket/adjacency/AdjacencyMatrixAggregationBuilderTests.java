@@ -22,10 +22,12 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -60,11 +62,11 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
+        when(indexShard.shardId()).thenReturn(new ShardId(new Index("test", "test"), 1));
         SearchContext context = new TestSearchContext(queryShardContext, indexShard);
 
         int maxFilters = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.indexShard().indexSettings().getSettings());
         int maxFiltersPlusOne = maxFilters + 1;
-
 
         Map<String, QueryBuilder> filters = new HashMap<>(maxFilters);
         for (int i = 0; i < maxFiltersPlusOne; i++) {

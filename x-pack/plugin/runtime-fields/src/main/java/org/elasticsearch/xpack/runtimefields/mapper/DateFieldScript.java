@@ -96,24 +96,4 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
             return script.formatter.parseMillis(str.toString());
         }
     }
-
-    public static class EmitValues {
-        private final DateFieldScript script;
-
-        public EmitValues(DateFieldScript script) {
-            this.script = script;
-        }
-
-        public void emitFromPath(String path) {
-            for (Object v : script.extractFromSource(path)) {
-                if (v instanceof String) {
-                    try {
-                        script.emit(script.formatter.parseMillis((String) v));
-                    } catch (Exception e) {
-                        // ignore
-                    }
-                }
-            }
-        }
-    }
 }

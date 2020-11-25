@@ -12,9 +12,6 @@ class org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript @no_import {
 class org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript$Factory @no_import {
 }
 
-class java.net.InetAddress {
-}
-
 static_import {
     # The `emit` callback to collect values for the field
     void emit(org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript$Emit

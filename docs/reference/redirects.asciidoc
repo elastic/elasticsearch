@@ -815,6 +815,51 @@ This page was deleted.
 
 See <<ilm-actions>>.
 
+[role="exclude",id="ilm-allocate-action"]
+==== Allocate
+
+See <<ilm-allocate>>.
+
+[role="exclude",id="ilm-delete-action"]
+==== Delete
+
+See <<ilm-delete>>.
+
+[role="exclude",id="ilm-forcemerge-action"]
+==== Force merge
+
+See <<ilm-forcemerge>>.
+
+[role="exclude",id="ilm-freeze-action"]
+==== Freeze
+
+See <<ilm-freeze>>.
+
+[role="exclude",id="ilm-readonly-action"]
+==== Read only
+
+See <<ilm-readonly>>.
+
+[role="exclude",id="ilm-rollover-action"]
+==== Rollover
+
+See <<ilm-rollover>>.
+
+[role="exclude",id="ilm-set-priority-action"]
+==== Set priority
+
+See <<ilm-set-priority>>.
+
+[role="exclude",id="ilm-shrink-action"]
+==== Shrink
+
+See <<ilm-shrink>>.
+
+[role="exclude",id="ilm-unfollow-action"]
+==== Unfollow
+
+See <<ilm-unfollow>>.
+
 [role="exclude",id="ilm-policy-definition"]
 === {ilm-init} policy definition
 

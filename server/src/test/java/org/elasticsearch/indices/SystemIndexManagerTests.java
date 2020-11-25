@@ -20,6 +20,8 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -37,11 +39,14 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexManager.UpgradeStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -54,7 +59,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SystemIndexManagerTests extends ESTestCase {
 
@@ -62,13 +71,11 @@ public class SystemIndexManagerTests extends ESTestCase {
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
 
     private static final String SYSTEM_INDEX_NAME = ".myindex-1";
-    private static final String SYSTEM_INDEX_PATTERN = ".myindex-*";
-    private static final String SYSTEM_INDEX_ALIAS = ".myindex";
 
     private static final SystemIndexDescriptor DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(SYSTEM_INDEX_PATTERN)
+        .setIndexPattern(".myindex-*")
         .setPrimaryIndex(SYSTEM_INDEX_NAME)
-        .setAliasName(SYSTEM_INDEX_ALIAS)
+        .setAliasName(".myindex")
         .setIndexFormat(6)
         .setSettings(getSettings())
         .setMappings(getMappings())
@@ -80,11 +87,11 @@ public class SystemIndexManagerTests extends ESTestCase {
     @Before
     public void setUpManager() {
         client = mock(Client.class);
-        // final ThreadPool threadPool = mock(ThreadPool.class);
-        // when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        // when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
-        // when(mockClient.threadPool()).thenReturn(threadPool);
-        // when(mockClient.settings()).thenReturn(Settings.EMPTY);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.settings()).thenReturn(Settings.EMPTY);
     }
 
     /**
@@ -142,319 +149,108 @@ public class SystemIndexManagerTests extends ESTestCase {
         assertThat(eligibleDescriptors, contains(d2));
     }
 
+    /**
+     * Check that the manager won't try to upgrade closed indices.
+     */
     public void testManagerSkipsClosedIndices() {
         SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
-        final ClusterState.Builder clusterStateBuilder = createClusterState(DESCRIPTOR, IndexMetadata.State.CLOSE);
+        final ClusterState.Builder clusterStateBuilder = createClusterState(IndexMetadata.State.CLOSE);
 
-        assertThat(manager.isUpgradeRequired(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.CLOSED));
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.CLOSED));
     }
 
+    /**
+     * Check that the manager won't try to upgrade unhealthy indices.
+     */
     public void testManagerSkipsIndicesWithRedStatus() {
         SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
-        final ClusterState.Builder clusterStateBuilder = createClusterState(DESCRIPTOR);
+        final ClusterState.Builder clusterStateBuilder = createClusterState();
         markShardsUnavailable(clusterStateBuilder);
 
-        assertThat(manager.isUpgradeRequired(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.UNHEALTHY));
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.UNHEALTHY));
     }
 
+    /**
+     * Check that the manager won't try to upgrade indices where the `index.format` setting
+     * is earlier than an expected value.
+     */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
         SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
-        final ClusterState.Builder clusterStateBuilder = createClusterState(DESCRIPTOR, 5);
+        final ClusterState.Builder clusterStateBuilder = createClusterState(5);
         markShardsAvailable(clusterStateBuilder);
 
-        assertThat(manager.isUpgradeRequired(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_UPGRADE));
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_UPGRADE));
     }
 
+    /**
+     * Check that the manager won't try to upgrade indices where their mappings are already up-to-date.
+     */
     public void testManagerSkipsIndicesWithUpToDateMappings() {
         SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
-        final ClusterState.Builder clusterStateBuilder = createClusterState(DESCRIPTOR);
+        final ClusterState.Builder clusterStateBuilder = createClusterState();
         markShardsAvailable(clusterStateBuilder);
 
-        assertThat(manager.isUpgradeRequired(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.UP_TO_DATE));
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.UP_TO_DATE));
     }
 
+    /**
+     * Check that the manager will try to upgrade indices where their mappings are out-of-date.
+     */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
         SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
-        final ClusterState.Builder clusterStateBuilder = createClusterState(DESCRIPTOR, Strings.toString(getMappings("1.0.0")));
+        final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));
         markShardsAvailable(clusterStateBuilder);
 
-        assertThat(manager.isUpgradeRequired(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE));
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE));
     }
 
-    // public void testDescriptorWithoutPrimaryShards() throws IOException {
-    // final ClusterState.Builder clusterStateBuilder = createClusterState(DESCRIPTOR);
-    // Index index = new Index(SYSTEM_INDEX_NAME, UUID.randomUUID().toString());
-    // ShardRouting shardRouting = ShardRouting.newUnassigned(
-    // new ShardId(index, 0),
-    // true,
-    // RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-    // new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
-    // );
-    // String nodeId = ESTestCase.randomAlphaOfLength(8);
-    // IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-    // shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
-    // .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
-    // ).build();
-    // clusterStateBuilder.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build());
-    // manager.clusterChanged(event(clusterStateBuilder));
-    //
-    // assertIndexUpToDateButNotAvailable();
-    // }
-    //
-    // public void testDescriptorHealthChangeListeners() throws Exception {
-    // final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-    // final AtomicReference<SecurityIndexManager.State> previousState = new AtomicReference<>();
-    // final AtomicReference<SecurityIndexManager.State> currentState = new AtomicReference<>();
-    // final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> listener = (prevState, state) -> {
-    // previousState.set(prevState);
-    // currentState.set(state);
-    // listenerCalled.set(true);
-    // };
-    // manager.addIndexStateListener(listener);
-    //
-    // // index doesn't exist and now exists
-    // final ClusterState.Builder clusterStateBuilder = createClusterState(
-    // RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-    // RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-    // TEMPLATE_NAME
-    // );
-    // markShardsAvailable(clusterStateBuilder);
-    // final ClusterState clusterState = clusterStateBuilder.build();
-    // manager.clusterChanged(event(ClusterState.builder(clusterState)));
-    //
-    // assertTrue(listenerCalled.get());
-    // assertNull(previousState.get().indexHealth);
-    // assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexHealth);
-    //
-    // // reset and call with no change to the index
-    // listenerCalled.set(false);
-    // previousState.set(null);
-    // currentState.set(null);
-    // ClusterChangedEvent event = new ClusterChangedEvent("same index health", clusterState, clusterState);
-    // manager.clusterChanged(event);
-    //
-    // assertFalse(listenerCalled.get());
-    // assertNull(previousState.get());
-    // assertNull(currentState.get());
-    //
-    // // index with different health
-    // listenerCalled.set(false);
-    // previousState.set(null);
-    // currentState.set(null);
-    // Index prevIndex = clusterState.getRoutingTable().index(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
-    // final ClusterState newClusterState = ClusterState.builder(clusterState)
-    // .routingTable(
-    // RoutingTable.builder()
-    // .add(
-    // IndexRoutingTable.builder(prevIndex)
-    // .addIndexShard(
-    // new IndexShardRoutingTable.Builder(new ShardId(prevIndex, 0)).addShard(
-    // ShardRouting.newUnassigned(
-    // new ShardId(prevIndex, 0),
-    // true,
-    // RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-    // new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
-    // )
-    // .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
-    // .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
-    // ).build()
-    // )
-    // )
-    // .build()
-    // )
-    // .build();
-    //
-    // event = new ClusterChangedEvent("different index health", newClusterState, clusterState);
-    // manager.clusterChanged(event);
-    // assertTrue(listenerCalled.get());
-    // assertEquals(ClusterHealthStatus.GREEN, previousState.get().indexHealth);
-    // assertEquals(ClusterHealthStatus.RED, currentState.get().indexHealth);
-    //
-    // // swap prev and current
-    // listenerCalled.set(false);
-    // previousState.set(null);
-    // currentState.set(null);
-    // event = new ClusterChangedEvent("different index health swapped", clusterState, newClusterState);
-    // manager.clusterChanged(event);
-    // assertTrue(listenerCalled.get());
-    // assertEquals(ClusterHealthStatus.RED, previousState.get().indexHealth);
-    // assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexHealth);
-    // }
-    //
-    // public void testWriteBeforeStateNotRecovered() throws Exception {
-    // final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
-    // final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
-    // manager.checkIndexStateThenExecute(ex -> { prepareException.set(ex); }, () -> { prepareRunnableCalled.set(true); });
-    // assertThat(prepareException.get(), is(notNullValue()));
-    // assertThat(prepareException.get(), instanceOf(ElasticsearchStatusException.class));
-    // assertThat(((ElasticsearchStatusException) prepareException.get()).status(), is(RestStatus.SERVICE_UNAVAILABLE));
-    // assertThat(prepareRunnableCalled.get(), is(false));
-    // prepareException.set(null);
-    // prepareRunnableCalled.set(false);
-    // // state not recovered
-    // final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-    // manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
-    // manager.checkIndexStateThenExecute(ex -> { prepareException.set(ex); }, () -> { prepareRunnableCalled.set(true); });
-    // assertThat(prepareException.get(), is(notNullValue()));
-    // assertThat(prepareException.get(), instanceOf(ElasticsearchStatusException.class));
-    // assertThat(((ElasticsearchStatusException) prepareException.get()).status(), is(RestStatus.SERVICE_UNAVAILABLE));
-    // assertThat(prepareRunnableCalled.get(), is(false));
-    // prepareException.set(null);
-    // prepareRunnableCalled.set(false);
-    // // state recovered with index
-    // ClusterState.Builder clusterStateBuilder = createClusterState(
-    // RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-    // RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-    // TEMPLATE_NAME,
-    // SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT
-    // );
-    // markShardsAvailable(clusterStateBuilder);
-    // manager.clusterChanged(event(clusterStateBuilder));
-    // manager.checkIndexStateThenExecute(ex -> { prepareException.set(ex); }, () -> { prepareRunnableCalled.set(true); });
-    // assertThat(prepareException.get(), is(nullValue()));
-    // assertThat(prepareRunnableCalled.get(), is(true));
-    // }
-    //
-    // public void testListenerNotCalledBeforeStateNotRecovered() throws Exception {
-    // final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-    // manager.addIndexStateListener((prev, current) -> { listenerCalled.set(true); });
-    // final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-    // // state not recovered
-    // manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
-    // assertThat(manager.isStateRecovered(), is(false));
-    // assertThat(listenerCalled.get(), is(false));
-    // // state recovered with index
-    // ClusterState.Builder clusterStateBuilder = createClusterState(
-    // RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-    // RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-    // TEMPLATE_NAME,
-    // SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT
-    // );
-    // markShardsAvailable(clusterStateBuilder);
-    // manager.clusterChanged(event(clusterStateBuilder));
-    // assertThat(manager.isStateRecovered(), is(true));
-    // assertThat(listenerCalled.get(), is(true));
-    // }
-    //
-    // public void testDescriptorOutOfDateListeners() throws Exception {
-    // final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-    // manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
-    // AtomicBoolean upToDateChanged = new AtomicBoolean();
-    // manager.addIndexStateListener((prev, current) -> {
-    // listenerCalled.set(true);
-    // upToDateChanged.set(prev.isIndexUpToDate != current.isIndexUpToDate);
-    // });
-    // assertTrue(manager.isIndexUpToDate());
-    //
-    // manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
-    // assertFalse(listenerCalled.get());
-    // assertTrue(manager.isIndexUpToDate());
-    //
-    // // index doesn't exist and now exists with wrong format
-    // ClusterState.Builder clusterStateBuilder = createClusterState(
-    // RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-    // RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-    // TEMPLATE_NAME,
-    // SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT - 1
-    // );
-    // markShardsAvailable(clusterStateBuilder);
-    // manager.clusterChanged(event(clusterStateBuilder));
-    // assertTrue(listenerCalled.get());
-    // assertTrue(upToDateChanged.get());
-    // assertFalse(manager.isIndexUpToDate());
-    //
-    // listenerCalled.set(false);
-    // assertFalse(listenerCalled.get());
-    // manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
-    // assertTrue(listenerCalled.get());
-    // assertTrue(upToDateChanged.get());
-    // assertTrue(manager.isIndexUpToDate());
-    //
-    // listenerCalled.set(false);
-    // // index doesn't exist and now exists with correct format
-    // clusterStateBuilder = createClusterState(
-    // RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-    // RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-    // TEMPLATE_NAME,
-    // SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT
-    // );
-    // markShardsAvailable(clusterStateBuilder);
-    // manager.clusterChanged(event(clusterStateBuilder));
-    // assertTrue(listenerCalled.get());
-    // assertFalse(upToDateChanged.get());
-    // assertTrue(manager.isIndexUpToDate());
-    // }
-    //
-    // public void testProcessClosedIndexState() throws Exception {
-    // // Index initially exists
-    // final ClusterState.Builder indexAvailable = createClusterState(
-    // RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-    // RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-    // TEMPLATE_NAME,
-    // IndexMetadata.State.OPEN
-    // );
-    // markShardsAvailable(indexAvailable);
-    //
-    // manager.clusterChanged(event(indexAvailable));
-    // assertThat(manager.indexExists(), is(true));
-    // assertThat(manager.isAvailable(), is(true));
-    //
-    // // Now close it
-    // final ClusterState.Builder indexClosed = createClusterState(
-    // RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
-    // RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-    // TEMPLATE_NAME,
-    // IndexMetadata.State.CLOSE
-    // );
-    // if (randomBoolean()) {
-    // // In old/mixed cluster versions closed indices have no routing table
-    // indexClosed.routingTable(RoutingTable.EMPTY_ROUTING_TABLE);
-    // } else {
-    // markShardsAvailable(indexClosed);
-    // }
-    //
-    // manager.clusterChanged(event(indexClosed));
-    // assertThat(manager.indexExists(), is(true));
-    // assertThat(manager.isAvailable(), is(false));
-    // }
+    /**
+     * Check that the manager submits the expected request for an index whose mappings are out-of-date.
+     */
+    public void testManagerSubmitsPutRequest() {
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
-    public static ClusterState.Builder createClusterState(SystemIndexDescriptor descriptor) {
-        return createClusterState(descriptor, descriptor.getMappings());
+        final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));
+        markShardsAvailable(clusterStateBuilder);
+
+        manager.clusterChanged(event(clusterStateBuilder));
+
+        verify(client, times(1)).execute(any(PutMappingAction.class), any(PutMappingRequest.class), any());
     }
 
-    public static ClusterState.Builder createClusterState(SystemIndexDescriptor descriptor, String mappings) {
-        return createClusterState(descriptor, mappings, IndexMetadata.State.OPEN);
+    private static ClusterState.Builder createClusterState() {
+        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings());
     }
 
-    public static ClusterState.Builder createClusterState(SystemIndexDescriptor descriptor, IndexMetadata.State state) {
-        return createClusterState(descriptor, descriptor.getMappings(), 6, state);
+    private static ClusterState.Builder createClusterState(String mappings) {
+        return createClusterState(mappings, IndexMetadata.State.OPEN);
     }
 
-    public static ClusterState.Builder createClusterState(SystemIndexDescriptor descriptor, String mappings, IndexMetadata.State state) {
-        return createClusterState(descriptor, mappings, 6, state);
+    private static ClusterState.Builder createClusterState(IndexMetadata.State state) {
+        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings(), 6, state);
     }
 
-    public static ClusterState.Builder createClusterState(SystemIndexDescriptor descriptor, int format) {
-        return createClusterState(descriptor, descriptor.getMappings(), format, IndexMetadata.State.OPEN);
+    private static ClusterState.Builder createClusterState(String mappings, IndexMetadata.State state) {
+        return createClusterState(mappings, 6, state);
     }
 
-    private static ClusterState.Builder createClusterState(
-        SystemIndexDescriptor descriptor,
-        String mappings,
-        int format,
-        IndexMetadata.State state
-    ) {
-        IndexMetadata.Builder indexMeta = getIndexMetadata(descriptor, mappings, format, state);
+    private static ClusterState.Builder createClusterState(int format) {
+        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings(), format, IndexMetadata.State.OPEN);
+    }
+
+    private static ClusterState.Builder createClusterState(String mappings, int format, IndexMetadata.State state) {
+        IndexMetadata.Builder indexMeta = getIndexMetadata(SystemIndexManagerTests.DESCRIPTOR, mappings, format, state);
 
         Metadata.Builder metadataBuilder = new Metadata.Builder();
         metadataBuilder.put(indexMeta);
@@ -574,70 +370,6 @@ public class SystemIndexManagerTests extends ESTestCase {
                 {
                     builder.startObject("completed");
                     builder.field("type", "boolean");
-                    builder.endObject();
-
-                    builder.startObject("task");
-                    {
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("action");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("cancellable");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-
-                            builder.startObject("id");
-                            builder.field("type", "long");
-                            builder.endObject();
-
-                            builder.startObject("parent_task_id");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("node");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("running_time_in_nanos");
-                            builder.field("type", "long");
-                            builder.endObject();
-
-                            builder.startObject("start_time_in_millis");
-                            builder.field("type", "long");
-                            builder.endObject();
-
-                            builder.startObject("type");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("status");
-                            builder.field("type", "object");
-                            builder.field("enabled", false);
-                            builder.endObject();
-
-                            builder.startObject("description");
-                            builder.field("type", "text");
-                            builder.endObject();
-
-                            builder.startObject("headers");
-                            builder.field("type", "object");
-                            builder.field("enabled", false);
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("response");
-                    builder.field("type", "object");
-                    builder.field("enabled", false);
-                    builder.endObject();
-
-                    builder.startObject("error");
-                    builder.field("type", "object");
-                    builder.field("enabled", false);
                     builder.endObject();
                 }
                 builder.endObject();

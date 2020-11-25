@@ -48,6 +48,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 
+/**
+ * This class ensures that all system indices have up-to-date mappings, provided
+ * those indices can be automatically managed. Only some system indices are managed
+ * internally to Elasticsearch - others are created and managed externally, e.g.
+ * Kibana indices.
+ */
 public class SystemIndexManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SystemIndexManager.class);
 
@@ -75,10 +81,16 @@ public class SystemIndexManager implements ClusterStateListener {
         }
 
         getEligibleDescriptors(state.getMetadata()).stream()
-            .filter(descriptor -> isUpgradeRequired(state, descriptor) == UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+            .filter(descriptor -> getUpgradeStatus(state, descriptor) == UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
             .forEach(this::upgradeIndexMetadata);
     }
 
+    /**
+     * Checks all known system index descriptors, looking for those that correspond to
+     * indices that can be automatically managed and that have already been created.
+     * @param metadata the cluster state metadata to consult
+     * @return a list of descriptors that could potentially be updated
+     */
     List<SystemIndexDescriptor> getEligibleDescriptors(Metadata metadata) {
         return this.systemIndices.getSystemIndexDescriptors()
             .stream()
@@ -95,7 +107,15 @@ public class SystemIndexManager implements ClusterStateListener {
         NEEDS_MAPPINGS_UPDATE
     }
 
-    UpgradeStatus isUpgradeRequired(ClusterState clusterState, SystemIndexDescriptor descriptor) {
+    /**
+     * Determines an index's current state, with respect to whether its mappings can
+     * be updated.
+     *
+     * @param clusterState the cluster state to use when calculating the upgrade state
+     * @param descriptor information about the system index to check
+     * @return a value that indicates the index's state.
+     */
+    UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
         final State indexState = calculateIndexState(clusterState, descriptor);
 
         final String indexDescription = "Index [" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
@@ -130,6 +150,10 @@ public class SystemIndexManager implements ClusterStateListener {
         }
     }
 
+    /**
+     * Updates the mappings for a system index
+     * @param descriptor information about the system index
+     */
     private void upgradeIndexMetadata(SystemIndexDescriptor descriptor) {
         final String indexName = descriptor.getPrimaryIndex();
 
@@ -152,6 +176,9 @@ public class SystemIndexManager implements ClusterStateListener {
         });
     }
 
+    /**
+     * Derives a summary of the current state of a system index, relative to the given cluster state.
+     */
     State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
         final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
         assert indexMetadata != null;
@@ -179,6 +206,7 @@ public class SystemIndexManager implements ClusterStateListener {
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
     }
 
+    /** Checks whether an index's mappings are up-to-date */
     private boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {
@@ -188,16 +216,24 @@ public class SystemIndexManager implements ClusterStateListener {
         return Version.CURRENT.equals(readMappingVersion(descriptor, mappingMetadata));
     }
 
+    /**
+     * Fetches the mapping version from an index's mapping's `_meta` info.
+     */
     @SuppressWarnings("unchecked")
     private Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {
             Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {
-                logger.info("Missing _meta field in mapping [{}] of index [{}]", mappingMetadata.type(), indexName);
+                logger.warn("Missing _meta field in mapping [{}] of index [{}]", mappingMetadata.type(), indexName);
                 throw new IllegalStateException("Cannot read version string in index " + indexName);
             }
-            return Version.fromString((String) meta.get(descriptor.getVersionMetaKey()));
+
+            final String versionString = (String) meta.get(descriptor.getVersionMetaKey());
+            if (versionString == null) {
+                logger.warn("No value found in mappings for [_meta.{}]", descriptor.getVersionMetaKey());
+            }
+            return Version.fromString(versionString);
         } catch (ElasticsearchParseException e) {
             logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);

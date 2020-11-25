@@ -44,17 +44,17 @@ abstract class DynamicFieldsBuilder {
         throw new IllegalStateException(dynamic + " is neither " + ObjectMapper.Dynamic.TRUE + " nor " + ObjectMapper.Dynamic.RUNTIME);
     }
 
-    abstract Field newDynamicStringField(ParseContext context, String name);
+    abstract DynamicField newDynamicStringField(ParseContext context, String name);
 
-    abstract Field newDynamicLongField(ParseContext context, String name);
+    abstract DynamicField newDynamicLongField(ParseContext context, String name);
 
-    abstract Field newDynamicDoubleField(ParseContext context, String name);
+    abstract DynamicField newDynamicDoubleField(ParseContext context, String name);
 
-    abstract Field newDynamicBooleanField(ParseContext context, String name);
+    abstract DynamicField newDynamicBooleanField(ParseContext context, String name);
 
-    abstract Field newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter);
+    abstract DynamicField newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter);
 
-    abstract Field newDynamicBinaryField(ParseContext context, String name);
+    abstract DynamicField newDynamicBinaryField(ParseContext context, String name);
 
     private static final class TemplateOrDelegate extends DynamicFieldsBuilder {
         private static final DynamicFieldsBuilder TEMPLATE_OR_CONCRETE = new TemplateOrDelegate(Concrete.INSTANCE);
@@ -67,39 +67,39 @@ abstract class DynamicFieldsBuilder {
         }
 
         @Override
-        Field newDynamicStringField(ParseContext context, String name) {
+        DynamicField newDynamicStringField(ParseContext context, String name) {
             Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.STRING);
-            return builder == null ? delegate.newDynamicStringField(context, name) : new Field(builder);
+            return builder == null ? delegate.newDynamicStringField(context, name) : new DynamicField(builder);
         }
 
         @Override
-        Field newDynamicLongField(ParseContext context, String name) {
+        DynamicField newDynamicLongField(ParseContext context, String name) {
             Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.LONG);
-            return builder == null ? delegate.newDynamicLongField(context, name) : new Field(builder);
+            return builder == null ? delegate.newDynamicLongField(context, name) : new DynamicField(builder);
         }
 
         @Override
-        Field newDynamicDoubleField(ParseContext context, String name) {
+        DynamicField newDynamicDoubleField(ParseContext context, String name) {
             Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.DOUBLE);
-            return builder == null ? delegate.newDynamicDoubleField(context, name) : new Field(builder);
+            return builder == null ? delegate.newDynamicDoubleField(context, name) : new DynamicField(builder);
         }
 
         @Override
-        final Field newDynamicBooleanField(ParseContext context, String name) {
+        final DynamicField newDynamicBooleanField(ParseContext context, String name) {
             Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.BOOLEAN);
-            return builder == null ? delegate.newDynamicBooleanField(context, name) : new Field(builder);
+            return builder == null ? delegate.newDynamicBooleanField(context, name) : new DynamicField(builder);
         }
 
         @Override
-        Field newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
+        DynamicField newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
             Mapper.Builder builder = findTemplateBuilderForDate(context, name, dateFormatter);
-            return builder == null ? delegate.newDynamicDateField(context, name, dateFormatter) : new Field(builder);
+            return builder == null ? delegate.newDynamicDateField(context, name, dateFormatter) : new DynamicField(builder);
         }
 
         @Override
-        Field newDynamicBinaryField(ParseContext context, String name) {
+        DynamicField newDynamicBinaryField(ParseContext context, String name) {
             Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.BINARY);
-            return builder == null ? delegate.newDynamicBinaryField(context, name) : new Field(builder);
+            return builder == null ? delegate.newDynamicBinaryField(context, name) : new DynamicField(builder);
         }
     }
 
@@ -107,41 +107,41 @@ abstract class DynamicFieldsBuilder {
         private static final Concrete INSTANCE = new Concrete();
 
         @Override
-        public Field newDynamicStringField(ParseContext context, String name) {
-            return new Field(new TextFieldMapper.Builder(name, () -> context.indexAnalyzers().getDefaultIndexAnalyzer())
+        public DynamicField newDynamicStringField(ParseContext context, String name) {
+            return new DynamicField(new TextFieldMapper.Builder(name, () -> context.indexAnalyzers().getDefaultIndexAnalyzer())
                 .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)));
         }
 
         @Override
-        public Field newDynamicLongField(ParseContext context, String name) {
-            return new Field(new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, context.indexSettings().getSettings()));
+        public DynamicField newDynamicLongField(ParseContext context, String name) {
+            return new DynamicField(new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, context.indexSettings().getSettings()));
         }
 
         @Override
-        public Field newDynamicDoubleField(ParseContext context, String name) {
+        public DynamicField newDynamicDoubleField(ParseContext context, String name) {
             // no templates are defined, we use float by default instead of double
             // since this is much more space-efficient and should be enough most of
             // the time
-            return new Field(new NumberFieldMapper.Builder(name,
+            return new DynamicField(new NumberFieldMapper.Builder(name,
                 NumberFieldMapper.NumberType.FLOAT, context.indexSettings().getSettings()));
         }
 
         @Override
-        public Field newDynamicBooleanField(ParseContext context, String name) {
-            return new Field(new BooleanFieldMapper.Builder(name));
+        public DynamicField newDynamicBooleanField(ParseContext context, String name) {
+            return new DynamicField(new BooleanFieldMapper.Builder(name));
         }
 
         @Override
-        public Field newDynamicDateField(ParseContext context, String name, DateFormatter dateTimeFormatter) {
+        public DynamicField newDynamicDateField(ParseContext context, String name, DateFormatter dateTimeFormatter) {
             Settings settings = context.indexSettings().getSettings();
             boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
-            return new Field(new DateFieldMapper.Builder(name, DateFieldMapper.Resolution.MILLISECONDS,
+            return new DynamicField(new DateFieldMapper.Builder(name, DateFieldMapper.Resolution.MILLISECONDS,
                 dateTimeFormatter, ignoreMalformed, Version.indexCreated(settings)));
         }
 
         @Override
-        Field newDynamicBinaryField(ParseContext context, String name) {
-            return new Field(new BinaryFieldMapper.Builder(name));
+        DynamicField newDynamicBinaryField(ParseContext context, String name) {
+            return new DynamicField(new BinaryFieldMapper.Builder(name));
         }
     }
 
@@ -149,32 +149,32 @@ abstract class DynamicFieldsBuilder {
         private static final Runtime INSTANCE = new Runtime();
 
         @Override
-        public Field newDynamicStringField(ParseContext context, String name) {
-            return new Field(context.getDynamicRuntimeFieldsBuilder().newDynamicStringField(name));
+        public DynamicField newDynamicStringField(ParseContext context, String name) {
+            return new DynamicField(context.getDynamicRuntimeFieldsBuilder().newDynamicStringField(name));
         }
 
         @Override
-        public Field newDynamicLongField(ParseContext context, String name) {
-            return new Field(context.getDynamicRuntimeFieldsBuilder().newDynamicLongField(name));
+        public DynamicField newDynamicLongField(ParseContext context, String name) {
+            return new DynamicField(context.getDynamicRuntimeFieldsBuilder().newDynamicLongField(name));
         }
 
         @Override
-        public Field newDynamicDoubleField(ParseContext context, String name) {
-            return new Field(context.getDynamicRuntimeFieldsBuilder().newDynamicDoubleField(name));
+        public DynamicField newDynamicDoubleField(ParseContext context, String name) {
+            return new DynamicField(context.getDynamicRuntimeFieldsBuilder().newDynamicDoubleField(name));
         }
 
         @Override
-        public Field newDynamicBooleanField(ParseContext context, String name) {
-            return new Field(context.getDynamicRuntimeFieldsBuilder().newDynamicBooleanField(name));
+        public DynamicField newDynamicBooleanField(ParseContext context, String name) {
+            return new DynamicField(context.getDynamicRuntimeFieldsBuilder().newDynamicBooleanField(name));
         }
 
         @Override
-        public Field newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
-            return new Field(context.getDynamicRuntimeFieldsBuilder().newDynamicDateField(name, dateFormatter));
+        public DynamicField newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
+            return new DynamicField(context.getDynamicRuntimeFieldsBuilder().newDynamicDateField(name, dateFormatter));
         }
 
         @Override
-        Field newDynamicBinaryField(ParseContext context, String name) {
+        DynamicField newDynamicBinaryField(ParseContext context, String name) {
             //binary runtime fields are not supported
             return Concrete.INSTANCE.newDynamicBinaryField(context, name);
         }
@@ -194,9 +194,9 @@ abstract class DynamicFieldsBuilder {
         return findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.OBJECT);
     }
 
-    static DynamicFieldsBuilder.Field findStringTemplateBuilder(ParseContext context, String name) {
+    static DynamicField findStringTemplateBuilder(ParseContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.STRING);
-        return templateBuilder == null ? null : new Field(templateBuilder);
+        return templateBuilder == null ? null : new DynamicField(templateBuilder);
     }
 
     private static Mapper.Builder findTemplateBuilder(ParseContext context, String name, DynamicTemplate.XContentFieldType matchType) {
@@ -234,16 +234,20 @@ abstract class DynamicFieldsBuilder {
         return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
-    static final class Field {
+    /**
+     * Wraps a dynamically created field, which can either be a concrete field built through a {@link Mapper.Builder} that gets
+     * mapped under properties or a {@link RuntimeFieldType} that gets mapped as part of the runtime section
+     */
+    static final class DynamicField {
         private final Mapper.Builder builder;
         private final RuntimeFieldType runtimeField;
 
-        private Field(Mapper.Builder builder) {
+        private DynamicField(Mapper.Builder builder) {
             this.builder = Objects.requireNonNull(builder);
             this.runtimeField = null;
         }
 
-        private Field(RuntimeFieldType runtimeField) {
+        private DynamicField(RuntimeFieldType runtimeField) {
             this.builder = null;
             this.runtimeField = Objects.requireNonNull(runtimeField);
         }

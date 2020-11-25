@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.DynamicFieldsBuilder.DynamicField;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -463,7 +465,7 @@ final class DocumentParser {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            nestedDoc.add(new org.apache.lucene.document.Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
@@ -628,10 +630,10 @@ final class DocumentParser {
         }
     }
 
-    private static DynamicFieldsBuilder.Field createDynamicFieldFromValue(final ParseContext context,
-                                                                          XContentParser.Token token,
-                                                                          String currentFieldName,
-                                                                          DynamicFieldsBuilder dynamicFieldsBuilder) throws IOException {
+    private static DynamicField createDynamicFieldFromValue(final ParseContext context,
+                                                                                 XContentParser.Token token,
+                                                                                 String currentFieldName,
+                                                                                 DynamicFieldsBuilder dynamicFieldsBuilder) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
             String text = context.parser().text();
 
@@ -686,9 +688,9 @@ final class DocumentParser {
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
             return dynamicFieldsBuilder.newDynamicBinaryField(context, currentFieldName);
         } else {
-            DynamicFieldsBuilder.Field field = DynamicFieldsBuilder.findStringTemplateBuilder(context, currentFieldName);
-            if (field != null) {
-                return field;
+            DynamicField dynamicField = DynamicFieldsBuilder.findStringTemplateBuilder(context, currentFieldName);
+            if (dynamicField != null) {
+                return dynamicField;
             }
         }
         // TODO how do we identify dynamically that its a binary value?
@@ -706,7 +708,7 @@ final class DocumentParser {
             return;
         }
         DynamicFieldsBuilder dynamicFieldsBuilder = DynamicFieldsBuilder.forDynamic(dynamic);
-        DynamicFieldsBuilder.Field dynamicField = createDynamicFieldFromValue(context, token, currentFieldName, dynamicFieldsBuilder);
+        DynamicField dynamicField = createDynamicFieldFromValue(context, token, currentFieldName, dynamicFieldsBuilder);
         if (dynamicField.isRuntimeField()) {
             context.addDynamicRuntimeField(dynamicField.getRuntimeField());
         } else {

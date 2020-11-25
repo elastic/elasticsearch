@@ -835,6 +835,11 @@ See <<ilm-forcemerge>>.
 
 See <<ilm-freeze>>.
 
+[role="exclude",id="ilm-migrate-action"]
+==== Migrate
+
+See <<ilm-migrate>>.
+
 [role="exclude",id="ilm-readonly-action"]
 ==== Read only
 
@@ -844,6 +849,11 @@ See <<ilm-readonly>>.
 ==== Rollover
 
 See <<ilm-rollover>>.
+
+[role="exclude",id="ilm-searchable-snapshot-action"]
+==== Searchable snapshot
+
+See <<ilm-searchable-snapshot>>.
 
 [role="exclude",id="ilm-set-priority-action"]
 ==== Set priority
@@ -859,6 +869,11 @@ See <<ilm-shrink>>.
 ==== Unfollow
 
 See <<ilm-unfollow>>.
+
+[role="exclude",id="ilm-wait-for-snapshot-action"]
+==== Wait for snapshot
+
+See <<ilm-wait-for-snapshot>>.
 
 [role="exclude",id="ilm-policy-definition"]
 === {ilm-init} policy definition

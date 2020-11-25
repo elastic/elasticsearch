@@ -67,6 +67,7 @@ public final class XPackField {
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */
     public static final String AGGREGATE_METRIC = "aggregate_metric";
+    public static final String RUNTIME_FIELDS = "runtime_fields";
 
     private XPackField() {}
 

@@ -11,7 +11,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -26,7 +25,6 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
         fieldName,
         params,
         lookup,
-        formatter,
         ctx
     ) {
         @Override
@@ -53,7 +51,6 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup) -> null),
-                    DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
                     reader.leaves().get(0)
                 ) {
                     @Override

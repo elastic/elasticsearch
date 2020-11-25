@@ -80,7 +80,6 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
                     "test",
                     Map.of(),
                     searchLookup,
-                    null,
                     ctx
                 ) {
                     @Override

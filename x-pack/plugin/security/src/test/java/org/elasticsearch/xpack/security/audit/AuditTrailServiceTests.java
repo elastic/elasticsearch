@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -87,6 +89,18 @@ public class AuditTrailServiceTests extends ESTestCase {
                             licenseState.getOperationMode() + "] does not permit it"
             ));
         }
+        for (int i = 1; i <= randomIntBetween(2, 6); i++) {
+            service.get();
+        }
+        service.lastLogInstant = Instant.now().minus(Duration.ofHours(1));
+        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(false);
+        mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "audit disabled because of license after time passed",
+                AuditTrailService.class.getName(),
+                Level.WARN,
+                "Security auditing is DISABLED because the currently active license [" +
+                        licenseState.getOperationMode() + "] does not permit it"
+        ));
         for (int i = 1; i <= randomIntBetween(2, 6); i++) {
             service.get();
         }

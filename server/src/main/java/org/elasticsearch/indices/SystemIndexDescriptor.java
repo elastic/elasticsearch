@@ -23,6 +23,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,25 +31,47 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.util.Objects;
 
 /**
- * A system index descriptor perform one of two possible functions.
- * <ul>
- *    <li>It can describe a single system index, including all the required information to create
- *    and maintain the system index</li>
- *    <li>Or it can matches a number of indices, which are managed dynamically, or externally to Elasticsearch.
- *    These are not automatically managed by the system index infrastructure.</li>
- * </ul>
+ * A system index descriptor describes one or more system indices. It can match a number of indices using
+ * a pattern. For system indices that are managed externally to Elasticsearch, this is enough. For system
+ * indices that are managed internally to Elasticsearch, a descriptor can also include information for
+ * creating the system index, upgrading its mappings, and creating an alias.
  */
 public class SystemIndexDescriptor {
+    /** A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices. */
     private final String indexPattern;
-    private final String description;
-    private final CharacterRunAutomaton indexPatternAutomaton;
-    private final String mappings;
-    private final Settings settings;
-    private final String aliasName;
-    private final int indexFormat;
-    private final String versionMetaKey;
-    private final String origin;
+
+    /**
+     * For internally-managed indices, specifies the name of the concrete index to create and update. This is required
+     * since the {@link #indexPattern} can match many indices.
+     */
     private final String primaryIndex;
+
+    /** A description of the index or indices */
+    private final String description;
+
+    /** Used to determine whether an index name matches the {@link #indexPattern} */
+    private final CharacterRunAutomaton indexPatternAutomaton;
+
+    /** For internally-managed indices, contains the index mappings JSON */
+    private final String mappings;
+
+    /** For internally-managed indices, contains the index settings */
+    private final Settings settings;
+
+     /** For internally-managed indices, an optional alias to create */
+    private final String aliasName;
+
+    /** For internally-managed indices, an optional {@link IndexMetadata#INDEX_FORMAT_SETTING} value to expect */
+    private final int indexFormat;
+
+    /**
+     * For internally-managed indices, specifies a key name under <code>_meta</code> in the index mappings
+     * that contains the index's mappings' version.
+     */
+    private final String versionMetaKey;
+
+    /** For internally-managed indices, specifies the origin to use when creating or updating the index */
+    private final String origin;
 
     /**
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
@@ -121,6 +144,10 @@ public class SystemIndexDescriptor {
         return indexPattern;
     }
 
+    /**
+     * @return The concrete name of an index being managed internally to Elasticsearch. Will be {@code null}
+     * for indices managed externally to Elasticsearch.
+     */
     public String getPrimaryIndex() {
         return primaryIndex;
     }
@@ -244,6 +271,11 @@ public class SystemIndexDescriptor {
         }
     }
 
+    /**
+     * Builds an automaton for matching index names against this descriptor's index pattern.
+     * If this descriptor has an alias name, the automaton will also try to match against
+     * the alias as well.
+     */
     static Automaton buildAutomaton(String pattern, String alias) {
         final String patternAsRegex = patternToRegex(pattern);
         final String aliasAsRegex = alias == null ? null : patternToRegex(alias);

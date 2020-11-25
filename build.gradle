@@ -419,6 +419,9 @@ gradle.projectsEvaluated {
       maybeConfigure(project.tasks, 'dependenciesInfo') {
         it.enabled = false
       }
+      maybeConfigure(project.tasks, 'dependenciesGraph') {
+        it.enabled = false
+      }
     }
   }
   // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving

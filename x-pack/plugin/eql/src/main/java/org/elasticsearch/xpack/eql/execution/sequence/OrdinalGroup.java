@@ -22,7 +22,6 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  */
 abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
-    private final SequenceKey key;
     private final Function<E, Ordinal> extractor;
 
     // NB: since the size varies significantly, use a LinkedList
@@ -32,13 +31,8 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
     private Ordinal start, stop;
 
-    protected OrdinalGroup(SequenceKey key, Function<E, Ordinal> extractor) {
-        this.key = key;
+    protected OrdinalGroup(Function<E, Ordinal> extractor) {
         this.extractor = extractor;
-    }
-
-    SequenceKey key() {
-        return key;
     }
 
     void add(E element) {
@@ -82,7 +76,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         return match != null ? match.v1() : null;
     }
 
-    void trimToLast() {
+    E trimToLast() {
         E last = elements.peekLast();
         if (last != null) {
             elements.clear();
@@ -90,6 +84,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
             stop = null;
             add(last);
         }
+        return last;
     }
 
     private Tuple<E, Integer> findBefore(Ordinal ordinal) {
@@ -132,7 +127,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
     @Override
     public int hashCode() {
-        return key.hashCode();
+        return elements.hashCode();
     }
 
     @Override
@@ -146,12 +141,11 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         }
 
         OrdinalGroup<?> other = (OrdinalGroup<?>) obj;
-        return Objects.equals(key, other.key)
-                && Objects.equals(elements, other.elements);
+        return Objects.equals(elements, other.elements);
     }
 
     @Override
     public String toString() {
-        return format(null, "[{}][{}-{}]({} seqs)", key, start, stop, elements.size());
+        return format(null, "[{}-{}]({} seqs)", start, stop, elements.size());
     }
 }

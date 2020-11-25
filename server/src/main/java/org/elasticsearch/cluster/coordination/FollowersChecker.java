@@ -85,8 +85,6 @@ public class FollowersChecker {
     public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING =
         Setting.intSetting("cluster.fault_detection.follower_check.retry_count", 3, 1, Setting.Property.NodeScope);
 
-    private final Settings settings;
-
     private final TimeValue followerCheckInterval;
     private final TimeValue followerCheckTimeout;
     private final int followerCheckRetryCount;
@@ -104,7 +102,6 @@ public class FollowersChecker {
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
                             BiConsumer<DiscoveryNode, String> onNodeFailure, NodeHealthService nodeHealthService) {
-        this.settings = settings;
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
@@ -299,7 +296,7 @@ public class FollowersChecker {
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
 
             transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
-                TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
+                TransportRequestOptions.of(followerCheckTimeout, Type.PING),
                 new TransportResponseHandler.Empty() {
 
                     @Override

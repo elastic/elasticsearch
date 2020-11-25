@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +95,12 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
         this.group = group;
         this.dateInterval = dateInterval;
         this.dateTimezone = dateTimezone;
+    }
+
+    public RollupGroup() {
+        this.group = new ArrayList<>();
+        this.dateInterval = new HashMap<>();
+        this.dateTimezone = new HashMap<>();
     }
 
     public RollupGroup(StreamInput in) throws IOException {

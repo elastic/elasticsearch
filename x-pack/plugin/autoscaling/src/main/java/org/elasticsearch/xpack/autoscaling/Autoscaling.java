@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandl
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
@@ -94,6 +96,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     private final boolean enabled;
 
     private final List<AutoscalingExtension> autoscalingExtensions;
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
     public Autoscaling(final Settings settings) {
         this.enabled = AUTOSCALING_ENABLED_SETTING.get(settings);
@@ -132,6 +135,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        this.clusterService.set(clusterService);
         return List.of(new AutoscalingCalculateCapacityService.Holder(this));
     }
 
@@ -180,6 +184,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 FixedAutoscalingDeciderService.NAME,
                 FixedAutoscalingDeciderService.FixedReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                ReactiveStorageDeciderService.NAME,
+                ReactiveStorageDeciderService.ReactiveReason::new
             )
         );
     }
@@ -202,7 +211,10 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
 
     @Override
     public Collection<AutoscalingDeciderService> deciders() {
-        return List.of(new FixedAutoscalingDeciderService());
+        return List.of(
+            new FixedAutoscalingDeciderService(),
+            new ReactiveStorageDeciderService(clusterService.get().getSettings(), clusterService.get().getClusterSettings())
+        );
     }
 
     public Set<AutoscalingDeciderService> createDeciderServices() {

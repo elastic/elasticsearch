@@ -6,8 +6,12 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Set;
 
@@ -24,4 +28,15 @@ public interface AutoscalingDeciderContext {
      * Return the nodes governed by the policy.
      */
     Set<DiscoveryNode> nodes();
+
+    /**
+     * Return the roles of the policy
+     */
+    Set<DiscoveryNodeRole> roles();
+
+    ClusterInfo info();
+
+    SnapshotShardSizeInfo snapshotShardSizeInfo();
+
+    AllocationDeciders allocationDeciders();
 }

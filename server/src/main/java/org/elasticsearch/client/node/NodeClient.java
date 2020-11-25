@@ -79,7 +79,13 @@ public class NodeClient extends AbstractClient {
     public <Request extends ActionRequest, Response extends ActionResponse>
     void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         // Discard the task because the Client interface doesn't use it.
-        executeLocally(action, request, listener);
+        try {
+            executeLocally(action, request, listener);
+        } catch (Exception e) {
+            // #executeLocally returns the task and throws RuntimeException if it fails to register the task so we forward them to listener
+            // since this API does not concern itself with the specifics of the task handling
+            listener.onFailure(e);
+        }
     }
 
     /**

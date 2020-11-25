@@ -385,6 +385,7 @@ public abstract class AbstractClient implements Client {
         try {
             doExecute(action, request, listener);
         } catch (Exception e) {
+            assert false : new AssertionError(e);
             listener.onFailure(e);
         }
     }

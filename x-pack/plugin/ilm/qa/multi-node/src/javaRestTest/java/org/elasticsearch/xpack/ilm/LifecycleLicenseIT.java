@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
@@ -72,6 +73,7 @@ public class LifecycleLicenseIT extends ESRestTestCase {
                 "current license is non-compliant for [searchable-snapshots]"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testSearchableSnapshotActionErrorsOnInvalidLicense() throws Exception {
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
@@ -95,6 +97,14 @@ public class LifecycleLicenseIT extends ESRestTestCase {
             assertThat(explainIndex.get("action"), is(SearchableSnapshotAction.NAME));
             assertThat((Integer) explainIndex.get("failed_step_retry_count"), greaterThanOrEqualTo(1));
 
+            // this check is lenient to avoid test flakiness (when we retry steps we move ILM between the ERROR step and the
+            // failed step - the `failed_step_retry_count` field is present in both steps until we move to the next step (ie.
+            // until the failed step is executed successfully).
+            // So, *if* we catch ILM in the ERROR step, we check the failed message
+            if (ErrorStep.NAME.equals(explainIndex.get("step"))) {
+                assertThat(((Map<String, String>) explainIndex.get("step_info")).get("reason"),
+                    containsStringIgnoringCase("current license is non-compliant for [searchable-snapshots]"));
+            }
         }, 30, TimeUnit.SECONDS);
 
         // switching back to trial so searchable_snapshot is permitted

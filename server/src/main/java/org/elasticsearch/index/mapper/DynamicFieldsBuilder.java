@@ -56,6 +56,9 @@ abstract class DynamicFieldsBuilder {
 
     abstract DynamicField newDynamicBinaryField(ParseContext context, String name);
 
+    /**
+     * Creates dynamic fields based on matching dynamic templates. If there are none, according to the current dynamic setting.
+     */
     private static final class TemplateOrDelegate extends DynamicFieldsBuilder {
         private static final DynamicFieldsBuilder TEMPLATE_OR_CONCRETE = new TemplateOrDelegate(Concrete.INSTANCE);
         private static final DynamicFieldsBuilder TEMPLATE_OR_RUNTIME = new TemplateOrDelegate(Runtime.INSTANCE);
@@ -92,7 +95,7 @@ abstract class DynamicFieldsBuilder {
 
         @Override
         DynamicField newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
-            Mapper.Builder builder = findTemplateBuilderForDate(context, name, dateFormatter);
+            Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.DATE, dateFormatter);
             return builder == null ? delegate.newDynamicDateField(context, name, dateFormatter) : new DynamicField(builder);
         }
 
@@ -103,6 +106,9 @@ abstract class DynamicFieldsBuilder {
         }
     }
 
+    /**
+     * Creates dynamic concrete fields, in the properties section
+     */
     private static final class Concrete extends DynamicFieldsBuilder {
         private static final Concrete INSTANCE = new Concrete();
 
@@ -145,6 +151,9 @@ abstract class DynamicFieldsBuilder {
         }
     }
 
+    /**
+     * Creates dynamic runtime fields, in the runtime section
+     */
     private static final class Runtime extends DynamicFieldsBuilder {
         private static final Runtime INSTANCE = new Runtime();
 
@@ -180,6 +189,9 @@ abstract class DynamicFieldsBuilder {
         }
     }
 
+    /**
+     * Returns the builder for a dynamically created object mapper. Note that objects are always created under properties.
+     */
     static Mapper.Builder newDynamicObjectBuilder(ParseContext context, String name) {
         //dynamic:runtime maps objects under properties, exactly like dynamic:true
         Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.OBJECT);
@@ -190,36 +202,25 @@ abstract class DynamicFieldsBuilder {
         return templateBuilder;
     }
 
-    static Mapper.Builder findObjectTemplateBuilder(ParseContext context, String name) {
-        return findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.OBJECT);
-    }
-
     static DynamicField findStringTemplateBuilder(ParseContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.STRING);
         return templateBuilder == null ? null : new DynamicField(templateBuilder);
     }
 
-    private static Mapper.Builder findTemplateBuilder(ParseContext context, String name, DynamicTemplate.XContentFieldType matchType) {
-        assert matchType != DynamicTemplate.XContentFieldType.DATE;
+    static Mapper.Builder findTemplateBuilder(ParseContext context, String name, DynamicTemplate.XContentFieldType matchType) {
         return findTemplateBuilder(context, name, matchType, null);
-    }
-
-    private static Mapper.Builder findTemplateBuilderForDate(ParseContext context, String name, DateFormatter dateFormatter) {
-        assert dateFormatter != null;
-        return findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.DATE, dateFormatter);
     }
 
     /**
      * Find a template. Returns {@code null} if no template could be found.
-     * @param name        the field name
-     * @param matchType   the type of the field in the json document or null if unknown
+     * @param context        the parse context for this document
+     * @param name           the current field name
+     * @param matchType      the type of the field in the json document or null if unknown
      * @param dateFormatter  a date formatter to use if the type is a date, null if not a date or is using the default format
      * @return a mapper builder, or null if there is no template for such a field
      */
-    private static Mapper.Builder findTemplateBuilder(ParseContext context,
-                                                      String name,
-                                                      DynamicTemplate.XContentFieldType matchType,
-                                                      DateFormatter dateFormatter) {
+    static Mapper.Builder findTemplateBuilder(ParseContext context, String name, DynamicTemplate.XContentFieldType matchType,
+                                              DateFormatter dateFormatter) {
         DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;

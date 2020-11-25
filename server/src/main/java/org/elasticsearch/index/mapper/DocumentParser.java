@@ -544,7 +544,8 @@ final class DocumentParser {
             parentMapper = parentMapperTuple.v2();
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic.canCreateDynamicFields()) {
-                Mapper.Builder builder = DynamicFieldsBuilder.findObjectTemplateBuilder(context, arrayFieldName);
+                Mapper.Builder builder = DynamicFieldsBuilder.findTemplateBuilder(context, arrayFieldName,
+                    DynamicTemplate.XContentFieldType.OBJECT);
                 if (builder == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 } else {

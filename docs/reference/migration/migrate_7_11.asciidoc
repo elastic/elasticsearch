@@ -9,8 +9,8 @@ your application to {es} 7.11.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-// * <<breaking_710_blah_changes>>
-// * <<breaking_710_blah_changes>>
+// * <<breaking_711_blah_changes>>
+// * <<breaking_711_blah_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -18,7 +18,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //tag::notable-breaking-changes[]
 
 [discrete]
-[[breaking_710_search_changes]]
+[[breaking_711_search_changes]]
 === Search changes
 
 [[highlight-normalization]]

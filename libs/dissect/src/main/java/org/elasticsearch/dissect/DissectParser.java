@@ -211,7 +211,7 @@ public final class DissectParser {
             int lookAheadMatches;
             //start walking the input string byte by byte, look ahead for matches where needed
             //if a match is found jump forward to the end of the match
-            for (; i < input.length; i++) {
+            while (i < input.length) {
                 lookAheadMatches = 0;
                 //potential match between delimiter and input string
                 if (delimiter.length > 0 && input[i] == delimiter[0]) {
@@ -263,7 +263,11 @@ public final class DissectParser {
                         delimiter = dissectPair.getDelimiter().getBytes(StandardCharsets.UTF_8);
                         //i is always one byte after the last found delimiter, aka the start of the next value
                         valueStart = i;
+                    } else {
+                        i++;
                     }
+                } else {
+                    i++;
                 }
             }
             //the last key, grab the rest of the input (unless consecutive delimiters already grabbed the last key)

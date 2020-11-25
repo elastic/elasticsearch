@@ -39,6 +39,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         field,
         params,
         lookup,
+        formatter,
         ctx
     ) {
         @Override
@@ -55,8 +56,17 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         }
     };
 
-    public DateFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    private final DateFormatter formatter;
+
+    public DateFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        DateFormatter formatter,
+        LeafReaderContext ctx
+    ) {
         super(fieldName, params, searchLookup, ctx);
+        this.formatter = formatter;
     }
 
     public static class Emit {
@@ -68,6 +78,22 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
 
         public void emit(long v) {
             script.emit(v);
+        }
+    }
+
+    /**
+     * Temporary parse method that takes into account the date format. We'll
+     * remove this when we have "native" source parsing fields.
+     */
+    public static class Parse {
+        private final DateFieldScript script;
+
+        public Parse(DateFieldScript script) {
+            this.script = script;
+        }
+
+        public long parse(Object str) {
+            return script.formatter.parseMillis(str.toString());
         }
     }
 }

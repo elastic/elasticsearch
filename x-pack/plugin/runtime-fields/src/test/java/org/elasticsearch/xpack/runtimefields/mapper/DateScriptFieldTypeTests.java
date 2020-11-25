@@ -492,12 +492,14 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                                     fieldName,
                                     params,
                                     lookup,
+                                    formatter,
                                     ctx
                                 ) {
                                     @Override
                                     public void execute() {
                                         for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
-                                            emit(((Number) timestamp).longValue());
+                                            DateFieldScript.Parse parse = new DateFieldScript.Parse(this);
+                                            emit(parse.parse(timestamp));
                                         }
                                     }
                                 };
@@ -506,6 +508,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                                     fieldName,
                                     params,
                                     lookup,
+                                    formatter,
                                     ctx
                                 ) {
                                     @Override

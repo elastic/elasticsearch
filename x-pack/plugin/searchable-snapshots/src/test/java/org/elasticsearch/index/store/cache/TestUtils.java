@@ -5,16 +5,22 @@
  */
 package org.elasticsearch.index.store.cache;
 
+import org.apache.lucene.mockfile.FilterFileChannel;
+import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.mockfile.FilterPath;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.index.store.IndexInputStats;
 
@@ -22,19 +28,61 @@ import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.FileChannel;
+import java.nio.file.FileSystem;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.spi.FileSystemProvider;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.synchronizedNavigableSet;
+import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.test.ESTestCase.between;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public final class TestUtils {
     private TestUtils() {}
+
+    public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(final CacheFile cacheFile) {
+        final SortedSet<Tuple<Long, Long>> ranges = synchronizedNavigableSet(new TreeSet<>(Comparator.comparingLong(Tuple::v1)));
+        final List<Future<Integer>> futures = new ArrayList<>();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            builder().put(NODE_NAME_SETTING.getKey(), "_node").build(),
+            random()
+        );
+        for (int i = 0; i < between(0, 10); i++) {
+            final long start = randomLongBetween(0L, cacheFile.getLength() - 1L);
+            final long end = randomLongBetween(start + 1L, cacheFile.getLength());
+            final Tuple<Long, Long> range = Tuple.tuple(start, end);
+            futures.add(
+                cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
+                    ranges.add(Tuple.tuple(from, to));
+                    progressUpdater.accept(to);
+                }, deterministicTaskQueue.getThreadPool().generic())
+            );
+        }
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(futures.stream().allMatch(Future::isDone));
+        return mergeContiguousRanges(ranges);
+    }
 
     public static long numberOfRanges(long fileSize, long rangeSize) {
         return numberOfRanges(toIntBytes(fileSize), toIntBytes(rangeSize));
@@ -51,7 +99,7 @@ public final class TestUtils {
         return numberOfRanges;
     }
 
-    static SortedSet<Tuple<Long, Long>> mergeContiguousRanges(final SortedSet<Tuple<Long, Long>> ranges) {
+    public static SortedSet<Tuple<Long, Long>> mergeContiguousRanges(final SortedSet<Tuple<Long, Long>> ranges) {
         // Eclipse needs the TreeSet type to be explicit (see https://bugs.eclipse.org/bugs/show_bug.cgi?id=568600)
         return ranges.stream().collect(() -> new TreeSet<Tuple<Long, Long>>(Comparator.comparingLong(Tuple::v1)), (gaps, gap) -> {
             if (gaps.isEmpty()) {
@@ -243,6 +291,58 @@ public final class TestUtils {
             ActionListener<Void> listener
         ) {
             listener.onResponse(null);
+        }
+    }
+
+    /**
+     * A {@link FileSystemProvider} that counts the number of times the method {@link FileChannel#force(boolean)} is executed on every
+     * files.
+     */
+    public static class FSyncTrackingFileSystemProvider extends FilterFileSystemProvider {
+
+        private final Map<Path, AtomicInteger> files = new ConcurrentHashMap<>();
+        private final AtomicBoolean failFSyncs = new AtomicBoolean();
+        private final FileSystem delegateInstance;
+        private final Path rootDir;
+
+        public FSyncTrackingFileSystemProvider(FileSystem delegate, Path rootDir) {
+            super("fsynccounting://", delegate);
+            this.rootDir = new FilterPath(rootDir, this.fileSystem);
+            this.delegateInstance = delegate;
+        }
+
+        public void failFSyncs(boolean shouldFail) {
+            failFSyncs.set(shouldFail);
+        }
+
+        public Path resolve(String other) {
+            return rootDir.resolve(other);
+        }
+
+        @Nullable
+        public Integer getNumberOfFSyncs(Path path) {
+            final AtomicInteger counter = files.get(path);
+            return counter != null ? counter.get() : null;
+        }
+
+        @Override
+        public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+            final AtomicInteger counter = files.computeIfAbsent(path, p -> new AtomicInteger(0));
+            return new FilterFileChannel(delegate.newFileChannel(toDelegate(path), options, attrs)) {
+
+                @Override
+                public void force(boolean metaData) throws IOException {
+                    if (failFSyncs.get()) {
+                        throw new IOException("simulated");
+                    }
+                    super.force(metaData);
+                    counter.incrementAndGet();
+                }
+            };
+        }
+
+        public void tearDown() {
+            PathUtilsForTesting.installMock(delegateInstance);
         }
     }
 }

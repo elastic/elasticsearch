@@ -39,6 +39,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
+import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
@@ -496,7 +500,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteAsyncResultAction.INSTANCE,
                 // Point in time
                 OpenPointInTimeAction.INSTANCE,
-                ClosePointInTimeAction.INSTANCE
+                ClosePointInTimeAction.INSTANCE,
+                // Data streams,
+                CreateDataStreamAction.INSTANCE,
+                GetDataStreamAction.INSTANCE,
+                DeleteDataStreamAction.INSTANCE,
+                DataStreamsStatsAction.INSTANCE
         ));
 
         // rollupV2

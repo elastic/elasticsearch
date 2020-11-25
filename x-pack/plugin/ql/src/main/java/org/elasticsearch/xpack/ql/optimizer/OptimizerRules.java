@@ -1015,27 +1015,29 @@ public final class OptimizerRules {
             for (int i = 0; i < bcs.size(); i ++) {
                 BinaryComparison bc = bcs.get(i);
 
-                if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                    comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
-                    if (comp != null) {
-                        if (comp >= 0) {
-                            if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
-                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
-                            } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
-                            return true;
-                        } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
-                    } // else: non-comparable, nop
-                } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                    comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
-                    if (comp != null) {
-                        if (comp <= 0) {
-                            if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
-                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
-                            } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
-                            return true;
-                        } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop
-                    } // else: non-comparable, nop
-                } // else: other non-relevant type
+                if (notEquals.left().semanticEquals(bc.left())) {
+                    if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                        comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
+                        if (comp != null) {
+                            if (comp >= 0) {
+                                if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
+                                    bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
+                                return true;
+                            } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
+                        } // else: non-comparable, nop
+                    } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
+                        comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
+                        if (comp != null) {
+                            if (comp <= 0) {
+                                if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
+                                    bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
+                                return true;
+                            } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop
+                        } // else: non-comparable, nop
+                    } // else: other non-relevant type
+                }
             }
 
             return false;

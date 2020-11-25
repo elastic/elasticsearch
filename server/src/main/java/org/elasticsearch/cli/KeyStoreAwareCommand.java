@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 
-import javax.crypto.AEADBadTagException;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
@@ -76,9 +75,7 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
             readPassword(terminal, false) : new SecureString(new char[0])) {
             keyStore.decrypt(keystorePassword.getChars());
         } catch (SecurityException e) {
-            if (e.getCause() instanceof AEADBadTagException) {
-                throw new UserException(ExitCodes.DATA_ERROR, "Wrong password for elasticsearch.keystore");
-            }
+            throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         }
     }
 

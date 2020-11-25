@@ -78,6 +78,12 @@ public class CacheFile {
     private final AtomicBoolean needsFsync = new AtomicBoolean();
 
     /**
+     * A runnable that is executed every time the {@link #needsFsync} flag is toggled to {@code true}, which indicates that the cache file
+     * has been updated. See {@link #markAsNeedsFSync()} method.
+     */
+    private final Runnable needsFsyncRunnable;
+
+    /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
      * By guarding access to the file channel by ref-counting and giving the channel its own life-cycle we remove all need for
      * locking when dealing with file-channel closing and opening as this file is referenced and de-referenced via {@link #acquire}
@@ -117,10 +123,11 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
-    public CacheFile(String description, long length, Path file) {
+    public CacheFile(String description, long length, Path file, Runnable onNeedFSync) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
+        this.needsFsyncRunnable = Objects.requireNonNull(onNeedFSync);
         assert invariant();
     }
 
@@ -320,7 +327,7 @@ public class CacheFile {
                             reference.decRef();
                         }
                         gap.onCompletion();
-                        needsFsync.set(true);
+                        markAsNeedsFSync();
                     }
 
                     @Override
@@ -421,6 +428,15 @@ public class CacheFile {
     }
 
     /**
+     * Marks the current cache file as "fsync needed" and notifies the corresponding listener.
+     */
+    private void markAsNeedsFSync() {
+        if (needsFsync.getAndSet(true) == false) {
+            needsFsyncRunnable.run();
+        }
+    }
+
+    /**
      * Ensure that all ranges of data written to the cache file are written to the storage device that contains it. This method performs
      * synchronization only if data has been written to the cache since the last time the method was called. If calling this method
      * resulted in performing a synchronization, a sorted set of all successfully written ranges of data since the creation of the cache
@@ -444,12 +460,12 @@ public class CacheFile {
                         assert completedRanges != null;
                         assert completedRanges.isEmpty() == false;
 
-                        IOUtils.fsync(file, false, false); // TODO don't forget to fsync parent directory
+                        IOUtils.fsync(file, false, false);
                         success = true;
                         return completedRanges;
                     } finally {
                         if (success == false) {
-                            needsFsync.set(true);
+                            markAsNeedsFSync();
                         }
                     }
                 }

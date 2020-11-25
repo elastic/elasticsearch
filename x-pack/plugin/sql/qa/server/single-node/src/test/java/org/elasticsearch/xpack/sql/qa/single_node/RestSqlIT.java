@@ -84,7 +84,7 @@ public class RestSqlIT extends RestSqlTestCase {
         request.setEntity(stringEntity);
         expectBadRequest(
             () -> toMap(client().performRequest(request), "plain"),
-            containsString("Invalid response content type. Accept=application/fff")
+            containsString("Invalid response content type: Accept=[application/fff]")
         );
     }
 }

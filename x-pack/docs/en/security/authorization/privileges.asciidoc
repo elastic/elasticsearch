@@ -98,7 +98,7 @@ ifdef::permanently-unreleased-branch[]
 
 `manage_rollup`::
 All rollup operations. Includes legacy rollup operations, such as creating,
-starting, stopping and deleting legacy rollup jobs.
+starting, stopping and deleting rollup jobs.
 
 endif::[]
 ifndef::permanently-unreleased-branch[]

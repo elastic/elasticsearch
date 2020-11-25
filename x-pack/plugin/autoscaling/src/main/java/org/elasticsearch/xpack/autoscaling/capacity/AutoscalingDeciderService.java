@@ -6,10 +6,15 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+
+import java.util.List;
+
 /**
  * A service to decide for a specific decider.
  */
-public interface AutoscalingDeciderService<D extends AutoscalingDeciderConfiguration> {
+public interface AutoscalingDeciderService {
 
     /**
      * The name of the autoscaling decider.
@@ -21,9 +26,11 @@ public interface AutoscalingDeciderService<D extends AutoscalingDeciderConfigura
     /**
      * Whether or not to scale based on the current state.
      *
+     * @param configuration the configuration settings for a specific decider
      * @param context provides access to information about current state
      * @return result from this decider
      */
-    AutoscalingDeciderResult scale(D decider, AutoscalingDeciderContext context);
+    AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context);
 
+    List<Setting<?>> deciderSettings();
 }

@@ -34,9 +34,9 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -72,7 +72,8 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
 
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
-            List<Object> fieldValues = loadFieldValues(highlighter, fieldType, field, hitContext, fieldContext.forceSource);
+            List<Object> fieldValues = loadFieldValues(highlighter, fieldContext.context.getQueryShardContext(), fieldType,
+                hitContext, fieldContext.forceSource);
             if (fieldValues.size() == 0) {
                 return null;
             }
@@ -111,10 +112,6 @@ public class UnifiedHighlighter implements Highlighter {
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
         int maxAnalyzedOffset = fieldContext.context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
-        int keywordIgnoreAbove = Integer.MAX_VALUE;
-        if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            keywordIgnoreAbove = ((KeywordFieldMapper.KeywordFieldType)fieldContext.fieldType).ignoreAbove();
-        }
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Analyzer analyzer = wrapAnalyzer(fieldContext.context.getQueryShardContext().getFieldNameIndexAnalyzer());
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
@@ -151,7 +148,6 @@ public class UnifiedHighlighter implements Highlighter {
             fieldContext.field.fieldOptions().noMatchSize(),
             higlighterNumberOfFragments,
             fieldMatcher(fieldContext),
-            keywordIgnoreAbove,
             maxAnalyzedOffset
         );
     }
@@ -167,12 +163,12 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
+        QueryShardContext qsc,
         MappedFieldType fieldType,
-        SearchHighlightContext.Field field,
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, hitContext, forceSource);
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, qsc, hitContext, forceSource);
         fieldValues = fieldValues.stream()
             .map((s) -> convertFieldValue(fieldType, s))
             .collect(Collectors.toList());

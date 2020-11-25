@@ -133,7 +133,8 @@ are not supported.
 `:` (equal, case-insensitive)::
 Returns `true` if strings to the left and right of the operator are equal.
 Otherwise returns `false`. Matching is case-insensitive and can only be used to
-compare strings. <<eql-syntax-wildcards,Wildcards>> are supported.
+compare strings. Supports <<eql-syntax-wildcards,wildcards>> and
+<<eql-syntax-lookup-operators,list lookups>>.
 
 [IMPORTANT]
 ====
@@ -222,6 +223,7 @@ Returns `true` if the condition to the right is `false`.
 ----
 user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
 user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+user.name : ("administrator", "system", "network service")
 ----
 
 `in` (case-sensitive)::
@@ -231,6 +233,10 @@ matching is case-sensitive.
 `not in` (case-sensitive)::
 Returns `true` if the value is not contained in the provided list. For strings,
 matching is case-sensitive.
+
+`:` (case-insensitive)::
+Returns `true` if the value is contained in the provided list. Can only be used
+to compare strings.
 
 [discrete]
 [[eql-syntax-math-operators]]
@@ -381,9 +387,17 @@ match specific patterns:
 
 [source,eql]
 ----
-field : "example*wildcard"
-field : "*example-wildcard"
-field : "example-wildcard*"
+field : "f*o"
+field : "*foo"
+field : "foo*"
+----
+
+The `:` operator also supports wildcards in <<eql-syntax-lookup-operators,list
+lookups>>:
+
+[source,eql]
+----
+field : ("f*o", "*bar", "baz*", "qux")
 ----
 
 [discrete]

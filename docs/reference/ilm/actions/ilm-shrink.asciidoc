@@ -22,7 +22,7 @@ If the shrink action is used on a <<ccr-put-follow,follower index>>,
 policy execution waits until the leader index rolls over (or is
 <<skipping-rollover, otherwise marked complete>>), 
 then converts the follower index into a regular index with the 
-<<ilm-unfollow-action,unfollow>> action before performing the shrink operation.
+<<ilm-unfollow,unfollow>> action before performing the shrink operation.
 
 If the managed index is part of a <<data-streams, data stream>>,
 the shrunken index replaces the original index in the data stream.

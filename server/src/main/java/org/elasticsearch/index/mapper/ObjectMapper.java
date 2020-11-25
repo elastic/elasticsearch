@@ -50,14 +50,23 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
-        public static final Dynamic DYNAMIC = null; // not set, inherited from root
     }
 
     public enum Dynamic {
-        TRUE,
-        FALSE,
-        STRICT,
-        RUNTIME
+        TRUE(true),
+        FALSE(false),
+        STRICT(false),
+        RUNTIME(true);
+
+        private final boolean canCreateDynamicFields;
+
+        Dynamic(boolean canCreateDynamicFields) {
+            this.canCreateDynamicFields = canCreateDynamicFields;
+        }
+
+        final boolean canCreateDynamicFields() {
+            return canCreateDynamicFields;
+        }
     }
 
     public static class Nested {
@@ -137,7 +146,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Nested nested = Defaults.NESTED;
 
-        protected Dynamic dynamic = Defaults.DYNAMIC;
+        protected Dynamic dynamic;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
         protected final Version indexCreatedVersion;

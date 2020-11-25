@@ -502,15 +502,16 @@ final class DocumentParser {
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, mapper);
             ObjectMapper parentMapper = parentMapperTuple.v2();
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
-            if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
-            } else if (dynamic == ObjectMapper.Dynamic.TRUE || dynamic == ObjectMapper.Dynamic.RUNTIME) {
+            if (dynamic.canCreateDynamicFields()) {
                 objectMapper = DynamicFieldsBuilder.newDynamicObjectBuilder(context, currentFieldName).build(context.path());
                 context.addDynamicMapper(objectMapper);
                 context.path().add(currentFieldName);
                 parseObjectOrField(context, objectMapper);
                 context.path().remove();
+            } else if (dynamic == ObjectMapper.Dynamic.STRICT) {
+                throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
             } else {
+                assert dynamic == ObjectMapper.Dynamic.FALSE;
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
             }
@@ -540,9 +541,7 @@ final class DocumentParser {
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
             parentMapper = parentMapperTuple.v2();
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
-            if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
-            } else if (dynamic == ObjectMapper.Dynamic.TRUE || dynamic == ObjectMapper.Dynamic.RUNTIME) {
+            if (dynamic.canCreateDynamicFields()) {
                 Mapper.Builder builder = DynamicFieldsBuilder.findObjectTemplateBuilder(context, arrayFieldName);
                 if (builder == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
@@ -558,7 +557,10 @@ final class DocumentParser {
                         parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                     }
                 }
+            } else if (dynamic == ObjectMapper.Dynamic.STRICT) {
+                throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
             } else {
+                assert dynamic == ObjectMapper.Dynamic.FALSE;
                 // TODO: shouldn't this skip, not parse?
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             }
@@ -784,24 +786,20 @@ final class DocumentParser {
             if (mapper == null) {
                 // One mapping is missing, check if we are allowed to create a dynamic one.
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
-
-                switch (dynamic) {
-                    case STRICT:
-                        throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
-                    case TRUE:
-                    case RUNTIME:
-                        //objects are created under properties even with dynamic: runtime, as the runtime section only holds leaf fields
-                        mapper = (ObjectMapper) DynamicFieldsBuilder.newDynamicObjectBuilder(context, paths[i]).build(context.path());
-                        if (mapper.nested() != ObjectMapper.Nested.NO) {
-                            throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
-                                + context.path().pathAsText(paths[i]) + "]) through `copy_to` or dots in field names");
-                        }
-                        context.addDynamicMapper(mapper);
-                        break;
-                    case FALSE:
-                       // Should not dynamically create any more mappers so return the last mapper
+                if (dynamic.canCreateDynamicFields()) {
+                    //objects are created under properties even with dynamic: runtime, as the runtime section only holds leaf fields
+                    mapper = (ObjectMapper) DynamicFieldsBuilder.newDynamicObjectBuilder(context, paths[i]).build(context.path());
+                    if (mapper.nested() != ObjectMapper.Nested.NO) {
+                        throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
+                            + context.path().pathAsText(paths[i]) + "]) through `copy_to` or dots in field names");
+                    }
+                    context.addDynamicMapper(mapper);
+                } else if (dynamic == ObjectMapper.Dynamic.STRICT) {
+                    throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
+                } else {
+                    assert dynamic == ObjectMapper.Dynamic.FALSE;
+                    // Should not dynamically create any more mappers so return the last mapper
                     return new Tuple<>(pathsAdded, parent);
-
                 }
             }
             context.path().add(paths[i]);

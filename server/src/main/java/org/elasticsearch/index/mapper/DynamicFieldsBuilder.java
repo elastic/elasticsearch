@@ -34,13 +34,14 @@ abstract class DynamicFieldsBuilder {
      * Returns the appropriate dynamic fields builder given the current dynamic setting
      */
     static DynamicFieldsBuilder forDynamic(ObjectMapper.Dynamic dynamic) {
+        assert dynamic.canCreateDynamicFields();
         if (dynamic == ObjectMapper.Dynamic.TRUE) {
             return TemplateOrDelegate.TEMPLATE_OR_CONCRETE;
         }
         if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
             return TemplateOrDelegate.TEMPLATE_OR_RUNTIME;
         }
-        throw new IllegalStateException(dynamic + " cannot dynamically create fields");
+        throw new IllegalStateException(dynamic + " is neither " + ObjectMapper.Dynamic.TRUE + " nor " + ObjectMapper.Dynamic.RUNTIME);
     }
 
     abstract Field newDynamicStringField(ParseContext context, String name);

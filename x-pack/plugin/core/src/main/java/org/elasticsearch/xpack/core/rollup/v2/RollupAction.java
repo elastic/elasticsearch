@@ -27,7 +27,7 @@ import java.util.Objects;
 public class RollupAction extends ActionType<RollupAction.Response> {
 
     public static final RollupAction INSTANCE = new RollupAction();
-    public static final String NAME = "cluster:admin/xpack/rollupV2";
+    public static final String NAME = "cluster:admin/xpack/rollup/action";
 
     private RollupAction() {
         super(NAME, RollupAction.Response::new);

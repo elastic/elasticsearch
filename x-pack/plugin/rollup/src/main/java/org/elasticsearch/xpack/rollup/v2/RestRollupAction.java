@@ -28,8 +28,8 @@ public class RestRollupAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String index = restRequest.param("index");
-        RollupV2Config job = RollupV2Config.fromXContent(restRequest.contentParser(), index);
-        RollupAction.Request request = new RollupAction.Request(job);
+        RollupV2Config config = RollupV2Config.fromXContent(restRequest.contentParser());
+        RollupAction.Request request = new RollupAction.Request(index, config);
         return channel -> client.execute(RollupAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

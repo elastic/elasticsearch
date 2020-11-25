@@ -122,6 +122,7 @@ restored in this case and all missing shards will be recreated empty.
 
 
 [discrete]
+[[change-index-settings-during-restore]]
 === Changing index settings during restore
 
 Use the <<restore-snapshot-api-index-settings,`index_settings`>> parameter

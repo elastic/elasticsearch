@@ -20,7 +20,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
 /**
@@ -57,7 +56,7 @@ public class ActionType<Response extends ActionResponse> {
     /**
      * Optional request options for the action.
      */
-    public TransportRequestOptions transportOptions(Settings settings) {
+    public TransportRequestOptions transportOptions() {
         return TransportRequestOptions.EMPTY;
     }
 

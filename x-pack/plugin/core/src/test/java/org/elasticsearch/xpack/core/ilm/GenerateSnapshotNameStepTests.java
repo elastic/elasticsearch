@@ -66,11 +66,12 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadataBuilder).build()).build();
+        final IndexMetadata indexMetadata = indexMetadataBuilder.build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+                .metadata(Metadata.builder().put(indexMetadata, false).build()).build();
 
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
-        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadataBuilder.build().getIndex(), clusterState);
+        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
         LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
         assertThat("the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name", executionState.getSnapshotName(),

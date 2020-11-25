@@ -31,6 +31,8 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import static java.util.Collections.emptyMap;
+
 // The purpose of this test case is to test RangeQueryBuilder.getRelation()
 // Whether it should return INTERSECT/DISJOINT/WITHIN is already tested in
 // RangeQueryBuilderTests
@@ -41,7 +43,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
         IndexReader reader = new MultiReader();
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE,
             null, null, indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
-            null, new IndexSearcher(reader), null, null, null, () -> true, null);
+            null, new IndexSearcher(reader), null, null, null, () -> true, null, emptyMap());
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
     }
@@ -59,7 +61,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, null,
                 indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
-                null, null, null, null, null, () -> true, null);
+                null, null, null, null, null, () -> true, null, emptyMap());
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
         assertEquals(Relation.INTERSECTS, range.getRelation(context));
@@ -79,7 +81,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
         IndexReader reader = new MultiReader();
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE,
             null, null, indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
-                null, new IndexSearcher(reader), null, null, null, () -> true, null);
+                null, new IndexSearcher(reader), null, null, null, () -> true, null, emptyMap());
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT
         assertEquals(Relation.DISJOINT, range.getRelation(context));

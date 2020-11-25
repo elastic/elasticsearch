@@ -28,6 +28,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -275,6 +276,21 @@ public abstract class ParseContext {
         }
 
         @Override
+        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+            in.addDynamicRuntimeField(runtimeField);
+        }
+
+        @Override
+        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+            return in.getDynamicRuntimeFields();
+        }
+
+        @Override
+        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
+            return in.getDynamicRuntimeFieldsBuilder();
+        }
+
+        @Override
         public void addIgnoredField(String field) {
             in.addIgnoredField(field);
         }
@@ -295,6 +311,8 @@ public abstract class ParseContext {
         private final SourceToParse sourceToParse;
         private final long maxAllowedNumNestedDocs;
         private final List<Mapper> dynamicMappers;
+        private final List<RuntimeFieldType> dynamicRuntimeFields;
+        private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
         private final Set<String> ignoredFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
@@ -303,10 +321,12 @@ public abstract class ParseContext {
 
         public InternalParseContext(DocumentMapper docMapper,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
+                                    DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder,
                                     SourceToParse source,
                                     XContentParser parser) {
             this.docMapper = docMapper;
             this.parserContextFunction = parserContextFunction;
+            this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
             this.path = new ContentPath(0);
             this.parser = parser;
             this.document = new Document();
@@ -315,6 +335,7 @@ public abstract class ParseContext {
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
+            this.dynamicRuntimeFields = new ArrayList<>();
             this.maxAllowedNumNestedDocs = docMapper.indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
@@ -413,6 +434,21 @@ public abstract class ParseContext {
         @Override
         public List<Mapper> getDynamicMappers() {
             return dynamicMappers;
+        }
+
+        @Override
+        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+            dynamicRuntimeFields.add(runtimeField);
+        }
+
+        @Override
+        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+            return Collections.unmodifiableList(dynamicRuntimeFields);
+        }
+
+        @Override
+        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
+            return dynamicRuntimeFieldsBuilder;
         }
 
         @Override
@@ -623,4 +659,20 @@ public abstract class ParseContext {
      * Get dynamic mappers created while parsing.
      */
     public abstract List<Mapper> getDynamicMappers();
+
+    /**
+     * Add a new runtime field dynamically created while parsing.
+     */
+    public abstract void addDynamicRuntimeField(RuntimeFieldType runtimeField);
+
+    /**
+     * Get dynamic runtime fields created while parsing.
+     */
+    public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
+
+    /**
+     * Retrieve the builder for dynamically created runtime fields
+     * @see MapperPlugin#getDynamicRuntimeFieldsBuilder()
+     */
+    public abstract DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder();
 }

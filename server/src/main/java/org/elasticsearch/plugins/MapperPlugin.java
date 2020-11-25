@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.index.mapper.DynamicRuntimeFieldsBuilder;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
@@ -46,6 +47,10 @@ public interface MapperPlugin {
 
     default Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
         return Collections.emptyMap();
+    }
+
+    default DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
+        return null;
     }
 
     /**

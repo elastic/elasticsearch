@@ -89,8 +89,8 @@ public final class Mapping implements ToXContentFragment {
     /**
      * Generate a mapping update for the given root object mapper.
      */
-    public Mapping mappingUpdate(Mapper rootObjectMapper) {
-        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, metadataMappers, meta);
+    public Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
+        return new Mapping(indexCreated, rootObjectMapper, metadataMappers, meta);
     }
 
     /** Get the root mapper with the given class. */

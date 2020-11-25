@@ -192,7 +192,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapping merged = mapperService.documentMapper().mapping();
         assertNotNull(merged.root.getMapper("test"));
         assertEquals(1, merged.root.runtimeFieldTypes().size());
-        assertNotNull(merged.root.getRuntimeFieldType("field"));
+        assertNotNull(merged.root.getRuntimeField("field"));
     }
 
     public void testDynamicUpdateWithRuntimeFieldDottedName() throws Exception {
@@ -228,7 +228,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             assertFalse(path3.iterator().hasNext());
         }
         assertEquals(1, merged.root.runtimeFieldTypes().size());
-        assertNotNull(merged.root.getRuntimeFieldType("path1.path2.path3.field"));
+        assertNotNull(merged.root.getRuntimeField("path1.path2.path3.field"));
     }
 
     public void testIncremental() throws Exception {

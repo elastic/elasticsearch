@@ -92,19 +92,27 @@ public class AuditTrailServiceTests extends ESTestCase {
         for (int i = 1; i <= randomIntBetween(2, 6); i++) {
             service.get();
         }
-        service.lastLogInstant = Instant.now().minus(Duration.ofHours(1));
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(false);
-        mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                "audit disabled because of license after time passed",
+        mockLogAppender.assertAllExpectationsMatched();
+        Loggers.removeAppender(auditTrailServiceLogger, mockLogAppender);
+    }
+
+    public void testNoLogRecentlyWhenLicenseProhibitsAuditing() throws Exception {
+        MockLogAppender mockLogAppender = new MockLogAppender();
+        mockLogAppender.start();
+        Logger auditTrailServiceLogger = LogManager.getLogger(AuditTrailService.class);
+        Loggers.addAppender(auditTrailServiceLogger, mockLogAppender);
+        service.lastLogInstant = randomFrom(Instant.now().minus(Duration.ofMinutes(5)), Instant.now());
+        mockLogAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "audit disabled because of license",
                 AuditTrailService.class.getName(),
                 Level.WARN,
-                "Security auditing is DISABLED because the currently active license [" +
-                        licenseState.getOperationMode() + "] does not permit it"
+                "Security auditing is DISABLED because the currently active license [*] does not permit it"
         ));
         for (int i = 1; i <= randomIntBetween(2, 6); i++) {
             service.get();
         }
         mockLogAppender.assertAllExpectationsMatched();
+        Loggers.removeAppender(auditTrailServiceLogger, mockLogAppender);
     }
 
     public void testAuthenticationFailed() throws Exception {

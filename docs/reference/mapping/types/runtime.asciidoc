@@ -142,7 +142,7 @@ GET my-index/_search
 ===== Overriding fields in the search request
 You can use the `runtime_mappings` section of the `_search` request to override
 field values inside objects by naming the runtime fields with dot notation. For
-example, index the following documents.
+example, index the following documents into `my-index`.
 
 [source, console]
 ----
@@ -153,10 +153,10 @@ POST my-index/_bulk?refresh=true
 {"name":{"first":"India","last":"Avila","suffix":"II"}}
 ----
 
-In the `runtime_mappings` section of the `_search` request, define a script
-that operates on the `name.first` field. The values you specify will override
-fields in `_source` for the duration of the query without modifying the field
-itself.
+In the `runtime_mappings` section of the `_search` request, you can define a
+script that operates on the `name.first` field. The values you specify will
+override fields in `_source` for the duration of the query without modifying
+the field itself.
 
 The following request evaluates the `name.last` field and overrides the
 `name.first` field in the search request based on the script valuation.
@@ -182,7 +182,7 @@ POST my-index/_search
 ----
 
 [[runtime-params]]
-==== Parameters for `runtime` fields
+==== Parameters for runtime fields
 Runtime fields accept the following parameters:
 
 [[runtime-params-type]]
@@ -210,11 +210,16 @@ the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of
 the original `_source`.
 
+IMPORTANT: Queries against runtime fields are considered expensive. If
+<<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>> is set
+to `false`, expensive queries are not allowed and {es} will reject any queries
+against runtime fields.
+
 The following request uses the search API to retrieve the `day_of_week` field
-that the previous request defined as a runtime field in the mapping. The value
-for the `day_of_week` field is calculated dynamically at search time, and the
-following search request retrieves any documents where the calculated value is
-equal to `Thursday`.
+that the <<runtime-mapping-fields,previous request>> defined as a runtime field
+in the mapping. The value for the `day_of_week` field is calculated dynamically
+at search time, and the following search request retrieves any documents where
+the calculated value is equal to `Thursday`.
 
 [source,console]
 ----

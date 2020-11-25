@@ -196,7 +196,7 @@ public abstract class AggregationContext {
     // TODO it is unclear why we can't just use the IndexSearcher which already caches
 
     /**
-     * Build a {@linkplain BucketedSort}.
+     * Build a collector for sorted values specialized for aggregations.
      */
     public abstract BucketedSort buildBucketedSort(SortBuilder<?> sort, int size, BucketedSort.ExtraData values) throws IOException;
 
@@ -212,6 +212,8 @@ public abstract class AggregationContext {
 
     /**
      * Has the search been cancelled?
+     * <p>
+     * This'll require a {@code volatile} read.
      */
     public abstract boolean isCancelled();
 

@@ -7,8 +7,6 @@ esplugin {
   name 'op-test'
   description 'An test plugin for testing hard to get internals'
   classname 'org.elasticsearch.example.OpTestPlugin'
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
 }
 
 dependencies {

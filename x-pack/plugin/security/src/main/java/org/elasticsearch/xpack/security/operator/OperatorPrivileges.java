@@ -15,20 +15,22 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
+import java.util.function.Supplier;
+
 public class OperatorPrivileges {
 
     public static final Setting<Boolean> OPERATOR_PRIVILEGES_ENABLED =
         Setting.boolSetting("xpack.security.operator_privileges.enabled", false, Setting.Property.NodeScope);
 
     private final OperatorUserDescriptor operatorUserDescriptor;
-    private final CompositeOperatorOnly compositeOperatorOnly;
+    private final OperatorOnly operatorOnly;
     private final XPackLicenseState licenseState;
     private final boolean enabled;
 
     public OperatorPrivileges(Settings settings, XPackLicenseState licenseState,
-                              OperatorUserDescriptor operatorUserDescriptor, CompositeOperatorOnly compositeOperatorOnly) {
+                              OperatorUserDescriptor operatorUserDescriptor, OperatorOnly operatorOnly) {
         this.operatorUserDescriptor = operatorUserDescriptor;
-        this.compositeOperatorOnly = compositeOperatorOnly;
+        this.operatorOnly = operatorOnly;
         this.licenseState = licenseState;
         this.enabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
     }
@@ -45,12 +47,13 @@ public class OperatorPrivileges {
         if (false == shouldProcess()) {
             return null;
         }
-        final OperatorOnly.Result operatorOnlyCheckResult = compositeOperatorOnly.check(action, request);
-        if (operatorOnlyCheckResult.getStatus() == OperatorOnly.Status.YES) {
-            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY))) {
+        if (shouldProcess() && false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
+            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY))) {
+            // Only check whether request is operator only if user is not an operator
+            final Supplier<String> messageSupplier = operatorOnly.check(action, request);
+            if (messageSupplier != null) {
                 return new ElasticsearchSecurityException(
-                    "Operator privileges are required for " + operatorOnlyCheckResult.getMessage());
+                    "Operator privileges are required for " + messageSupplier.get());
             }
         }
         return null;

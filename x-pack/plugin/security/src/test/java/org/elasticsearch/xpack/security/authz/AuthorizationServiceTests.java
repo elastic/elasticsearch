@@ -147,7 +147,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
-import org.elasticsearch.xpack.security.operator.CompositeOperatorOnly;
+import org.elasticsearch.xpack.security.operator.OperatorOnly;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorUserDescriptor;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
@@ -272,7 +272,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), any(ActionListener.class));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         final OperatorUserDescriptor operatorUserDescriptor = mock(OperatorUserDescriptor.class);
-        operatorPrivileges = new OperatorPrivileges(settings, licenseState, operatorUserDescriptor, new CompositeOperatorOnly());
+        operatorPrivileges = new OperatorPrivileges(settings, licenseState, operatorUserDescriptor, new OperatorOnly());
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
             auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings),
             null, Collections.emptySet(), licenseState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),

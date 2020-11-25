@@ -214,7 +214,7 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
-import org.elasticsearch.xpack.security.operator.CompositeOperatorOnly;
+import org.elasticsearch.xpack.security.operator.OperatorOnly;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorUserDescriptor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
@@ -477,7 +477,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
         final OperatorPrivileges operatorPrivileges = new OperatorPrivileges(settings, getLicenseState(),
-            new OperatorUserDescriptor(environment, resourceWatcherService), new CompositeOperatorOnly());
+            new OperatorUserDescriptor(environment, resourceWatcherService), new OperatorOnly());
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService, apiKeyService, operatorPrivileges));
         components.add(authcService.get());

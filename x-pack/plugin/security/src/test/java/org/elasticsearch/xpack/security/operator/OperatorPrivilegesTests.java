@@ -27,13 +27,13 @@ public class OperatorPrivilegesTests extends ESTestCase {
 
     private XPackLicenseState xPackLicenseState;
     private OperatorUserDescriptor operatorUserDescriptor;
-    private CompositeOperatorOnly compositeOperatorOnly;
+    private OperatorOnly operatorOnly;
 
     @Before
     public void init() {
         xPackLicenseState = mock(XPackLicenseState.class);
         operatorUserDescriptor = mock(OperatorUserDescriptor.class);
-        compositeOperatorOnly = mock(CompositeOperatorOnly.class);
+        operatorOnly = mock(OperatorOnly.class);
     }
 
     public void testWillNotProcessWhenFeatureIsDisabledOrLicenseDoesNotSupport() {
@@ -43,7 +43,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(false);
 
         final OperatorPrivileges operatorPrivileges =
-            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, compositeOperatorOnly);
+            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, operatorOnly);
         final ThreadContext threadContext = new ThreadContext(settings);
 
         operatorPrivileges.maybeMarkOperatorUser(mock(Authentication.class), threadContext);
@@ -52,7 +52,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final ElasticsearchSecurityException e =
             operatorPrivileges.check("cluster:action", mock(TransportRequest.class), threadContext);
         assertNull(e);
-        verifyZeroInteractions(compositeOperatorOnly);
+        verifyZeroInteractions(operatorOnly);
     }
 
     public void testMarkOperatorUser() {
@@ -66,7 +66,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(operatorUserDescriptor.isOperatorUser(nonOperatorAuth)).thenReturn(false);
 
         final OperatorPrivileges operatorPrivileges =
-            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, compositeOperatorOnly);
+            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, operatorOnly);
         ThreadContext threadContext = new ThreadContext(settings);
 
         operatorPrivileges.maybeMarkOperatorUser(operatorAuth, threadContext);
@@ -87,11 +87,11 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final String operatorAction = "cluster:operator_only/action";
         final String nonOperatorAction = "cluster:non_operator/action";
         final String message = "[" + operatorAction + "]";
-        when(compositeOperatorOnly.check(eq(operatorAction), any())).thenReturn(OperatorOnly.Result.yes(() -> message));
-        when(compositeOperatorOnly.check(eq(nonOperatorAction), any())).thenReturn(OperatorOnly.RESULT_NO);
+        when(operatorOnly.check(eq(operatorAction), any())).thenReturn(() -> message);
+        when(operatorOnly.check(eq(nonOperatorAction), any())).thenReturn(null);
 
         final OperatorPrivileges operatorPrivileges =
-            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, compositeOperatorOnly);
+            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, operatorOnly);
 
         ThreadContext threadContext = new ThreadContext(settings);
         if (randomBoolean()) {

@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.operator.CompositeOperatorOnly;
+import org.elasticsearch.xpack.security.operator.OperatorOnly;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorUserDescriptor;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -261,7 +261,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);
         final OperatorUserDescriptor operatorUserDescriptor = mock(OperatorUserDescriptor.class);
-        operatorPrivileges = new OperatorPrivileges(settings, licenseState, operatorUserDescriptor, new CompositeOperatorOnly());
+        operatorPrivileges = new OperatorPrivileges(settings, licenseState, operatorUserDescriptor, new OperatorOnly());
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, new AnonymousUser(settings), tokenService, apiKeyService, operatorPrivileges);

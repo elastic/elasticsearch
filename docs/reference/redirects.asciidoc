@@ -612,6 +612,11 @@ See <<snapshot-restore>>.
 
 See <<snapshots-repository-plugins>>.
 
+[role="exclude",id="_changing_index_settings_during_restore"]
+==== Change index settings during restore
+
+See <<change-index-settings-during-restore>>.
+
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
 
@@ -1274,7 +1279,7 @@ The moving average aggregation has been removed. Use the
 <<search-aggregations-pipeline-movfn-aggregation,moving function aggregation>>
 instead.
 
-[[fielddata]]
+[role="exclude",id="fielddata"]
 === `fielddata` mapping parameter
 
 See <<fielddata-mapping-param>>.

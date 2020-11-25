@@ -33,16 +33,17 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
@@ -73,59 +74,86 @@ public class SystemIndexManager implements ClusterStateListener {
             return;
         }
 
-        for (SystemIndexDescriptor descriptor : this.systemIndices.getSystemIndexDescriptors()) {
-            if (descriptor.isAutomaticallyManaged()) {
-                upgradeIndexMetadataIfNecessary(state, descriptor);
-            }
-        }
+        getEligibleDescriptors(state.getMetadata()).stream()
+            .filter(descriptor -> isUpgradeRequired(state, descriptor) == UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+            .forEach(this::upgradeIndexMetadata);
     }
 
-    private void upgradeIndexMetadataIfNecessary(ClusterState state, SystemIndexDescriptor descriptor) {
-        final Metadata metadata = state.metadata();
-        final String indexName = descriptor.getPrimaryIndex();
-        final String aliasName = descriptor.getAliasName();
+    List<SystemIndexDescriptor> getEligibleDescriptors(Metadata metadata) {
+        return this.systemIndices.getSystemIndexDescriptors()
+            .stream()
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .filter(d -> metadata.hasConcreteIndex(d.getPrimaryIndex()))
+            .collect(Collectors.toList());
+    }
 
-        if (metadata.hasIndex(indexName) == false) {
-            // System indices are created on-demand
-            return;
+    enum UpgradeStatus {
+        CLOSED,
+        UNHEALTHY,
+        NEEDS_UPGRADE,
+        UP_TO_DATE,
+        NEEDS_MAPPINGS_UPDATE
+    }
+
+    UpgradeStatus isUpgradeRequired(ClusterState clusterState, SystemIndexDescriptor descriptor) {
+        final State indexState = calculateIndexState(clusterState, descriptor);
+
+        final String indexDescription = "Index [" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
+
+        // The messages below will be logged on every cluster state update, which is why even in the index closed / red
+        // cases, the log levels are DEBUG.
+
+        if (indexState.indexState == IndexMetadata.State.CLOSE) {
+            logger.debug(
+                "Index {} is closed. This is likely to prevent some features from functioning correctly", indexDescription);
+            return UpgradeStatus.CLOSED;
         }
 
-        final State indexState = calculateIndexState(state, descriptor);
-        final String concreteIndexName = indexState.concreteIndexName;
+        if (indexState.indexHealth == ClusterHealthStatus.RED) {
+            logger.debug("Index {} health status is RED, any pending mapping upgrades will wait until this changes", indexDescription);
+            return UpgradeStatus.UNHEALTHY;
+        }
 
         if (indexState.isIndexUpToDate == false) {
             logger.debug(
-                "Index [{}] (alias [{}]) is not on the current version. "
-                    + "Features relying on the index will not be available until the index is upgraded",
-                concreteIndexName,
-                aliasName
+                "Index {} is not on the current version. Features relying "
+                    + "on the index will not be available until the index is upgraded",
+                indexDescription
             );
-        } else if (indexState.mappingUpToDate == false) {
-            logger.info("Index [{}] (alias [{}]) mappings are not up to date and will be updated", concreteIndexName, aliasName);
-            PutMappingRequest request = new PutMappingRequest(concreteIndexName).source(descriptor.getMappings(), XContentType.JSON);
-
-            final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
-
-            originSettingClient.admin().indices().putMapping(request, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (acknowledgedResponse.isAcknowledged() == false) {
-                        logger.error("Put mapping request for [{}] was not acknowledged", concreteIndexName);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Put mapping request for [" + concreteIndexName + "] failed", e);
-                }
-            });
+            return UpgradeStatus.NEEDS_UPGRADE;
+        } else if (indexState.mappingUpToDate) {
+            logger.trace("Index {} is up-to-date, no action required", indexDescription);
+            return UpgradeStatus.UP_TO_DATE;
         } else {
-            logger.trace("Index [{}] (alias [{}]) is up-to-date, no action required", concreteIndexName, aliasName);
+            logger.info("Index {} mappings are not up-to-date and will be updated", indexDescription);
+            return UpgradeStatus.NEEDS_MAPPINGS_UPDATE;
         }
     }
 
-    private State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
-        final IndexMetadata indexMetadata = resolveConcreteIndex(state.metadata(), descriptor.getPrimaryIndex());
+    private void upgradeIndexMetadata(SystemIndexDescriptor descriptor) {
+        final String indexName = descriptor.getPrimaryIndex();
+
+        PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);
+
+        final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
+
+        originSettingClient.admin().indices().putMapping(request, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                if (acknowledgedResponse.isAcknowledged() == false) {
+                    logger.error("Put mapping request for [{}] was not acknowledged", indexName);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Put mapping request for [" + indexName + "] failed", e);
+            }
+        });
+    }
+
+    State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
+        final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
         assert indexMetadata != null;
 
         final boolean isIndexUpToDate = INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == descriptor.getIndexFormat();
@@ -133,47 +161,36 @@ public class SystemIndexManager implements ClusterStateListener {
         final boolean isMappingIsUpToDate = checkIndexMappingUpToDate(descriptor, indexMetadata);
         final String concreteIndexName = indexMetadata.getIndex().getName();
 
-        if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+        final ClusterHealthStatus indexHealth;
+        final IndexMetadata.State indexState = indexMetadata.getState();
+
+        if (indexState == IndexMetadata.State.CLOSE) {
+            indexHealth = null;
             logger.warn(
                 "Index [{}] (alias [{}]) is closed. This is likely to prevent some features from functioning correctly",
                 concreteIndexName,
                 descriptor.getAliasName()
             );
+        } else {
+            final IndexRoutingTable routingTable = state.getRoutingTable().index(indexMetadata.getIndex());
+            indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
         }
 
-        return new State(isIndexUpToDate, isMappingIsUpToDate, concreteIndexName);
-    }
-
-    /**
-     * Resolves a concrete index name or alias to a {@link IndexMetadata} instance.  Requires
-     * that if supplied with an alias, the alias resolves to at most one concrete index.
-     */
-    private IndexMetadata resolveConcreteIndex(final Metadata metadata, final String aliasOrIndexName) {
-        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(aliasOrIndexName);
-        if (indexAbstraction != null) {
-            final List<IndexMetadata> indices = indexAbstraction.getIndices();
-            if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
-                throw new IllegalStateException(
-                    "Alias ["
-                        + aliasOrIndexName
-                        + "] points to more than one index: "
-                        + indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList())
-                );
-            }
-            return indices.get(0);
-        }
-        return null;
+        return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
     }
 
     private boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
-        Set<Version> versions = mappingMetadata == null ? Set.of() : Set.of(readMappingVersion(descriptor, mappingMetadata));
-        return versions.stream().allMatch(Version.CURRENT::equals);
+        if (mappingMetadata == null) {
+            return false;
+        }
+
+        return Version.CURRENT.equals(readMappingVersion(descriptor, mappingMetadata));
     }
 
     @SuppressWarnings("unchecked")
     private Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
-        final String indexName = descriptor.getIndexPattern();
+        final String indexName = descriptor.getPrimaryIndex();
         try {
             Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {
@@ -187,15 +204,17 @@ public class SystemIndexManager implements ClusterStateListener {
         }
     }
 
-    private static class State {
+    static class State {
+        final IndexMetadata.State indexState;
+        final ClusterHealthStatus indexHealth;
         final boolean isIndexUpToDate;
         final boolean mappingUpToDate;
-        final String concreteIndexName;
 
-        State(boolean isIndexUpToDate, boolean mappingUpToDate, String concreteIndexName) {
+        State(IndexMetadata.State indexState, ClusterHealthStatus indexHealth, boolean isIndexUpToDate, boolean mappingUpToDate) {
+            this.indexState = indexState;
+            this.indexHealth = indexHealth;
             this.isIndexUpToDate = isIndexUpToDate;
             this.mappingUpToDate = mappingUpToDate;
-            this.concreteIndexName = concreteIndexName;
         }
     }
 }

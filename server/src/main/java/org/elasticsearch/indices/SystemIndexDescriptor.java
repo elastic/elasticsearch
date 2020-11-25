@@ -55,7 +55,7 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, indexPattern, description, null, null, null, 0, null, null);
+        this(indexPattern, null, description, null, null, null, 0, null, null);
     }
 
     /**
@@ -85,14 +85,15 @@ public class SystemIndexDescriptor {
                 "] but must not start with the character sequence [.*] to prevent conflicts");
         }
 
-        Objects.requireNonNull(primaryIndex, "system primary index must not be null");
-        if (primaryIndex.charAt(0) != '.') {
-            throw new IllegalArgumentException("system primary index provided as [" + indexPattern +
-                "] but must start with the character [.]");
-        }
-        if (primaryIndex.matches("^\\.[\\w-]+$") == false) {
-            throw new IllegalArgumentException("system primary index provided as [" + primaryIndex +
-                "] but cannot contain special characters or pattern");
+        if (primaryIndex != null) {
+            if (primaryIndex.charAt(0) != '.') {
+                throw new IllegalArgumentException(
+                    "system primary index provided as [" + indexPattern + "] but must start with the character [.]");
+            }
+            if (primaryIndex.matches("^\\.[\\w-]+$") == false) {
+                throw new IllegalArgumentException(
+                    "system primary index provided as [" + primaryIndex + "] but cannot contain special characters or pattern");
+            }
         }
 
         if (indexFormat < 0) {

@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -108,26 +109,25 @@ public class TransportTermEnumAction extends TransportBroadcastAction<
         return new ShardTermEnumResponse(in);
     }
 
+    // (Not great that we've copied the xpack setting name as a string here....)
+    private static final String TIER_PREFERENCE = IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._tier_preference";
+    
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, TermEnumRequest request, String[] concreteIndices) {
-        final String routing;
-
-        // TODO filter out cold/frozen shards and those with DLS or FLS on the target field.
-
-        // if (request.allShards()) {
-        routing = null;
-        // } else {
-        // // Random routing to limit request to a single shard
-        // routing = Integer.toString(Randomness.get().nextInt(1000));
-        // }\
+        final String routing = null;
         
-        // Remove any frozen indices from the set of indices to be searched.
+        // Remove any cold or frozen indices from the set of indices to be searched.
+        // TODO This feels presumptive to hard code here - a policy perhaps better added as 
+        // a form of index routing logic applicable to multiple APIs?
         ArrayList<String> fastIndices = new ArrayList<>();
         for (String indexName : concreteIndices) {
             Settings settings = clusterState.metadata().index(indexName).getSettings();            
-            final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);
             // Search throttled is the indicator used to signify a frozen index?
-            if (searchThrottled == false) {
+            final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);
+            // Cold indices managed by data streams are detect-able by their allocation preference.
+            // Older custom solutions for cold tiers can't be detected. 
+            boolean isCold = "data_cold".equals(settings.get(TIER_PREFERENCE, "no preference"));
+            if (searchThrottled == false && isCold == false) {
                 fastIndices.add(indexName);
             }            
         }

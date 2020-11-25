@@ -344,6 +344,15 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
+    @Override
+    public double bucketSize(Rounding.DateTimeUnit unitSize) {
+        if (unitSize != null) {
+            return preparedRounding.roundingSize(unitSize);
+        } else {
+            return 1.0;
+        }
+    }
+
     static class FromDateRange extends AdaptingAggregator implements SizedBucketAggregator {
         private final DocValueFormat format;
         private final Rounding rounding;
@@ -427,6 +436,15 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             if (unitSize != null) {
                 long startPoint = bucket < fixedRoundingPoints.length ? fixedRoundingPoints[(int) bucket] : Long.MIN_VALUE;
                 return preparedRounding.roundingSize(startPoint, unitSize);
+            } else {
+                return 1.0;
+            }
+        }
+
+        @Override
+        public double bucketSize(DateTimeUnit unitSize) {
+            if (unitSize != null) {
+                return preparedRounding.roundingSize(unitSize);
             } else {
                 return 1.0;
             }

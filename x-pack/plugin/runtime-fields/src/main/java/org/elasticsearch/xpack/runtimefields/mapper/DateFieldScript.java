@@ -35,21 +35,26 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         DateFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public static final Factory PARSE_FROM_SOURCE =
-        (field, params, lookup, formatter) -> (LeafFactory) ctx -> new DateFieldScript(field, params, lookup, formatter, ctx) {
-            @Override
-            public void execute() {
-                for (Object v : extractFromSource(field)) {
-                    if (v instanceof String) {
-                        try {
-                            emit(formatter.parseMillis((String)v));
-                        } catch (Exception e) {
-                            // ignore
-                        }
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup, formatter) -> (LeafFactory) ctx -> new DateFieldScript(
+        field,
+        params,
+        lookup,
+        formatter,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v instanceof String) {
+                    try {
+                        emit(formatter.parseMillis((String) v));
+                    } catch (Exception e) {
+                        // ignore
                     }
                 }
             }
-        };
+        }
+    };
 
     private final DateFormatter formatter;
 

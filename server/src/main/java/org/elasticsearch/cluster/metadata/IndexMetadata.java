@@ -160,7 +160,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         "index.number_of_routing_shards",
         INDEX_NUMBER_OF_SHARDS_SETTING,
         1,
-        new Setting.Validator<>() {
+        //noinspection Convert2Diamond since some IntelliJs mysteriously report an error if the <Integer> is replaced with <> here:
+        new Setting.Validator<Integer>() {
 
             @Override
             public void validate(final Integer value) {

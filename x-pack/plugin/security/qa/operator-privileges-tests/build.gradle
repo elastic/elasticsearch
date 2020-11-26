@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.java-rest-test'
 esplugin {
   name 'op-test'
   description 'An test plugin for testing hard to get internals'
-  classname 'org.elasticsearch.example.OpTestPlugin'
+  classname 'org.elasticsearch.xpack.security.operator.OpTestPlugin'
 }
 
 dependencies {

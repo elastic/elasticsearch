@@ -11,13 +11,16 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -84,13 +87,20 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testAllActionsAreEitherOperatorOnlyOrNonOperator() throws IOException {
+    public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
+        Set<String> doubleLabelled = Sets.intersection(Constants.NON_OPERATOR_ACTIONS, OperatorOnlyRegistry.SIMPLE_ACTIONS);
+        assertTrue("Actions are both operator-only and non-operator", doubleLabelled.isEmpty());
+
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
-        List<String> allActions = (List<String>) response.get("actions");
-        assertFalse(allActions.isEmpty());
-        allActions.removeAll(OperatorOnlyRegistry.SIMPLE_ACTIONS);
-        allActions.removeAll(Constants.NON_OPERATOR_ACTIONS);
-        assertTrue(allActions.isEmpty());
+        Set<String> allActions = Set.copyOf((List<String>) response.get("actions"));
+        final HashSet<String> labelledActions = new HashSet<>(OperatorOnlyRegistry.SIMPLE_ACTIONS);
+        labelledActions.addAll(Constants.NON_OPERATOR_ACTIONS);
+
+        final Set<String> unlabelledActions = Sets.difference(allActions, labelledActions);
+        assertTrue("Actions are neither operator-only nor non-operator", unlabelledActions.isEmpty());
+
+        final Set<String> redundantLabelledActions = Sets.difference(labelledActions, allActions);
+        assertTrue("Actions are no longer valid", redundantLabelledActions.isEmpty());
     }
 }

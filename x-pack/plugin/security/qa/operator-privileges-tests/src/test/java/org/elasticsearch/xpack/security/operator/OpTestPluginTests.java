@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.example;
+package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.test.ESTestCase;
 

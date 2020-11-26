@@ -48,7 +48,7 @@ restResources {
   }
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
@@ -82,21 +82,21 @@ testClusters.integTest {
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
-}
 
-// build the cluster with all plugins
-project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
-  /* Skip repositories. We just aren't going to be able to test them so it
-   * doesn't make sense to waste time installing them.
-   */
-  if (subproj.path.startsWith(':plugins:repository-')) {
-    return
+  // build the cluster with all plugins
+  project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
+    /* Skip repositories. We just aren't going to be able to test them so it
+     * doesn't make sense to waste time installing them.
+     */
+    if (subproj.path.startsWith(':plugins:repository-')) {
+      return
+    }
+    // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
+    if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
+      return
+    }
+    plugin subproj.path
   }
-  // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-  if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
-    return
-  }
-  testClusters.integTest.plugin subproj.path
 }
 
 buildRestTests.docs = fileTree(projectDir) {

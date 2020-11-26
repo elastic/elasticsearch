@@ -46,6 +46,8 @@ setup:
         body:
           "@timestamp": "2020-01-01"
           message: "test-log-message"
+          source.ip: "10.1.2.3"
+          log.file.path: "/var/log/web/access.log"
 
   - do:
       indices.get_data_stream:
@@ -64,7 +66,9 @@ setup:
   - is_true: \.ds-logs-foo-bar-000001.settings
   - is_true: \.ds-logs-foo-bar-000001.mappings
   - match: { \.ds-logs-foo-bar-000001.settings.index.lifecycle.name: "logs" }
-  - is_true: \.ds-logs-foo-bar-000001.mappings.properties.message
+  - match: { \.ds-logs-foo-bar-000001.mappings.properties.message.type: "text" }
+  - match: { \.ds-logs-foo-bar-000001.mappings.properties.source.properties.ip.type: "ip" }
+  - match: { \.ds-logs-foo-bar-000001.mappings.properties.log.properties.file.properties.path.type: "keyword" }
   - match: { \.ds-logs-foo-bar-000001.data_stream: "logs-foo-bar" }
 
   - do:

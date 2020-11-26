@@ -251,16 +251,10 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testIgnoreAbove() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "keyword")
-                    .field("ignore_above", 20)
-                .endObject()
-            .endObject()
-        .endObject();
-
-        MapperService mapperService = createMapperService(mapping);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("ignore_above", 20);
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "value", "other_value", "really_really_long_value")
@@ -277,17 +271,15 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testFieldAliases() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field").field("type", "keyword").endObject()
-                .startObject("alias_field")
-                    .field("type", "alias")
-                    .field("path", "field")
-                .endObject()
-            .endObject()
-        .endObject();
-
-        MapperService mapperService = createMapperService(mapping);
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field").field("type", "keyword").endObject();
+            b.startObject("alias_field");
+            {
+                b.field("type", "alias");
+                b.field("path", "field");
+            }
+            b.endObject();
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
@@ -308,18 +300,14 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testMultiFields() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "integer")
-                    .startObject("fields")
-                        .startObject("keyword").field("type", "keyword").endObject()
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject();
-
-        MapperService mapperService = createMapperService(mapping);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "integer");
+            b.startObject("fields");
+            {
+                b.startObject("keyword").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", 42)
@@ -340,23 +328,22 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testCopyTo() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "keyword")
-                .endObject()
-                .startObject("other_field")
-                    .field("type", "integer")
-                    .field("copy_to", "field")
-                .endObject()
-                .startObject("yet_another_field")
-                    .field("type", "keyword")
-                    .field("copy_to", "field")
-                .endObject()
-            .endObject()
-        .endObject();
 
-        MapperService mapperService = createMapperService(mapping);
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field").field("type", "keyword").endObject();
+            b.startObject("other_field");
+            {
+                b.field("type", "integer");
+                b.field("copy_to", "field");
+            }
+            b.endObject();
+            b.startObject("yet_another_field");
+            {
+                b.field("type", "keyword");
+                b.field("copy_to", "field");
+            }
+            b.endObject();
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "one", "two", "three")
@@ -386,17 +373,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testTextSubFields() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "text")
-                    .startObject("index_prefixes").endObject()
-                    .field("index_phrases", true)
-                .endObject()
-            .endObject()
-        .endObject();
-
-        MapperService mapperService = createMapperService(mapping);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("index_prefixes").endObject();
+            b.field("index_phrases", true);
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "some text")

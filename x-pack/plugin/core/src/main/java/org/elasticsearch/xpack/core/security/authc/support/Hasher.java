@@ -710,6 +710,6 @@ public enum Hasher {
     private static char[] hashSha512(SecureString text) {
         MessageDigest md = MessageDigests.sha512();
         md.update(CharArrays.toUtf8Bytes(text.getChars()));
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(md.digest()).toCharArray();
+        return MessageDigests.toHexCharArray(md.digest());
     }
 }

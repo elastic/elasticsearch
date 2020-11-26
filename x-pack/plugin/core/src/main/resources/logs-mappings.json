@@ -18,7 +18,9 @@
             "mapping": {
               "type": "ip"
             }
-          },
+          }
+        },
+        {
           "match_message": {
             "match_mapping_type": "string",
             "match":   "message",

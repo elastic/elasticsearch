@@ -85,6 +85,8 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
 
                 var lastResultOutput = lastResult.stdout.trim();
+                // docker returns 0/success if the daemon is not running, so we need to check the
+                // output before continuing
                 if (lastResult.isSuccess() && dockerDaemonIsRunning(lastResultOutput)) {
 
                     version = Version.fromString(lastResultOutput, Version.Mode.RELAXED);

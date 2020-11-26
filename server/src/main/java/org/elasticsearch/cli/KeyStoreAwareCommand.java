@@ -70,11 +70,11 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
      * Decrypt the {@code keyStore}, prompting the user to enter the password in the {@link Terminal} if it is password protected
      */
     protected static void decryptKeyStore(KeyStoreWrapper keyStore, Terminal terminal)
-        throws UserException, GeneralSecurityException, IOException {
+        throws UserException, IOException {
         try (SecureString keystorePassword = keyStore.hasPassword() ?
             readPassword(terminal, false) : new SecureString(new char[0])) {
             keyStore.decrypt(keystorePassword.getChars());
-        } catch (SecurityException e) {
+        } catch (SecurityException | GeneralSecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         }
     }

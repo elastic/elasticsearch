@@ -80,7 +80,7 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         this.translogSizeInBytes += translogStats.translogSizeInBytes;
         this.uncommittedOperations += translogStats.uncommittedOperations;
         this.uncommittedSizeInBytes += translogStats.uncommittedSizeInBytes;
-        if (this.earliestLastModifiedAge < 1) {
+        if (this.earliestLastModifiedAge == 0) {
             this.earliestLastModifiedAge = translogStats.earliestLastModifiedAge;
         } else {
             this.earliestLastModifiedAge =

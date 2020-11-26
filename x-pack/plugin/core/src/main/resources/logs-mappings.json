@@ -3,18 +3,9 @@
     "mappings": {
       "dynamic_templates": [
         {
-          "strings_as_keyword": {
-            "mapping": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "match_mapping_type": "string"
-          }
-        },
-        {
           "match_ip": {
             "match_mapping_type": "string",
-            "match":   "ip",
+            "match": "ip",
             "mapping": {
               "type": "ip"
             }
@@ -23,11 +14,20 @@
         {
           "match_message": {
             "match_mapping_type": "string",
-            "match":   "message",
+            "match": "message",
             "mapping": {
               "type": "text",
               "norms": false
             }
+          }
+        },
+        {
+          "strings_as_keyword": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "match_mapping_type": "string"
           }
         }
       ],

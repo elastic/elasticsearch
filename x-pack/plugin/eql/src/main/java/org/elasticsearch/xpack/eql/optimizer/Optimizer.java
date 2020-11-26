@@ -114,7 +114,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
             return filter.transformExpressionsUp(e -> {
-                // expr : "wildcard*phrase" || expr !: "wildcard*phrase"
+                // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
                 if (e instanceof InsensitiveBinaryComparison) {
                     InsensitiveBinaryComparison cmp = (InsensitiveBinaryComparison) e;
 
@@ -144,7 +144,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private static boolean isWildcard(Expression expr) {
             if (expr instanceof Literal) {
                 Object value = expr.fold();
-                return value instanceof String && ((String) value).contains("*");
+                if (value instanceof String) {
+                    String string = (String) value;
+                    return string.contains("*") || string.contains("?");
+                }
             }
             return false;
         }

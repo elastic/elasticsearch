@@ -85,6 +85,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME;
@@ -247,8 +248,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SystemIndexDescriptor.builder()
                 .setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX)
                 .setDescription("Contains cached data of blob store repositories")
+                .setPrimaryIndex(SNAPSHOT_BLOB_CACHE_INDEX)
                 .setMappings(getIndexMappings())
                 .setSettings(getIndexSettings())
+                .setOrigin(SEARCHABLE_SNAPSHOTS_ORIGIN)
+                .setVersionMetaKey("version")
                 .build()
         );
     }

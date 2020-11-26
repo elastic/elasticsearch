@@ -40,6 +40,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATION_TIME_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.HEADERS_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.RESPONSE_HEADERS_FIELD;
@@ -59,8 +60,11 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
             SystemIndexDescriptor.builder()
                 .setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX)
                 .setDescription(this.getClass().getSimpleName())
+                .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
                 .setMappings(getMappings())
                 .setSettings(getIndexSettings())
+                .setVersionMetaKey("version")
+                .setOrigin(LOGSTASH_MANAGEMENT_ORIGIN)
                 .build()
         );
     }

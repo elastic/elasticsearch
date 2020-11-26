@@ -283,6 +283,18 @@ public class SystemIndexDescriptor {
         public SystemIndexDescriptor build() {
             String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
+            Strings.requireNonEmpty(indexPattern, "indexPattern must be supplied");
+
+            if (mappings != null || settings != null) {
+                Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex if mappings or settings are defined");
+                Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey if mappings or settings are defined");
+                Strings.requireNonEmpty(origin, "Must supply origin if mappings or settings are defined");
+            }
+
+            if (indexFormat < 0) {
+                throw new IllegalArgumentException("indexFormat must be >= 0");
+            }
+
             return new SystemIndexDescriptor(
                 indexPattern,
                 primaryIndex,

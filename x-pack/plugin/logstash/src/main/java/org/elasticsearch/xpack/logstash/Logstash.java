@@ -43,6 +43,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
 
 /**
  * This class supplies the logstash featureset and templates
@@ -82,10 +83,12 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         return List.of(
             SystemIndexDescriptor.builder()
                 .setIndexPattern(LOGSTASH_CONCRETE_INDEX_NAME)
+                .setPrimaryIndex(LOGSTASH_CONCRETE_INDEX_NAME)
                 .setDescription("Contains data for Logstash Central Management")
                 .setMappings(getIndexMappings())
                 .setSettings(getIndexSettings())
                 .setVersionMetaKey("logstash-version")
+                .setOrigin(LOGSTASH_MANAGEMENT_ORIGIN)
                 .build()
         );
     }

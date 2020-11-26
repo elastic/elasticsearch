@@ -12,8 +12,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.MediaTypeRegistry;
@@ -34,11 +33,7 @@ import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import java.io.IOException;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.license.LicenseService.GRACE_PERIOD_DURATION;
-import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
+import java.util.Map;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -67,7 +62,6 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
-    @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (licenseState.isSecurityEnabled() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
@@ -79,21 +73,10 @@ public class SecurityRestFilter implements RestHandler {
             final String requestUri = request.uri();
             authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {
-                    long now = System.currentTimeMillis();
-                    long licenseExpirationDate = licenseState.getLicenseExpiryDate();
                     if (authentication == null) {
                         logger.trace("No authentication available for REST request [{}]", requestUri);
                     } else {
                         logger.trace("Authenticated REST request [{}] as {}", requestUri, authentication);
-                    }
-                    if (now > licenseExpirationDate - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() &&
-                    now < licenseExpirationDate + GRACE_PERIOD_DURATION.getMillis()) {
-                        final long days = TimeUnit.MILLISECONDS.toDays(licenseExpirationDate - now);
-                        final String expiryMessage = days == 0? "expires today":
-                            (days > 0? String.format(Locale.ROOT, "will expire in [%d] days", days):
-                                String.format(Locale.ROOT, "has expired [%d] days ago", Math.abs(days)));
-                        HeaderWarning.addWarning("Your license {}. " +
-                            "Contact your administrator or update your license for continued use of features", expiryMessage);
                     }
                     secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(
                         secondaryAuthentication -> {
@@ -118,6 +101,14 @@ public class SecurityRestFilter implements RestHandler {
 
                 @Override
                 protected boolean skipStackTrace() { return restStatus == RestStatus.UNAUTHORIZED; }
+
+                @Override
+                public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
+                    if (headers.containsKey("Warning")) {
+                        return Maps.copyMapWithRemovedEntry(headers, "Warning");
+                    }
+                    return headers;
+                }
 
             });
         } catch (Exception inner) {

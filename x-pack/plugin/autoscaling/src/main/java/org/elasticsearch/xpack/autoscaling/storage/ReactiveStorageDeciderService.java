@@ -73,18 +73,19 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         AllocationState allocationState = new AllocationState(context, diskThresholdSettings);
         long unassigned = allocationState.storagePreventsAllocation();
         long assigned = allocationState.storagePreventsRemainOrMove();
-        if (unassigned > 0 || assigned > 0) {
-            AutoscalingCapacity plusOne = AutoscalingCapacity.builder()
-                .total(autoscalingCapacity.tier().storage().getBytes() + unassigned + assigned, null)
-                .build();
-            return new AutoscalingDeciderResult(
-                plusOne,
-                new ReactiveReason("not enough storage available, needs " + (unassigned + assigned), unassigned, assigned)
-            );
-        } else {
-            AutoscalingCapacity ok = AutoscalingCapacity.builder().total(autoscalingCapacity.tier().storage(), null).build();
-            return new AutoscalingDeciderResult(ok, new ReactiveReason("storage ok", unassigned, assigned));
-        }
+        long maxShard = allocationState.maxShardSize();
+        assert assigned >= 0;
+        assert unassigned >= 0;
+        assert maxShard >= 0;
+        String message = unassigned > 0 || assigned > 0 ? "not enough storage available, needs " + (unassigned + assigned) : "storage ok";
+        AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
+            .total(autoscalingCapacity.tier().storage().getBytes() + unassigned + assigned, null)
+            .node(maxShard, null)
+            .build();
+        return new AutoscalingDeciderResult(
+            requiredCapacity,
+            new ReactiveReason(message, unassigned, assigned)
+        );
     }
 
     static boolean isDiskOnlyNoDecision(Decision decision) {
@@ -277,6 +278,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public ClusterState state() {
             return state;
+        }
+
+        private long maxShardSize() {
+            return nodesInTier(state().getRoutingNodes(), nodeTierPredicate).flatMap(rn -> rn.copyShards().stream()).mapToLong(this::sizeOf).max().orElse(0L);
         }
     }
 

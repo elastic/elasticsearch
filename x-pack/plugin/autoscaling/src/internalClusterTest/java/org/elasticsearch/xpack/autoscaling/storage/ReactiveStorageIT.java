@@ -85,6 +85,7 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
         IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setStore(true).get();
         long used = stats.getTotal().getStore().getSizeInBytes();
         long minShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).min().orElseThrow();
+        long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
         long enoughSpace = used + WATERMARK_BYTES + 1;
         setTotalSpace(dataNodeName, enoughSpace);
 
@@ -92,6 +93,7 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace));
+        assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
 
         setTotalSpace(dataNodeName, enoughSpace - 2);
 
@@ -101,6 +103,7 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
         assertThat(response.results().get(policyName).requiredCapacity().tier().storage().getBytes(), Matchers.greaterThan(enoughSpace - 2));
         assertThat(response.results().get(policyName).requiredCapacity().tier().storage().getBytes(),
             Matchers.lessThanOrEqualTo(enoughSpace + minShardSize));
+        assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
     }
 
     public void setTotalSpace(String dataNodeName, long totalSpace) {

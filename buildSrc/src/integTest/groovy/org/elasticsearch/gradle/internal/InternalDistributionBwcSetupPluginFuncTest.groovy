@@ -80,7 +80,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         and: "assemble task triggered"
         result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
-        normalizedOutput(result.output)
+        normalized(result.output)
                 .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/distribution/archives/darwin-tar/" +
                         "build/distributions/elasticsearch-8.0.1-SNAPSHOT-darwin-x86_64.tar.gz")
     }
@@ -117,7 +117,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         and: "assemble task triggered"
         result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
-        normalizedOutput(result.output)
+        normalized(result.output)
                 .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/" +
                         "distribution/archives/darwin-tar/build/install")
     }

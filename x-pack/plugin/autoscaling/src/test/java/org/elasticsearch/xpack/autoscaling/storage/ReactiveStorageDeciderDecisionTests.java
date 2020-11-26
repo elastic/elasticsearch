@@ -92,7 +92,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     );
 
     private ClusterState state;
-    private int numHotShards;
     private final int hotNodes = randomIntBetween(1, 8);
     private final int warmNodes = randomIntBetween(1, 3);
     // these are the shards that the decider tests work on
@@ -127,9 +126,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         );
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
         state = addRandomIndices(hotNodes, hotNodes, state);
-        this.numHotShards = StreamSupport.stream(state.metadata().indices().values().spliterator(), false)
-            .mapToInt(index -> index.value.getTotalNumberOfShards())
-            .sum();
         state = addDataNodes("data_hot", "hot", state, hotNodes);
         state = addDataNodes("data_warm", "warm", state, warmNodes);
         this.state = state;
@@ -170,8 +166,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         assertThat(state, sameInstance(lastState));
         assertThat(
             new ReactiveStorageDeciderService.AllocationState(
-                createContext(mockCanAllocateDiskDecider),
-                new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+                createContext(),
+                new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+                createAllocationDeciders(mockCanAllocateDiskDecider)
             ).state(),
             sameInstance(state)
         );
@@ -293,8 +290,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     public void verify(MissingEstimator subject, long expected, AllocationDecider... allocationDeciders) {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
-            createContext(DataTier.DATA_HOT_NODE_ROLE, allocationDeciders),
-            DISK_THRESHOLD_SETTINGS
+            createContext(DataTier.DATA_HOT_NODE_ROLE),
+            DISK_THRESHOLD_SETTINGS,
+            createAllocationDeciders(allocationDeciders)
         );
         assertThat(subject.invoke(allocationState), equalTo(expected));
     }
@@ -306,9 +304,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     public static void verifyScale(ClusterState state, long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            createAllocationDeciders(allocationDeciders)
         );
-        TestAutoscalingDeciderContext context = createContext(state, Set.of(DataTier.DATA_HOT_NODE_ROLE), allocationDeciders);
+        TestAutoscalingDeciderContext context = createContext(state, Set.of(DataTier.DATA_HOT_NODE_ROLE));
         AutoscalingDeciderResult result = decider.scale(Settings.EMPTY, context);
         if (context.currentCapacity != null) {
             assertThat(
@@ -428,20 +427,16 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     }
 
-    private TestAutoscalingDeciderContext createContext(AllocationDecider... allocationDeciders) {
-        return createContext(state, Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE), allocationDeciders);
+    private TestAutoscalingDeciderContext createContext() {
+        return createContext(state, Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE));
     }
 
-    private TestAutoscalingDeciderContext createContext(DiscoveryNodeRole role, AllocationDecider... allocationDeciders) {
-        return createContext(state, Set.of(role), allocationDeciders);
+    private TestAutoscalingDeciderContext createContext(DiscoveryNodeRole role) {
+        return createContext(state, Set.of(role));
     }
 
-    private static TestAutoscalingDeciderContext createContext(
-        ClusterState state,
-        Set<DiscoveryNodeRole> roles,
-        AllocationDecider... allocationDeciders
-    ) {
-        return new TestAutoscalingDeciderContext(state, roles, createAllocationDeciders(allocationDeciders), randomCurrentCapacity());
+    private static TestAutoscalingDeciderContext createContext(ClusterState state, Set<DiscoveryNodeRole> roles) {
+        return new TestAutoscalingDeciderContext(state, roles, randomCurrentCapacity());
     }
 
     private static AutoscalingCapacity randomCurrentCapacity() {
@@ -459,20 +454,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private static class TestAutoscalingDeciderContext implements AutoscalingDeciderContext {
         private final ClusterState state;
-        private final AllocationDeciders allocationDeciders;
         private final AutoscalingCapacity currentCapacity;
         private final Set<DiscoveryNode> nodes;
         private final Set<DiscoveryNodeRole> roles;
         private ClusterInfo info;
 
-        private TestAutoscalingDeciderContext(
-            ClusterState state,
-            Set<DiscoveryNodeRole> roles,
-            AllocationDeciders allocationDeciders,
-            AutoscalingCapacity currentCapacity
-        ) {
+        private TestAutoscalingDeciderContext(ClusterState state, Set<DiscoveryNodeRole> roles, AutoscalingCapacity currentCapacity) {
             this.state = state;
-            this.allocationDeciders = allocationDeciders;
             this.currentCapacity = currentCapacity;
             this.roles = roles;
             this.nodes = StreamSupport.stream(state.nodes().spliterator(), false)
@@ -511,11 +499,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         @Override
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return null;
-        }
-
-        @Override
-        public AllocationDeciders allocationDeciders() {
-            return allocationDeciders;
         }
     }
 

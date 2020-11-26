@@ -48,9 +48,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     private static final Logger logger = LogManager.getLogger(ReactiveStorageDeciderService.class);
     private final DiskThresholdSettings diskThresholdSettings;
+    private final AllocationDeciders allocationDeciders;
 
-    public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings) {
+    public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
+        this.allocationDeciders = allocationDeciders;
     }
 
     @Override
@@ -70,7 +72,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return new AutoscalingDeciderResult(null, new ReactiveReason("current capacity not available", -1, -1));
         }
 
-        AllocationState allocationState = new AllocationState(context, diskThresholdSettings);
+        AllocationState allocationState = new AllocationState(context, diskThresholdSettings, allocationDeciders);
         long unassigned = allocationState.storagePreventsAllocation();
         long assigned = allocationState.storagePreventsRemainOrMove();
         long maxShard = allocationState.maxShardSize();
@@ -108,10 +110,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final SnapshotShardSizeInfo shardSizeInfo;
         private final Predicate<DiscoveryNode> nodeTierPredicate;
 
-        public AllocationState(AutoscalingDeciderContext context, DiskThresholdSettings diskThresholdSettings) {
+        public AllocationState(
+            AutoscalingDeciderContext context,
+            DiskThresholdSettings diskThresholdSettings,
+            AllocationDeciders allocationDeciders
+        ) {
             this(
                 context.state(),
-                context.allocationDeciders(),
+                allocationDeciders,
                 diskThresholdSettings,
                 context.info(),
                 context.snapshotShardSizeInfo(),

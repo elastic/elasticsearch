@@ -38,11 +38,9 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class AutoscalingCalculateCapacityService implements PolicyValidator {
-    private final AllocationDeciders allocationDeciders;
     private final Map<String, AutoscalingDeciderService> deciderByName;
 
-    public AutoscalingCalculateCapacityService(Set<AutoscalingDeciderService> deciders, AllocationDeciders allocationDeciders) {
-        this.allocationDeciders = allocationDeciders;
+    public AutoscalingCalculateCapacityService(Set<AutoscalingDeciderService> deciders) {
         assert deciders.size() >= 1; // always have fixed
         this.deciderByName = deciders.stream().collect(Collectors.toMap(AutoscalingDeciderService::name, Function.identity()));
     }
@@ -87,12 +85,10 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             AutoscalingCalculateCapacityService autoscalingCalculateCapacityService = servicesSetOnce.get();
             if (autoscalingCalculateCapacityService == null) {
                 autoscalingCalculateCapacityService = new AutoscalingCalculateCapacityService(
-                    autoscaling.createDeciderServices(),
-                    allocationDeciders
+                    autoscaling.createDeciderServices(allocationDeciders)
                 );
                 servicesSetOnce.set(autoscalingCalculateCapacityService);
             }
-            assert autoscalingCalculateCapacityService.allocationDeciders == allocationDeciders;
             return autoscalingCalculateCapacityService;
         }
     }
@@ -145,7 +141,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo
     ) {
-        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, allocationDeciders);
+        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo);
     }
 
     /**
@@ -165,7 +161,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
     static class DefaultAutoscalingDeciderContext implements AutoscalingDeciderContext {
 
         private final SortedSet<DiscoveryNodeRole> roles;
-        private final AllocationDeciders allocationDeciders;
         private final ClusterState state;
         private final ClusterInfo clusterInfo;
         private final SnapshotShardSizeInfo snapshotShardSizeInfo;
@@ -177,11 +172,9 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             SortedSet<String> roles,
             ClusterState state,
             ClusterInfo clusterInfo,
-            SnapshotShardSizeInfo snapshotShardSizeInfo,
-            AllocationDeciders allocationDeciders
+            SnapshotShardSizeInfo snapshotShardSizeInfo
         ) {
             this.roles = roles.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
-            this.allocationDeciders = allocationDeciders;
             Objects.requireNonNull(state);
             Objects.requireNonNull(clusterInfo);
             this.state = state;
@@ -276,11 +269,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         @Override
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return snapshotShardSizeInfo;
-        }
-
-        @Override
-        public AllocationDeciders allocationDeciders() {
-            return allocationDeciders;
         }
     }
 }

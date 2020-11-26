@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -46,10 +45,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
     public void testMultiplePoliciesFixedCapacity() {
-        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            Set.of(new FixedAutoscalingDeciderService()),
-            null
-        );
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> "test_ " + randomAlphaOfLength(10))
             .collect(Collectors.toSet());
@@ -125,18 +121,13 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         ClusterInfo info = ClusterInfo.EMPTY;
         SortedSet<String> roleNames = randomRoles();
 
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Set.of());
-        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            Set.of(new FixedAutoscalingDeciderService()),
-            allocationDeciders
-        );
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(
             ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder().build()
         );
         AutoscalingDeciderContext context = service.createContext(roleNames, state, info, snapshotShardSizeInfo);
 
         assertSame(state, context.state());
-        assertSame(allocationDeciders, context.allocationDeciders());
         assertThat(context.nodes(), equalTo(Set.of()));
         assertThat(context.currentCapacity(), equalTo(AutoscalingCapacity.ZERO));
         assertThat(context.info(), sameInstance(info));
@@ -151,7 +142,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 DiscoveryNodes.builder().add(new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT))
             )
             .build();
-        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, null);
+        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null);
 
         assertThat(context.nodes().size(), equalTo(1));
         assertThat(context.nodes(), equalTo(StreamSupport.stream(state.nodes().spliterator(), false).collect(Collectors.toSet())));
@@ -177,24 +168,27 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
 
             if (useOtherRoles == false) {
                 long total = randomLongBetween(1, 1L << 40);
-                DiskUsage diskUsage = new DiskUsage(nodeId, null, null, total, randomLongBetween(0, total));
+                DiskUsage diskUsage = new DiskUsage(nodeId, null, randomAlphaOfLength(5), total, randomLongBetween(0, total));
                 leastUsagesBuilder.put(nodeId, diskUsage);
+                if (randomBoolean()) {
+                    diskUsage = new DiskUsage(nodeId, null, diskUsage.getPath(), total, diskUsage.getFreeBytes());
+                }
                 mostUsagesBuilder.put(nodeId, diskUsage);
                 sumTotal += total;
                 maxTotal = Math.max(total, maxTotal);
                 expectedNodes.add(node);
             } else {
                 long total1 = randomLongBetween(0, 1L << 40);
-                leastUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, null, total1, randomLongBetween(0, total1)));
+                leastUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, randomAlphaOfLength(5), total1, randomLongBetween(0, total1)));
                 long total2 = randomLongBetween(0, 1L << 40);
-                mostUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, null, total2, randomLongBetween(0, total2)));
+                mostUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, randomAlphaOfLength(5), total2, randomLongBetween(0, total2)));
             }
         }
         state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
         ImmutableOpenMap<String, DiskUsage> leastUsages = leastUsagesBuilder.build();
         ImmutableOpenMap<String, DiskUsage> mostUsages = mostUsagesBuilder.build();
         info = new ClusterInfo(leastUsages, mostUsages, null, null, null);
-        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, null);
+        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null);
 
         assertThat(context.nodes(), equalTo(expectedNodes));
         AutoscalingCapacity capacity = context.currentCapacity();
@@ -210,21 +204,24 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             DiskUsage original = mostUsagesBuilder.get(multiPathNodeId);
             mostUsagesBuilder.put(
                 multiPathNodeId,
-                new DiskUsage(multiPathNodeId, null, null, original.getTotalBytes(), original.getFreeBytes())
+                new DiskUsage(
+                    multiPathNodeId,
+                    null,
+                    randomValueOtherThan(original.getPath(), () -> randomAlphaOfLength(5)),
+                    original.getTotalBytes(),
+                    original.getFreeBytes()
+                )
             );
 
             info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null);
-            context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, null);
+            context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null);
             assertThat(context.nodes(), equalTo(expectedNodes));
             assertThat(context.currentCapacity(), is(nullValue()));
         }
     }
 
     public void testValidateDeciderName() {
-        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            Set.of(new FixedAutoscalingDeciderService()),
-            null
-        );
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         String badDeciderName = randomValueOtherThan(FixedAutoscalingDeciderService.NAME, () -> randomAlphaOfLength(8));
         AutoscalingPolicy policy = new AutoscalingPolicy(
             randomAlphaOfLength(8),
@@ -236,10 +233,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
     }
 
     public void testValidateSettingName() {
-        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            Set.of(new FixedAutoscalingDeciderService()),
-            null
-        );
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         Set<String> legalNames = Set.of(
             FixedAutoscalingDeciderService.STORAGE.getKey(),
             FixedAutoscalingDeciderService.MEMORY.getKey(),
@@ -261,10 +255,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
     }
 
     public void testValidateSettingValue() {
-        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            Set.of(new FixedAutoscalingDeciderService()),
-            null
-        );
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         String value = randomValueOtherThanMany(s -> Character.isDigit(s.charAt(0)), () -> randomAlphaOfLength(5));
         AutoscalingPolicy policy = new AutoscalingPolicy(
             randomAlphaOfLength(8),

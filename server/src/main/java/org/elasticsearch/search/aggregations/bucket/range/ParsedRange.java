@@ -53,7 +53,7 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
         declareMultiBucketAggregationFields(objectParser, bucketParser::apply, keyedBucketParser::apply);
     }
 
-    private static ObjectParser<ParsedRange, Void> PARSER =
+    private static final ObjectParser<ParsedRange, Void> PARSER =
             new ObjectParser<>(ParsedRange.class.getSimpleName(), true, ParsedRange::new);
     static {
         declareParsedRangeFields(PARSER,
@@ -153,9 +153,9 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
             if (keyed) {
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                 bucket.key = currentFieldName;
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             }
 
             List<Aggregation> aggregations = new ArrayList<>();

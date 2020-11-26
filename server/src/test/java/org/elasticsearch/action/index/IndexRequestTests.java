@@ -102,7 +102,7 @@ public class IndexRequestTests extends ESTestCase {
         validate = request.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
-                containsString("id is too long, must be no longer than 512 bytes but was: 513"));
+                containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
     }
 
     public void testWaitForActiveShards() {
@@ -125,11 +125,10 @@ public class IndexRequestTests extends ESTestCase {
 
     public void testIndexResponse() {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomIntBetween(0, 1000));
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
         boolean created = randomBoolean();
-        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
+        IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
@@ -139,7 +138,6 @@ public class IndexRequestTests extends ESTestCase {
             forcedRefresh = randomBoolean();
             indexResponse.setForcedRefresh(forcedRefresh);
         }
-        assertEquals(type, indexResponse.getType());
         assertEquals(id, indexResponse.getId());
         assertEquals(version, indexResponse.getVersion());
         assertEquals(shardId, indexResponse.getShardId());
@@ -147,7 +145,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
-        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
+        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",id="+ id +
                 ",version=" + version + ",result=" + (created ? "created" : "updated") +
                 ",seqNo=" + SequenceNumbers.UNASSIGNED_SEQ_NO +
                 ",primaryTerm=" + 0 +
@@ -157,7 +155,9 @@ public class IndexRequestTests extends ESTestCase {
 
     public void testIndexRequestXContentSerialization() throws IOException {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
+        boolean isRequireAlias = randomBoolean();
         indexRequest.source("{}", XContentType.JSON);
+        indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -166,6 +166,7 @@ public class IndexRequestTests extends ESTestCase {
         IndexRequest serialized = new IndexRequest(in);
         assertEquals(XContentType.JSON, serialized.getContentType());
         assertEquals(new BytesArray("{}"), serialized.source());
+        assertEquals(isRequireAlias, serialized.isRequireAlias());
     }
 
     // reindex makes use of index requests without a source so this needs to be handled
@@ -189,12 +190,12 @@ public class IndexRequestTests extends ESTestCase {
 
         String source = "{\"name\":\"value\"}";
         request.source(source, XContentType.JSON);
-        assertEquals("index {[index][_doc][null], source[" + source + "]}", request.toString());
+        assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
         source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
         request.source(source, XContentType.JSON);
         int actualBytes = source.getBytes("UTF-8").length;
-        assertEquals("index {[index][_doc][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
+        assertEquals("index {[index][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
                 "], max length: " + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString() + "]}", request.toString());
     }
 

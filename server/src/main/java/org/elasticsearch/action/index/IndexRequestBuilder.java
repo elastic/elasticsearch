@@ -46,14 +46,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Sets the type to index the document to.
-     */
-    public IndexRequestBuilder setType(String type) {
-        request.type(type);
-        return this;
-    }
-
-    /**
      * Sets the id to index the document under. Optional, and if not set, one will be automatically
      * generated.
      */
@@ -228,6 +220,14 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      */
     public IndexRequestBuilder setPipeline(String pipeline) {
         request.setPipeline(pipeline);
+        return this;
+    }
+
+    /**
+     * Sets the require_alias flag
+     */
+    public IndexRequestBuilder setRequireAlias(boolean requireAlias) {
+        request.setRequireAlias(requireAlias);
         return this;
     }
 }

@@ -23,6 +23,7 @@ import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
@@ -34,8 +35,12 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 
 public class GeometryTestUtils {
 
@@ -93,7 +98,7 @@ public class GeometryTestUtils {
     }
 
     public static Polygon randomPolygon(boolean hasAlt) {
-        org.apache.lucene.geo.Polygon lucenePolygon = GeoTestUtil.nextPolygon();
+        org.apache.lucene.geo.Polygon lucenePolygon = randomValueOtherThanMany(p -> area(p) == 0, GeoTestUtil::nextPolygon);
         if (lucenePolygon.numHoles() > 0) {
             org.apache.lucene.geo.Polygon[] luceneHoles = lucenePolygon.getHoles();
             List<LinearRing> holes = new ArrayList<>();
@@ -104,6 +109,17 @@ public class GeometryTestUtils {
             return new Polygon(linearRing(lucenePolygon.getPolyLons(), lucenePolygon.getPolyLats(), hasAlt), holes);
         }
         return new Polygon(linearRing(lucenePolygon.getPolyLons(), lucenePolygon.getPolyLats(), hasAlt));
+    }
+
+    private static double area(org.apache.lucene.geo.Polygon lucenePolygon) {
+        double windingSum = 0;
+        final int numPts = lucenePolygon.numPoints() - 1;
+        for (int i = 0; i < numPts; i++) {
+            // compute signed area
+            windingSum += lucenePolygon.getPolyLon(i) * lucenePolygon.getPolyLat(i + 1) -
+                lucenePolygon.getPolyLat(i) * lucenePolygon.getPolyLon(i + 1);
+        }
+       return Math.abs(windingSum / 2);
     }
 
 
@@ -185,5 +201,98 @@ public class GeometryTestUtils {
             level < 3 ? (b) -> randomGeometryCollection(level + 1, b) : GeometryTestUtils::randomPoint // don't build too deep
         );
         return geometry.apply(hasAlt);
+    }
+
+    public static Geometry randomGeometryWithoutCircle(int level, boolean hasAlt) {
+        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
+            GeometryTestUtils::randomPoint,
+            GeometryTestUtils::randomMultiPoint,
+            GeometryTestUtils::randomLine,
+            GeometryTestUtils::randomMultiLine,
+            GeometryTestUtils::randomPolygon,
+            GeometryTestUtils::randomMultiPolygon,
+            hasAlt ? GeometryTestUtils::randomPoint : (b) -> randomRectangle(),
+            level < 3 ? (b) ->
+                randomGeometryWithoutCircleCollection(level + 1, hasAlt) : GeometryTestUtils::randomPoint // don't build too deep
+        );
+        return geometry.apply(hasAlt);
+    }
+
+    private static Geometry randomGeometryWithoutCircleCollection(int level, boolean hasAlt) {
+        int size = ESTestCase.randomIntBetween(1, 10);
+        List<Geometry> shapes = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            shapes.add(randomGeometryWithoutCircle(level, hasAlt));
+        }
+        return new GeometryCollection<>(shapes);
+    }
+
+    /**
+     * Extracts all vertices of the supplied geometry
+     */
+    public static MultiPoint toMultiPoint(Geometry geometry) {
+        return geometry.visit(new GeometryVisitor<>() {
+            @Override
+            public MultiPoint visit(Circle circle) throws RuntimeException {
+                throw new UnsupportedOperationException("not supporting circles yet");
+            }
+
+            @Override
+            public MultiPoint visit(GeometryCollection<?> collection) throws RuntimeException {
+                List<Point> points = new ArrayList<>();
+                collection.forEach(geometry -> toMultiPoint(geometry).forEach(points::add));
+                return new MultiPoint(points);
+            }
+
+            @Override
+            public MultiPoint visit(Line line) throws RuntimeException {
+                List<Point> points = new ArrayList<>();
+                for (int i = 0; i < line.length(); i++) {
+                    points.add(new Point(line.getX(i), line.getY(i), line.getZ(i)));
+                }
+                return new MultiPoint(points);
+            }
+
+            @Override
+            public MultiPoint visit(LinearRing ring) throws RuntimeException {
+                return visit((Line) ring);
+            }
+
+            @Override
+            public MultiPoint visit(MultiLine multiLine) throws RuntimeException {
+                return visit((GeometryCollection<?>) multiLine);
+            }
+
+            @Override
+            public MultiPoint visit(MultiPoint multiPoint) throws RuntimeException {
+                return multiPoint;
+            }
+
+            @Override
+            public MultiPoint visit(MultiPolygon multiPolygon) throws RuntimeException {
+                return visit((GeometryCollection<?>) multiPolygon);
+            }
+
+            @Override
+            public MultiPoint visit(Point point) throws RuntimeException {
+                return new MultiPoint(Collections.singletonList(point));
+            }
+
+            @Override
+            public MultiPoint visit(Polygon polygon) throws RuntimeException {
+                List<Geometry> multiPoints = new ArrayList<>();
+                multiPoints.add(toMultiPoint(polygon.getPolygon()));
+                for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+                    multiPoints.add(toMultiPoint(polygon.getHole(i)));
+                }
+                return toMultiPoint(new GeometryCollection<>(multiPoints));
+            }
+
+            @Override
+            public MultiPoint visit(Rectangle rectangle) throws RuntimeException {
+                return new MultiPoint(Arrays.asList(new Point(rectangle.getMinX(), rectangle.getMinY(), rectangle.getMinZ()),
+                    new Point(rectangle.getMaxX(), rectangle.getMaxY(), rectangle.getMaxZ())));
+            }
+        });
     }
 }

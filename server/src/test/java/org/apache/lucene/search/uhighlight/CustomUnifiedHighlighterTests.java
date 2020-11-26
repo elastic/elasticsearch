@@ -20,6 +20,8 @@
 package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.custom.CustomAnalyzer;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -32,6 +34,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -75,12 +78,22 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
         assertThat(topDocs.totalHits.value, equalTo(1L));
         String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, analyzer, null,
-                new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()), locale,
-                breakIterator, rawValue, noMatchSize);
-        highlighter.setFieldMatcher((name) -> "text".equals(name));
-        final Snippet[] snippets =
-            highlighter.highlightField("text", query, topDocs.scoreDocs[0].doc, expectedPassages.length);
+        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+            searcher,
+            analyzer,
+            null,
+            new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
+            locale,
+            breakIterator,
+            "index",
+            "text",
+            query,
+            noMatchSize,
+            expectedPassages.length,
+            name -> "text".equals(name),
+            Integer.MAX_VALUE
+        );
+        final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
         assertEquals(snippets.length, expectedPassages.length);
         for (int i = 0; i < snippets.length; i++) {
             assertEquals(snippets[i].getText(), expectedPassages[i]);
@@ -222,6 +235,35 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .build();
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 20), 0, outputs);
+    }
+
+    public void testOverlappingTerms() throws Exception {
+        final String[] inputs = {
+            "bro",
+            "brown",
+            "brownie",
+            "browser"
+        };
+        final String[] outputs = {
+            "<b>bro</b>",
+            "<b>brown</b>",
+            "<b>browni</b>e",
+            "<b>browser</b>"
+        };
+        BooleanQuery query = new BooleanQuery.Builder()
+            .add(new FuzzyQuery(new Term("text", "brow")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "b")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "br")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "bro")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "brown")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "browni")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "browser")), BooleanClause.Occur.SHOULD)
+            .build();
+        Analyzer analyzer = CustomAnalyzer.builder()
+            .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "7")
+            .build();
+        assertHighlightOneDoc("text", inputs,
+            analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }
 
 }

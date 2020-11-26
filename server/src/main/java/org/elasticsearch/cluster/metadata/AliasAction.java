@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -45,7 +46,7 @@ public abstract class AliasAction {
 
     /**
      * Should this action remove the index? Actions that return true from this will never execute
-     * {@link #apply(NewAliasValidator, MetaData.Builder, IndexMetaData)}.
+     * {@link #apply(NewAliasValidator, Metadata.Builder, IndexMetadata)}.
      */
     abstract boolean removeIndex();
 
@@ -57,7 +58,7 @@ public abstract class AliasAction {
      * @param index metadata for the index being changed
      * @return did this action make any changes?
      */
-    abstract boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index);
+    abstract boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index);
 
     /**
      * Validate a new alias.
@@ -85,11 +86,13 @@ public abstract class AliasAction {
         @Nullable
         private final Boolean writeIndex;
 
+        @Nullable final Boolean isHidden;
+
         /**
          * Build the operation.
          */
-        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting,
-                   @Nullable String searchRouting, @Nullable Boolean writeIndex) {
+        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting, @Nullable String searchRouting,
+                   @Nullable Boolean writeIndex, @Nullable Boolean isHidden) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
@@ -99,6 +102,7 @@ public abstract class AliasAction {
             this.indexRouting = indexRouting;
             this.searchRouting = searchRouting;
             this.writeIndex = writeIndex;
+            this.isHidden = isHidden;
         }
 
         /**
@@ -112,26 +116,31 @@ public abstract class AliasAction {
             return writeIndex;
         }
 
+        @Nullable
+        public Boolean isHidden() {
+            return isHidden;
+        }
+
         @Override
         boolean removeIndex() {
             return false;
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             aliasValidator.validate(alias, indexRouting, filter, writeIndex);
 
-            AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).filter(filter).indexRouting(indexRouting)
-                    .searchRouting(searchRouting).writeIndex(writeIndex).build();
+            AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias).filter(filter).indexRouting(indexRouting)
+                    .searchRouting(searchRouting).writeIndex(writeIndex).isHidden(isHidden).build();
 
             // Check if this alias already exists
-            AliasMetaData currentAliasMd = index.getAliases().get(alias);
+            AliasMetadata currentAliasMd = index.getAliases().get(alias);
             if (currentAliasMd != null && currentAliasMd.equals(newAliasMd)) {
                 // It already exists, ignore it
                 return false;
             }
 
-            metadata.put(IndexMetaData.builder(index).putAlias(newAliasMd));
+            metadata.put(IndexMetadata.builder(index).putAlias(newAliasMd));
             return true;
         }
     }
@@ -141,16 +150,19 @@ public abstract class AliasAction {
      */
     public static class Remove extends AliasAction {
         private final String alias;
+        @Nullable
+        private final Boolean mustExist;
 
         /**
          * Build the operation.
          */
-        public Remove(String index, String alias) {
+        public Remove(String index, String alias, @Nullable Boolean mustExist) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
             this.alias = alias;
+            this.mustExist = mustExist;
         }
 
         /**
@@ -166,11 +178,14 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             if (false == index.getAliases().containsKey(alias)) {
+                if (mustExist != null && mustExist) {
+                    throw new ResourceNotFoundException("required alias [" + alias  + "] does not exist");
+                }
                 return false;
             }
-            metadata.put(IndexMetaData.builder(index).removeAlias(alias));
+            metadata.put(IndexMetadata.builder(index).removeAlias(alias));
             return true;
         }
     }
@@ -190,7 +205,7 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, MetaData.Builder metadata, IndexMetaData index) {
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             throw new UnsupportedOperationException();
         }
     }

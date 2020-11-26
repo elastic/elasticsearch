@@ -79,7 +79,8 @@ public class SymbolicLinkPreservingTar extends Tar {
         SymbolicLinkPreservingTarCopyAction(
             final Provider<RegularFile> tarFile,
             final ArchiveOutputStreamFactory compressor,
-            final boolean isPreserveFileTimestamps) {
+            final boolean isPreserveFileTimestamps
+        ) {
             this.tarFile = tarFile;
             this.compressor = compressor;
             this.isPreserveFileTimestamps = isPreserveFileTimestamps;
@@ -87,8 +88,10 @@ public class SymbolicLinkPreservingTar extends Tar {
 
         @Override
         public WorkResult execute(final CopyActionProcessingStream stream) {
-            try (OutputStream out = compressor.createArchiveOutputStream(tarFile.get().getAsFile());
-                TarArchiveOutputStream tar = new TarArchiveOutputStream(out)) {
+            try (
+                OutputStream out = compressor.createArchiveOutputStream(tarFile.get().getAsFile());
+                TarArchiveOutputStream tar = new TarArchiveOutputStream(out)
+            ) {
                 tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
                 stream.process(new SymbolicLinkPreservingTarStreamAction(tar));
             } catch (final IOException e) {

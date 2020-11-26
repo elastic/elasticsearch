@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -35,9 +36,17 @@ import static org.elasticsearch.client.ml.dataframe.QueryConfigTests.randomQuery
 public class DataFrameAnalyticsSourceTests extends AbstractXContentTestCase<DataFrameAnalyticsSource> {
 
     public static DataFrameAnalyticsSource randomSourceConfig() {
+        FetchSourceContext sourceFiltering = null;
+        if (randomBoolean()) {
+            sourceFiltering = new FetchSourceContext(true,
+                generateRandomStringArray(10, 10, false, false),
+                generateRandomStringArray(10, 10, false, false));
+        }
+
         return DataFrameAnalyticsSource.builder()
             .setIndex(generateRandomStringArray(10, 10, false, false))
             .setQueryConfig(randomBoolean() ? null : randomQueryConfig())
+            .setSourceFiltering(sourceFiltering)
             .build();
     }
 

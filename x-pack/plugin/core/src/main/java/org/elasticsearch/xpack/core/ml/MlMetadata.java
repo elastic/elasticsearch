@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -41,9 +40,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
-public class MlMetadata implements MetaData.Custom {
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
+
+public class MlMetadata implements Metadata.Custom {
 
     public static final String TYPE = "ml";
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
@@ -78,8 +78,8 @@ public class MlMetadata implements MetaData.Custom {
         return jobs;
     }
 
-    public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
-        return groupOrJobLookup.expandJobIds(expression, allowNoJobs);
+    public Set<String> expandJobIds(String expression, boolean allowNoMatch) {
+        return groupOrJobLookup.expandJobIds(expression, allowNoMatch);
     }
 
     public SortedMap<String, DatafeedConfig> getDatafeeds() {
@@ -94,9 +94,9 @@ public class MlMetadata implements MetaData.Custom {
         return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
     }
 
-    public Set<String> expandDatafeedIds(String expression, boolean allowNoDatafeeds) {
+    public Set<String> expandDatafeedIds(String expression, boolean allowNoMatch) {
         return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException)
-                .expand(expression, allowNoDatafeeds);
+                .expand(expression, allowNoMatch);
     }
 
     public boolean isUpgradeMode() {
@@ -114,12 +114,12 @@ public class MlMetadata implements MetaData.Custom {
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override
-    public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
         return new MlMetadataDiff((MlMetadata) previousState, this);
     }
 
@@ -178,7 +178,7 @@ public class MlMetadata implements MetaData.Custom {
         builder.endArray();
     }
 
-    public static class MlMetadataDiff implements NamedDiff<MetaData.Custom> {
+    public static class MlMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, DatafeedConfig>> datafeeds;
@@ -204,7 +204,7 @@ public class MlMetadata implements MetaData.Custom {
          * @return The new ML metadata.
          */
         @Override
-        public MetaData.Custom apply(MetaData.Custom part) {
+        public Metadata.Custom apply(Metadata.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
             TreeMap<String, DatafeedConfig> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
             return new MlMetadata(newJobs, newDatafeeds, upgradeMode);
@@ -302,12 +302,9 @@ public class MlMetadata implements MetaData.Custom {
 
             if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context
-                DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
-                Map<String, String> securityHeaders = headers.entrySet().stream()
-                        .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                builder.setHeaders(securityHeaders);
-                datafeedConfig = builder.build();
+                datafeedConfig = new DatafeedConfig.Builder(datafeedConfig)
+                    .setHeaders(filterSecurityHeaders(headers))
+                    .build();
             }
 
             datafeeds.put(datafeedConfig.getId(), datafeedConfig);
@@ -348,7 +345,7 @@ public class MlMetadata implements MetaData.Custom {
     }
 
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

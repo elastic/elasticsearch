@@ -27,5 +27,4 @@ public class GeoTileGridValuesSourceBuilderTests extends ESTestCase {
         CompositeValuesSourceBuilder<?> builder = new GeoTileGridValuesSourceBuilder("name");
         expectThrows(IllegalArgumentException.class, () -> builder.format("format"));
     }
-
 }

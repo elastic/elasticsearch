@@ -45,6 +45,16 @@ setup:
             "description": "new description"
           }
 ---
+"Test update transform with missing pipeline":
+  - do:
+      catch: /Pipeline with id \[missing-transform-pipeline\] could not be found/
+      transform.update_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "dest": { "index": "airline-data-by-airline", "pipeline": "missing-transform-pipeline" }
+          }
+---
 "Test update transform with frequency too low":
   - do:
       catch: /minimum permitted \[frequency\] is \[1s\]/
@@ -67,7 +77,7 @@ setup:
 ---
 "Test put transform with invalid source index":
   - do:
-      catch: /Source index \[missing-index\] does not exist/
+      catch: /.*Validation Failed.* no such index \[missing-index\]/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
@@ -255,7 +265,7 @@ setup:
         name: source2-index
 
   - do:
-      catch: /Destination index \[created-destination-index\] is included in source expression \[created-destination-index\]/
+      catch: /.*Validation Failed.* Destination index \[created-destination-index\] is included in source expression \[created-destination-index\]/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
@@ -280,7 +290,7 @@ setup:
         index: created-destination-index
         name: dest2-index
   - do:
-      catch: /Destination index \[dest2-index\] should refer to a single index/
+      catch: /.*Validation Failed.* no write index is defined for alias [dest2-index].*/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
@@ -290,7 +300,7 @@ setup:
 ---
 "Test invalid destination index name":
   - do:
-      catch: /dest\.index \[DeStInAtIoN\] must be lowercase/
+      catch: /.*Validation Failed.* Destination index \[DeStInAtIoN\] must be lowercase/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
@@ -298,7 +308,7 @@ setup:
             "dest": { "index": "DeStInAtIoN" }
           }
   - do:
-      catch: /Invalid index name \[destination#dest\], must not contain \'#\'/
+      catch: /.*Validation Failed.* Invalid index name \[destination#dest\], must not contain \'#\'/
       transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >

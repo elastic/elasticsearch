@@ -45,7 +45,7 @@ public class DataFrameAnalyticsDest implements ToXContentObject {
     private static final ParseField INDEX = new ParseField("index");
     private static final ParseField RESULTS_FIELD = new ParseField("results_field");
 
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_dest", true, Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_dest", true, Builder::new);
 
     static {
         PARSER.declareString(Builder::setIndex, INDEX);

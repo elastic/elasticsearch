@@ -1,13 +1,14 @@
 {
   "transform.start_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html",
+      "description":"Starts one or more transforms."
     },
-    "stability":"beta",
+    "stability":"stable",
     "url":{
       "paths":[
         {
-          "path":"/_data_frame/transforms/{transform_id}/_start",
+          "path":"/_transform/{transform_id}/_start",
           "methods":[
             "POST"
           ],

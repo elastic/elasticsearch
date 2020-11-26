@@ -36,10 +36,7 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
     BulkShardResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
-        responses = new BulkItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = new BulkItemResponse(in);
-        }
+        responses = in.readArray(i -> new BulkItemResponse(shardId, i), BulkItemResponse[]::new);
     }
 
     // NOTE: public for testing only
@@ -74,9 +71,6 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
-        out.writeVInt(responses.length);
-        for (BulkItemResponse response : responses) {
-            response.writeTo(out);
-        }
+        out.writeArray((o, item) -> item.writeThin(out), responses);
     }
 }

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.ObjectUtils;
-import org.elasticsearch.xpack.sql.client.Version;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -94,7 +94,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getDatabaseProductVersion() throws SQLException {
-        return Version.CURRENT.toString();
+        return ClientVersion.CURRENT.toString();
     }
 
     @Override
@@ -104,17 +104,17 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return Version.CURRENT.major + "." + Version.CURRENT.minor;
+        return ClientVersion.CURRENT.major + "." + ClientVersion.CURRENT.minor;
     }
 
     @Override
     public int getDriverMajorVersion() {
-        return Version.CURRENT.major;
+        return ClientVersion.CURRENT.major;
     }
 
     @Override
     public int getDriverMinorVersion() {
-        return Version.CURRENT.minor;
+        return ClientVersion.CURRENT.minor;
     }
 
     @Override
@@ -1111,12 +1111,12 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public int getJDBCMajorVersion() throws SQLException {
-        return Version.jdbcMajorVersion();
+        return ClientVersion.jdbcMajorVersion();
     }
 
     @Override
     public int getJDBCMinorVersion() throws SQLException {
-        return Version.jdbcMinorVersion();
+        return ClientVersion.jdbcMinorVersion();
     }
 
     @Override
@@ -1242,7 +1242,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                 data.add(row);
             }
         }
-        
+
         return data.toArray(new Object[][] {});
     }
 

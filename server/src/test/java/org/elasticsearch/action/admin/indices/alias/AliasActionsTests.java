@@ -108,6 +108,17 @@ public class AliasActionsTests extends ESTestCase {
         assertEquals("[filter] is unsupported for [" + action.actionType() + "]", e.getMessage());
     }
 
+    public void testMustExistOption() {
+        final boolean mustExist = randomBoolean();
+        AliasActions removeAliasAction = AliasActions.remove();
+        assertNull(removeAliasAction.mustExist());
+        removeAliasAction.mustExist(mustExist);
+        assertEquals(mustExist, removeAliasAction.mustExist());
+        AliasActions action = randomBoolean() ? AliasActions.add() : AliasActions.removeIndex();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> action.mustExist(mustExist));
+        assertEquals("[must_exist] is unsupported for [" + action.actionType() + "]", e.getMessage());
+    }
+
     public void testParseAdd() throws IOException {
         String[] indices = generateRandomStringArray(10, 5, false, false);
         String[] aliases = generateRandomStringArray(10, 5, false, false);
@@ -115,6 +126,7 @@ public class AliasActionsTests extends ESTestCase {
         Object searchRouting = randomBoolean() ? randomRouting() : null;
         Object indexRouting = randomBoolean() ? randomBoolean() ? searchRouting : randomRouting() : null;
         boolean writeIndex = randomBoolean();
+        boolean isHidden = randomBoolean();
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject();
         {
@@ -144,6 +156,7 @@ public class AliasActionsTests extends ESTestCase {
                     b.field("index_routing", indexRouting);
                 }
                 b.field("is_write_index", writeIndex);
+                b.field("is_hidden", isHidden);
             }
             b.endObject();
         }
@@ -162,6 +175,7 @@ public class AliasActionsTests extends ESTestCase {
             assertEquals(Objects.toString(searchRouting, null), action.searchRouting());
             assertEquals(Objects.toString(indexRouting, null), action.indexRouting());
             assertEquals(writeIndex, action.writeIndex());
+            assertEquals(isHidden, action.isHidden());
         }
     }
 
@@ -202,6 +216,7 @@ public class AliasActionsTests extends ESTestCase {
     public void testParseRemove() throws IOException {
         String[] indices = generateRandomStringArray(10, 5, false, false);
         String[] aliases = generateRandomStringArray(10, 5, false, false);
+        Boolean mustExist = null;
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject();
         {
@@ -217,6 +232,10 @@ public class AliasActionsTests extends ESTestCase {
                 } else {
                     b.field("alias", aliases[0]);
                 }
+                if (randomBoolean()) {
+                    mustExist = randomBoolean();
+                    b.field("must_exist", mustExist);
+                }
             }
             b.endObject();
         }
@@ -227,6 +246,7 @@ public class AliasActionsTests extends ESTestCase {
             assertEquals(AliasActions.Type.REMOVE, action.actionType());
             assertThat(action.indices(), equalTo(indices));
             assertThat(action.aliases(), equalTo(aliases));
+            assertThat(action.mustExist(), equalTo(mustExist));
         }
     }
 

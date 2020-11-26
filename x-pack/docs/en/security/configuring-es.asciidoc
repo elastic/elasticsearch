@@ -9,19 +9,19 @@ The {es} {security-features} enable you to easily secure a cluster. You can
 password-protect your data as well as implement more advanced security measures
 such as encrypting communications, role-based access control, IP filtering, and
 auditing. For more information, see
-{stack-ov}/elasticsearch-security.html[Securing the {stack}].
+<<elasticsearch-security>>.
 
 . Verify that you are using a license that includes the specific
 {security-features} you want.
 +
 --
 For more information, see https://www.elastic.co/subscriptions and
-{stack-ov}/license-management.html[License management].
+{kibana-ref}/managing-licenses.html[License management].
 --
 
 . Verify that the `xpack.security.enabled` setting is `true` on each node in
 your cluster. If you are using basic or trial licenses, the default value is `false`.
-For more information, see {ref}/security-settings.html[Security settings in {es}].
+For more information, see <<security-settings>>.
 
 . If you plan to run {es} in a Federal Information Processing Standard (FIPS) 
 140-2 enabled JVM, see <<fips-140-compliance>>. 
@@ -33,7 +33,7 @@ NOTE: This requirement applies to clusters with more than one node and to
 clusters with a single node that listens on an external interface. Single-node
 clusters that use a loopback interface do not have this requirement.  For more
 information, see
-{stack-ov}/encrypting-communications.html[Encrypting communications].
+<<encrypting-communications>>.
 
 --
 
@@ -43,7 +43,7 @@ information, see
 +
 --
 The {es} {security-features} provide
-{stack-ov}/built-in-users.html[built-in users] to
+<<built-in-users,built-in users>> to
 help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.
 
@@ -72,19 +72,19 @@ TIP: The types of authentication realms that you can enable varies according to
 your subscription. For more information, see https://www.elastic.co/subscriptions.
  
 --
-** <<configuring-ad-realm,Active Directory realms>>
-** <<configuring-file-realm,File realms>>
-** <<configuring-kerberos-realm,Kerberos realms>>
-** <<configuring-ldap-realm,LDAP realms>>
-** <<configuring-native-realm,Native realms>>
-** <<configuring-pki-realm,PKI realms>>
-** <<configuring-saml-realm,SAML realms>>
+** <<active-directory-realm,Active Directory realms>>
+** <<file-realm,File realms>>
+** <<kerberos-realm,Kerberos realms>>
+** <<ldap-realm,LDAP realms>>
+** <<native-realm,Native realms>>
+** <<pki-realm,PKI realms>>
+** <<saml-realm,SAML realms>>
 
 . Set up roles and users to control access to {es}.
 +
 --
 For example, to grant _John Doe_ full access to all indices that match
-the pattern `events*` and enable him to create visualizations and dashboards
+the pattern `events*` and enable them to create visualizations and dashboards
 for those indices in {kib}, you could create an `events_admin` role
 and assign the role to a new `johndoe` user.
 
@@ -127,8 +127,7 @@ information, see https://www.elastic.co/subscriptions.
 xpack.security.audit.enabled: true
 ----------------------------
 +
-For more information, see {stack-ov}/auditing.html[Auditing Security Events] 
-and <<auditing-settings>>. 
+For more information, see <<enable-audit-logging>> and <<auditing-settings>>. 
 
 .. Restart {es}.
 
@@ -136,24 +135,8 @@ Events are logged to a dedicated `<clustername>_audit.json` file in
 `ES_HOME/logs`, on each cluster node.
 --
 
-To walk through the configuration of {security-features} in {es}, {kib}, {ls}, and {metricbeat}, see
-{stack-ov}/security-getting-started.html[Getting started with security].
+To walk through the configuration of {security-features} in {es}, {kib}, {ls}, and {metricbeat}, see <<security-getting-started>>.
 
-include::{es-repo-dir}/security/securing-communications/securing-elasticsearch.asciidoc[]
-
-include::{es-repo-dir}/security/securing-communications/configuring-tls-docker.asciidoc[]
-
-include::{es-repo-dir}/security/securing-communications/enabling-cipher-suites.asciidoc[]
-
-include::authentication/configuring-active-directory-realm.asciidoc[]
-include::authentication/configuring-file-realm.asciidoc[]
-include::authentication/configuring-ldap-realm.asciidoc[]
-include::authentication/configuring-native-realm.asciidoc[]
-include::authentication/configuring-pki-realm.asciidoc[]
-include::authentication/configuring-saml-realm.asciidoc[]
-
-include::authentication/configuring-kerberos-realm.asciidoc[]
-
-include::{es-repo-dir}/security/reference/files.asciidoc[]
+include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]
 

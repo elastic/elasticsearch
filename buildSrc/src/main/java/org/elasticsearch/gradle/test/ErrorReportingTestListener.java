@@ -1,9 +1,26 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.gradle.test;
 
 import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
 import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
 import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.testing.TestDescriptor;
 import org.gradle.api.tasks.testing.TestListener;
 import org.gradle.api.tasks.testing.TestOutputEvent;
@@ -31,17 +48,18 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ErrorReportingTestListener implements TestOutputListener, TestListener {
-    private static final Logger LOGGER = Logging.getLogger(ErrorReportingTestListener.class);
     private static final String REPRODUCE_WITH_PREFIX = "REPRODUCE WITH";
 
     private final TestExceptionFormatter formatter;
     private final File outputDirectory;
+    private final Logger taskLogger;
     private Map<Descriptor, EventWriter> eventWriters = new ConcurrentHashMap<>();
     private Map<Descriptor, Deque<String>> reproductionLines = new ConcurrentHashMap<>();
     private Set<Descriptor> failedTests = new LinkedHashSet<>();
 
-    public ErrorReportingTestListener(TestLogging testLogging, File outputDirectory) {
+    public ErrorReportingTestListener(TestLogging testLogging, Logger taskLogger, File outputDirectory) {
         this.formatter = new FullExceptionFormatter(testLogging);
+        this.taskLogger = taskLogger;
         this.outputDirectory = outputDirectory;
     }
 
@@ -102,6 +120,15 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                     }
                 }
             }
+            if (suite.getParent() == null) {
+                // per test task top level gradle test run suite finished
+                if (getFailedTests().size() > 0) {
+                    taskLogger.lifecycle("\nTests with failures:");
+                    for (ErrorReportingTestListener.Descriptor failure : getFailedTests()) {
+                        taskLogger.lifecycle(" - " + failure.getFullName());
+                    }
+                }
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Error reading test suite output", e);
         } finally {
@@ -111,7 +138,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                 try {
                     writer.close();
                 } catch (IOException e) {
-                    LOGGER.error("Failed to close test suite output stream", e);
+                    taskLogger.error("Failed to close test suite output stream", e);
                 }
             }
         }
@@ -196,9 +223,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Descriptor that = (Descriptor) o;
-            return Objects.equals(name, that.name) &&
-                Objects.equals(className, that.className) &&
-                Objects.equals(parent, that.parent);
+            return Objects.equals(name, that.name) && Objects.equals(className, that.className) && Objects.equals(parent, that.parent);
         }
 
         @Override

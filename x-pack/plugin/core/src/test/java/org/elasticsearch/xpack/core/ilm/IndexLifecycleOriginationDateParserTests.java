@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.is;
 
 public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
 
-    private static final DateFormatter dateFormatter = DateFormatter.forPattern("yyyy.MM.dd");
+    private static final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
 
     public void testShouldParseIndexNameReturnsFalseWhenOriginationDateIsSet() {
         Settings settings = Settings.builder()

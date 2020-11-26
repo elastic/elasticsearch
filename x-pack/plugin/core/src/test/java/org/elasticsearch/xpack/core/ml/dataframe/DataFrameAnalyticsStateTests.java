@@ -5,14 +5,23 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DataFrameAnalyticsStateTests extends ESTestCase {
 
     public void testFromString() {
+        assertThat(DataFrameAnalyticsState.fromString("starting"), equalTo(DataFrameAnalyticsState.STARTING));
         assertThat(DataFrameAnalyticsState.fromString("started"), equalTo(DataFrameAnalyticsState.STARTED));
         assertThat(DataFrameAnalyticsState.fromString("reindexing"), equalTo(DataFrameAnalyticsState.REINDEXING));
         assertThat(DataFrameAnalyticsState.fromString("analyzing"), equalTo(DataFrameAnalyticsState.ANALYZING));
@@ -22,12 +31,20 @@ public class DataFrameAnalyticsStateTests extends ESTestCase {
     }
 
     public void testToString() {
+        assertThat(DataFrameAnalyticsState.STARTING.toString(), equalTo("starting"));
         assertThat(DataFrameAnalyticsState.STARTED.toString(), equalTo("started"));
         assertThat(DataFrameAnalyticsState.REINDEXING.toString(), equalTo("reindexing"));
         assertThat(DataFrameAnalyticsState.ANALYZING.toString(), equalTo("analyzing"));
         assertThat(DataFrameAnalyticsState.STOPPING.toString(), equalTo("stopping"));
         assertThat(DataFrameAnalyticsState.STOPPED.toString(), equalTo("stopped"));
         assertThat(DataFrameAnalyticsState.FAILED.toString(), equalTo("failed"));
+    }
+
+    public void testWriteStartingStateToPost75() throws IOException {
+        StreamOutput streamOutput = mock(StreamOutput.class);
+        when(streamOutput.getVersion()).thenReturn(Version.V_7_5_0);
+        DataFrameAnalyticsState.STARTING.writeTo(streamOutput);
+        verify(streamOutput, times(1)).writeEnum(DataFrameAnalyticsState.STARTING);
     }
 
     public void testIsAnyOf() {

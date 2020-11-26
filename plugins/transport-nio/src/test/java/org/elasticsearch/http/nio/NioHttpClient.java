@@ -25,6 +25,7 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
@@ -226,6 +227,7 @@ class NioHttpClient implements Closeable {
             List<ChannelHandler> handlers = new ArrayList<>(5);
             handlers.add(new HttpResponseDecoder());
             handlers.add(new HttpRequestEncoder());
+            handlers.add(new HttpContentDecompressor());
             handlers.add(new HttpObjectAggregator(maxContentLength));
 
             adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));

@@ -115,8 +115,8 @@ public class UpdateJobProcessNotifier {
             return;
         }
 
-        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates(), update.getFilter(),
-                update.isUpdateScheduledEvents());
+        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getPerPartitionCategorizationConfig(),
+            update.getDetectorUpdates(), update.getFilter(), update.isUpdateScheduledEvents());
 
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request,
                 new ActionListener<Response>() {
@@ -135,13 +135,14 @@ public class UpdateJobProcessNotifier {
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof ResourceNotFoundException) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof ResourceNotFoundException) {
                             logger.debug("Remote job [{}] not updated as it has been deleted", update.getJobId());
-                        } else if (e.getMessage().contains("because job [" + update.getJobId() + "] is not open")
-                                && e instanceof ElasticsearchStatusException) {
+                        } else if (cause.getMessage().contains("because job [" + update.getJobId() + "] is not open")
+                                && cause instanceof ElasticsearchStatusException) {
                             logger.debug("Remote job [{}] not updated as it is no longer open", update.getJobId());
                         } else {
-                            logger.error("Failed to update remote job [" + update.getJobId() + "]", e);
+                            logger.error("Failed to update remote job [" + update.getJobId() + "]", cause);
                         }
                         updateHolder.listener.onFailure(e);
                         executeProcessUpdates(updatesIterator);

@@ -5,31 +5,41 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.process.NativeController;
-import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
+import org.elasticsearch.xpack.ml.process.StateToProcessWriterHelper;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
 public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<AnalyticsResult> {
 
+    private static final Logger logger = LogManager.getLogger(NativeAnalyticsProcess.class);
+
     private static final String NAME = "analytics";
 
-    private final ProcessResultsParser<AnalyticsResult> resultsParser = new ProcessResultsParser<>(AnalyticsResult.PARSER);
     private final AnalyticsProcessConfig config;
 
-    protected NativeAnalyticsProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
-                                     InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
-                                     List<Path> filesToDelete, Consumer<String> onProcessCrash, AnalyticsProcessConfig config) {
-        super(NAME, AnalyticsResult.PARSER, jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream,
-            numberOfFields, filesToDelete, onProcessCrash);
+    protected NativeAnalyticsProcess(String jobId, NativeController nativeController, ProcessPipes processPipes,
+                                     int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
+                                     AnalyticsProcessConfig config,
+                                     NamedXContentRegistry namedXContentRegistry) {
+        super(NAME, AnalyticsResult.PARSER, jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash,
+            namedXContentRegistry);
         this.config = Objects.requireNonNull(config);
     }
 
@@ -44,17 +54,40 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     }
 
     @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
+    }
+
+    @Override
     public void writeEndOfDataMessage() throws IOException {
         new AnalyticsControlMessageWriter(recordWriter(), numberOfFields()).writeEndOfData();
     }
 
     @Override
-    public Iterator<AnalyticsResult> readAnalyticsResults() {
-        return resultsParser.parseResults(processOutStream());
+    public AnalyticsProcessConfig getConfig() {
+        return config;
     }
 
     @Override
-    public AnalyticsProcessConfig getConfig() {
-        return config;
+    public void restoreState(Client client, String stateDocIdPrefix) throws IOException {
+        Objects.requireNonNull(stateDocIdPrefix);
+        try (OutputStream restoreStream = processRestoreStream()) {
+            int docNum = 0;
+            while (true) {
+                if (isProcessKilled()) {
+                    return;
+                }
+
+                // We fetch the documents one at a time because all together they can amount to too much memory
+                SearchResponse stateResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+                    .setSize(1)
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum)).get();
+                if (stateResponse.getHits().getHits().length == 0) {
+                    break;
+                }
+                SearchHit stateDoc = stateResponse.getHits().getAt(0);
+                logger.debug(() -> new ParameterizedMessage("[{}] Restoring state document [{}]", config.jobId(), stateDoc.getId()));
+                StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
+            }
+        }
     }
 }

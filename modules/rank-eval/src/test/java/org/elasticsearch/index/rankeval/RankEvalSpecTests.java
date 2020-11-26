@@ -73,6 +73,7 @@ public class RankEvalSpecTests extends ESTestCase {
     static RankEvalSpec createTestItem() {
         Supplier<EvaluationMetric> metric = randomFrom(Arrays.asList(
                 () -> PrecisionAtKTests.createTestItem(),
+                () -> RecallAtKTests.createTestItem(),
                 () -> MeanReciprocalRankTests.createTestItem(),
                 () -> DiscountedCumulativeGainTests.createTestItem()));
 
@@ -149,6 +150,7 @@ public class RankEvalSpecTests extends ESTestCase {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, RecallAtK.NAME, RecallAtK::new));
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(EvaluationMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));

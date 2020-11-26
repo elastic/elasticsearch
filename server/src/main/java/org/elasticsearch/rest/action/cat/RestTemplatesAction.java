@@ -23,22 +23,27 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestTemplatesAction extends AbstractCatAction {
 
-    public RestTemplatesAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/templates", this);
-        controller.registerHandler(GET, "/_cat/templates/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/templates"),
+            new Route(GET, "/_cat/templates/{name}"));
     }
 
     @Override
@@ -55,7 +60,7 @@ public class RestTemplatesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear().metaData(true);
+        clusterStateRequest.clear().metadata(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
@@ -73,23 +78,39 @@ public class RestTemplatesAction extends AbstractCatAction {
         table.startHeaders();
         table.addCell("name", "alias:n;desc:template name");
         table.addCell("index_patterns", "alias:t;desc:template index patterns");
-        table.addCell("order", "alias:o;desc:template application order number");
+        table.addCell("order", "alias:o,p;desc:template application order/priority number");
         table.addCell("version", "alias:v;desc:version");
+        table.addCell("composed_of", "alias:c;desc:component templates comprising index template");
         table.endHeaders();
         return table;
     }
 
     private Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) {
         Table table = getTableWithHeader(request);
-        MetaData metadata = clusterStateResponse.getState().metaData();
-        for (ObjectObjectCursor<String, IndexTemplateMetaData> entry : metadata.templates()) {
-            IndexTemplateMetaData indexData = entry.value;
+        Metadata metadata = clusterStateResponse.getState().metadata();
+        for (ObjectObjectCursor<String, IndexTemplateMetadata> entry : metadata.templates()) {
+            IndexTemplateMetadata indexData = entry.value;
             if (patternString == null || Regex.simpleMatch(patternString, indexData.name())) {
                 table.startRow();
                 table.addCell(indexData.name());
                 table.addCell("[" + String.join(", ", indexData.patterns()) + "]");
                 table.addCell(indexData.getOrder());
                 table.addCell(indexData.getVersion());
+                table.addCell("");
+                table.endRow();
+            }
+        }
+
+        for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
+            String name = entry.getKey();
+            ComposableIndexTemplate template = entry.getValue();
+            if (patternString == null || Regex.simpleMatch(patternString, name)) {
+                table.startRow();
+                table.addCell(name);
+                table.addCell("[" + String.join(", ", template.indexPatterns()) + "]");
+                table.addCell(template.priorityOrZero());
+                table.addCell(template.version());
+                table.addCell("[" + String.join(", ", template.composedOf()) + "]");
                 table.endRow();
             }
         }

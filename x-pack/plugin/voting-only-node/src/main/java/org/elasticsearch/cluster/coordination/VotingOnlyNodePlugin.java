@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.lucene.util.SetOnce;
@@ -10,26 +11,28 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet.UsageTransportAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -55,16 +58,23 @@ import java.util.function.Supplier;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
 
-    public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
-        = Setting.boolSetting("node.voting_only", false, Setting.Property.NodeScope);
+    private static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
+        = Setting.boolSetting("node.voting_only", false, Property.Deprecated, Property.NodeScope);
 
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
 
     static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
+
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return VOTING_ONLY_NODE_SETTING;
         }
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return false;
+        }
+
     };
 
     private final Settings settings;
@@ -75,7 +85,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public VotingOnlyNodePlugin(Settings settings) {
         this.settings = settings;
         threadPool = new SetOnce<>();
-        isVotingOnlyNode = VOTING_ONLY_NODE_SETTING.get(settings);
+        isVotingOnlyNode = DiscoveryNode.hasRole(settings, VOTING_ONLY_NODE_ROLE);
     }
 
     public static boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {
@@ -93,7 +103,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
-        if (isVotingOnlyNode && Node.NODE_MASTER_SETTING.get(settings) == false) {
+        if (isVotingOnlyNode && DiscoveryNode.isMasterNode(settings) == false) {
             throw new IllegalStateException("voting-only node must be master-eligible");
         }
         return Collections.singleton(VOTING_ONLY_NODE_ROLE);
@@ -103,7 +113,9 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();
     }

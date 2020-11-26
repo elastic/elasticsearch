@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Priority;
 
 /**
@@ -33,5 +34,5 @@ public interface RerouteService {
      *                 this reroute is batched with the pending one; if there is already a pending reroute at a lower priority then
      *                 the priority of the pending batch is raised to the given priority.
      */
-    void reroute(String reason, Priority priority, ActionListener<Void> listener);
+    void reroute(String reason, Priority priority, ActionListener<ClusterState> listener);
 }

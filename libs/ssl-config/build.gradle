@@ -16,42 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "nebula.maven-scm"
+apply plugin: "elasticsearch.publish"
 
 dependencies {
-    compile project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-core')
 
-    if (isEclipse == false || project.path == ":libs:elasticsearch-ssl-config-tests") {
-        testCompile(project(":test:framework")) {
-            exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
-        }
-    }
-
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
-}
-
-if (isEclipse) {
-  // in eclipse the project is under a fake root, we need to change around the source sets
-  sourceSets {
-    if (project.path == ":libs:elasticsearch-ssl-config") {
-      main.java.srcDirs = ['java']
-      main.resources.srcDirs = ['resources']
-    } else {
-      test.java.srcDirs = ['java']
-      test.resources.srcDirs = ['resources']
-    }
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
   }
+
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
-forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 forbiddenPatterns {
-    exclude '**/*.key'
-    exclude '**/*.pem'
-    exclude '**/*.p12'
-    exclude '**/*.jks'
+  exclude '**/*.key'
+  exclude '**/*.pem'
+  exclude '**/*.p12'
+  exclude '**/*.jks'
 }

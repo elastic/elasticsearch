@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
@@ -47,7 +48,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.SearchContext;
@@ -73,13 +73,15 @@ class TopHitsAggregator extends MetricsAggregator {
         }
     }
 
+    private final List<RescoreContext> rescore;
     private final FetchPhase fetchPhase;
     private final SubSearchContext subSearchContext;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
 
     TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+            Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
+        this.rescore = context.rescore();
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
@@ -123,7 +125,7 @@ class TopHitsAggregator extends MetricsAggregator {
                     SortAndFormats sort = subSearchContext.sort();
                     int topN = subSearchContext.from() + subSearchContext.size();
                     if (sort == null) {
-                        for (RescoreContext rescoreContext : context.rescore()) {
+                        for (RescoreContext rescoreContext : rescore) {
                             topN = Math.max(rescoreContext.getWindowSize(), topN);
                         }
                     }
@@ -168,9 +170,9 @@ class TopHitsAggregator extends MetricsAggregator {
         TopDocs topDocs = topDocsCollector.topDocs();
         float maxScore = Float.NaN;
         if (subSearchContext.sort() == null) {
-            for (RescoreContext ctx : context().rescore()) {
+            for (RescoreContext ctx : rescore) {
                 try {
-                    topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
+                    topDocs = ctx.rescorer().rescore(topDocs, searcher(), ctx);
                 } catch (IOException e) {
                     throw new ElasticsearchException("Rescore TopHits Failed", e);
                 }
@@ -189,7 +191,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+        subSearchContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
         fetchPhase.execute(subSearchContext);
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
         SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
@@ -204,7 +206,7 @@ class TopHitsAggregator extends MetricsAggregator {
             }
         }
         return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocsAndMaxScore, fetchResult.hits(),
-                pipelineAggregators(), metaData());
+                metadata());
     }
 
     @Override
@@ -217,7 +219,7 @@ class TopHitsAggregator extends MetricsAggregator {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
         return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), new TopDocsAndMaxScore(topDocs, Float.NaN),
-                SearchHits.empty(), pipelineAggregators(), metaData());
+                SearchHits.empty(), metadata());
     }
 
     @Override

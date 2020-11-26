@@ -35,7 +35,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
 
     @Override
     protected AbstractStringProcessor<Long> newProcessor(String field, boolean ignoreMissing, String targetField) {
-        return new BytesProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
+        return new BytesProcessor(randomAlphaOfLength(10), null, field, ignoreMissing, targetField);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(),
-            CoreMatchers.equalTo("failed to parse [junk]"));
+            CoreMatchers.equalTo("failed to parse setting [Ingest Field] with value [junk]"));
     }
 
     public void testMissingUnits() {

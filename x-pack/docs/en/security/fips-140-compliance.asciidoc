@@ -18,46 +18,47 @@ For {es}, adherence to FIPS 140-2 is ensured by
 - Allowing the configuration of {es} in a FIPS 140-2 compliant manner, as
   documented below.
 
-[float]
+[discrete]
 === Upgrade considerations
 
-If you plan to upgrade your existing Cluster to a version that can be run in
+If you plan to upgrade your existing cluster to a version that can be run in
 a FIPS 140-2 enabled JVM, the suggested approach is to first perform a rolling
 upgrade to the new version in your existing JVM and perform all necessary
 configuration changes in preparation for running in fips mode. You can then
 perform a rolling restart of the nodes, this time starting each node in the FIPS
-140-2 JVM. This will allow {es} to take care of a couple of things automatically for you:
+140-2 JVM. This enables {es} to take care of a couple of things automatically for you:
 
-- <<secure-settings, Secure Settings>> will be upgraded to the latest format version as
+- <<secure-settings,Secure settings>> will be upgraded to the latest format version as
   previous format versions cannot be loaded in a FIPS 140-2 JVM.
 - Self-generated trial licenses will be upgraded to the latest format that
   is compliant with FIPS 140-2.
 
-If you are on a appropriate license level (platinum) you can elect to perform
-a rolling upgrade while at the same time running each upgraded node in a
-FIPS 140-2 JVM. In this case, you would need to also regenerate your
-`elasticsearch.keystore` and migrate all secure settings to it, in addition to the
-necessary configuration changes outlined below, before starting each node.
+If you have a {subscriptions}[subscription] that supports FIPS 140-2 mode, you
+can elect to perform a rolling upgrade while at the same time running each
+upgraded node in a FIPS 140-2 JVM. In this case, you would need to also
+regenerate your `elasticsearch.keystore` and migrate all secure settings to it,
+in addition to the necessary configuration changes outlined below, before
+starting each node.
 
-[float]
+[discrete]
 === Configuring {es} for FIPS 140-2
 
 Apart from setting `xpack.security.fips_mode.enabled`, a number of security
 related settings need to be configured accordingly in order to be compliant
 and able to run {es} successfully in a FIPS 140-2 enabled JVM.
 
-[float]
+[discrete]
 ==== TLS
 
 SSLv2 and SSLv3 are not allowed by FIPS 140-2, so `SSLv2Hello` and `SSLv3` cannot
-be used for <<ssl-tls-settings, `ssl.supported_protocols`>>
+be used for <<ssl-tls-settings,`ssl.supported_protocols`>>.
 
 NOTE: The use of TLS ciphers is mainly governed by the relevant crypto module
 (the FIPS Approved Security Provider that your JVM uses). All the ciphers that
 are configured by default in {es} are FIPS 140-2 compliant and as such can be
-used in a FIPS 140-2 JVM. (see <<ssl-tls-settings, `ssl.cipher_suites`>>)
+used in a FIPS 140-2 JVM. See <<ssl-tls-settings,`ssl.cipher_suites`>>.
 
-[float]
+[discrete]
 ==== TLS Keystores and keys
 
 Keystores can be used in a number of <<ssl-tls-settings>> in order to
@@ -71,9 +72,8 @@ options, and for trust material you can use `*.certificate_authorities`.
 
 FIPS 140-2 compliance dictates that the length of the public keys used for TLS
 must correspond to the strength of the symmetric key algorithm in use in TLS.
-Depending on the value of <<ssl-tls-settings, `ssl.cipher_suites`>> that
-you select to use, the TLS keys must have corresponding length according to
-the following table:
+Depending on the value of `ssl.cipher_suites` that you select to use, the TLS
+keys must have corresponding length according to the following table:
 
 [[comparable-key-strength]]
 .Comparable key strengths
@@ -84,7 +84,7 @@ the following table:
 | `AES-256`               | 15630          | 512+
 |=======================
 
-[float]
+[discrete]
 ==== Password Hashing
 
 {es} offers a number of algorithms for securely hashing credentials in memory and
@@ -100,13 +100,14 @@ on disk.
 Authentication will still work, but in order to ensure FIPS 140-2 compliance,
 you would need to recreate users or change their password using the
 <<users-command, elasticsearch-user>> CLI tool for the file realm and the
-<<security-api-users,User Management APIs>> for the native realm.
+<<security-api-put-user,create users>> and <<security-api-change-password,change
+password>> APIs for the native realm.
 
 The user cache will be emptied upon node restart, so any existing hashes using
 non-compliant algorithms will be discarded and the new ones will be created
 using the compliant `PBKDF2` algorithm you have selected.
 
-[float]
+[discrete]
 === Limitations
 
 Due to the limitations that FIPS 140-2 compliance enforces, a small number of
@@ -114,12 +115,10 @@ features are not available while running in fips mode. The list is as follows:
 
 * Azure Classic Discovery Plugin
 * Ingest Attachment Plugin
-* The {ref}/certutil.html[`elasticsearch-certutil`] tool. However,
+* The <<certutil,`elasticsearch-certutil`>> tool. However,
  `elasticsearch-certutil` can very well be used in a non FIPS 140-2
   enabled JVM (pointing `JAVA_HOME` environment variable to a different java
   installation) in order to generate the keys and certificates that
   can be later used in the FIPS 140-2 enabled JVM.
 * The SQL CLI client cannot run in a FIPS 140-2 enabled JVM while using
   TLS for transport security or PKI for client authentication.
-* The SAML Realm cannot decrypt and consume encrypted Assertions or encrypted
-  attributes in Attribute Statements from the SAML IdP.

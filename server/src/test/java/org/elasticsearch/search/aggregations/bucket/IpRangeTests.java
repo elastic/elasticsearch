@@ -23,26 +23,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
 public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuilder> {
-
-    private static String randomIp(boolean v4) {
-        try {
-            if (v4) {
-                byte[] ipv4 = new byte[4];
-                random().nextBytes(ipv4);
-                return NetworkAddress.format(InetAddress.getByAddress(ipv4));
-            } else {
-                byte[] ipv6 = new byte[16];
-                random().nextBytes(ipv6);
-                return NetworkAddress.format(InetAddress.getByAddress(ipv6));
-            }
-        } catch (UnknownHostException e) {
-            throw new AssertionError();
-        }
-    }
 
     @Override
     protected IpRangeAggregationBuilder createTestAggregatorBuilder() {
@@ -62,16 +43,17 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
                 } else {
                     prefixLength = randomInt(128);
                 }
-                factory.addMaskRange(key, randomIp(v4) + "/" + prefixLength);
+                factory.addMaskRange(key, NetworkAddress.format(randomIp(v4)) + "/" + prefixLength);
                 break;
             case 1:
-                factory.addUnboundedFrom(key, randomIp(randomBoolean()));
+                factory.addUnboundedFrom(key, NetworkAddress.format(randomIp(randomBoolean())));
                 break;
             case 2:
-                factory.addUnboundedTo(key, randomIp(randomBoolean()));
+                factory.addUnboundedTo(key, NetworkAddress.format(randomIp(randomBoolean())));
                 break;
             case 3:
-                factory.addRange(key, randomIp(randomBoolean()), randomIp(randomBoolean()));
+                v4 = randomBoolean();
+                factory.addRange(key, NetworkAddress.format(randomIp(v4)), NetworkAddress.format(randomIp(v4)));
                 break;
             default:
                 fail();
@@ -82,7 +64,7 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
             factory.keyed(randomBoolean());
         }
         if (randomBoolean()) {
-            factory.missing(randomIp(randomBoolean()));
+            factory.missing(NetworkAddress.format(randomIp(randomBoolean())));
         }
         return factory;
     }

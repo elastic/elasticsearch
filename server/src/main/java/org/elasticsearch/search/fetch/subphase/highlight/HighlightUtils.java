@@ -23,13 +23,14 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.singleton;
 
@@ -46,33 +47,23 @@ public final class HighlightUtils {
     /**
      * Load field values for highlighting.
      */
-    public static List<Object> loadFieldValues(SearchContextHighlight.Field field,
-                                               MappedFieldType fieldType,
-                                               SearchContext searchContext,
-                                               FetchSubPhase.HitContext hitContext) throws IOException {
-        //percolator needs to always load from source, thus it sets the global force source to true
-        boolean forceSource = searchContext.highlight().forceSource(field);
-        List<Object> textsToHighlight;
-        if (!forceSource && fieldType.stored()) {
+    public static List<Object> loadFieldValues(MappedFieldType fieldType,
+                                               QueryShardContext qsc,
+                                               FetchSubPhase.HitContext hitContext,
+                                               boolean forceSource) throws IOException {
+        if (forceSource == false && fieldType.isStored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
-            textsToHighlight = fieldVisitor.fields().get(fieldType.name());
-            if (textsToHighlight == null) {
-                // Can happen if the document doesn't have the field to highlight
-                textsToHighlight = Collections.emptyList();
-            }
-        } else {
-            SourceLookup sourceLookup = searchContext.lookup().source();
-            sourceLookup.setSegmentAndDocument(hitContext.readerContext(), hitContext.docId());
-            textsToHighlight = sourceLookup.extractRawValues(fieldType.name());
+            List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
+            return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
         }
-        assert textsToHighlight != null;
-        return textsToHighlight;
+        ValueFetcher fetcher = fieldType.valueFetcher(qsc, null);
+        return fetcher.fetchValues(hitContext.sourceLookup());
     }
 
     public static class Encoders {
         public static final Encoder DEFAULT = new DefaultEncoder();
         public static final Encoder HTML = new SimpleHTMLEncoder();
     }
-    
+
 }

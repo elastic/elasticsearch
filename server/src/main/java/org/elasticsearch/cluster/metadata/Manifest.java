@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -118,7 +118,7 @@ public class Manifest implements ToXContentFragment {
     private static final String MANIFEST_FILE_PREFIX = "manifest-";
     private static final ToXContent.Params MANIFEST_FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("binary", "true"));
 
-    public static final MetaDataStateFormat<Manifest> FORMAT = new MetaDataStateFormat<Manifest>(MANIFEST_FILE_PREFIX) {
+    public static final MetadataStateFormat<Manifest> FORMAT = new MetadataStateFormat<Manifest>(MANIFEST_FILE_PREFIX) {
 
         @Override
         public void toXContent(XContentBuilder builder, Manifest state) throws IOException {

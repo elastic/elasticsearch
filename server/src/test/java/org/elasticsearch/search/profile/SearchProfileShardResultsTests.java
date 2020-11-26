@@ -80,16 +80,18 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
         if (addRandomFields) {
             // The ProfileResults "breakdown" section just consists of key/value pairs, we shouldn't add anything random there
             // also we don't want to insert into the root object here, its just the PROFILE_FIELD itself
-            Predicate<String> excludeFilter = (s) -> (s.isEmpty() || s.endsWith(ProfileResult.BREAKDOWN.getPreferredName()));
+            Predicate<String> excludeFilter = (s) -> s.isEmpty()
+                    || s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
+                    || s.endsWith(ProfileResult.DEBUG.getPreferredName());
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;
         }
         SearchProfileShardResults parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), SearchProfileShardResults.PROFILE_FIELD);
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             parsed = SearchProfileShardResults.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());

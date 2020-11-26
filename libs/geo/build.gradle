@@ -18,32 +18,17 @@
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
-    if (isEclipse == false || project.path == ":libs:elasticsearch-geo-tests") {
-        testCompile(project(":test:framework")) {
-            exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
-        }
-    }
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
+  }
 }
 
-forbiddenApisMain {
-    // geo does not depend on server
-    // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
-    replaceSignatureFiles 'jdk-signatures'
+tasks.named('forbiddenApisMain').configure {
+  // geo does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
 }
 
-if (isEclipse) {
-    // in eclipse the project is under a fake root, we need to change around the source sets
-    sourceSets {
-        if (project.path == ":libs:elasticsearch-geo") {
-            main.java.srcDirs = ['java']
-            main.resources.srcDirs = ['resources']
-        } else {
-            test.java.srcDirs = ['java']
-            test.resources.srcDirs = ['resources']
-        }
-    }
-}

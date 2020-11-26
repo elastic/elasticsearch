@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -182,7 +182,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
     private static final ParseField LEASES_FIELD = new ParseField("leases");
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<RetentionLeases, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RetentionLeases, Void> PARSER = new ConstructingObjectParser<>(
             "retention_leases",
             (a) -> new RetentionLeases((Long) a[0], (Long) a[1], (Collection<RetentionLease>) a[2]));
 
@@ -217,7 +217,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
         return PARSER.apply(parser, null);
     }
 
-    static final MetaDataStateFormat<RetentionLeases> FORMAT = new MetaDataStateFormat<>("retention-leases-") {
+    static final MetadataStateFormat<RetentionLeases> FORMAT = new MetadataStateFormat<>("retention-leases-") {
 
         @Override
         public void toXContent(final XContentBuilder builder, final RetentionLeases retentionLeases) throws IOException {

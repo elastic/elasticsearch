@@ -29,6 +29,7 @@ import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
@@ -106,10 +107,28 @@ public class MlTestStateCleaner {
     }
 
     private void deleteAllDataFrameAnalytics() throws IOException {
+        stopAllDataFrameAnalytics();
+
         GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse =
             mlClient.getDataFrameAnalytics(GetDataFrameAnalyticsRequest.getAllDataFrameAnalyticsRequest(), RequestOptions.DEFAULT);
         for (DataFrameAnalyticsConfig config : getDataFrameAnalyticsResponse.getAnalytics()) {
             mlClient.deleteDataFrameAnalytics(new DeleteDataFrameAnalyticsRequest(config.getId()), RequestOptions.DEFAULT);
+        }
+    }
+
+    private void stopAllDataFrameAnalytics() {
+        StopDataFrameAnalyticsRequest stopAllRequest = new StopDataFrameAnalyticsRequest("*");
+        try {
+            mlClient.stopDataFrameAnalytics(stopAllRequest, RequestOptions.DEFAULT);
+        } catch (Exception e1) {
+            logger.warn("failed to stop all data frame analytics. Will proceed to force-stopping", e1);
+            stopAllRequest.setForce(true);
+            try {
+                mlClient.stopDataFrameAnalytics(stopAllRequest, RequestOptions.DEFAULT);
+            } catch (Exception e2) {
+                logger.warn("force-stopping all data frame analytics failed", e2);
+            }
+            throw new RuntimeException("Had to resort to force-stopping data frame analytics, something went wrong?", e1);
         }
     }
 }

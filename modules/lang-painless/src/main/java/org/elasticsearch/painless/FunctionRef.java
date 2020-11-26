@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
@@ -44,19 +45,19 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  * lambda function.
  */
 public class FunctionRef {
-
     /**
      * Creates a new FunctionRef which will resolve {@code type::call} from the whitelist.
      * @param painlessLookup the whitelist against which this script is being compiled
-     * @param localMethods user-defined and synthetic methods generated directly on the script class
+     * @param functionTable user-defined and synthetic methods generated directly on the script class
      * @param location the character number within the script at compile-time
      * @param targetClass functional interface type to implement.
      * @param typeName the left hand side of a method reference expression
      * @param methodName the right hand side of a method reference expression
      * @param numberOfCaptures number of captured arguments
+     * @param constants constants used for injection when necessary
      */
-    public static FunctionRef create(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods, Location location,
-            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures) {
+    public static FunctionRef create(PainlessLookup painlessLookup, FunctionTable functionTable, Location location,
+            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures, Map<String, Object> constants) {
 
         Objects.requireNonNull(painlessLookup);
         Objects.requireNonNull(targetClass);
@@ -78,39 +79,43 @@ public class FunctionRef {
             MethodType interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
             String delegateClassName;
             boolean isDelegateInterface;
+            boolean isDelegateAugmented;
             int delegateInvokeType;
             String delegateMethodName;
             MethodType delegateMethodType;
+            Object[] delegateInjections;
 
             Class<?> delegateMethodReturnType;
             List<Class<?>> delegateMethodParameters;
             int interfaceTypeParametersSize = interfaceMethod.typeParameters.size();
 
             if ("this".equals(typeName)) {
-                Objects.requireNonNull(localMethods);
+                Objects.requireNonNull(functionTable);
 
                 if (numberOfCaptures < 0) {
                     throw new IllegalStateException("internal error");
                 }
 
-                String localMethodKey = Locals.buildLocalMethodKey(methodName, numberOfCaptures + interfaceTypeParametersSize);
-                LocalMethod localMethod = localMethods.get(localMethodKey);
+                String localFunctionKey = FunctionTable.buildLocalFunctionKey(methodName, numberOfCaptures + interfaceTypeParametersSize);
+                LocalFunction localFunction = functionTable.getFunction(localFunctionKey);
 
-                if (localMethod == null) {
-                    throw new IllegalArgumentException("function reference [this::" + localMethodKey + "] " +
+                if (localFunction == null) {
+                    throw new IllegalArgumentException("function reference [this::" + localFunctionKey + "] " +
                             "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                            "not found" + (localMethodKey.contains("$") ? " due to an incorrect number of arguments" : "")
+                            "not found" + (localFunctionKey.contains("$") ? " due to an incorrect number of arguments" : "")
                     );
                 }
 
                 delegateClassName = CLASS_NAME;
                 isDelegateInterface = false;
+                isDelegateAugmented = false;
                 delegateInvokeType = H_INVOKESTATIC;
-                delegateMethodName = localMethod.name;
-                delegateMethodType = localMethod.methodType;
+                delegateMethodName = localFunction.getFunctionName();
+                delegateMethodType = localFunction.getMethodType();
+                delegateInjections = new Object[0];
 
-                delegateMethodReturnType = localMethod.returnType;
-                delegateMethodParameters = localMethod.typeParameters;
+                delegateMethodReturnType = localFunction.getReturnType();
+                delegateMethodParameters = localFunction.getTypeParameters();
             } else if ("new".equals(methodName)) {
                 if (numberOfCaptures != 0) {
                     throw new IllegalStateException("internal error");
@@ -126,9 +131,11 @@ public class FunctionRef {
 
                 delegateClassName = painlessConstructor.javaConstructor.getDeclaringClass().getName();
                 isDelegateInterface = false;
+                isDelegateAugmented = false;
                 delegateInvokeType = H_NEWINVOKESPECIAL;
                 delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
                 delegateMethodType = painlessConstructor.methodType;
+                delegateInjections = new Object[0];
 
                 delegateMethodReturnType = painlessConstructor.javaConstructor.getDeclaringClass();
                 delegateMethodParameters = painlessConstructor.typeParameters;
@@ -157,6 +164,7 @@ public class FunctionRef {
 
                 delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
                 isDelegateInterface = painlessMethod.javaMethod.getDeclaringClass().isInterface();
+                isDelegateAugmented = painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.targetClass;
 
                 if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
                     delegateInvokeType = H_INVOKESTATIC;
@@ -168,6 +176,7 @@ public class FunctionRef {
 
                 delegateMethodName = painlessMethod.javaMethod.getName();
                 delegateMethodType = painlessMethod.methodType;
+                delegateInjections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
                 delegateMethodReturnType = painlessMethod.returnType;
 
@@ -196,7 +205,8 @@ public class FunctionRef {
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
             return new FunctionRef(interfaceMethodName, interfaceMethodType,
-                    delegateClassName, isDelegateInterface, delegateInvokeType, delegateMethodName, delegateMethodType,
+                    delegateClassName, isDelegateInterface, isDelegateAugmented,
+                    delegateInvokeType, delegateMethodName, delegateMethodType, delegateInjections,
                     factoryMethodType
             );
         } catch (IllegalArgumentException iae) {
@@ -216,28 +226,34 @@ public class FunctionRef {
     public final String delegateClassName;
     /** whether a call is made on a delegate interface */
     public final boolean isDelegateInterface;
+    /** if delegate method is augmented */
+    public final boolean isDelegateAugmented;
     /** the invocation type of the delegate method */
     public final int delegateInvokeType;
     /** the name of the delegate method */
     public final String delegateMethodName;
     /** delegate method signature */
     public final MethodType delegateMethodType;
+    /** injected constants */
+    public final Object[] delegateInjections;
     /** factory (CallSite) method signature */
     public final MethodType factoryMethodType;
 
     private FunctionRef(
             String interfaceMethodName, MethodType interfaceMethodType,
-            String delegateClassName, boolean isDelegateInterface,
-            int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType,
+            String delegateClassName, boolean isDelegateInterface, boolean isDelegateAugmented,
+            int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType, Object[] delegateInjections,
             MethodType factoryMethodType) {
 
         this.interfaceMethodName = interfaceMethodName;
         this.interfaceMethodType = interfaceMethodType;
         this.delegateClassName = delegateClassName;
         this.isDelegateInterface = isDelegateInterface;
+        this.isDelegateAugmented = isDelegateAugmented;
         this.delegateInvokeType = delegateInvokeType;
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType;
+        this.delegateInjections = delegateInjections;
         this.factoryMethodType = factoryMethodType;
     }
 }

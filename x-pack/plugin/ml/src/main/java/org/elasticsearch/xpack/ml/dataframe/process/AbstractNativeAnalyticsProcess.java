@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
@@ -25,13 +25,12 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     private final ProcessResultsParser<Result> resultsParser;
 
     protected AbstractNativeAnalyticsProcess(String name, ConstructingObjectParser<Result, Void> resultParser, String jobId,
-                                             NativeController nativeController, InputStream logStream, OutputStream processInStream,
-                                             InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
-                                             List<Path> filesToDelete, Consumer<String> onProcessCrash) {
-        super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
-            onProcessCrash);
+                                             NativeController nativeController, ProcessPipes processPipes,
+                                             int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
+                                             NamedXContentRegistry namedXContentRegistry) {
+        super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash);
         this.name = Objects.requireNonNull(name);
-        this.resultsParser = new ProcessResultsParser<>(Objects.requireNonNull(resultParser));
+        this.resultsParser = new ProcessResultsParser<>(Objects.requireNonNull(resultParser), namedXContentRegistry);
     }
 
     @Override
@@ -41,6 +40,11 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
 
     @Override
     public void persistState() {
+        // Nothing to persist
+    }
+
+    @Override
+    public void persistState(long timestamp, String id, String description) {
         // Nothing to persist
     }
 

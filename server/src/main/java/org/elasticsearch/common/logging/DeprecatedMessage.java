@@ -20,25 +20,29 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.Strings;
-
-import java.util.Collections;
-import java.util.Map;
+import org.elasticsearch.common.SuppressLoggerChecks;
 
 /**
  * A logger message used by {@link DeprecationLogger}.
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
-public class DeprecatedMessage extends ESLogMessage {
+public class DeprecatedMessage  {
+    public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
+    public static final String ECS_VERSION = "1.6";
 
-    public DeprecatedMessage(String messagePattern, String xOpaqueId, Object... args) {
-        super(fieldMap(xOpaqueId), messagePattern, args);
-    }
+    @SuppressLoggerChecks(reason = "safely delegates to logger")
+    public static ESLogMessage of(String key, String xOpaqueId, String messagePattern, Object... args) {
+        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args)
+            .field("data_stream.type", "logs")
+            .field("data_stream.dataset", "deprecation.elasticsearch")
+            .field("data_stream.namespace", "default")
+            .field("ecs.version", ECS_VERSION)
+            .field("key", key);
 
-    private static Map<String, Object> fieldMap(String xOpaqueId) {
         if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return Collections.emptyMap();
+            return esLogMessage;
         }
 
-        return Map.of("x-opaque-id", xOpaqueId);
+        return esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
     }
 }

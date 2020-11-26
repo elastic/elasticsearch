@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,7 +36,7 @@ import java.util.Map;
  */
 public abstract class ParsedAggregation implements Aggregation, ToXContentFragment {
 
-    protected static void declareAggregationFields(ObjectParser<? extends ParsedAggregation, Void> objectParser) {
+    protected static void declareAggregationFields(AbstractObjectParser<? extends ParsedAggregation, ?> objectParser) {
         objectParser.declareObject((parsedAgg, metadata) -> parsedAgg.metadata = Collections.unmodifiableMap(metadata),
                 (parser, context) -> parser.map(), InternalAggregation.CommonFields.META);
     }
@@ -54,7 +54,7 @@ public abstract class ParsedAggregation implements Aggregation, ToXContentFragme
     }
 
     @Override
-    public final Map<String, Object> getMetaData() {
+    public final Map<String, Object> getMetadata() {
         return metadata;
     }
 

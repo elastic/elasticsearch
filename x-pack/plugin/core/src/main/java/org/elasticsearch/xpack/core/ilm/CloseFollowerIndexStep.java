@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 import java.util.Map;
 
@@ -24,21 +24,26 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
-        String followerIndex = indexMetaData.getIndex().getName();
-        Map<String, String> customIndexMetadata = indexMetaData.getCustomData(CCR_METADATA_KEY);
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
+        String followerIndex = indexMetadata.getIndex().getName();
+        Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             listener.onResponse(true);
             return;
         }
 
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followerIndex);
-        getClient().admin().indices().close(closeIndexRequest, ActionListener.wrap(
-            r -> {
-                assert r.isAcknowledged() : "close index response is not acknowledged";
-                listener.onResponse(true);
-            },
-            listener::onFailure)
-        );
+        if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
+            CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followerIndex)
+                .masterNodeTimeout(getMasterTimeout(currentClusterState));
+            getClient().admin().indices().close(closeIndexRequest, ActionListener.wrap(
+                r -> {
+                    assert r.isAcknowledged() : "close index response is not acknowledged";
+                    listener.onResponse(true);
+                },
+                listener::onFailure)
+            );
+        } else {
+            listener.onResponse(true);
+        }
     }
 }

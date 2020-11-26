@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_analysis_changes]]
 === Analysis changes
 
@@ -9,10 +9,31 @@
 
 // end::notable-breaking-changes[]
 
-[float]
 [[ngram-edgengram-filter-names-removed]]
-==== The `nGram` and `edgeNGram` token filter names have been removed
-
+.The `nGram` and `edgeNGram` token filter names have been removed.
+[%collapsible]
+====
+*Details* +
 The `nGram` and `edgeNGram` token filter names that have been deprecated since
 version 6.4 have been removed. Both token filters can only be used by their 
 alternative names `ngram` and `edge_ngram` since version 7.0.
+
+*Impact* +
+Use the equivalent `ngram` and `edge_ngram` token filters. Requests containing
+the `nGram` and `edgeNGram` token filter names will return an error.
+====
+
+[[nGram-edgeNGram-tokenizer-dreprecation]]
+.The `nGram` and `edgeNGram` tokenizer names have been removed.
+[%collapsible]
+====
+*Details* +
+The `nGram` and `edgeNGram` tokenizer names haven been deprecated with 7.6 and are no longer
+supported on new indices. Mappings for indices created after 7.6 will continue to work but
+emit a deprecation warning. The tokenizer name should be changed to the fully equivalent
+`ngram` or `edge_ngram` names for new indices and in index templates.
+
+*Impact* +
+Use the `ngram` and `edge_ngram` tokenizers. Requests to create new indices 
+using the `nGram` and `edgeNGram` tokenizer names will return an error.
+====

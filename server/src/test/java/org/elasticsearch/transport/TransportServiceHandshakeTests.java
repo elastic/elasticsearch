@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 public class TransportServiceHandshakeTests extends ESTestCase {
 
     private static ThreadPool threadPool;
-    private static final long timeout = Long.MAX_VALUE;
+    private static final TimeValue timeout = TimeValue.MAX_VALUE;
 
     @BeforeClass
     public static void startThreadPool() {
@@ -109,7 +110,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
-        try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, TestProfiles.LIGHT_PROFILE)){
+        try (Transport.Connection connection =
+                 AbstractSimpleTransportTestCase.openConnection(handleA.transportService, discoveryNode, TestProfiles.LIGHT_PROFILE)) {
             DiscoveryNode connectedNode = PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, fut));
             assertNotNull(connectedNode);
             // the name and version should be updated
@@ -130,8 +132,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
-            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
-                TestProfiles.LIGHT_PROFILE)) {
+            try (Transport.Connection connection =
+                     AbstractSimpleTransportTestCase.openConnection(handleA.transportService, discoveryNode, TestProfiles.LIGHT_PROFILE)) {
                 PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
             }
         });
@@ -152,8 +154,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
-            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
-                TestProfiles.LIGHT_PROFILE)) {
+            try (Transport.Connection connection =
+                     AbstractSimpleTransportTestCase.openConnection(handleA.transportService, discoveryNode, TestProfiles.LIGHT_PROFILE)) {
                 PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
             }
         });
@@ -173,9 +175,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             handleB.discoveryNode.getVersion());
-        ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> {
-            handleA.transportService.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE);
-        });
+        ConnectTransportException ex = expectThrows(ConnectTransportException.class, () ->
+            AbstractSimpleTransportTestCase.connectToNode(handleA.transportService, discoveryNode, TestProfiles.LIGHT_PROFILE));
         assertThat(ex.getMessage(), containsString("unexpected remote node"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }

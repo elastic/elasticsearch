@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,25 +32,22 @@ import org.elasticsearch.cluster.ClusterStateObserver.Listener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.function.Predicate;
 
 public class TransportClearVotingConfigExclusionsAction
-    extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ClearVotingConfigExclusionsResponse> {
+    extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
 
@@ -58,22 +56,13 @@ public class TransportClearVotingConfigExclusionsAction
                                                       ThreadPool threadPool, ActionFilters actionFilters,
                                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClearVotingConfigExclusionsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return Names.SAME;
-    }
-
-    @Override
-    protected ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-        return new ClearVotingConfigExclusionsResponse(in);
+            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver, in -> ActionResponse.Empty.INSTANCE,
+                ThreadPool.Names.SAME);
     }
 
     @Override
     protected void masterOperation(Task task, ClearVotingConfigExclusionsRequest request, ClusterState initialState,
-                                   ActionListener<ClearVotingConfigExclusionsResponse> listener) throws Exception {
+                                   ActionListener<ActionResponse.Empty> listener) throws Exception {
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
 
@@ -116,15 +105,17 @@ public class TransportClearVotingConfigExclusionsAction
     }
 
     private void submitClearVotingConfigExclusionsTask(ClearVotingConfigExclusionsRequest request, long startTimeMillis,
-                                                       ActionListener<ClearVotingConfigExclusionsResponse> listener) {
-        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
+                                                       ActionListener<ActionResponse.Empty> listener) {
+        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT,
+                TimeValue.timeValueMillis(
+                        Math.max(0, request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis()))) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final CoordinationMetaData newCoordinationMetaData =
-                        CoordinationMetaData.builder(currentState.coordinationMetaData()).clearVotingConfigExclusions().build();
-                final MetaData newMetaData = MetaData.builder(currentState.metaData()).
-                        coordinationMetaData(newCoordinationMetaData).build();
-                return ClusterState.builder(currentState).metaData(newMetaData).build();
+                final CoordinationMetadata newCoordinationMetadata =
+                        CoordinationMetadata.builder(currentState.coordinationMetadata()).clearVotingConfigExclusions().build();
+                final Metadata newMetadata = Metadata.builder(currentState.metadata()).
+                        coordinationMetadata(newCoordinationMetadata).build();
+                return ClusterState.builder(currentState).metadata(newMetadata).build();
             }
 
             @Override
@@ -133,13 +124,8 @@ public class TransportClearVotingConfigExclusionsAction
             }
 
             @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueMillis(request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis());
-            }
-
-            @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new ClearVotingConfigExclusionsResponse());
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
         });
     }

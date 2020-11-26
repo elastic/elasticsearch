@@ -1,7 +1,24 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.gradle;
 
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Nested;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -171,12 +188,21 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
     }
 
     @Override
-    @Nested
-    List<? extends Object> getNormalizedCollection() {
+    public List<? extends PropertyListEntry<T>> getNormalizedCollection() {
         return delegate.stream()
             .peek(this::validate)
             .filter(entry -> entry.getNormalization() != PropertyNormalization.IGNORE_VALUE)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Return a "flattened" collection. This should be used when the collection type is itself a complex type with properties
+     * annotated as Gradle inputs rather than a simple type like {@link String}.
+     *
+     * @return a flattened collection filtered according to normalization strategy
+     */
+    public List<? extends T> getFlatNormalizedCollection() {
+        return getNormalizedCollection().stream().map(PropertyListEntry::getValue).collect(Collectors.toList());
     }
 
     private void validate(PropertyListEntry<T> entry) {
@@ -192,6 +218,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
             this.normalization = normalization;
         }
 
+        @Input
         public PropertyNormalization getNormalization() {
             return normalization;
         }

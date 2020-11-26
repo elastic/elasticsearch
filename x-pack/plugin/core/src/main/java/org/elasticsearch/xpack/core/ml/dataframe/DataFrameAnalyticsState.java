@@ -15,7 +15,7 @@ import java.util.Locale;
 
 public enum DataFrameAnalyticsState implements Writeable {
 
-    STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, FAILED;
+    STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, FAILED, STARTING;
 
     public static DataFrameAnalyticsState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

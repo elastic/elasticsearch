@@ -242,7 +242,7 @@ public class SSLConfigurationSettings {
         return setting.get(settings).orElseGet(() -> inferKeyStoreType(path));
     }
 
-    private static String inferKeyStoreType(String path) {
+    public static String inferKeyStoreType(String path) {
         String name = path == null ? "" : path.toLowerCase(Locale.ROOT);
         if (name.endsWith(".p12") || name.endsWith(".pfx") || name.endsWith(".pkcs12")) {
             return PKCS12_KEYSTORE_TYPE;

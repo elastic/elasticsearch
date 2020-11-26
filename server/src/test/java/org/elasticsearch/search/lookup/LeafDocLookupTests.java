@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -44,16 +43,11 @@ public class LeafDocLookupTests extends ESTestCase {
         when(fieldType.name()).thenReturn("field");
         when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
 
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName("field")).thenReturn(fieldType);
-        when(mapperService.fullName("alias")).thenReturn(fieldType);
-
         docValues = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData = createFieldData(docValues);
 
-        docLookup = new LeafDocLookup(mapperService,
-            ignored -> fieldData,
-            null);
+        docLookup = new LeafDocLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
+            ignored -> fieldData, null);
     }
 
     public void testBasicLookup() {
@@ -67,12 +61,12 @@ public class LeafDocLookupTests extends ESTestCase {
     }
 
     private IndexFieldData<?> createFieldData(ScriptDocValues scriptDocValues) {
-        AtomicFieldData atomicFieldData = mock(AtomicFieldData.class);
-        doReturn(scriptDocValues).when(atomicFieldData).getScriptValues();
+        LeafFieldData leafFieldData = mock(LeafFieldData.class);
+        doReturn(scriptDocValues).when(leafFieldData).getScriptValues();
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn("field");
-        doReturn(atomicFieldData).when(fieldData).load(anyObject());
+        doReturn(leafFieldData).when(fieldData).load(anyObject());
 
         return fieldData;
     }

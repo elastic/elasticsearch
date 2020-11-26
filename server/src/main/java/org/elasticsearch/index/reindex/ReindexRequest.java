@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -38,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
@@ -179,7 +176,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
      *
      * @param name The name of the field to sort by
      * @param order The order in which to sort
+     * @deprecated Specifying a sort field for reindex is deprecated. If using this in combination with maxDocs, consider using a
+     * query filter instead.
      */
+    @Deprecated
     public ReindexRequest addSortField(String name, SortOrder order) {
         this.getSearchRequest().source().sort(name, order);
         return this;
@@ -192,14 +192,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (destIndex != null) {
             this.getDestination().index(destIndex);
         }
-        return this;
-    }
-
-    /**
-     * Set the document type for the destination index
-     */
-    public ReindexRequest setDestDocType(String docType) {
-        this.getDestination().type(docType);
         return this;
     }
 
@@ -245,6 +237,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
+     * Sets the require_alias request flag on the destination index
+     */
+    public ReindexRequest setRequireAlias(boolean requireAlias) {
+        this.getDestination().setRequireAlias(requireAlias);
+        return this;
+    }
+
+    /**
      * Gets the target for this reindex request in the for of an {@link IndexRequest}
      */
     public IndexRequest getDestination() {
@@ -281,9 +281,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
         searchToString(b);
         b.append(" to [").append(destination.index()).append(']');
-        if (destination.type() != null) {
-            b.append('[').append(destination.type()).append(']');
-        }
         return b.toString();
     }
 
@@ -305,10 +302,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             // build destination
             builder.startObject("dest");
             builder.field("index", getDestination().index());
-            String type = getDestination().type();
-            if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-                builder.field("type", getDestination().type());
-            }
             if (getDestination().routing() != null) {
                 builder.field("routing", getDestination().routing());
             }
@@ -337,9 +330,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
 
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in reindex requests is deprecated.";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ReindexRequest.class));
-
     static {
         ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
             // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
@@ -360,10 +350,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
-        destParser.declareString((request, type) -> {
-            deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
-            request.type(type);
-        }, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
@@ -387,7 +373,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     /**
      * Yank a string array from a map. Emulates XContent's permissive String to
-     * String array conversions.
+     * String array conversions and allow comma separated String.
      */
     private static String[] extractStringArray(Map<String, Object> source, String name) {
         Object value = source.remove(name);
@@ -399,9 +385,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             List<String> list = (List<String>) value;
             return list.toArray(new String[list.size()]);
         } else if (value instanceof String) {
-            return new String[] {(String) value};
+            return Strings.splitStringByCommaToArray((String) value);
         } else {
-            throw new IllegalArgumentException("Expected [" + name + "] to be a list of a string but was [" + value + ']');
+            throw new IllegalArgumentException("Expected [" + name + "] to be a list or a string but was [" + value + ']');
         }
     }
 

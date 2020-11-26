@@ -1,13 +1,31 @@
 [[release-highlights]]
-= Release highlights
+== What's new in {minor-version}
 
-[partintro]
---
-This section summarizes the most important changes in each release. For the 
-full list, see <<es-release-notes>> and <<breaking-changes>>. 
+coming[{minor-version}]
 
-* <<release-highlights-8.0.0>>
+Here are the highlights of what's new and improved in {es} {minor-version}! 
+ifeval::["{release-state}"!="unreleased"]
+For detailed information about this release, see the 
+<<release-notes-{elasticsearch_version}, Release notes >>  and 
+<<breaking-changes-{minor-version}, Breaking changes>>.
+endif::[]
 
---
+// Add previous release to the list
+// Other versions: 
+// {ref-bare}/7.last/release-highlights.html[7.last] 
+// | {ref-bare}/8.0/release-highlights.html[8.0]
 
-include::highlights-8.0.0.asciidoc[]
+// Use the notable-highlights tag to mark entries that 
+// should be featured in the Stack Installation and Upgrade Guide:
+// tag::notable-highlights[] 
+// [discrete]
+// === Heading
+//
+// Description. 
+// end::notable-highlights[]
+
+// Omit the notable highlights tag for entries that only need to appear in the ES ref:
+// [discrete] 
+// === Heading
+//
+// Description. 

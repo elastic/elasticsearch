@@ -22,7 +22,7 @@ package org.elasticsearch.client.ml.dataframe;
 import java.util.Locale;
 
 public enum DataFrameAnalyticsState {
-    STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED;
+    STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, STARTING, FAILED;
 
     public static DataFrameAnalyticsState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

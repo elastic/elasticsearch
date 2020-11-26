@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -52,6 +53,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -81,7 +83,7 @@ public class RandomSearchRequestGenerator {
      * Build a random search request.
      *
      * @param randomSearchSourceBuilder builds a random {@link SearchSourceBuilder}. You can use
-     *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier, Supplier)}.
+     *        {@link #randomSearchSourceBuilder}.
      */
     public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) {
         SearchRequest searchRequest = new SearchRequest();
@@ -121,7 +123,8 @@ public class RandomSearchRequestGenerator {
             Supplier<SuggestBuilder> randomSuggestBuilder,
             Supplier<RescorerBuilder<?>> randomRescoreBuilder,
             Supplier<List<SearchExtBuilder>> randomExtBuilders,
-            Supplier<CollapseBuilder> randomCollapseBuilder) {
+            Supplier<CollapseBuilder> randomCollapseBuilder,
+            Supplier<Map<String, Object>> randomRuntimeMappings) {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         if (randomBoolean()) {
             builder.from(randomIntBetween(0, 10000));
@@ -177,6 +180,13 @@ public class RandomSearchRequestGenerator {
                 break;
             default:
                 throw new IllegalStateException();
+        }
+
+        if (randomBoolean()) {
+            int numFields = randomInt(5);
+            for (int i = 0; i < numFields; i++) {
+                builder.fetchField(randomAlphaOfLengthBetween(5, 10));
+            }
         }
 
         if (randomBoolean()) {
@@ -345,7 +355,7 @@ public class RandomSearchRequestGenerator {
             }
         }
         if (randomBoolean()) {
-            builder.aggregation(AggregationBuilders.avg(randomAlphaOfLengthBetween(5, 20)));
+            builder.aggregation(AggregationBuilders.avg(randomAlphaOfLengthBetween(5, 20)).field("foo"));
         }
         if (randomBoolean()) {
             builder.ext(randomExtBuilders.get());
@@ -362,6 +372,16 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.collapse(randomCollapseBuilder.get());
+        }
+        if (randomBoolean()) {
+            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
+            if (randomBoolean()) {
+                pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
+            }
+            builder.pointInTimeBuilder(pit);
+        }
+        if (randomBoolean()) {
+            builder.runtimeMappings(randomRuntimeMappings.get());
         }
         return builder;
     }

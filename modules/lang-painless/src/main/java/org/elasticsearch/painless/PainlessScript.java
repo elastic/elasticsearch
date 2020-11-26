@@ -58,14 +58,15 @@ public interface PainlessScript {
     default ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
+        ScriptException.Position pos = null;
         for (StackTraceElement element : t.getStackTrace()) {
             if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
                 // found the script portion
-                int offset = element.getLineNumber();
-                if (offset == -1) {
+                int originalOffset = element.getLineNumber();
+                if (originalOffset == -1) {
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
-                    offset--; // offset is 1 based, line numbers must be!
+                    int offset = --originalOffset; // offset is 1 based, line numbers must be!
                     int startOffset = getPreviousStatement(offset);
                     if (startOffset == -1) {
                         assert false; // should never happen unless we hit exc in ctor prologue...
@@ -84,6 +85,7 @@ public interface PainlessScript {
                     }
                     pointer.append("^---- HERE");
                     scriptStack.add(pointer.toString());
+                    pos = new ScriptException.Position(originalOffset, startOffset, endOffset);
                 }
                 break;
             // but filter our own internal stacks (e.g. indy bootstrap)
@@ -91,7 +93,7 @@ public interface PainlessScript {
                 scriptStack.add(element.toString());
             }
         }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, getName(), PainlessScriptEngine.NAME);
+        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, getName(), PainlessScriptEngine.NAME, pos);
         for (Map.Entry<String, List<String>> entry : extraMetadata.entrySet()) {
             scriptException.addMetadata(entry.getKey(), entry.getValue());
         }

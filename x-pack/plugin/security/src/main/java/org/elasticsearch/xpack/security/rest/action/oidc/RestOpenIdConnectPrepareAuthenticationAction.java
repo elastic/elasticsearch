@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oidc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
@@ -13,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAut
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -30,6 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Generates an oAuth 2.0 authentication request as a URL string and returns it to the REST client.
  */
 public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectBaseRestHandler {
+    private static final Logger logger = LogManager.getLogger();
 
     static final ObjectParser<OpenIdConnectPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>("oidc_prepare_authentication",
         OpenIdConnectPrepareAuthenticationRequest::new);
@@ -42,9 +45,13 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
         PARSER.declareString(OpenIdConnectPrepareAuthenticationRequest::setNonce, new ParseField("nonce"));
     }
 
-    public RestOpenIdConnectPrepareAuthenticationAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestOpenIdConnectPrepareAuthenticationAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_security/oidc/prepare", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_security/oidc/prepare"));
     }
 
     @Override

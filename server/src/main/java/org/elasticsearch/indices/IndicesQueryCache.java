@@ -80,7 +80,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         logger.debug("using [node] query cache with size [{}] max filter count [{}]",
                 size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true);
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
         } else {
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }
@@ -250,8 +250,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     private class ElasticsearchLRUQueryCache extends LRUQueryCache {
 
-        ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache) {
-            super(maxSize, maxRamBytesUsed, leavesToCache);
+        ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
+            super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);
         }
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed) {

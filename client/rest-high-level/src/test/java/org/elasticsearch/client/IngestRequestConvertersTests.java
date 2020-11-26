@@ -93,10 +93,29 @@ public class IngestRequestConvertersTests extends ESTestCase {
     public void testSimulatePipeline() throws IOException {
         String pipelineId = ESTestCase.randomBoolean() ? "some_pipeline_id" : null;
         boolean verbose = ESTestCase.randomBoolean();
-        String json = "{\"pipeline\":{" +
-            "\"description\":\"_description\"," +
-            "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]}," +
-            "\"docs\":[{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}]}";
+        String json = "{"
+            + "  \"pipeline\": {"
+            + "    \"description\": \"_description\","
+            + "    \"processors\": ["
+            + "      {"
+            + "        \"set\": {"
+            + "          \"field\": \"field2\","
+            + "          \"value\": \"_value\""
+            + "        }"
+            + "      }"
+            + "    ]"
+            + "  },"
+            + "  \"docs\": ["
+            + "    {"
+            + "      \"_index\": \"index\","
+            + "      \"_type\": \"_doc\","
+            + "      \"_id\": \"id\","
+            + "      \"_source\": {"
+            + "        \"foo\": \"rab\""
+            + "      }"
+            + "    }"
+            + "  ]"
+            + "}";
         SimulatePipelineRequest request = new SimulatePipelineRequest(
             new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON

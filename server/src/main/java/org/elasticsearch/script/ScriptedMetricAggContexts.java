@@ -22,14 +22,17 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class ScriptedMetricAggContexts {
 
@@ -52,7 +55,7 @@ public class ScriptedMetricAggContexts {
 
         public abstract void execute();
 
-        public interface Factory {
+        public interface Factory extends ScriptFactory {
             InitScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
 
@@ -61,14 +64,28 @@ public class ScriptedMetricAggContexts {
     }
 
     public abstract static class MapScript {
-        private static final Map<String, String> DEPRECATIONS = Map.of(
-                "doc",
-                "Accessing variable [doc] via [params.doc] from within a scripted metric agg map script "
-                        + "is deprecated in favor of directly accessing [doc].",
-                "_doc", "Accessing variable [doc] via [params._doc] from within a scripted metric agg map script "
-                        + "is deprecated in favor of directly accessing [doc].",
-                "_agg", "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script "
-                        + "is deprecated in favor of using [state].");
+
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+        private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
+                "doc", value -> {
+                    deprecationLogger.deprecate("map-script_doc",
+                            "Accessing variable [doc] via [params.doc] from within an scripted metric agg map script "
+                                    + "is deprecated in favor of directly accessing [doc].");
+                    return value;
+                },
+                "_doc", value -> {
+                    deprecationLogger.deprecate("map-script__doc",
+                            "Accessing variable [doc] via [params._doc] from within an scripted metric agg map script "
+                                    + "is deprecated in favor of directly accessing [doc].");
+                    return value;
+                }, "_agg", value -> {
+                    deprecationLogger.deprecate("map-script__agg",
+                            "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script "
+                                    + "is deprecated in favor of using [state].");
+                    return value;
+                },
+                "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+        );
 
         private final Map<String, Object> params;
         private final Map<String, Object> state;
@@ -81,7 +98,7 @@ public class ScriptedMetricAggContexts {
             if (leafLookup != null) {
                 params = new HashMap<>(params); // copy params so we aren't modifying input
                 params.putAll(leafLookup.asMap()); // add lookup vars
-                params = new DeprecationMap(params, DEPRECATIONS, "map-script"); // wrap with deprecations
+                params = new DynamicMap(params, PARAMS_FUNCTIONS); // wrap with deprecations
             }
             this.params = params;
         }
@@ -129,7 +146,7 @@ public class ScriptedMetricAggContexts {
             MapScript newInstance(LeafReaderContext ctx);
         }
 
-        public interface Factory {
+        public interface Factory extends ScriptFactory {
             LeafFactory newFactory(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup);
         }
 
@@ -156,7 +173,7 @@ public class ScriptedMetricAggContexts {
 
         public abstract Object execute();
 
-        public interface Factory {
+        public interface Factory extends ScriptFactory {
             CombineScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
 
@@ -183,7 +200,7 @@ public class ScriptedMetricAggContexts {
 
         public abstract Object execute();
 
-        public interface Factory {
+        public interface Factory extends ScriptFactory {
             ReduceScript newInstance(Map<String, Object> params, List<Object> states);
         }
 

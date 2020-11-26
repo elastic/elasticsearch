@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 
 import java.io.IOException;
@@ -35,17 +35,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
     private boolean keyed = true;
+
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
     InternalPercentilesBucket(String name, double[] percents, double[] percentiles, boolean keyed,
-                                     DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                                     Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                                     DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         if ((percentiles.length == percents.length) == false) {
             throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
                     + Arrays.toString(percents) + ", percentiles: " + Arrays.toString(percentiles));
@@ -119,7 +120,12 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalMax doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public Iterable<String> valueNames() {
+        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+    }
+
+    @Override
+    public InternalMax reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

@@ -22,6 +22,7 @@ public final class TransformField {
     public static final ParseField GROUP_BY = new ParseField("group_by");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
+    public static final ParseField WAIT_FOR_CHECKPOINT = new ParseField("wait_for_checkpoint");
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
@@ -29,9 +30,11 @@ public final class TransformField {
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField SETTINGS = new ParseField("settings");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
+    public static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME_BASED_SYNC = new ParseField("time");
@@ -56,9 +59,13 @@ public final class TransformField {
 
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";
-    public static final String REST_BASE_PATH = "/_data_frame/";
-    public static final String REST_BASE_PATH_TRANSFORMS = REST_BASE_PATH + "transforms/";
+    public static final String REST_BASE_PATH_TRANSFORMS = "/_transform/";
     public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH_TRANSFORMS + "{id}/";
+
+    // deprecated REST API, to be removed for 8.0.0
+    public static final String REST_BASE_PATH_TRANSFORMS_DEPRECATED = "/_data_frame/transforms/";
+    public static final String REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED = REST_BASE_PATH_TRANSFORMS_DEPRECATED + "{id}/";
+
     public static final String TRANSFORM_ID = "transform_id";
 
     // note: this is used to match tasks
@@ -77,10 +84,10 @@ public final class TransformField {
      * API's)
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     // internal document id
     public static String DOCUMENT_ID_FIELD = "_id";
 
-    private TransformField() {
-    }
+    private TransformField() {}
 }

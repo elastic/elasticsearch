@@ -44,8 +44,16 @@ public class DateFormatTests extends ESTestCase {
                 equalTo("11 24 01:29:01"));
     }
 
-    public void testParseJavaWithTimeZone() {
+    public void testParseYearOfEraJavaWithTimeZone() {
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZZ",
+            ZoneOffset.UTC, Locale.ROOT);
+        ZonedDateTime datetime = javaFunction.apply("2018-02-05T13:44:56.657+0100");
+        String expectedDateTime = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").withZone(ZoneOffset.UTC).format(datetime);
+        assertThat(expectedDateTime, is("2018-02-05T12:44:56.657Z"));
+    }
+
+    public void testParseYearJavaWithTimeZone() {
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction("uuuu-MM-dd'T'HH:mm:ss.SSSZZ",
             ZoneOffset.UTC, Locale.ROOT);
         ZonedDateTime datetime = javaFunction.apply("2018-02-05T13:44:56.657+0100");
         String expectedDateTime = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").withZone(ZoneOffset.UTC).format(datetime);
@@ -59,6 +67,23 @@ public class DateFormatTests extends ESTestCase {
         int year = ZonedDateTime.now(ZoneOffset.UTC).getYear();
         ZonedDateTime dateTime = javaFunction.apply("12/06");
         assertThat(dateTime.getYear(), is(year));
+    }
+
+    public void testParseWeekBased() {
+        String format = randomFrom("YYYY-ww");
+        ZoneId timezone = DateUtils.of("Europe/Amsterdam");
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        ZonedDateTime dateTime = javaFunction.apply("2020-33");
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2020,8,10,0,0,0,0,timezone)));
+    }
+
+    public void testParseWeekBasedWithLocale() {
+        String format = randomFrom("YYYY-ww");
+        ZoneId timezone = DateUtils.of("Europe/Amsterdam");
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.US);
+        ZonedDateTime dateTime = javaFunction.apply("2020-33");
+        //33rd week of 2020 starts on 9th August 2020 as per US locale
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2020,8,9,0,0,0,0,timezone)));
     }
 
     public void testParseUnixMs() {
@@ -77,12 +102,17 @@ public class DateFormatTests extends ESTestCase {
     }
 
     public void testParseISO8601() {
-        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toInstant().toEpochMilli(),
-                equalTo(978336000000L));
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800")
+                                     .toInstant().toEpochMilli(), equalTo(978336000000L));
         assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toString(),
                 equalTo("2001-01-01T08:00Z"));
-        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toString(),
-                equalTo("2001-01-01T08:00Z"));
+    }
+
+    public void testParseWhenZoneNotPresentInText() {
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.of("+0100"), null).apply("2001-01-01T00:00:00")
+                                     .toInstant().toEpochMilli(), equalTo(978303600000L));
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.of("+0100"), null).apply("2001-01-01T00:00:00").toString(),
+            equalTo("2001-01-01T00:00+01:00"));
     }
 
     public void testParseISO8601Failure() {

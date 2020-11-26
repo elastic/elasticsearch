@@ -123,7 +123,7 @@ public class TermVectorsResponseTests extends ESTestCase {
         long tookInMillis = randomNonNegativeLong();
         boolean found = randomBoolean();
         List<TermVectorsResponse.TermVector> tvList = null;
-        if (found == true){
+        if (found){
             boolean hasFieldStatistics = randomBoolean();
             boolean hasTermStatistics = randomBoolean();
             boolean hasScores = randomBoolean();

@@ -34,12 +34,10 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertThat(new String(request.getPassword()), equalTo("top secret password"));
         assertThat(request.getScope(), nullValue());
         assertThat(request.getRefreshToken(), nullValue());
-        assertThat(Strings.toString(request), equalTo("{" +
-            "\"grant_type\":\"password\"," +
-            "\"username\":\"jsmith\"," +
-            "\"password\":\"top secret password\"" +
-            "}"
-        ));
+        assertThat(
+            Strings.toString(request),
+            equalTo("{\"grant_type\":\"password\",\"username\":\"jsmith\",\"password\":\"top secret password\"}")
+        );
     }
 
     public void testCreateTokenFromRefreshToken() {
@@ -49,11 +47,10 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertThat(request.getScope(), nullValue());
         assertThat(request.getUsername(), nullValue());
         assertThat(request.getPassword(), nullValue());
-        assertThat(Strings.toString(request), equalTo("{" +
-            "\"grant_type\":\"refresh_token\"," +
-            "\"refresh_token\":\"9a7f41cf-9918-4d1f-bfaa-ad3f8f9f02b9\"" +
-            "}"
-        ));
+        assertThat(
+            Strings.toString(request),
+            equalTo("{\"grant_type\":\"refresh_token\",\"refresh_token\":\"9a7f41cf-9918-4d1f-bfaa-ad3f8f9f02b9\"}")
+        );
     }
 
     public void testCreateTokenFromClientCredentials() {
@@ -74,8 +71,10 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertThat(request.getPassword(), nullValue());
         assertThat(request.getRefreshToken(), nullValue());
         assertThat(new String(request.getKerberosTicket()), equalTo("top secret kerberos ticket"));
-        assertThat(Strings.toString(request), equalTo("{\"grant_type\":\"_kerberos\"," +
-                "\"kerberos_ticket\":\"top secret kerberos ticket\"}"));
+        assertThat(
+            Strings.toString(request),
+            equalTo("{\"grant_type\":\"_kerberos\",\"kerberos_ticket\":\"top secret kerberos ticket\"}")
+        );
     }
 
     public void testEqualsAndHashCode() {

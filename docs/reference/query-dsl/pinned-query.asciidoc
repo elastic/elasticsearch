@@ -14,17 +14,17 @@ the <<mapping-id-field,`_id`>> field.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "pinned" : {
-            "ids" : ["1", "4", "100"],
-            "organic" : {
-            	"match":{
-            		"description": "iphone"
-            	}
-            }
+  "query": {
+    "pinned": {
+      "ids": [ "1", "4", "100" ],
+      "organic": {
+        "match": {
+          "description": "iphone"
         }
+      }
     }
-}    
+  }
+}
 --------------------------------------------------
 
 [[pinned-query-top-level-parameters]]

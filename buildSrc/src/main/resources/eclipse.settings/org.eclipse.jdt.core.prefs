@@ -15,8 +15,16 @@ eclipse.preferences.version=1
 # org.eclipse.jdt.core.compiler.problem.nullUncheckedConversion=warning
 # org.eclipse.jdt.core.compiler.problem.potentialNullReference=warning
 
+# We check this in Gradle. Eclipse fails this check because it doesn't have separate class-paths for
+org.eclipse.jdt.core.circularClasspath=warning
 org.eclipse.jdt.core.compiler.problem.forbiddenReference=warning
 org.eclipse.jdt.core.formatter.comment.line_length=140
 org.eclipse.jdt.core.formatter.lineSplit=140
 org.eclipse.jdt.core.formatter.tabulation.char=space
 org.eclipse.jdt.core.formatter.tabulation.size=4
+
+# Silence warnings about references to jdk internals. We intentionally use some
+# and have much tighter control of the warnings in the forbidden APIs gradle
+# task which is the definitive list of allowed references.
+org.eclipse.jdt.core.compiler.problem.forbiddenReference=ignore
+org.eclipse.jdt.core.compiler.problem.discouragedReference=ignore

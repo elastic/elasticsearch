@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -22,8 +21,7 @@ import static org.mockito.Mockito.mock;
 public class RestDeleteTransformActionTests extends ESTestCase {
 
     public void testBodyRejection() throws Exception {
-        final RestDeleteTransformAction handler = new RestDeleteTransformAction(
-            mock(RestController.class));
+        final RestDeleteTransformAction handler = new RestDeleteTransformAction();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {

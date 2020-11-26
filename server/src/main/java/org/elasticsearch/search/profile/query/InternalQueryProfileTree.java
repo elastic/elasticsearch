@@ -43,7 +43,7 @@ final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryPr
     protected String getTypeFromElement(Query query) {
         // Anonymous classes won't have a name,
         // we need to get the super class
-        if (query.getClass().getSimpleName().isEmpty() == true) {
+        if (query.getClass().getSimpleName().isEmpty()) {
             return query.getClass().getSuperclass().getSimpleName();
         }
         return query.getClass().getSimpleName();

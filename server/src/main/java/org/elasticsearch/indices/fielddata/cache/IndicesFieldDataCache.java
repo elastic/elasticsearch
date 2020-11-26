@@ -19,14 +19,12 @@
 
 package org.elasticsearch.indices.fielddata.cache;
 
-import java.util.Collections;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader.CacheKey;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.cache.Cache;
@@ -40,14 +38,14 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.ToLongBiFunction;
 
@@ -130,19 +128,19 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context,
-                final IFD indexFieldData) throws Exception {
+        @SuppressWarnings("unchecked")
+        public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context,
+                                                                                  final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
             final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
-            //noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 cacheHelper.addClosedListener(IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
-                final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
+                final LeafFieldData fieldData = indexFieldData.loadDirect(context);
                 for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldName, fieldData);
@@ -157,19 +155,19 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader,
-                final IFD indexFieldData) throws Exception {
+        @SuppressWarnings("unchecked")
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader,
+                                                                                          final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + indexReader + " does not support caching");
             }
             final Key key = new Key(this, cacheHelper.getKey(), shardId);
-            //noinspection unchecked
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
-                final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
+                final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
                 for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldName, ifd);
@@ -184,7 +182,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
 
         @Override
-        public void onClose(CacheKey key) throws IOException {
+        public void onClose(CacheKey key) {
             cache.invalidate(new Key(this, key, null));
             // don't call cache.cleanUp here as it would have bad performance implications
         }

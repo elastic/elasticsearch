@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -27,11 +29,17 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStatsNodesTests extends ESTestCase {
 
@@ -59,6 +67,54 @@ public class ClusterStatsNodesTests extends ESTestCase {
         + "}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
     }
 
+    public void testIngestStats() throws Exception {
+        NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
+        SortedMap<String, long[]> processorStats = new TreeMap<>();
+        nodeStats.getIngestStats().getProcessorStats().values().forEach(stats -> {
+            stats.forEach(stat -> {
+                processorStats.compute(stat.getType(), (key, value) -> {
+                    if (value == null) {
+                        return new long[] { stat.getStats().getIngestCount(), stat.getStats().getIngestFailedCount(),
+                            stat.getStats().getIngestCurrent(), stat.getStats().getIngestTimeInMillis()};
+                    } else {
+                        value[0] += stat.getStats().getIngestCount();
+                        value[1] += stat.getStats().getIngestFailedCount();
+                        value[2] += stat.getStats().getIngestCurrent();
+                        value[3] += stat.getStats().getIngestTimeInMillis();
+                        return value;
+                    }
+                });
+            });
+        });
+
+        ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
+        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
+        String processorStatsString = "{";
+        Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
+        while (iter.hasNext()) {
+            Map.Entry<String, long[]> entry = iter.next();
+            long[] statValues = entry.getValue();
+            long count = statValues[0];
+            long failedCount = statValues[1];
+            long current = statValues[2];
+            long timeInMillis = statValues[3];
+            processorStatsString += "\"" + entry.getKey() + "\":{\"count\":" + count
+                + ",\"failed\":" + failedCount
+                + ",\"current\":" + current
+                + ",\"time_in_millis\":" + timeInMillis
+                + "}";
+            if (iter.hasNext()) {
+                processorStatsString += ",";
+            }
+        }
+        processorStatsString += "}";
+        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo(
+            "{\"ingest\":{"
+                + "\"number_of_pipelines\":" + stats.pipelineCount + ","
+                + "\"processor_stats\":" + processorStatsString
+                + "}}"));
+    }
+
     private static NodeInfo createNodeInfo(String nodeId, String transportType, String httpType) {
         Settings.Builder settings = Settings.builder();
         if (transportType != null) {
@@ -71,6 +127,6 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
         return new NodeInfo(null, null,
                 new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
-                settings.build(), null, null, null, null, null, null, null, null, null);
+                settings.build(), null, null, null, null, null, null, null, null, null, null);
     }
 }

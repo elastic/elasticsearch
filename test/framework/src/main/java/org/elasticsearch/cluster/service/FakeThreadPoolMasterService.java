@@ -41,8 +41,6 @@ import java.util.function.Consumer;
 
 import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomInt;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class FakeThreadPoolMasterService extends MasterService {
     private static final Logger logger = LogManager.getLogger(FakeThreadPoolMasterService.class);
@@ -54,19 +52,12 @@ public class FakeThreadPoolMasterService extends MasterService {
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;
 
-    public FakeThreadPoolMasterService(String nodeName, String serviceName, Consumer<Runnable> onTaskAvailableToRun) {
+    public FakeThreadPoolMasterService(String nodeName, String serviceName, ThreadPool threadPool,
+                                       Consumer<Runnable> onTaskAvailableToRun) {
         super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            createMockThreadPool());
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
-    }
-
-    private static ThreadPool createMockThreadPool() {
-        final ThreadContext context = new ThreadContext(Settings.EMPTY);
-        final ThreadPool mockThreadPool = mock(ThreadPool.class);
-        when(mockThreadPool.getThreadContext()).thenReturn(context);
-        return mockThreadPool;
     }
 
     @Override
@@ -110,7 +101,11 @@ public class FakeThreadPoolMasterService extends MasterService {
                     final Runnable task = pendingTasks.remove(taskIndex);
                     taskInProgress = true;
                     scheduledNextTask = false;
-                    task.run();
+                    final ThreadContext threadContext = threadPool.getThreadContext();
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        threadContext.markAsSystemContext();
+                        task.run();
+                    }
                     if (waitForPublish == false) {
                         taskInProgress = false;
                     }
@@ -131,7 +126,7 @@ public class FakeThreadPoolMasterService extends MasterService {
         assert waitForPublish == false;
         waitForPublish = true;
         final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterChangedEvent.state());
-        clusterStatePublisher.publish(clusterChangedEvent, new ActionListener<Void>() {
+        final ActionListener<Void> publishListener = new ActionListener<>() {
 
             private boolean listenerCalled = false;
 
@@ -162,7 +157,20 @@ public class FakeThreadPoolMasterService extends MasterService {
                     scheduleNextTaskIfNecessary();
                 }
             }
-        }, wrapAckListener(ackListener));
+        };
+        threadPool.generic().execute(threadPool.getThreadContext().preserveContext(new Runnable() {
+            @Override
+            public void run() {
+                clusterStatePublisher.publish(clusterChangedEvent, publishListener, wrapAckListener(ackListener));
+            }
+
+            @Override
+            public String toString() {
+                return "publish change of cluster state from version [" + clusterChangedEvent.previousState().version() + "] in term [" +
+                        clusterChangedEvent.previousState().term() + "] to version [" + clusterChangedEvent.state().version()
+                        + "] in term [" + clusterChangedEvent.state().term() + "]";
+            }
+        }));
     }
 
     protected AckListener wrapAckListener(AckListener ackListener) {

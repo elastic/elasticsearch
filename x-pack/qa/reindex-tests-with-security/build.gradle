@@ -1,22 +1,22 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  if (isEclipse) {
-    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-  }
-  testCompile project(path: ':modules:reindex')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: ':modules:reindex')
 }
 
 forbiddenPatterns {
-    exclude '**/*.key'
-    exclude '**/*.pem'
-    exclude '**/*.p12'
-    exclude '**/*.jks'
+  exclude '**/*.key'
+  exclude '**/*.pem'
+  exclude '**/*.p12'
+  exclude '**/*.jks'
 }
 
 File caFile = project.file('src/test/resources/ssl/ca.p12')
@@ -28,7 +28,6 @@ testClusters.integTest {
   extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
   extraConfigFile 'ca.p12', caFile
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -40,10 +39,8 @@ testClusters.integTest {
   setting 'reindex.ssl.truststore.password', 'password'
 
   // Workaround for JDK-8212885
-  rootProject.globalInfo.ready {
-    if (project.ext.runtimeJavaVersion.isJava12Compatible() == false) {
-      setting 'reindex.ssl.supported_protocols', 'TLSv1.2'
-    }
+  if (BuildParams.runtimeJavaVersion.isJava12Compatible() == false) {
+    setting 'reindex.ssl.supported_protocols', 'TLSv1.2'
   }
 
   extraConfigFile 'roles.yml', file('roles.yml')

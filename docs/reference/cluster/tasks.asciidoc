@@ -1,50 +1,61 @@
 [[tasks]]
-=== Task Management API
+=== Task management API
+++++
+<titleabbrev>Task management</titleabbrev>
+++++
 
-beta[The Task Management API is new and should still be considered a beta feature.  The API may change in ways that are not backwards compatible]
+beta::["The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
 Returns information about the tasks currently executing in the cluster.
 
 [[tasks-api-request]]
 ==== {api-request-title}
 
-`GET /_tasks` +
-
 `GET /_tasks/<task_id>`
+
+`GET /_tasks`
 
 
 [[tasks-api-desc]]
 ==== {api-description-title}
 
-The task management API allows to retrieve information about the tasks currently
-executing on one or more nodes in the cluster.
+The task management API returns information
+about tasks currently executing
+on one or more nodes in the cluster.
 
 
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-`<task_id>`::
-    (Optional, string) The ID of the task to return (`node_id:task_number`).
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=actions]
 
-`wait_for_completion`::
-    (Optional, boolean) If `true`, it waits for the matching tasks to complete. 
-    Defaults to `false`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=group-by]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
     
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
+// tag::tasks-api-404[]
 `404` (Missing resources)::
-    If `{task_id}` is specified but not found, this code indicates that there 
-    are no resources that match the request.
-
+If `<task_id>` is specified but not found, this code indicates that there 
+are no resources that match the request.
+// end::tasks-api-404[]
 
 [[tasks-api-examples]]
 ==== {api-examples-title}
@@ -205,18 +216,6 @@ will wait for all `reindex` tasks to finish:
 GET _tasks?actions=*reindex&wait_for_completion=true&timeout=10s
 --------------------------------------------------
 
-
-===== Listing tasks by using _cat
-
-Tasks can be also listed using _cat version of the list tasks command, which
-accepts the same arguments as the standard list tasks command.
-
-[source,console]
---------------------------------------------------
-GET _cat/tasks
-GET _cat/tasks?detailed
---------------------------------------------------
-
 [[task-cancellation]]
 ===== Task Cancellation
 
@@ -232,6 +231,11 @@ The task cancellation command supports the same task selection parameters as the
 list tasks command, so multiple tasks can be cancelled at the same time. For 
 example, the following command will cancel all reindex tasks running on the 
 nodes `nodeId1` and `nodeId2`.
+
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request blocks until the cancellation of the
+task and its descendant tasks is completed. Otherwise, the request can return soon
+after the cancellation is started. Defaults to `false`.
 
 [source,console]
 --------------------------------------------------
@@ -262,7 +266,7 @@ GET _tasks?group_by=none
 The `X-Opaque-Id` header, when provided on the HTTP request header, is going to 
 be returned as a header in the response as well as in the `headers` field for in 
 the task information. This allows to track certain calls, or associate certain 
-tasks with a the client that started them:
+tasks with the client that started them:
 
 [source,sh]
 --------------------------------------------------

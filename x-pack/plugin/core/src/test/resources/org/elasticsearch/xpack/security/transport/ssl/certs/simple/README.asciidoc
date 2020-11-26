@@ -91,6 +91,10 @@ openssl pkcs12 -in dsa.p12 -nodes -nocerts | openssl pkcs8 -topk8 -nocrypt -outf
 ----
 [source,shell]
 ----
+openssl pkcs12 -in dsa.p12 -nodes -nokeys -cacerts -out testnode_dsa.crt
+----
+[source,shell]
+----
 keytool -importkeystore -srckeystore testnode.jks -destkeystore ec.p12 -deststoretype PKCS12 \
                 -srcalias testnode_ec -deststorepass testnode -destkeypass testnode
 ----
@@ -99,8 +103,10 @@ keytool -importkeystore -srckeystore testnode.jks -destkeystore ec.p12 -deststor
 openssl pkcs12 -in ec.p12 -nodes -nocerts | openssl pkcs8 -topk8 -nocrypt -outform pem \
                 -out ec_key_pkcs8_plain.pem
 ----
-
-
+[source,shell]
+----
+openssl pkcs12 -in ec.p12 -nodes -nokeys -cacerts -out testnode_ec.crt
+----
 
 Create `PKCS#8` encrypted key from the encrypted `PKCS#1` encoded `testnode.pem`
 [source,shell]
@@ -147,3 +153,29 @@ openssl x509 -req -in n2.c2.csr -extensions SAN -CA ca.crt -CAkey ca.key -CAcrea
        -extfile <(cat /etc/ssl/openssl.cnf <(printf "[SAN]\nsubjectAltName=otherName.1:2.5.4.3;UTF8:node2.cluster2"))\
        -out n2.c2.crt -days 10000
 ------
+
+== Generate EC keys using various curves for testing
+
+[source,shell]
+-------
+openssl ecparam -list_curves
+-------
+
+will list all the available curves in a given system.
+For the purposes of the tests here, the following curves were used to generate ec keys named accordingly:
+
+[source,shell]
+-------
+openssl ecparam -name secp256r1 -genkey -out private_secp256r1.pem
+openssl ecparam -name secp384r1 -genkey -out private_secp384r1.pem
+openssl ecparam -name secp521r1 -genkey -out private_secp521r1.pem
+-------
+
+and the respective certificates
+
+[source,shell]
+-------
+openssl req -x509 -extensions v3_req -key private_secp256r1.pem -out certificate_secp256r1.pem -days 1460 -config openssl_config.cnf
+openssl req -x509 -extensions v3_req -key private_secp384r1.pem -out certificate_secp384r1.pem -days 1460 -config openssl_config.cnf
+openssl req -x509 -extensions v3_req -key private_secp521r1.pem -out certificate_secp521r1.pem -days 1460 -config openssl_config.cnf
+-------

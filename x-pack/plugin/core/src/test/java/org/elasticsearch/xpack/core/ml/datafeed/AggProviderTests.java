@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -73,7 +74,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             AggregatorFactories.Builder aggs =
                 XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
                     .fromMap(agg);
-            return new AggProvider(agg, aggs, null);
+            return new AggProvider(agg, aggs, null, false);
         } catch (IOException ex) {
             fail(ex.getMessage());
         }
@@ -87,6 +88,82 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             () -> AggProvider.fromXContent(parser, false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Datafeed aggregations are not parsable"));
+    }
+
+    public void testRewriteBadNumericInterval() {
+        long numericInterval = randomNonNegativeLong();
+        Map<String, Object> maxTime = Collections.singletonMap("max", Collections.singletonMap("field", "time"));
+        Map<String, Object> numericDeprecated = new HashMap<>(){{
+            put("interval", numericInterval);
+            put("field", "foo");
+            put("aggs", Collections.singletonMap("time", maxTime));
+        }};
+        Map<String, Object> expected = new HashMap<>() {{
+            put("fixed_interval", numericInterval + "ms");
+            put("field", "foo");
+            put("aggs", Collections.singletonMap("time", maxTime));
+        }};
+        Map<String, Object> deprecated = Collections.singletonMap("buckets", Collections.singletonMap("date_histogram", numericDeprecated));
+        assertTrue(AggProvider.rewriteDateHistogramInterval(deprecated, false));
+        assertThat(deprecated, equalTo(Collections.singletonMap("buckets", Collections.singletonMap("date_histogram", expected))));
+
+        numericDeprecated = new HashMap<>(){{
+            put("interval", numericInterval + "ms");
+            put("field", "foo");
+            put("aggs", Collections.singletonMap("time", maxTime));
+        }};
+        deprecated = Collections.singletonMap("date_histogram", Collections.singletonMap("date_histogram", numericDeprecated));
+        assertTrue(AggProvider.rewriteDateHistogramInterval(deprecated, false));
+        assertThat(deprecated,
+            equalTo(Collections.singletonMap("date_histogram", Collections.singletonMap("date_histogram", expected))));
+    }
+
+    public void testRewriteBadCalendarInterval() {
+        String calendarInterval = "1w";
+        Map<String, Object> maxTime = Collections.singletonMap("max", Collections.singletonMap("field", "time"));
+        Map<String, Object> calendarDeprecated = new HashMap<>(){{
+            put("interval", calendarInterval);
+            put("field", "foo");
+            put("aggs", Collections.singletonMap("time", maxTime));
+        }};
+        Map<String, Object> expected = new HashMap<>() {{
+            put("calendar_interval", calendarInterval);
+            put("field", "foo");
+            put("aggs", Collections.singletonMap("time", maxTime));
+        }};
+        Map<String, Object> deprecated = Collections.singletonMap("buckets",
+            Collections.singletonMap("date_histogram", calendarDeprecated));
+        assertTrue(AggProvider.rewriteDateHistogramInterval(deprecated, false));
+        assertThat(deprecated, equalTo(Collections.singletonMap("buckets", Collections.singletonMap("date_histogram", expected))));
+
+        calendarDeprecated = new HashMap<>(){{
+            put("interval", calendarInterval);
+            put("field", "foo");
+            put("aggs", Collections.singletonMap("time", maxTime));
+        }};
+        deprecated = Collections.singletonMap("date_histogram", Collections.singletonMap("date_histogram", calendarDeprecated));
+        assertTrue(AggProvider.rewriteDateHistogramInterval(deprecated, false));
+        assertThat(deprecated,
+            equalTo(Collections.singletonMap("date_histogram", Collections.singletonMap("date_histogram", expected))));
+    }
+
+    public void testRewriteWhenNoneMustOccur() {
+        String calendarInterval = "1w";
+        Map<String, Object> maxTime = Collections.singletonMap("max", Collections.singletonMap("field", "time"));
+        Map<String, Object> calendarDeprecated = new HashMap<>(){{
+            put("calendar_interval", calendarInterval);
+            put("field", "foo");
+            put("aggs", Collections.singletonMap("time", maxTime));
+        }};
+        Map<String, Object> expected = new HashMap<>() {{
+            put("calendar_interval", calendarInterval);
+            put("field", "foo");
+            put("aggs", Collections.singletonMap("time", maxTime));
+        }};
+        Map<String, Object> current = Collections.singletonMap("buckets", Collections.singletonMap("date_histogram", calendarDeprecated));
+        assertFalse(AggProvider.rewriteDateHistogramInterval(current, false));
+        assertThat(current,
+            equalTo(Collections.singletonMap("buckets", Collections.singletonMap("date_histogram", expected))));
     }
 
     @Override
@@ -105,6 +182,6 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new AggProvider(instance.getAggs(), parsedAggs, parsingException);
+        return new AggProvider(instance.getAggs(), parsedAggs, parsingException, false);
     }
 }

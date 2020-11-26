@@ -13,14 +13,13 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
@@ -81,7 +80,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         @Override
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTasksCustomMetaData.PersistentTask<RollupJob> persistentTask,
+                                                     PersistentTasksCustomMetadata.PersistentTask<RollupJob> persistentTask,
                                                      Map<String, String> headers) {
             return new RollupJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
                     (RollupJobStatus) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
@@ -102,15 +101,15 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         ClientRollupPageManager(RollupJob job, IndexerState initialState, Map<String, Object> initialPosition,
                                 Client client) {
-            super(threadPool.executor(ThreadPool.Names.GENERIC), job, new AtomicReference<>(initialState), initialPosition);
+            super(threadPool, ThreadPool.Names.GENERIC, job, new AtomicReference<>(initialState), initialPosition);
             this.client = client;
             this.job = job;
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
-            ClientHelper.executeWithHeadersAsync(job.getHeaders(), ClientHelper.ROLLUP_ORIGIN, client, SearchAction.INSTANCE, request,
-                    nextPhase);
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
+            ClientHelper.executeWithHeadersAsync(job.getHeaders(), ClientHelper.ROLLUP_ORIGIN, client, SearchAction.INSTANCE,
+                    buildSearchRequest(), nextPhase);
         }
 
         @Override

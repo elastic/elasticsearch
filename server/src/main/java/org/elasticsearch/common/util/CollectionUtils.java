@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -152,6 +151,7 @@ public class CollectionUtils {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static Iterable<?> convert(Object value) {
         if (value == null) {
             return null;
@@ -267,12 +267,13 @@ public class CollectionUtils {
 
     }
 
+    @SuppressWarnings("unchecked")
     public static <E> ArrayList<E> iterableAsArrayList(Iterable<? extends E> elements) {
         if (elements == null) {
             throw new NullPointerException("elements");
         }
         if (elements instanceof Collection) {
-            return new ArrayList<>((Collection)elements);
+            return new ArrayList<>((Collection) elements);
         } else {
             ArrayList<E> list = new ArrayList<>();
             for (E element : elements) {
@@ -282,6 +283,8 @@ public class CollectionUtils {
         }
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> arrayAsArrayList(E... elements) {
         if (elements == null) {
             throw new NullPointerException("elements");
@@ -289,6 +292,8 @@ public class CollectionUtils {
         return new ArrayList<>(Arrays.asList(elements));
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <E> ArrayList<E> asArrayList(E first, E... other) {
         if (other == null) {
             throw new NullPointerException("other");
@@ -299,6 +304,8 @@ public class CollectionUtils {
         return list;
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static<E> ArrayList<E> asArrayList(E first, E second, E... other) {
         if (other == null) {
             throw new NullPointerException("other");

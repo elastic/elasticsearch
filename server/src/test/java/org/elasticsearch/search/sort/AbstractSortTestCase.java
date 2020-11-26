@@ -19,9 +19,11 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -39,7 +41,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptEngine;
@@ -54,6 +56,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
@@ -63,10 +66,11 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
@@ -153,7 +157,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         QueryShardContext mockShardContext = createMockShardContext();
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
-            SortFieldAndFormat sortField = sortBuilder.build(mockShardContext);
+            SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext)
+                    .build(mockShardContext);
             sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
         }
     }
@@ -182,27 +187,32 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    protected QueryShardContext createMockShardContext() {
+    protected final QueryShardContext createMockShardContext() {
+        return createMockShardContext(null);
+    }
+
+    protected final QueryShardContext createMockShardContext(IndexSearcher searcher) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
-            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
-            return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup =
+            (fieldType, fieldIndexName, searchLookup) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
+            return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
-            null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null, () -> randomNonNegativeLong(), null, null) {
+                null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
+                () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
 
             @Override
-            public MappedFieldType fieldMapper(String name) {
+            public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);
             }
 
             @Override
             public ObjectMapper getObjectMapper(String name) {
-                BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
+                return new ObjectMapper.Builder(name, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
             }
         };
     }
@@ -212,9 +222,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      * Tests that require other field types can override this.
      */
     protected MappedFieldType provideMappedFieldType(String name) {
-        NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        doubleFieldType.setName(name);
-        doubleFieldType.setHasDocValues(true);
+        NumberFieldMapper.NumberFieldType doubleFieldType
+            = new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
         return doubleFieldType;
     }
 

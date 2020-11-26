@@ -33,7 +33,7 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.FIXED);
         // some of the fixed thread pool are bound by the number of
         // cores so we can not exceed that
-        final int size = randomIntBetween(1, EsExecutors.numberOfProcessors(Settings.EMPTY));
+        final int size = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
         final int queueSize = randomIntBetween(1, 16);
         final long rejections = randomIntBetween(1, 16);
 

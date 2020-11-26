@@ -48,7 +48,7 @@ public class HalfFloatFielddataTests extends ESTestCase {
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
-        SortedNumericDoubleValues values = new SortedNumericDVIndexFieldData.SortedNumericHalfFloatFieldData(
+        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(
                 reader, "half_float").getDoubleValues();
         assertNotNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));
@@ -70,7 +70,7 @@ public class HalfFloatFielddataTests extends ESTestCase {
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
-        SortedNumericDoubleValues values = new SortedNumericDVIndexFieldData.SortedNumericHalfFloatFieldData(
+        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(
                 reader, "half_float").getDoubleValues();
         assertNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));

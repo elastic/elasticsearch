@@ -20,13 +20,18 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
 
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -47,6 +53,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ConditionalProcessorTests extends ESTestCase {
+
+    private static final String scriptName = "conditionalScript";
 
     public void testChecksCondition() throws Exception {
         String conditionalField = "field1";
@@ -70,6 +78,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
+            "description",
             new Script(
                 ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                 scriptName, Collections.emptyMap()), scriptService,
@@ -92,6 +101,11 @@ public class ConditionalProcessorTests extends ESTestCase {
                 public String getTag() {
                     return null;
                 }
+
+                @Override
+                public String getDescription() {
+                    return null;
+                }
             }, relativeTimeProvider);
 
         //false, never call processor never increments metrics
@@ -102,6 +116,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(falseValue));
         assertThat(ingestDocument.getSourceAndMetadata(), not(hasKey("foo")));
         assertStats(processor, 0, 0, 0);
+        assertEquals(scriptName, processor.getCondition());
 
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, falseValue);
@@ -136,7 +151,7 @@ public class ConditionalProcessorTests extends ESTestCase {
     }
 
     public void testTypeDeprecation() throws Exception {
-        String scriptName = "conditionalScript";
+
         ScriptService scriptService = new ScriptService(Settings.builder().build(),
                 Collections.singletonMap(
                         Script.DEFAULT_SCRIPT_LANG,
@@ -158,6 +173,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
                 randomAlphaOfLength(10),
+                "description",
                 new Script(
                         ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                         scriptName, Collections.emptyMap()), scriptService,
@@ -176,11 +192,69 @@ public class ConditionalProcessorTests extends ESTestCase {
                     public String getTag() {
                         return null;
                     }
+
+                    @Override
+                    public String getDescription() {
+                        return null;
+                    }
                 }, relativeTimeProvider);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         processor.execute(ingestDocument, (result, e) -> {});
         assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
+    }
+
+    public void testPrecompiledError() {
+        ScriptService scriptService = MockScriptService.singleContext(IngestConditionalScript.CONTEXT, code -> {
+            throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null);
+        }, Map.of());
+        Script script = new Script(ScriptType.INLINE, "lang", "foo", Map.of());
+        ScriptException e = expectThrows(ScriptException.class, () ->
+            new ConditionalProcessor(null, null, script, scriptService, null));
+        assertThat(e.getMessage(), equalTo("bad script"));
+    }
+
+    public void testRuntimeCompileError() {
+        AtomicBoolean fail = new AtomicBoolean(false);
+        Map<String, StoredScriptSource> storedScripts = new HashMap<>();
+        storedScripts.put("foo", new StoredScriptSource("lang", "", Map.of()));
+        ScriptService scriptService = MockScriptService.singleContext(IngestConditionalScript.CONTEXT, code -> {
+            if (fail.get()) {
+                throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null);
+            } else {
+                return params -> new IngestConditionalScript(params) {
+                    @Override
+                    public boolean execute(Map<String, Object> ctx) {
+                        return false;
+                    }
+                };
+            }
+        }, storedScripts);
+        Script script = new Script(ScriptType.STORED, null, "foo", Map.of());
+        var processor = new ConditionalProcessor(null, null, script, scriptService, null);
+        fail.set(true);
+        // must change the script source or the cached version will be used
+        storedScripts.put("foo", new StoredScriptSource("lang", "changed", Map.of()));
+        IngestDocument ingestDoc = new IngestDocument(Map.of(), Map.of());
+        processor.execute(ingestDoc, (doc, e) -> {
+            assertThat(e.getMessage(), equalTo("bad script"));
+        });
+    }
+
+    public void testRuntimeError() {
+        ScriptService scriptService = MockScriptService.singleContext(IngestConditionalScript.CONTEXT,
+            code -> params -> new IngestConditionalScript(params) {
+                @Override
+                public boolean execute(Map<String, Object> ctx) {
+                    throw new IllegalArgumentException("runtime problem");
+                }
+            }, Map.of());
+        Script script = new Script(ScriptType.INLINE, "lang", "foo", Map.of());
+        var processor = new ConditionalProcessor(null, null, script, scriptService, null);
+        IngestDocument ingestDoc = new IngestDocument(Map.of(), Map.of());
+        processor.execute(ingestDoc, (doc, e) -> {
+            assertThat(e.getMessage(), equalTo("runtime problem"));
+        });
     }
 
     private static void assertMutatingCtxThrows(Consumer<Map<String, Object>> mutation) throws Exception {
@@ -209,6 +283,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
+            "desription",
             new Script(
                 ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                 scriptName, Collections.emptyMap()), scriptService, null

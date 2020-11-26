@@ -16,19 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-    classname 'org.elasticsearch.percolator.PercolatorPlugin'
+  description 'Percolator module adds capability to index queries and query these queries by specifying documents'
+  classname 'org.elasticsearch.percolator.PercolatorPlugin'
 }
 
 dependencies {
-    testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+  testImplementation project(':modules:parent-join')
+  testImplementation project(':modules:geo')
 }
 
-dependencyLicenses {
-  // Don't check the client's license. We know it.
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
-  } - project.configurations.compileOnly
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search', 'msearch'
+  }
 }

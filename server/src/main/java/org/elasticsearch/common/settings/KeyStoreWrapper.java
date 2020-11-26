@@ -34,6 +34,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -378,6 +379,9 @@ public class KeyStoreWrapper implements SecureSettings {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
         } catch (IOException e) {
+            if (e.getCause() instanceof AEADBadTagException) {
+                throw new SecurityException("Provided keystore password was incorrect", e);
+            }
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
     }
@@ -580,7 +584,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /** Set a string setting. */
+    /**
+     * Set a string setting.
+     */
     synchronized void setString(String setting, char[] value) {
         ensureOpen();
         validateSettingName(setting);
@@ -593,7 +599,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /** Set a file setting. */
+    /**
+     * Set a file setting.
+     */
     synchronized void setFile(String setting, byte[] bytes) {
         ensureOpen();
         validateSettingName(setting);
@@ -604,7 +612,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /** Remove the given setting from the keystore. */
+    /**
+     * Remove the given setting from the keystore.
+     */
     void remove(String setting) {
         ensureOpen();
         Entry oldEntry = entries.get().remove(setting);

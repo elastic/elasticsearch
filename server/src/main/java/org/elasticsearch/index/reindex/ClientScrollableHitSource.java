@@ -64,6 +64,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
+        firstSearchRequest.allowPartialSearchResults(false);
     }
 
     @Override

@@ -11,11 +11,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
@@ -30,8 +32,9 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     private final Step startStep;
     private final PolicyStepsRegistry policyStepsRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
-    private LongSupplier nowSupplier;
+    private final LongSupplier nowSupplier;
     private Step.StepKey nextStepKey = null;
+    private Exception failure = null;
 
     public ExecuteStepsUpdateTask(String policy, Index index, Step startStep, PolicyStepsRegistry policyStepsRegistry,
                                   IndexLifecycleRunner lifecycleRunner, LongSupplier nowSupplier) {
@@ -72,14 +75,13 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(final ClusterState currentState) throws IOException {
         Step currentStep = startStep;
-        IndexMetaData indexMetaData = currentState.metaData().index(index);
-        if (indexMetaData == null) {
+        IndexMetadata indexMetadata = currentState.metadata().index(index);
+        if (indexMetadata == null) {
             logger.debug("lifecycle for index [{}] executed but index no longer exists", index.getName());
             // This index doesn't exist any more, there's nothing to execute currently
             return currentState;
         }
-        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, indexMetaData,
-            LifecycleExecutionState.fromIndexMetadata(indexMetaData));
+        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, indexMetadata);
         if (currentStep.equals(registeredCurrentStep)) {
             ClusterState state = currentState;
             // We can do cluster state steps all together until we
@@ -103,8 +105,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         return state;
                     } else {
                         logger.trace("[{}] moving cluster state to next step [{}]", index.getName(), nextStepKey);
-                        state = IndexLifecycleRunner.moveClusterStateToNextStep(index, state, currentStep.getKey(),
-                            nextStepKey, nowSupplier, false);
+                        state = IndexLifecycleTransition.moveClusterStateToStep(index, state, nextStepKey, nowSupplier,
+                            policyStepsRegistry, false);
                     }
                 } else {
                     // set here to make sure that the clusterProcessed knows to execute the
@@ -117,7 +119,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // wait for the next trigger to evaluate the
                     // condition again
                     logger.trace("[{}] waiting for cluster state step condition ({}) [{}], next: [{}]",
-                        index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
+                        index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), nextStepKey);
                     ClusterStateWaitStep.Result result;
                     try {
                         result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
@@ -126,26 +128,29 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     }
                     if (result.isComplete()) {
                         logger.trace("[{}] cluster state step condition met successfully ({}) [{}], moving to next step {}",
-                            index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
-                        if (currentStep.getNextStepKey() == null) {
+                            index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), nextStepKey);
+                        if (nextStepKey == null) {
                             return state;
                         } else {
-                            state = IndexLifecycleRunner.moveClusterStateToNextStep(index, state, currentStep.getKey(),
-                                currentStep.getNextStepKey(), nowSupplier, false);
+                            state = IndexLifecycleTransition.moveClusterStateToStep(index, state,
+                                nextStepKey, nowSupplier, policyStepsRegistry,false);
                         }
                     } else {
-                        logger.trace("[{}] condition not met ({}) [{}], returning existing state",
-                            index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey());
+                        final ToXContentObject stepInfo = result.getInfomationContext();
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("[{}] condition not met ({}) [{}], returning existing state (info: {})",
+                                index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(),
+                                stepInfo == null ? "null" : Strings.toString(stepInfo));
+                        }
                         // We may have executed a step and set "nextStepKey" to
                         // a value, but in this case, since the condition was
                         // not met, we can't advance any way, so don't attempt
                         // to run the current step
                         nextStepKey = null;
-                        ToXContentObject stepInfo = result.getInfomationContext();
                         if (stepInfo == null) {
                             return state;
                         } else {
-                            return IndexLifecycleRunner.addStepInfoToClusterState(index, state, stepInfo);
+                            return IndexLifecycleTransition.addStepInfoToClusterState(index, state, stepInfo);
                         }
                     }
                 }
@@ -156,7 +161,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
                     return state;
                 }
-                currentStep = policyStepsRegistry.getStep(indexMetaData, currentStep.getNextStepKey());
+                currentStep = policyStepsRegistry.getStep(indexMetadata, currentStep.getNextStepKey());
             }
             return state;
         } else {
@@ -170,14 +175,24 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
         if (oldState.equals(newState) == false) {
-            IndexMetaData indexMetaData = newState.metaData().index(index);
-            if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY && indexMetaData != null) {
-                logger.trace("[{}] step sequence starting with {} has completed, running next step {} if it is an async action",
-                    index.getName(), startStep.getKey(), nextStepKey);
-                // After the cluster state has been processed and we have moved
-                // to a new step, we need to conditionally execute the step iff
-                // it is an `AsyncAction` so that it is executed exactly once.
-                lifecycleRunner.maybeRunAsyncAction(newState, indexMetaData, policy, nextStepKey);
+            IndexMetadata indexMetadata = newState.metadata().index(index);
+            if (indexMetadata != null) {
+
+                LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+                if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
+                    lifecycleRunner.registerFailedOperation(indexMetadata, failure);
+                } else {
+                    lifecycleRunner.registerSuccessfulOperation(indexMetadata);
+                }
+
+                if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY) {
+                    logger.trace("[{}] step sequence starting with {} has completed, running next step {} if it is an async action",
+                        index.getName(), startStep.getKey(), nextStepKey);
+                    // After the cluster state has been processed and we have moved
+                    // to a new step, we need to conditionally execute the step iff
+                    // it is an `AsyncAction` so that it is executed exactly once.
+                    lifecycleRunner.maybeRunAsyncAction(newState, indexMetadata, policy, nextStepKey);
+                }
             }
         }
     }
@@ -189,10 +204,9 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     }
 
     private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) throws IOException {
+        this.failure = cause;
         logger.error("policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step", policy, index.getName(),
             currentStepKey);
-        MoveToErrorStepUpdateTask moveToErrorStepUpdateTask = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause,
-            nowSupplier);
-        return moveToErrorStepUpdateTask.execute(state);
+        return IndexLifecycleTransition.moveClusterStateToErrorStep(index, state, cause, nowSupplier, policyStepsRegistry::getStep);
     }
 }

@@ -5,8 +5,7 @@
 <titleabbrev>Get application privileges</titleabbrev>
 ++++
 
-Retrieves 
-{stack-ov}/security-privileges.html#application-privileges[application privileges].
+Retrieves <<application-privileges,application privileges>>.
 
 [[security-api-get-privileges-request]]
 ==== {api-request-title}

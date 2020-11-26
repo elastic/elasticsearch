@@ -13,31 +13,31 @@ public class XmlFileStructureFinderFactoryTests extends FileStructureTestCase {
 
     public void testCanCreateFromSampleGivenXml() {
 
-        assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE, 0.0));
     }
 
     public void testCanCreateFromSampleGivenCsv() {
 
-        assertFalse(factory.canCreateFromSample(explanation, CSV_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, CSV_SAMPLE, 0.0));
     }
 
     public void testCanCreateFromSampleGivenTsv() {
 
-        assertFalse(factory.canCreateFromSample(explanation, TSV_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, TSV_SAMPLE, 0.0));
     }
 
     public void testCanCreateFromSampleGivenSemiColonDelimited() {
 
-        assertFalse(factory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreateFromSampleGivenPipeDelimited() {
 
-        assertFalse(factory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreateFromSampleGivenText() {
 
-        assertFalse(factory.canCreateFromSample(explanation, TEXT_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
     }
 }

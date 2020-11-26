@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_node_changes]]
 === Node changes
 
@@ -8,26 +8,36 @@
 
 // end::notable-breaking-changes[]
 
-[float]
-==== Removal of `node.max_local_storage_nodes` setting
-
+.The `node.max_local_storage_nodes` setting has been removed.
+[%collapsible]
+====
+*Details* +
 The `node.max_local_storage_nodes` setting was deprecated in 7.x and
 has been removed in 8.0. Nodes should be run on separate data paths
 to ensure that each node is consistently assigned to the same data path.
 
-[float]
-==== Change of data folder layout
+*Impact* +
+Discontinue use of the `node.max_local_storage_nodes` setting. Specifying this
+setting in `elasticsearch.yml` will result in an error on startup.
+====
 
+.The layout of the data folder has changed.
+[%collapsible]
+====
+*Details* +
 Each node's data is now stored directly in the data directory set by the
 `path.data` setting, rather than in `${path.data}/nodes/0`, because the removal
 of the `node.max_local_storage_nodes` setting means that nodes may no longer
-share a data path. At startup, Elasticsearch will automatically migrate the data
-path to the new layout. This automatic migration will not proceed if the data
-path contains data for more than one node. You should move to a configuration in
-which each node has its own data path before upgrading.
+share a data path. 
+
+*Impact* +
+At startup, {es} will automatically migrate the data path to the new layout.
+This automatic migration will not proceed if the data path contains data for
+more than one node. You should move to a configuration in which each node has
+its own data path before upgrading.
 
 If you try to upgrade a configuration in which there is data for more than one
-node in a data path then the automatic migration will fail and Elasticsearch
+node in a data path then the automatic migration will fail and {es}
 will refuse to start. To resolve this you will need to perform the migration
 manually. The data for the extra nodes are stored in folders named
 `${path.data}/nodes/1`, `${path.data}/nodes/2` and so on, and you should move
@@ -36,11 +46,18 @@ corresponding node to use this location for its data path. If your nodes each
 have more than one data path in their `path.data` settings then you should move
 all the corresponding subfolders in parallel. Each node uses the same subfolder
 (e.g. `nodes/2`) across all its data paths.
+====
 
-[float]
-==== Rejection of ancient closed indices
-
+.Closed indices created in {es} 6.x and earlier versions are not supported.
+[%collapsible]
+====
+*Details* +
 In earlier versions a node would start up even if it had data from indices
 created in a version before the previous major version, as long as those
 indices were closed. {es} now ensures that it is compatible with every index,
 open or closed, at startup time.
+
+*Impact* +
+Reindex closed indices created in {es} 6.x or before with {es} 7.x if they need
+to be carried forward to {es} 8.x.
+====

@@ -46,8 +46,9 @@ import java.util.stream.Collectors;
  * The {@link OsProbe} class retrieves information about the physical and swap size of the machine
  * memory, as well as the system load average and cpu load.
  *
- * In some exceptional cases, it's possible the underlying native method used by
- * {@link #getFreePhysicalMemorySize()} and {@link #getTotalPhysicalMemorySize()} can return a
+ * In some exceptional cases, it's possible the underlying native methods used by
+ * {@link #getFreePhysicalMemorySize()}, {@link #getTotalPhysicalMemorySize()},
+ * {@link #getFreeSwapSpaceSize()}, and {@link #getTotalSwapSpaceSize()} can return a
  * negative value. Because of this, we prevent those methods from returning negative values,
  * returning 0 instead.
  *
@@ -91,7 +92,7 @@ public class OsProbe {
         try {
             final long freeMem = (long) getFreePhysicalMemorySize.invoke(osMxBean);
             if (freeMem < 0) {
-                logger.warn("OS reported a negative free memory value [{}]", freeMem);
+                logger.debug("OS reported a negative free memory value [{}]", freeMem);
                 return 0;
             }
             return freeMem;
@@ -112,7 +113,7 @@ public class OsProbe {
         try {
             final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
             if (totalMem < 0) {
-                logger.warn("OS reported a negative total memory value [{}]", totalMem);
+                logger.debug("OS reported a negative total memory value [{}]", totalMem);
                 return 0;
             }
             return totalMem;
@@ -127,12 +128,19 @@ public class OsProbe {
      */
     public long getFreeSwapSpaceSize() {
         if (getFreeSwapSpaceSize == null) {
-            return -1;
+            logger.warn("getFreeSwapSpaceSize is not available");
+            return 0;
         }
         try {
-            return (long) getFreeSwapSpaceSize.invoke(osMxBean);
+            final long mem = (long) getFreeSwapSpaceSize.invoke(osMxBean);
+            if (mem < 0) {
+                logger.debug("OS reported a negative free swap space size [{}]", mem);
+                return 0;
+            }
+            return mem;
         } catch (Exception e) {
-            return -1;
+            logger.warn("exception retrieving free swap space size", e);
+            return 0;
         }
     }
 
@@ -141,12 +149,19 @@ public class OsProbe {
      */
     public long getTotalSwapSpaceSize() {
         if (getTotalSwapSpaceSize == null) {
-            return -1;
+            logger.warn("getTotalSwapSpaceSize is not available");
+            return 0;
         }
         try {
-            return (long) getTotalSwapSpaceSize.invoke(osMxBean);
+            final long mem = (long) getTotalSwapSpaceSize.invoke(osMxBean);
+            if (mem < 0) {
+                logger.debug("OS reported a negative total swap space size [{}]", mem);
+                return 0;
+            }
+            return mem;
         } catch (Exception e) {
-            return -1;
+            logger.warn("exception retrieving total swap space size", e);
+            return 0;
         }
     }
 
@@ -218,7 +233,7 @@ public class OsProbe {
      */
     private String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
-        assert lines != null && lines.size() == 1;
+        assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
     }
 

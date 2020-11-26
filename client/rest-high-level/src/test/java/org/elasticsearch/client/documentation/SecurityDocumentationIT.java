@@ -28,11 +28,16 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearApiKeyCacheRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheResponse;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -79,7 +84,6 @@ import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.TemplateRoleName;
-import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
 import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
@@ -95,12 +99,12 @@ import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -121,6 +125,11 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -129,14 +138,22 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    @Override
+    protected Settings restAdminSettings() {
+        String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+                .put(ThreadContext.PREFIX + ".Authorization", token)
+                .build();
+    }
 
     public void testGetUsers() throws Exception {
         final RestHighLevelClient client = highLevelClient();
@@ -187,10 +204,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             List<User> users = new ArrayList<>(3);
             users.addAll(response.getUsers());
             assertNotNull(response);
-            // 9 users are expected to be returned
+            // 10 users are expected to be returned
             // test_users (3): user1, user2, user3
-            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
-            assertThat(users.size(), equalTo(9));
+            // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, kibana_system, remote_monitoring_user
+            logger.info(users);
+            assertThat(users.size(), equalTo(10));
         }
 
         {
@@ -229,7 +247,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
         }
     }
-
 
     public void testPutUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -481,7 +498,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), isIn(new String[]{"mapping-example-1", "mapping-example-2"}));
+                assertThat(roleMapping.getName(), in(new String[]{"mapping-example-1", "mapping-example-2"}));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -506,7 +523,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), isIn(new String[]{"mapping-example-1", "mapping-example-2"}));
+                assertThat(roleMapping.getName(), in(new String[]{"mapping-example-1", "mapping-example-2"}));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -681,8 +698,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 27 system roles plus the three we created
-            assertThat(roles.size(), equalTo(30));
+            // 29 system roles plus the three we created
+            assertThat(roles.size(), equalTo(29 + 3));
         }
 
         {
@@ -735,10 +752,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String authenticationRealmType = response.getAuthenticationRealm().getType(); // <4>
             final String lookupRealmName = response.getLookupRealm().getName(); // <5>
             final String lookupRealmType = response.getLookupRealm().getType(); // <6>
+            final String authenticationType = response.getAuthenticationType(); // <7>
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
-            assertThat(user.getRoles(), contains(new String[]{"superuser"}));
+            assertThat(user.getRoles(), contains(new String[]{"admin"}));
             assertThat(user.getFullName(), nullValue());
             assertThat(user.getEmail(), nullValue());
             assertThat(user.getMetadata().isEmpty(), is(true));
@@ -747,6 +765,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authenticationRealmType, is("file"));
             assertThat(lookupRealmName, is("default_file"));
             assertThat(lookupRealmType, is("file"));
+            assertThat(authenticationType, is("realm"));
         }
 
         {
@@ -985,6 +1004,100 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::clear-roles-cache-execute-async
             client.security().clearRolesCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::clear-roles-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testClearPrivilegesCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-privileges-cache-request
+            ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest("my_app"); // <1>
+            //end::clear-privileges-cache-request
+            //tag::clear-privileges-cache-execute
+            ClearPrivilegesCacheResponse response = client.security().clearPrivilegesCache(request, RequestOptions.DEFAULT);
+            //end::clear-privileges-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-privileges-cache-response
+            List<ClearPrivilegesCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-privileges-cache-response
+        }
+
+        {
+            //tag::clear-privileges-cache-execute-listener
+            ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest("my_app");
+            ActionListener<ClearPrivilegesCacheResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(ClearPrivilegesCacheResponse clearPrivilegesCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-privileges-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-privileges-cache-execute-async
+            client.security().clearPrivilegesCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-privileges-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testClearApiKeyCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-api-key-cache-request
+            ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById(
+                "yVGMr3QByxdh1MSaicYx"  // <1>
+            );
+            //end::clear-api-key-cache-request
+            //tag::clear-api-key-cache-execute
+            ClearSecurityCacheResponse response = client.security().clearApiKeyCache(request, RequestOptions.DEFAULT);
+            //end::clear-api-key-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-api-key-cache-response
+            List<ClearSecurityCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-api-key-cache-response
+        }
+
+        {
+            //tag::clear-api-key-cache-execute-listener
+            ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById("yVGMr3QByxdh1MSaicYx");
+            ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(ClearSecurityCacheResponse clearSecurityCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-api-key-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-api-key-cache-execute-async
+            client.security().clearApiKeyCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-api-key-cache-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -1986,6 +2099,18 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
+            // tag::get-all-api-keys-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.forAllApiKeys();
+            // end::get-all-api-keys-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
             // tag::get-user-realm-api-keys-request
             GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
             // end::get-user-realm-api-keys-request
@@ -2268,6 +2393,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
+            assertThat(resp.getAuthenticationType(), is("token"));
         }
 
         {
@@ -2311,6 +2437,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
+            assertThat(resp.getAuthenticationType(), is("token"));
         }
     }
 

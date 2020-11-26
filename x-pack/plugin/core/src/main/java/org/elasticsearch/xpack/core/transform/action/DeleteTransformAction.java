@@ -21,10 +21,10 @@ import java.util.Objects;
 public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteTransformAction INSTANCE = new DeleteTransformAction();
-    public static final String NAME = "cluster:admin/data_frame/delete";
+    public static final String NAME = "cluster:admin/transform/delete";
 
     private DeleteTransformAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

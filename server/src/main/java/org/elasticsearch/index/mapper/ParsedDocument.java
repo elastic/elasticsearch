@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.List;
 
@@ -33,7 +34,7 @@ public class ParsedDocument {
 
     private final Field version;
 
-    private final String id, type;
+    private final String id;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
 
     private final String routing;
@@ -48,7 +49,6 @@ public class ParsedDocument {
     public ParsedDocument(Field version,
                           SeqNoFieldMapper.SequenceIDFields seqID,
                           String id,
-                          String type,
                           String routing,
                           List<Document> documents,
                           BytesReference source,
@@ -57,7 +57,6 @@ public class ParsedDocument {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
-        this.type = type;
         this.routing = routing;
         this.documents = documents;
         this.source = source;
@@ -67,10 +66,6 @@ public class ParsedDocument {
 
     public String id() {
         return this.id;
-    }
-
-    public String type() {
-        return this.type;
     }
 
     public Field version() {
@@ -131,7 +126,7 @@ public class ParsedDocument {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update);
+            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_UPDATE);
         }
     }
 

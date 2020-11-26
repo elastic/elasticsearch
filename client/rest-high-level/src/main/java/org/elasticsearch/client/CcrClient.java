@@ -30,10 +30,12 @@ import org.elasticsearch.client.ccr.FollowStatsResponse;
 import org.elasticsearch.client.ccr.ForgetFollowerRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
+import org.elasticsearch.client.ccr.PauseAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
+import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
@@ -408,6 +410,92 @@ public final class CcrClient {
             listener,
             Collections.emptySet()
         );
+    }
+
+    /**
+     * Pauses an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-pause-auto-follow-pattern.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse pauseAutoFollowPattern(PauseAutoFollowPatternRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::pauseAutoFollowPattern,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously pauses an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-pause-auto-follow-pattern.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable pauseAutoFollowPatternAsync(PauseAutoFollowPatternRequest request,
+                                                   RequestOptions options,
+                                                   ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::pauseAutoFollowPattern,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Resumes an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-resume-auto-follow-pattern.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse resumeAutoFollowPattern(ResumeAutoFollowPatternRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::resumeAutoFollowPattern,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously resumes an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-resume-auto-follow-pattern.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable resumeAutoFollowPatternAsync(ResumeAutoFollowPatternRequest request,
+                                                    RequestOptions options,
+                                                    ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::resumeAutoFollowPattern,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**

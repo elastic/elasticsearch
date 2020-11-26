@@ -163,7 +163,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
     private static final String REST_SPEC_COUNT_API = "{\n" +
         "  \"count\":{\n" +
         "    \"documentation\":{\n" +
-        "      \"url\":\"http://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html\",\n" +
+        "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html\",\n" +
         "      \"description\":\"Returns number of documents matching a query.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +
@@ -224,7 +224,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
     private static final String REST_SPEC_GET_TEMPLATE_API = "{\n" +
         "  \"indices.get_template\":{\n" +
         "    \"documentation\":{\n" +
-        "      \"url\":\"http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html\",\n" +
+        "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html\",\n" +
         "      \"description\":\"Returns an index template.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +
@@ -256,7 +256,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
     private static final String REST_SPEC_INDEX_API = "{\n" +
         "  \"index\":{\n" +
         "    \"documentation\":{\n" +
-        "      \"url\":\"http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html\",\n" +
+        "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html\",\n" +
         "      \"description\":\"Creates or updates a document in an index.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.master.info;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -32,7 +33,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
         implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
@@ -42,7 +42,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readStringArray();
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
@@ -50,7 +52,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         indicesOptions.writeIndicesOptions(out);
     }
 
@@ -58,12 +62,6 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     @SuppressWarnings("unchecked")
     public Request indices(String... indices) {
         this.indices = indices;
-        return (Request) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Request types(String... types) {
-        this.types = types;
         return (Request) this;
     }
 
@@ -78,12 +76,13 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
         return indices;
     }
 
-    public String[] types() {
-        return types;
-    }
-
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 }

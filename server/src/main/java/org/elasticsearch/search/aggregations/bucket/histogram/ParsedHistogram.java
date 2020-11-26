@@ -38,7 +38,7 @@ public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogra
         return buckets;
     }
 
-    private static ObjectParser<ParsedHistogram, Void> PARSER =
+    private static final ObjectParser<ParsedHistogram, Void> PARSER =
             new ObjectParser<>(ParsedHistogram.class.getSimpleName(), true, ParsedHistogram::new);
     static {
         declareMultiBucketAggregationFields(PARSER,

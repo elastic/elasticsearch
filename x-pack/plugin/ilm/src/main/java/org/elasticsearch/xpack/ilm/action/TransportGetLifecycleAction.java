@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.LifecyclePolic
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Request;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Response;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,22 +37,12 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
     public TransportGetLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
+            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-        IndexLifecycleMetadata metadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata metadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {
                 listener.onResponse(new Response(Collections.emptyList()));

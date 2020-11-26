@@ -19,10 +19,12 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +59,22 @@ public interface HttpRequest {
      */
     Map<String, List<String>> getHeaders();
 
+    default String header(String name) {
+        List<String> values = getHeaders().get(name);
+        if (values != null && values.isEmpty() == false) {
+            return values.get(0);
+        }
+        return null;
+    }
+
+    default List<String> allHeaders(String name) {
+        List<String> values = getHeaders().get(name);
+        if (values != null) {
+            return Collections.unmodifiableList(values);
+        }
+        return null;
+    }
+
     List<String> strictCookies();
 
     HttpVersion protocolVersion();
@@ -68,4 +86,19 @@ public interface HttpRequest {
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
 
+    @Nullable
+    Exception getInboundException();
+
+    /**
+     * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #content()}
+     * after this method has been invoked is undefined and implementation specific.
+     */
+    void release();
+
+    /**
+     * If this instances uses any pooled resources, creates a copy of this instance that does not use any pooled resources and releases
+     * any resources associated with this instance. If the instance does not use any shared resources, returns itself.
+     * @return a safe unpooled http request
+     */
+    HttpRequest releaseAndCopy();
 }

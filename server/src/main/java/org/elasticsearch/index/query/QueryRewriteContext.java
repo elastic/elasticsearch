@@ -95,6 +95,7 @@ public class QueryRewriteContext {
      * Executes all registered async actions and notifies the listener once it's done. The value that is passed to the listener is always
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void executeAsyncActions(ActionListener listener) {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);
@@ -122,17 +123,6 @@ public class QueryRewriteContext {
                 action.accept(client, internalListener);
             }
         }
-    }
-
-    /**
-     * In pre-processing contexts that happen at index time 'now' date ranges should be replaced by a {@link MatchAllQueryBuilder}.
-     * Otherwise documents that should match at query time would never match and the document that have fallen outside the
-     * date range would continue to match.
-     *
-     * @return indicates whether range queries with date ranges using 'now' are rewritten to a {@link MatchAllQueryBuilder}.
-     */
-    public boolean convertNowRangeToMatchAll() {
-        return false;
     }
 
 }

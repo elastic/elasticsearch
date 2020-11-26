@@ -19,17 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -46,9 +43,9 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
     private final String otherBucketKey;
 
     public FiltersAggregatorFactory(String name, List<KeyedFilter> filters, boolean keyed, boolean otherBucket,
-                                    String otherBucketKey, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                    String otherBucketKey, AggregationContext context, AggregatorFactory parent,
+                                    AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, subFactories, metadata);
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;
@@ -57,7 +54,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         for (int i = 0; i < filters.size(); ++i) {
             KeyedFilter keyedFilter = filters.get(i);
             this.keys[i] = keyedFilter.key();
-            this.filters[i] = keyedFilter.filter().toQuery(queryShardContext);
+            this.filters[i] = context.buildQuery(keyedFilter.filter());
         }
     }
 
@@ -66,33 +63,19 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
      * necessary. This is done lazily so that the {@link Weight}s are only
      * created if the aggregation collects documents reducing the overhead of
      * the aggregation in the case where no documents are collected.
-     * 
-     * Note that as aggregations are initialsed and executed in a serial manner,
+     * <p>
+     * Note that as aggregations are initialized and executed in a serial manner,
      * no concurrency considerations are necessary here.
      */
-    public Weight[] getWeights(SearchContext searchContext) {
-        if (weights == null) {
-            try {
-                IndexSearcher contextSearcher = searchContext.searcher();
-                weights = new Weight[filters.length];
-                for (int i = 0; i < filters.length; ++i) {
-                    this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filters[i]), ScoreMode.COMPLETE_NO_SCORES, 1);
-                }
-            } catch (IOException e) {
-                throw new AggregationInitializationException("Failed to initialse filters for aggregation [" + name() + "]", e);
-            }
-        }
-        return weights;
-    }
+    
 
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-        return new FiltersAggregator(name, factories, keys, () -> getWeights(searchContext), keyed,
-            otherBucket ? otherBucketKey : null, searchContext, parent, pipelineAggregators, metaData);
+                                        CardinalityUpperBound cardinality,
+                                        Map<String, Object> metadata) throws IOException {
+        return FiltersAggregator.build(name, factories, keys, filters, keyed,
+            otherBucket ? otherBucketKey : null, searchContext, parent, cardinality, metadata);
     }
 
 

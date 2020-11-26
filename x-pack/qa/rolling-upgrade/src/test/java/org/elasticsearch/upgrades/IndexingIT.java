@@ -9,7 +9,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -109,17 +108,16 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"_doc\"}}\n");
+            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException {
+    static void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");

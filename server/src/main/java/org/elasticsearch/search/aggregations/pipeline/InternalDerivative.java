@@ -32,9 +32,8 @@ import java.util.Objects;
 public class InternalDerivative extends InternalSimpleValue implements Derivative {
     private final double normalizationFactor;
 
-    InternalDerivative(String name, double value, double normalizationFactor, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, value, formatter, pipelineAggregators, metaData);
+    InternalDerivative(String name, double value, double normalizationFactor, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, value, formatter, metadata);
         this.normalizationFactor = normalizationFactor;
     }
 

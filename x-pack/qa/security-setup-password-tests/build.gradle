@@ -3,23 +3,20 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('security'), configuration: 'runtime')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('security'))
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTest.runner {
-    nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
-    systemProperty 'tests.security.manager', 'false'
+integTest {
+  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+  systemProperty 'tests.security.manager', 'false'
 }
 
 testClusters.integTest {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
 
-    user username: "test_admin", password: "x-pack-test-password"
+  user username: "test_admin", password: "x-pack-test-password"
 }

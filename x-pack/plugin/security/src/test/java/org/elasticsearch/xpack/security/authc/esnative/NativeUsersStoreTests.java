@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
@@ -85,8 +86,8 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testPasswordUpsertWhenSetEnabledOnReservedUser() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         nativeUsersStore.setEnabled(user, true, WriteRequest.RefreshPolicy.IMMEDIATE, future);
@@ -104,8 +105,8 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testBlankPasswordInIndexImpliesDefaultPassword() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         final Map<String, Object> values = new HashMap<>();
         values.put(ENABLED_FIELD, Boolean.TRUE);
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
@@ -125,7 +126,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         actionRespond(GetRequest.class, new GetResponse(result));
 
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
-        assertThat(userInfo.hasEmptyPassword, equalTo(true));
+        assertThat(userInfo.hasEmptyPassword(), equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
         assertTrue(Hasher.verifyHash(new SecureString("".toCharArray()), userInfo.passwordHash));
     }
@@ -186,7 +187,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 false,
                 null,
                 Collections.emptyMap(),
-                Collections.emptyMap());
+            Collections.emptyMap());
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
 
@@ -197,6 +198,17 @@ public class NativeUsersStoreTests extends ESTestCase {
         assertThat(result.getMessage(), nullValue());
     }
 
+    public void testDefaultReservedUserInfoPasswordEmpty() {
+        NativeUsersStore.ReservedUserInfo disabledUserInfo = NativeUsersStore.ReservedUserInfo.defaultDisabledUserInfo();
+        NativeUsersStore.ReservedUserInfo enabledUserInfo = NativeUsersStore.ReservedUserInfo.defaultEnabledUserInfo();
+        NativeUsersStore.ReservedUserInfo constructedUserInfo =
+            new NativeUsersStore.ReservedUserInfo(Hasher.PBKDF2.hash(new SecureString(randomAlphaOfLength(14))), randomBoolean());
+
+        assertThat(disabledUserInfo.hasEmptyPassword(), equalTo(true));
+        assertThat(enabledUserInfo.hasEmptyPassword(), equalTo(true));
+        assertThat(constructedUserInfo.hasEmptyPassword(), equalTo(false));
+    }
+
     private <ARequest extends ActionRequest, AResponse extends ActionResponse> ARequest actionRespond(Class<ARequest> requestClass,
                                                                                                       AResponse response) {
         Tuple<ARequest, ActionListener<?>> tuple = findRequest(requestClass);
@@ -205,11 +217,11 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private <ARequest extends ActionRequest> Tuple<ARequest, ActionListener<?>> findRequest(
-            Class<ARequest> requestClass) {
+        Class<ARequest> requestClass) {
         return this.requests.stream()
-                .filter(t -> requestClass.isInstance(t.v1()))
-                .map(t -> new Tuple<ARequest, ActionListener<?>>(requestClass.cast(t.v1()), t.v2()))
-                .findFirst().orElseThrow(() -> new RuntimeException("Cannot find request of type " + requestClass));
+            .filter(t -> requestClass.isInstance(t.v1()))
+            .map(t -> new Tuple<ARequest, ActionListener<?>>(requestClass.cast(t.v1()), t.v2()))
+            .findFirst().orElseThrow(() -> new RuntimeException("Cannot find request of type " + requestClass));
     }
 
     private void respondToGetUserRequest(String username, SecureString password, String[] roles) throws IOException {

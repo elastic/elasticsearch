@@ -22,8 +22,8 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -35,9 +35,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -56,6 +59,16 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
+    public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES = () ->
+        new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                assert shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT :
+                    "Expecting a recovery source of type [SNAPSHOT] but got [" + shardRouting.recoverySource().getType() + ']';
+                throw new UnsupportedOperationException();
+            }
+    };
+
     public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
     }
@@ -71,19 +84,33 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings, Random random) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, clusterSettings, random),
-                new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
+                new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
+        return createAllocationService(settings, gatewayAllocator, SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+    }
+
+    public static MockAllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
+        return createAllocationService(settings, new TestGatewayAllocator(), snapshotsInfoService);
+    }
+
+    public static MockAllocationService createAllocationService(
+        Settings settings,
+        GatewayAllocator gatewayAllocator,
+        SnapshotsInfoService snapshotsInfoService
+    ) {
         return new MockAllocationService(
-                randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-                gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
+            randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
+            gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE, snapshotsInfoService);
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
@@ -223,11 +250,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
             return decision;
         }
-
-        @Override
-        public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-            return decision;
-        }
     }
 
     /** A lock {@link AllocationService} allowing tests to override time */
@@ -236,8 +258,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         private volatile long nanoTimeOverride = -1L;
 
         public MockAllocationService(AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
-                                     ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
-            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService);
+                                     ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService,
+                                     SnapshotsInfoService snapshotsInfoService) {
+            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService);
         }
 
         public void setNanoTimeOverride(long nanoTime) {
@@ -257,26 +280,33 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public DelayedShardsMockGatewayAllocator() {}
 
         @Override
-        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
+        public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
             // no-op
         }
 
         @Override
-        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
+        public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
             // no-op
         }
 
         @Override
-        public void allocateUnassigned(RoutingAllocation allocation) {
-            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-            while (unassignedIterator.hasNext()) {
-                ShardRouting shard = unassignedIterator.next();
-                if (shard.primary() || shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
-                    continue;
-                }
-                if (shard.unassignedInfo().isDelayed()) {
-                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
-                }
+        public void beforeAllocation(RoutingAllocation allocation) {
+            // no-op
+        }
+
+        @Override
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+            // no-op
+        }
+
+        @Override
+        public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
+                                       UnassignedAllocationHandler unassignedAllocationHandler) {
+            if (shardRouting.primary() || shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+                return;
+            }
+            if (shardRouting.unassignedInfo().isDelayed()) {
+                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
             }
         }
     }

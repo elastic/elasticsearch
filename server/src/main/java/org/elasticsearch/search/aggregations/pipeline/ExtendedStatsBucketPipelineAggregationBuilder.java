@@ -22,12 +22,8 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -75,18 +71,15 @@ public class ExtendedStatsBucketPipelineAggregationBuilder
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new ExtendedStatsBucketPipelineAggregator(name, bucketsPaths, sigma, gapPolicy(), formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new ExtendedStatsBucketPipelineAggregator(name, bucketsPaths, sigma, gapPolicy(), formatter(), metadata);
     }
 
     @Override
-    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggBuilders,
-            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
-        super.doValidate(parent, aggBuilders, pipelineAggregatorFactories);
-
-        if (sigma < 0.0 ) {
-            throw new IllegalStateException(ExtendedStatsBucketParser.SIGMA.getPreferredName()
-                    + " must be a non-negative double");
+    protected void validate(ValidationContext context) {
+        super.validate(context);
+        if (sigma < 0.0) {
+            context.addValidationError(ExtendedStatsBucketParser.SIGMA.getPreferredName() + " must be a non-negative double");
         }
     }
 

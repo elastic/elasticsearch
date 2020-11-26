@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,7 +36,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     protected ClusterService clusterService;
     protected ClusterState clusterState;
     protected DiscoveryNodes nodes;
-    protected MetaData metaData;
+    protected Metadata metadata;
     protected XPackLicenseState licenseState;
     protected Client client;
     protected Settings settings;
@@ -48,7 +48,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         clusterService = mock(ClusterService.class);
         clusterState = mock(ClusterState.class);
         nodes = mock(DiscoveryNodes.class);
-        metaData = mock(MetaData.class);
+        metadata = mock(Metadata.class);
         licenseState = mock(XPackLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -73,8 +73,8 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
 
     protected void whenClusterStateWithUUID(final String clusterUUID) {
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metaData()).thenReturn(metaData);
-        when(metaData.clusterUUID()).thenReturn(clusterUUID);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.clusterUUID()).thenReturn(clusterUUID);
     }
 
     protected void withCollectionTimeout(final Setting<TimeValue> collectionTimeout, final TimeValue timeout) throws Exception {

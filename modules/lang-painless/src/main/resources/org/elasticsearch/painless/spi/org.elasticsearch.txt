@@ -230,3 +230,7 @@ class org.elasticsearch.index.query.IntervalFilterScript$Interval {
   int getEnd()
   int getGaps()
 }
+
+class org.elasticsearch.script.ScoreScript$ExplanationHolder {
+  void set(String)
+}

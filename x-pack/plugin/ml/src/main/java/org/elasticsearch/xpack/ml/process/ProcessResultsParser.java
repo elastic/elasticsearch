@@ -32,21 +32,23 @@ public class ProcessResultsParser<T> {
     private static final Logger logger = LogManager.getLogger(ProcessResultsParser.class);
 
     private final ConstructingObjectParser<T, Void> resultParser;
+    private final NamedXContentRegistry namedXContentRegistry;
 
-    public ProcessResultsParser(ConstructingObjectParser<T, Void> resultParser) {
+    public ProcessResultsParser(ConstructingObjectParser<T, Void> resultParser, NamedXContentRegistry namedXContentRegistry) {
         this.resultParser = Objects.requireNonNull(resultParser);
+        this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
     }
 
     public Iterator<T> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, in);
+                    .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, in);
             XContentParser.Token token = parser.nextToken();
             // if start of an array ignore it, we expect an array of results
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }
-            return new ResultIterator(in, parser);
+            return new ResultIterator(parser);
         } catch (IOException e) {
             throw new ElasticsearchParseException(e.getMessage(), e);
         }
@@ -54,12 +56,10 @@ public class ProcessResultsParser<T> {
 
     private class ResultIterator implements Iterator<T> {
 
-        private final InputStream in;
         private final XContentParser parser;
         private XContentParser.Token token;
 
-        private ResultIterator(InputStream in, XContentParser parser) {
-            this.in = in;
+        private ResultIterator(XContentParser parser) {
             this.parser = parser;
             token = parser.currentToken();
         }

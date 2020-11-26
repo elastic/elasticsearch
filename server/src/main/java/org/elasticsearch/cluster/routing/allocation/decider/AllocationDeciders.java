@@ -21,15 +21,14 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 import java.util.Collection;
 import java.util.Collections;
-
-import static org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
 
 /**
  * A composite {@link AllocationDecider} combining the "decision" of multiple
@@ -51,15 +50,14 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRebalance(shardRouting, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -74,22 +72,19 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Can not allocate [{}] on node [{}] due to [{}]",
                         shardRouting, node.node(), allocationDecider.getClass().getSimpleName());
                 }
                 // short circuit only if debugging is not enabled
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                // the assumption is that a decider that returns the static instance Decision#ALWAYS
-                // does not really implements canAllocate
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -107,39 +102,56 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Shard [{}] can not remain on node [{}] due to [{}]",
                         shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
                 }
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
     }
 
     @Override
-    public Decision canAllocate(IndexMetaData indexMetaData, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
-            Decision decision = allocationDecider.canAllocate(indexMetaData, node, allocation);
+            Decision decision = allocationDecider.canAllocate(indexMetadata, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
+            }
+        }
+        return ret;
+    }
+
+    @Override
+    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.shouldAutoExpandToNode(indexMetadata, node, allocation);
+            // short track if a NO is returned.
+            if (decision.type() == Decision.Type.NO) {
+                if (!allocation.debugDecision()) {
+                    return Decision.NO;
+                } else {
+                    ret.add(decision);
+                }
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -151,35 +163,14 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(shardRouting, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
-            }
-        }
-        return ret;
-    }
-
-    @Override
-    public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-        Decision.Multi ret = new Decision.Multi();
-        for (AllocationDecider allocationDecider : allocations) {
-            Decision decision = allocationDecider.canAllocate(node, allocation);
-            // short track if a NO is returned.
-            if (decision == Decision.NO) {
-                if (!allocation.debugDecision()) {
-                    return decision;
-                } else {
-                    ret.add(decision);
-                }
-            } else if (decision != Decision.ALWAYS
-                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -191,15 +182,14 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRebalance(allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
@@ -216,21 +206,28 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider decider : allocations) {
             Decision decision = decider.canForceAllocatePrimary(shardRouting, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
                         shardRouting.shardId(), node.nodeId(), decider.getClass().getSimpleName());
                 }
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS
-                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
-                ret.add(decision);
+            } else {
+                addDecision(ret, decision, allocation);
             }
         }
         return ret;
+    }
+
+    private void addDecision(Decision.Multi ret, Decision decision, RoutingAllocation allocation) {
+        // We never add ALWAYS decisions and only add YES decisions when requested by debug mode (since Multi default is YES).
+        if (decision != Decision.ALWAYS
+            && (allocation.getDebugMode() == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
+            ret.add(decision);
+        }
     }
 }

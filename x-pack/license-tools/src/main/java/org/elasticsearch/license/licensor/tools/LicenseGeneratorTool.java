@@ -88,6 +88,9 @@ public class LicenseGeneratorTool extends LoggingAwareCommand {
                     ExitCodes.USAGE,
                     "Must specify either --license or --licenseFile");
         }
+        if (licenseSpec == null) {
+            throw new UserException(ExitCodes.DATA_ERROR, "Could not parse license spec");
+        }
 
         // sign
         License license = new LicenseSigner(privateKeyPath, publicKeyPath).sign(licenseSpec);

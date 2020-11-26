@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,13 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoPointFieldType();
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
+
+        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
+        Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
+        String wktPoint = "POINT (42.0 27.1)";
+        String otherWktPoint = "POINT (30.0 50.0)";
+
+        // Test a single point in [lon, lat] array format.
+        Object sourceValue = List.of(42.0, 27.1);
+        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a single point in "lat, lon" string format.
+        sourceValue = "27.1,42.0";
+        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of points in [lon, lat] array format.
+        sourceValue = List.of(List.of(42.0, 27.1), List.of(30.0, 50.0));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a single point in well-known text format.
+        sourceValue = "POINT (42.0 27.1)";
+        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 }

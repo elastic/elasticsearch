@@ -1,7 +1,8 @@
 {
   "ml.validate_detector":{
     "documentation":{
-      "url":null
+      "url":"https://www.elastic.co/guide/en/machine-learning/current/ml-jobs.html",
+      "description":"Validates an anomaly detection detector."
     },
     "stability":"stable",
     "url":{

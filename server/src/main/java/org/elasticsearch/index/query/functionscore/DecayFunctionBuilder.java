@@ -65,8 +65,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     protected static final String DECAY = "decay";
     protected static final String OFFSET = "offset";
 
-    public static double DEFAULT_DECAY = 0.5;
-    public static MultiValueMode DEFAULT_MULTI_VALUE_MODE = MultiValueMode.MIN;
+    public static final double DEFAULT_DECAY = 0.5;
+    public static final MultiValueMode DEFAULT_MULTI_VALUE_MODE = MultiValueMode.MIN;
 
     private final String fieldName;
     //parsing of origin, scale, offset and decay depends on the field type, delayed to the data node that has the mapping for it
@@ -203,13 +203,14 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, QueryShardContext context,
             MultiValueMode mode) throws IOException {
         //the field must exist, else we cannot read the value for the doc later
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             throw new ParsingException(parser.getTokenLocation(), "unknown field [{}]", fieldName);
         }
 
         // dates and time and geo need special handling
         parser.nextToken();
+        // TODO these ain't gonna work with runtime fields
         if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, fieldType, mode);
         } else if (fieldType instanceof GeoPointFieldType) {
@@ -318,7 +319,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         if (originString == null) {
             origin = context.nowInMillis();
         } else {
-            origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToLong(originString, false, null, null, context);
+            origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToLong(originString, false, null, null, context::nowInMillis);
         }
 
         if (scaleString == null) {

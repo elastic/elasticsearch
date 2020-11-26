@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +42,7 @@ import java.util.Map;
 /**
  * Holds the ingest pipelines that are available in the cluster
  */
-public final class IngestMetadata implements MetaData.Custom {
+public final class IngestMetadata implements Metadata.Custom {
 
     public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
@@ -117,20 +117,20 @@ public final class IngestMetadata implements MetaData.Custom {
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override
-    public Diff<MetaData.Custom> diff(MetaData.Custom before) {
+    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
         return new IngestMetadataDiff((IngestMetadata) before, this);
     }
 
-    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new IngestMetadataDiff(in);
     }
 
-    static class IngestMetadataDiff implements NamedDiff<MetaData.Custom> {
+    static class IngestMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, PipelineConfiguration>> pipelines;
 
@@ -144,7 +144,7 @@ public final class IngestMetadata implements MetaData.Custom {
         }
 
         @Override
-        public MetaData.Custom apply(MetaData.Custom part) {
+        public Metadata.Custom apply(Metadata.Custom part) {
             return new IngestMetadata(pipelines.apply(((IngestMetadata) part).pipelines));
         }
 

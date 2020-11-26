@@ -314,7 +314,7 @@ public class ShardStateActionTests extends ESTestCase {
         ShardRouting failedShard = getRandomShardRouting(index);
 
         final TestListener listener = new TestListener();
-        long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShard.id());
+        long primaryTerm = clusterService.state().metadata().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
         shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
             primaryTerm + 1, randomBoolean(), "test", getSimulatedFailure(), listener);
@@ -421,7 +421,7 @@ public class ShardStateActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         final ShardRouting shardRouting = getRandomShardRouting(index);
-        final long primaryTerm = clusterService.state().metaData().index(shardRouting.index()).primaryTerm(shardRouting.id());
+        final long primaryTerm = clusterService.state().metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
         final TestListener listener = new TestListener();
         shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", listener);
 

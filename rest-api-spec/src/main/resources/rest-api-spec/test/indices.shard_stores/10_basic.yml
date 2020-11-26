@@ -24,7 +24,6 @@
   - do:
       index:
         index: index1
-        type: type
         body: { foo: bar }
         refresh: true
 
@@ -59,13 +58,11 @@
   - do:
       index:
         index: index1
-        type: type
         body: { foo: bar }
         refresh: true
   - do:
       index:
         index: index2
-        type: type
         body: { foo: bar }
         refresh: true
   - do:
@@ -79,4 +76,3 @@
   - match:   { indices.index1.shards.0.stores.0.allocation: "primary" }
   - match:   { indices.index2.shards.0.stores.0.allocation: "primary" }
   - match:   { indices.index2.shards.1.stores.0.allocation: "primary" }
-

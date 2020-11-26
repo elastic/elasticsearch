@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -39,21 +40,27 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
- * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
+ * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>.
+ * When running from IDE set -Dtests.security.manager=false
  */
 public class JsonLoggerTests extends ESTestCase {
 
@@ -61,6 +68,7 @@ public class JsonLoggerTests extends ESTestCase {
 
     @BeforeClass
     public static void initNodeName() {
+        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         JsonLogsTestSetup.init();
     }
 
@@ -77,12 +85,15 @@ public class JsonLoggerTests extends ESTestCase {
         Configurator.shutdown(context);
         super.tearDown();
     }
-    public void testDeprecatedMessage() throws IOException {
-        final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
+
+    public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
+        final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
+
+        testLogger.deprecate("a key", "deprecated message1");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
             List<Map<String, String>> jsonLogs = stream
                 .collect(Collectors.toList());
@@ -90,67 +101,116 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("log.level", "DEPRECATION"),
+                    hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
-                    hasEntry("x-opaque-id", "someId"))
+                    hasEntry("data_stream.type", "logs"),
+                    hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                    hasEntry("data_stream.namespace", "default"),
+                    hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                    hasEntry("key", "a key"),
+                    not(hasKey("x-opaque-id"))
+                )
+                )
+            );
+        }
+
+        assertWarnings("deprecated message1");
+    }
+
+    public void testDeprecatedMessage() throws Exception {
+        withThreadContext(threadContext -> {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
+            testLogger.deprecate("someKey", "deprecated message1");
+
+            final Path path = PathUtils.get(
+                System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
+            );
+
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
+
+                assertThat(
+                    jsonLogs,
+                    contains(
+                        allOf(
+                            hasEntry("type", "deprecation"),
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.logger", "deprecation.test"),
+                            hasEntry("cluster.name", "elasticsearch"),
+                            hasEntry("node.name", "sample-name"),
+                            hasEntry("message", "deprecated message1"),
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasEntry("data_stream.namespace", "default"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("key", "someKey"),
+                            hasEntry("x-opaque-id", "someId")
+                        )
+                    )
+                );
+            }
+
+            assertWarnings("deprecated message1");
+        });
+    }
+
+    public void testBuildingMessage() throws IOException {
+
+        final Logger testLogger = LogManager.getLogger("test");
+
+        testLogger.info(new ESLogMessage("some message {} {}", "value0")
+                                    .argAndField("key1","value1")
+                                    .field("key2","value2"));
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + ".json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "file"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "some message value0 value1"),
+                    hasEntry("key1", "value1"),
+                    hasEntry("key2", "value2"))
                 )
             );
         }
     }
 
-
-    public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
+    public void testCustomMessageWithMultipleFields() throws IOException {
+        // If a field is defined to be overridden, it has to always be overridden in that appender.
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
-        testLogger.info(new DeprecatedMessage("deprecated message2", ""));
-        testLogger.info(new DeprecatedMessage("deprecated message3", null));
-        testLogger.info("deprecated message4");
+        testLogger.info(new ESLogMessage("some message")
+                                    .with("field1","value1")
+                                    .with("field2","value2"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-            System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+            System.getProperty("es.logs.cluster_name") + ".json");
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
             List<Map<String, String>> jsonLogs = stream
                 .collect(Collectors.toList());
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("type", "file"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message1"),
-                    hasEntry("x-opaque-id", "someId")),
-                allOf(
-                    hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message2"),
-                    not(hasKey("x-opaque-id"))
-                ),
-                allOf(
-                    hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message3"),
-                    not(hasKey("x-opaque-id"))
-                ),
-                allOf(
-                    hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message4"),
-                    not(hasKey("x-opaque-id"))
-                )
+                    hasEntry("field1", "value1"),
+                    hasEntry("field2", "value2"),
+                    hasEntry("message", "some message"))
                 )
             );
         }
@@ -179,19 +239,20 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     public void testPrefixLoggerInJson() throws IOException {
-        Logger shardIdLogger = Loggers.getLogger("shardIdLogger", ShardId.fromString("[indexName][123]"));
+        Logger shardIdLogger = Loggers.getLogger("prefix.shardIdLogger", ShardId.fromString("[indexName][123]"));
         shardIdLogger.info("This is an info message with a shardId");
 
-        Logger prefixLogger = new PrefixLogger(LogManager.getLogger("prefixLogger"), "PREFIX");
+        Logger prefixLogger = new PrefixLogger(LogManager.getLogger("prefix.prefixLogger"), "PREFIX");
         prefixLogger.info("This is an info message with a prefix");
 
         final Path path = clusterLogsPath();
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
-                logLine("file", Level.INFO, "sample-name", "shardIdLogger",
-                    "[indexName][123] This is an info message with a shardId"),
-                logLine("file", Level.INFO, "sample-name", "prefixLogger", "PREFIX This is an info message with a prefix")
+                logLine("file", Level.INFO, "sample-name", "prefix.shardIdLogger",
+                    "This is an info message with a shardId", Map.of(JsonLogLine::getTags, List.of("[indexName][123]"))),
+                logLine("file", Level.INFO, "sample-name", "prefix.prefixLogger",
+                    "This is an info message with a prefix", Map.of(JsonLogLine::getTags, List.of("PREFIX")))
             ));
         }
     }
@@ -230,14 +291,14 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     logLine("file", Level.ERROR, "sample-name", "test", "error message"),
-                    stacktraceWith("java.lang.Exception: exception message"),
-                    stacktraceWith("Caused by: java.lang.RuntimeException: cause message")
+                    stacktraceMatches("java.lang.Exception: exception message.*Caused by: java.lang.RuntimeException: cause message.*")
                 )
             ));
         }
     }
 
-    public void testJsonInStacktraceMessageIsSplitted() throws IOException {
+
+    public void testJsonInStacktraceMessageIsNotSplitted() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
         String json = "{" + LINE_SEPARATOR +
@@ -261,71 +322,66 @@ public class JsonLoggerTests extends ESTestCase {
                     //message field will have a single line with json escaped
                     logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
 
-                    //stacktrace field will have each json line will in a separate array element
-                    stacktraceWith(("java.lang.Exception: " + json).split(LINE_SEPARATOR))
+                    //stacktrace message will be single line
+                    stacktraceWith("java.lang.Exception: " + json)
                 )
             ));
         }
     }
 
 
-    public void testDuplicateLogMessages() throws IOException {
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("test"));
-
+    public void testDuplicateLogMessages() throws Exception {
+        final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("test");
 
         // For the same key and X-Opaque-ID deprecation should be once
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            try{
-                threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-                DeprecationLogger.setThreadContext(threadContext);
-                deprecationLogger.deprecatedAndMaybeLog("key", "message1");
-                deprecationLogger.deprecatedAndMaybeLog("key", "message2");
-                assertWarnings("message1", "message2");
+        withThreadContext(threadContext -> {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
+            deprecationLogger.deprecate("key", "message1");
+            deprecationLogger.deprecate("key", "message2");
+            assertWarnings("message1", "message2");
 
-                final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-                    System.getProperty("es.logs.cluster_name") + "_deprecated.json");
-                try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-                    List<Map<String, String>> jsonLogs = stream
-                        .collect(Collectors.toList());
+            final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream
+                    .collect(Collectors.toList());
 
-                    assertThat(jsonLogs, contains(
-                        allOf(
-                            hasEntry("type", "deprecation"),
-                            hasEntry("level", "WARN"),
-                            hasEntry("component", "d.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
-                            hasEntry("message", "message1"),
-                            hasEntry("x-opaque-id", "ID1"))
-                        )
-                    );
-                }
-            }finally{
-                DeprecationLogger.removeThreadContext(threadContext);
+                assertThat(jsonLogs, contains(
+                    allOf(
+                        hasEntry("type", "deprecation"),
+                        hasEntry("log.level", "DEPRECATION"),
+                        hasEntry("log.logger", "deprecation.test"),
+                        hasEntry("cluster.name", "elasticsearch"),
+                        hasEntry("node.name", "sample-name"),
+                        hasEntry("message", "message1"),
+                        hasEntry("x-opaque-id", "ID1"))
+                    )
+                );
             }
-        }
+        });
 
         // For the same key and different X-Opaque-ID should be multiple times per key/x-opaque-id
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            try{
-                threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-                DeprecationLogger.setThreadContext(threadContext);
-                deprecationLogger.deprecatedAndMaybeLog("key", "message1");
-                deprecationLogger.deprecatedAndMaybeLog("key", "message2");
-                assertWarnings("message1", "message2");
+        withThreadContext(threadContext -> {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
+            deprecationLogger.deprecate("key", "message1");
+            deprecationLogger.deprecate("key", "message2");
+            assertWarnings("message1", "message2");
 
-                final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-                    System.getProperty("es.logs.cluster_name") + "_deprecated.json");
-                try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-                    List<Map<String, String>> jsonLogs = stream
-                        .collect(Collectors.toList());
+            final Path path = PathUtils.get(
+                System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
+            );
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
 
-                    assertThat(jsonLogs, contains(
+                assertThat(
+                    jsonLogs,
+                    contains(
                         allOf(
                             hasEntry("type", "deprecation"),
-                            hasEntry("level", "WARN"),
-                            hasEntry("component", "d.test"),
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.logger", "deprecation.test"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "message1"),
@@ -333,30 +389,26 @@ public class JsonLoggerTests extends ESTestCase {
                         ),
                         allOf(
                             hasEntry("type", "deprecation"),
-                            hasEntry("level", "WARN"),
-                            hasEntry("component", "d.test"),
+                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.logger", "deprecation.test"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "message1"),
                             hasEntry("x-opaque-id", "ID2")
                         )
-                        )
-                    );
-                }
-            }finally{
-                DeprecationLogger.removeThreadContext(threadContext);
+                    )
+                );
             }
-        }
+        });
     }
 
     private List<JsonLogLine> collectLines(Stream<JsonLogLine> stream) {
         return stream
-            .skip(1)//skip the first line from super class
             .collect(Collectors.toList());
     }
 
     private Path clusterLogsPath() {
-        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".log");
+        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".json");
     }
 
     private void setupLogging(final String config) throws IOException, UserException {
@@ -375,28 +427,68 @@ public class JsonLoggerTests extends ESTestCase {
         LogConfigurator.configure(environment);
     }
 
+
     private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message) {
+        return logLine(mapOfParamsToCheck(type, level, nodeName, component, message));
+    }
+
+    private Map<Function<JsonLogLine, Object>, Object> mapOfParamsToCheck(
+        String type, Level level, String nodeName, String component, String message) {
+        return Map.of(JsonLogLine::getType, type,
+            JsonLogLine::getLevel, level.toString(),
+            JsonLogLine::getNodeName, nodeName,
+            JsonLogLine::getComponent, component,
+            JsonLogLine::getMessage, message);
+    }
+
+    private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message,
+                                         Map<Function<JsonLogLine,Object>, Object> additionalProperties) {
+        Map<Function<JsonLogLine, Object>, Object> map = new HashMap<>();
+        map.putAll(mapOfParamsToCheck(type, level, nodeName, component, message));
+        map.putAll(additionalProperties);
+        return logLine(map);
+    }
+
+    private Matcher<JsonLogLine> logLine(Map<Function<JsonLogLine,Object>, Object> map) {
         return new FeatureMatcher<JsonLogLine, Boolean>(Matchers.is(true), "logLine", "logLine") {
 
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
-                return Objects.equals(actual.type(), type) &&
-                    Objects.equals(actual.level(), level.toString()) &&
-                    Objects.equals(actual.nodeName(), nodeName) &&
-                    Objects.equals(actual.component(), component) &&
-                    Objects.equals(actual.message(), message);
+                return map.entrySet()
+                    .stream()
+                    .allMatch(entry -> Objects.equals(entry.getKey().apply(actual), entry.getValue()));
             }
         };
     }
-
-    private Matcher<JsonLogLine> stacktraceWith(String... lines) {
-        return new FeatureMatcher<JsonLogLine, List<String>>(Matchers.hasItems(lines),
-            "stacktrace", "stacktrace") {
+    private Matcher<JsonLogLine> stacktraceWith(String line) {
+        return new FeatureMatcher<JsonLogLine, List<String>>(hasItems(Matchers.containsString(line)),
+            "error.stack_trace", "error.stack_trace") {
 
             @Override
             protected List<String> featureValueOf(JsonLogLine actual) {
                 return actual.stacktrace();
             }
         };
+    }
+
+    private Matcher<JsonLogLine> stacktraceMatches(String regexp) {
+        return new FeatureMatcher<JsonLogLine, List<String>>(hasItems(matchesRegex(Pattern.compile(regexp, Pattern.DOTALL))),
+            "error.stack_trace", "error.stack_trace") {
+
+            @Override
+            protected List<String> featureValueOf(JsonLogLine actual) {
+                return actual.stacktrace();
+            }
+        };
+    }
+
+    private void withThreadContext(CheckedConsumer<ThreadContext, Exception> consumer) throws Exception {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            HeaderWarning.setThreadContext(threadContext);
+            consumer.accept(threadContext);
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
     }
 }

@@ -28,12 +28,17 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", randomBoolean())
             .build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
         licenseService.registerLicense(request, responseFuture);
+        if (responseFuture.isDone()) {
+            // If the future is done, it means request/license validation failed.
+            // In which case, this `actionGet` should throw a more useful exception than the verify below.
+            responseFuture.actionGet();
+        }
         verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 
@@ -47,7 +52,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", true)
             .build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();
@@ -62,11 +67,16 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", false)
             .build();
-        licenseState = new XPackLicenseState(settings);
+        licenseState = new XPackLicenseState(settings, () -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);
+        if (responseFuture.isDone()) {
+            // If the future is done, it means request/license validation failed.
+            // In which case, this `actionGet` should throw a more useful exception than the verify below.
+            responseFuture.actionGet();
+        }
         verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 }

@@ -15,13 +15,27 @@ import static org.hamcrest.Matchers.nullValue;
 public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotConfig> {
 
     public void testConstructorDefaults() {
-        assertThat(new ModelPlotConfig().isEnabled(), is(true));
-        assertThat(new ModelPlotConfig().getTerms(), is(nullValue()));
+        ModelPlotConfig modelPlotConfig = new ModelPlotConfig();
+        assertThat(modelPlotConfig.isEnabled(), is(true));
+        assertThat(modelPlotConfig.getTerms(), is(nullValue()));
+        assertThat(modelPlotConfig.annotationsEnabled(), is(true));
+    }
+
+    public void testAnnotationEnabledDefaultsToEnabled() {
+        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(false, null, null);
+        assertThat(modelPlotConfig.annotationsEnabled(), is(false));
+
+        modelPlotConfig = new ModelPlotConfig(true, null, null);
+        assertThat(modelPlotConfig.annotationsEnabled(), is(true));
     }
 
     @Override
     protected ModelPlotConfig createTestInstance() {
-        return new ModelPlotConfig(randomBoolean(), randomAlphaOfLengthBetween(1, 30));
+        return createRandomized();
+    }
+
+    public static ModelPlotConfig createRandomized() {
+        return new ModelPlotConfig(randomBoolean(), randomAlphaOfLengthBetween(1, 30), randomBoolean() ? randomBoolean() : null);
     }
 
     @Override

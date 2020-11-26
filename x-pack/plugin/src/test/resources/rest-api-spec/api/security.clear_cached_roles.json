@@ -1,7 +1,8 @@
 {
   "security.clear_cached_roles":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html",
+      "description":"Evicts roles from the native role cache."
     },
     "stability":"stable",
     "url":{

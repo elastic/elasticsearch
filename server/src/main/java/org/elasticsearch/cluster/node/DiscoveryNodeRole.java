@@ -20,15 +20,18 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 
 /**
  * Represents a node role.
  */
-public abstract class DiscoveryNodeRole {
+public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     private final String roleName;
 
@@ -53,26 +56,44 @@ public abstract class DiscoveryNodeRole {
         return roleNameAbbreviation;
     }
 
-    private final boolean isKnownRole;
+    private final boolean canContainData;
 
     /**
-     * Whether this role is known by this node, or is an {@link DiscoveryNodeRole.UnknownRole}.
+     * Indicates whether a node with this role can contain data.
+     *
+     * @return true if a node with this role can contain data, otherwise false
      */
-    public final boolean isKnownRole() {
-        return isKnownRole;
+    public final boolean canContainData() {
+        return canContainData;
+    }
+
+    private final boolean isKnownRole;
+
+    public boolean isEnabledByDefault(final Settings settings) {
+        return legacySetting() != null && legacySetting().get(settings);
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
-        this(true, roleName, roleNameAbbreviation);
+        this(roleName, roleNameAbbreviation, false);
     }
 
-    private DiscoveryNodeRole(final boolean isKnownRole, final String roleName, final String roleNameAbbreviation) {
+    protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
+        this(true, roleName, roleNameAbbreviation, canContainData);
+    }
+
+    private DiscoveryNodeRole(
+        final boolean isKnownRole,
+        final String roleName,
+        final String roleNameAbbreviation,
+        final boolean canContainData
+    ) {
         this.isKnownRole = isKnownRole;
         this.roleName = Objects.requireNonNull(roleName);
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
+        this.canContainData = canContainData;
     }
 
-    protected abstract Setting<Boolean> roleSetting();
+    public abstract Setting<Boolean> legacySetting();
 
     @Override
     public final boolean equals(Object o) {
@@ -81,12 +102,18 @@ public abstract class DiscoveryNodeRole {
         DiscoveryNodeRole that = (DiscoveryNodeRole) o;
         return roleName.equals(that.roleName) &&
             roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
+            canContainData == that.canContainData &&
             isKnownRole == that.isKnownRole;
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation());
+        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation(), canContainData());
+    }
+
+    @Override
+    public final int compareTo(final DiscoveryNodeRole o) {
+        return roleName.compareTo(o.roleName);
     }
 
     @Override
@@ -94,6 +121,7 @@ public abstract class DiscoveryNodeRole {
         return "DiscoveryNodeRole{" +
                 "roleName='" + roleName + '\'' +
                 ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
+                ", canContainData=" + canContainData +
                 (isKnownRole ? "" : ", isKnownRole=false") +
                 '}';
     }
@@ -101,11 +129,12 @@ public abstract class DiscoveryNodeRole {
     /**
      * Represents the role for a data node.
      */
-    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d") {
+    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true) {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
-            return Node.NODE_DATA_SETTING;
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -116,8 +145,9 @@ public abstract class DiscoveryNodeRole {
     public static final DiscoveryNodeRole INGEST_ROLE = new DiscoveryNodeRole("ingest", "i") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
-            return Node.NODE_INGEST_SETTING;
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.ingest", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -128,8 +158,19 @@ public abstract class DiscoveryNodeRole {
     public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
-            return Node.NODE_MASTER_SETTING;
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+        }
+
+    };
+
+    public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
+            return Setting.boolSetting("node.remote_cluster_client", true, Property.Deprecated, Property.NodeScope);
         }
 
     };
@@ -137,7 +178,8 @@ public abstract class DiscoveryNodeRole {
     /**
      * The built-in node roles.
      */
-    public static Set<DiscoveryNodeRole> BUILT_IN_ROLES = Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE);
+    public static final SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
+        Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
@@ -150,13 +192,14 @@ public abstract class DiscoveryNodeRole {
          *
          * @param roleName             the role name
          * @param roleNameAbbreviation the role name abbreviation
+         * @param canContainData       whether or not nodes with the role can contain data
          */
-        UnknownRole(final String roleName, final String roleNameAbbreviation) {
-            super(false, roleName, roleNameAbbreviation);
+        UnknownRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
+            super(false, roleName, roleNameAbbreviation, canContainData);
         }
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             // since this setting is not registered, it will always return false when testing if the local node has the role
             assert false;
             return Setting.boolSetting("node. " + roleName(), false, Setting.Property.NodeScope);

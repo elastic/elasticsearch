@@ -1,39 +1,46 @@
+import org.elasticsearch.gradle.precommit.ThirdPartyAuditPrecommitPlugin
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask
 
+
 plugins {
-    id 'java'
-    // bring in build-tools onto the classpath
-    id 'elasticsearch.global-build-info' apply false
+  id 'java'
+  // bring in build-tools onto the classpath
+  id 'elasticsearch.global-build-info'
 }
+
+plugins.apply(ThirdPartyAuditPrecommitPlugin)
 
 repositories {
-    /**
-     * Local test repo contains dummy jars with different group names and versions.
-     *   - broken-log4j creates a log4j logger but has no pom, so the class will be missing
-     *   - dummy-io has a class that creates a new java.io.File ( something which third-party-audit-absurd.txt forbids )
-     *   - version 0.0.2 has the same class and one extra file just to make the jar different
-     */
-    maven {
-        name = "local-test"
-        url = file("sample_jars/build/testrepo")
+  /**
+   * Local test repo contains dummy jars with different group names and versions.
+   *   - broken-log4j creates a log4j logger but has no pom, so the class will be missing
+   *   - dummy-io has a class that creates a new java.io.File ( something which third-party-audit-absurd.txt forbids )
+   *   - version 0.0.2 has the same class and one extra file just to make the jar different
+   *   - used for propagating jar containing jdkjarhell jar from integ test runtime classpath
+   */
+  maven {
+    name = "local-test"
+    url = file("sample_jars/build/testrepo")
+    metadataSources {
+      artifact()
     }
-    jcenter()
+  }
+  jcenter()
 }
-
-configurations.create("forbiddenApisCliJar")
 
 dependencies {
-    forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.6'
-    compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
-    compile "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
+  forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.7'
+  jdkJarHell 'org.elasticsearch:elasticsearch-core:current'
+  compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
+  implementation "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
 }
 
-task empty(type: ThirdPartyAuditTask) {
-    targetCompatibility = JavaVersion.VERSION_11
-    signatureFile = file('third-party-audit-empty.txt')
+tasks.register("empty", ThirdPartyAuditTask) {
+  targetCompatibility = JavaVersion.VERSION_11
+  signatureFile = file('third-party-audit-empty.txt')
 }
 
-task absurd(type: ThirdPartyAuditTask) {
-    targetCompatibility = JavaVersion.VERSION_11
-    signatureFile = file('third-party-audit-absurd.txt')
+tasks.register("absurd", ThirdPartyAuditTask) {
+  targetCompatibility = JavaVersion.VERSION_11
+  signatureFile = file('third-party-audit-absurd.txt')
 }

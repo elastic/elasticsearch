@@ -1,0 +1,23 @@
+{
+  "enrich.delete_policy": {
+    "documentation": {
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-enrich-policy-api.html",
+      "description": "Deletes an existing enrich policy and its enrich index."
+    },
+    "stability" : "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_enrich/policy/{name}",
+          "methods": [ "DELETE" ],
+          "parts": {
+            "name": {
+              "type" : "string",
+              "description" : "The name of the enrich policy"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

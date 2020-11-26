@@ -34,7 +34,7 @@ state that was automatically saved. This option avoids the overhead of managing
 active jobs during the upgrade and is faster than explicitly stopping {dfeeds}
 and closing jobs.
 
-* {stack-ov}/stopping-ml.html[Stop all {dfeeds} and close all jobs]. This option
+* {ml-docs}/stopping-ml.html[Stop all {dfeeds} and close all jobs]. This option
 saves the model state at the time of closure. When you reopen the jobs after the
 upgrade, they use the exact same model. However, saving the latest model state
 takes longer than using upgrade mode, especially if you have a lot of jobs or

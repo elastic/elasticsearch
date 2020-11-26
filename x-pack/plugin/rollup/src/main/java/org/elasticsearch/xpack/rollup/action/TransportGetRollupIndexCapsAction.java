@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.rollup.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -31,28 +31,29 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
     GetRollupIndexCapsAction.Response> {
 
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver resolver;
 
     @Inject
     public TransportGetRollupIndexCapsAction(TransportService transportService, ClusterService clusterService,
-                                             ActionFilters actionFilters) {
+                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetRollupIndexCapsAction.NAME, transportService, actionFilters, GetRollupIndexCapsAction.Request::new);
         this.clusterService = clusterService;
+        this.resolver = indexNameExpressionResolver;
     }
 
     @Override
     protected void doExecute(Task task, GetRollupIndexCapsAction.Request request,
                              ActionListener<GetRollupIndexCapsAction.Response> listener) {
 
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterService.state(),
-            request.indicesOptions(), request.indices());
+            request.indicesOptions(), request);
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices),
-            clusterService.state().getMetaData().indices());
+            clusterService.state().getMetadata().indices());
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));
     }
 
     static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames,
-                                                               ImmutableOpenMap<String, IndexMetaData> indices) {
+                                                               ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps> > allCaps = new TreeMap<>();
 
         StreamSupport.stream(indices.spliterator(), false)

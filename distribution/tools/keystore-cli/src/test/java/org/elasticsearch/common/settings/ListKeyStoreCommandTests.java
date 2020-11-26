@@ -26,6 +26,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
@@ -47,20 +48,52 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testEmpty() throws Exception {
-        createKeystore("");
+        String password = randomFrom("", "keystorepassword");
+        createKeystore(password);
+        terminal.addSecretInput(password);
         execute();
         assertEquals("keystore.seed\n", terminal.getOutput());
     }
 
     public void testOne() throws Exception {
-        createKeystore("", "foo", "bar");
+        String password = randomFrom("", "keystorepassword");
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput(password);
         execute();
         assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
     }
 
     public void testMultiple() throws Exception {
-        createKeystore("", "foo", "1", "baz", "2", "bar", "3");
+        String password = randomFrom("", "keystorepassword");
+        createKeystore(password, "foo", "1", "baz", "2", "bar", "3");
+        terminal.addSecretInput(password);
         execute();
         assertEquals("bar\nbaz\nfoo\nkeystore.seed\n", terminal.getOutput()); // sorted
+    }
+
+    public void testListWithIncorrectPassword() throws Exception {
+        String password = "keystorepassword";
+        createKeystore(password, "foo", "bar");
+        terminal.addSecretInput("thewrongkeystorepassword");
+        UserException e = expectThrows(UserException.class, this::execute);
+        assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
+        if (inFipsJvm()) {
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    containsString("Provided keystore password was incorrect"),
+                    containsString("Keystore has been corrupted or tampered with")
+                )
+            );
+        } else {
+            assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
+        }
+    }
+
+    public void testListWithUnprotectedKeystore() throws Exception {
+        createKeystore("", "foo", "bar");
+        execute();
+        // Not prompted for a password
+        assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
     }
 }

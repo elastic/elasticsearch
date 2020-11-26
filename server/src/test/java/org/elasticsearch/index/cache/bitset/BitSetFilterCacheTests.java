@@ -33,8 +33,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -68,7 +68,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
     public void testInvalidateEntries() throws Exception {
         IndexWriter writer = new IndexWriter(
-                new RAMDirectory(),
+                new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         Document document = new Document();
@@ -128,7 +128,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
     public void testListener() throws IOException {
         IndexWriter writer = new IndexWriter(
-                new RAMDirectory(),
+                new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         Document document = new Document();

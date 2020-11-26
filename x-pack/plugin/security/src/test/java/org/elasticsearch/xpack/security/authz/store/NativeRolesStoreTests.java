@@ -13,9 +13,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -35,7 +35,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,7 +86,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
         RoleDescriptor role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "role1",
-            new BytesArray(roleString), logger, new XPackLicenseState(Settings.EMPTY));
+            new BytesArray(roleString), logger, TestUtils.newTestLicenseState());
         assertNotNull(role);
         assertNotNull(role.getIndicesPrivileges());
         RoleDescriptor.IndicesPrivileges indicesPrivileges = role.getIndicesPrivileges()[0];
@@ -94,7 +96,8 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     public void testRoleDescriptorWithFlsDlsLicensing() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().privileges("READ").indices("*")
                         .grantedFields("*")
@@ -156,7 +159,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
 
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         builder = flsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = BytesReference.bytes(builder);
         role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "fls", bytes, logger, licenseState);
@@ -250,19 +253,19 @@ public class NativeRolesStoreTests extends ESTestCase {
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
 
         Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(securityIndexName).settings(settings))
-                .put(new IndexTemplateMetaData(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, 0, 0,
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder(securityIndexName).settings(settings))
+                .put(new IndexTemplateMetadata(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, 0, 0,
                         Collections.singletonList(securityIndexName), Settings.EMPTY, ImmutableOpenMap.of(),
                         ImmutableOpenMap.of()))
                 .build();
 
         if (withAlias) {
-            metaData = SecurityTestUtils.addAliasToMetaData(metaData, securityIndexName);
+            metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
         }
 
         Index index = new Index(securityIndexName, UUID.randomUUID().toString());
@@ -279,7 +282,7 @@ public class NativeRolesStoreTests extends ESTestCase {
                 .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
-                .metaData(metaData)
+                .metadata(metadata)
                 .routingTable(routingTable)
                 .build();
 

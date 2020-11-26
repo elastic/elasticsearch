@@ -299,6 +299,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Map<Version, RestClient> getRestClientByVersion() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
@@ -342,6 +343,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertOK(indexResponse1);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> retrieveStoredTokens(RestClient client, int tokenIdx) throws IOException {
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token" + tokenIdx);
         Response getResponse = client().performRequest(getRequest);

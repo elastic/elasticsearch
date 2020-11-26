@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecutor {
 
-    public MockSinglePrioritizingExecutor(String name, DeterministicTaskQueue deterministicTaskQueue) {
+    public MockSinglePrioritizingExecutor(String name, DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
         super(name, 0, 1, 0L, TimeUnit.MILLISECONDS,
             r -> new Thread() {
                 @Override
@@ -51,14 +52,15 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
                     });
                 }
             },
-            deterministicTaskQueue.getThreadPool().getThreadContext(), deterministicTaskQueue.getThreadPool().scheduler());
+            threadPool.getThreadContext(), threadPool.scheduler());
     }
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
-        // kill worker so that next one will be scheduled
-        throw new KillWorkerError();
+        // kill worker so that next one will be scheduled, using cached Error instance to not incur the cost of filling in the stack trace
+        // on every task
+        throw KillWorkerError.INSTANCE;
     }
 
     @Override
@@ -68,5 +70,6 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
     }
 
     private static final class KillWorkerError extends Error {
+        private static final KillWorkerError INSTANCE = new KillWorkerError();
     }
 }

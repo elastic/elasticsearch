@@ -28,7 +28,7 @@ import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -63,6 +63,9 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(hybridDirectory.useDelegate("foo.tim"));
             assertTrue(hybridDirectory.useDelegate("foo.tip"));
             assertTrue(hybridDirectory.useDelegate("foo.cfs"));
+            assertTrue(hybridDirectory.useDelegate("foo.dim"));
+            assertTrue(hybridDirectory.useDelegate("foo.kdd"));
+            assertTrue(hybridDirectory.useDelegate("foo.kdi"));
             assertFalse(hybridDirectory.useDelegate("foo.bar"));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
@@ -126,7 +129,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
 
     private void doTestStoreDirectory(Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         if (typeSettingValue != null) {
             settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
         }

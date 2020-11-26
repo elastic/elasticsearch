@@ -17,12 +17,11 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 public final class MonitoringTemplateUtils {
 
     private static final String TEMPLATE_FILE = "/monitoring-%s.json";
-    private static final String TEMPLATE_VERSION_PROPERTY = Pattern.quote("${monitoring.template.version}");
+    private static final String TEMPLATE_VERSION_PROPERTY = "monitoring.template.version";
 
     /**
      * The last version of X-Pack that updated the templates and pipelines.

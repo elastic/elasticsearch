@@ -23,19 +23,20 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestHealthAction extends AbstractCatAction {
 
-    public RestHealthAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/health", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/health"));
     }
 
     @Override
@@ -44,9 +45,15 @@ public class RestHealthAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/health\n");
     }
+
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {

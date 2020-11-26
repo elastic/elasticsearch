@@ -1,4 +1,89 @@
 [[analysis-decimal-digit-tokenfilter]]
-=== Decimal Digit Token Filter
+=== Decimal digit token filter
+++++
+<titleabbrev>Decimal digit</titleabbrev>
+++++
 
-The `decimal_digit` token filter folds unicode digits to `0-9`
+Converts all digits in the Unicode `Decimal_Number` General Category to `0-9`.
+For example, the filter changes the Bengali numeral `৩` to `3`.
+
+This filter uses Lucene's
+{lucene-analysis-docs}/core/DecimalDigitFilter.html[DecimalDigitFilter].
+
+[[analysis-decimal-digit-tokenfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request uses the `decimal_digit`
+filter to convert Devanagari numerals to `0-9`:
+
+[source,console]
+--------------------------------------------------
+GET /_analyze
+{
+  "tokenizer" : "whitespace",
+  "filter" : ["decimal_digit"],
+  "text" : "१-one two-२ ३"
+}
+--------------------------------------------------
+
+The filter produces the following tokens:
+
+[source,text]
+--------------------------------------------------
+[ 1-one, two-2, 3]
+--------------------------------------------------
+
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "1-one",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "word",
+      "position" : 0
+    },
+    {
+      "token" : "two-2",
+      "start_offset" : 6,
+      "end_offset" : 11,
+      "type" : "word",
+      "position" : 1
+    },
+    {
+      "token" : "3",
+      "start_offset" : 12,
+      "end_offset" : 13,
+      "type" : "word",
+      "position" : 2
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
+
+[[analysis-decimal-digit-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`decimal_digit` filter to configure a new 
+<<analysis-custom-analyzer,custom analyzer>>.
+
+[source,console]
+--------------------------------------------------
+PUT /decimal_digit_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "whitespace_decimal_digit": {
+          "tokenizer": "whitespace",
+          "filter": [ "decimal_digit" ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

@@ -1,10 +1,3 @@
-[role="xpack"]
-[[configuring-native-realm]]
-=== Configuring a native realm
-
-The easiest way to manage and authenticate users is with the internal `native`
-realm. 
-
 The native realm is available by default when no other realms are 
 configured. If other realm settings have been configured in `elasticsearch.yml`, 
 you must add the native realm to the realm chain.
@@ -20,6 +13,8 @@ cache options.
 explicitly set the `order` attribute for the realm. 
 +
 --
+NOTE: You can configure only one native realm on {es} nodes.
+
 See <<ref-native-settings>> for all of the options you can set for the `native` realm.
 For example, the following snippet shows a `native` realm configuration that
 sets the `order` to zero so the realm is checked first:
@@ -44,7 +39,4 @@ hash algorithm. To use different hash algorithms, see <<hashing-settings>>.
 --
 
 . Restart {es}.
-
-. Manage your users in {kib} on the *Management / Security / Users* page. 
-Alternatively, use the <<security-api-users,User Management APIs>>.
 

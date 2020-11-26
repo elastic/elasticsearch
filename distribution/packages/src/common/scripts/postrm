@@ -8,7 +8,16 @@
 #   On RedHat,
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
+
+# source the default env file
+if [ -f "${path.env}" ]; then
+    . "${path.env}"
+fi
+
+export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+
 REMOVE_DIRS=false
+REMOVE_JVM_OPTIONS_DIRECTORY=false
 REMOVE_USER_AND_GROUP=false
 
 case "$1" in
@@ -19,6 +28,8 @@ case "$1" in
     ;;
 
     purge)
+        REMOVE_DIRS=true
+        REMOVE_JVM_OPTIONS_DIRECTORY=true
         REMOVE_USER_AND_GROUP=true
     ;;
     failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
@@ -72,9 +83,23 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         rmdir --ignore-fail-on-non-empty /var/lib/elasticsearch
     fi
 
+    # delete the jvm.options.d directory if and only if empty
+    if [ -d "${ES_PATH_CONF}/jvm.options.d" ]; then
+        rmdir --ignore-fail-on-non-empty "${ES_PATH_CONF}/jvm.options.d"
+    fi
+
+    # delete the jvm.options.d directory if we are purging
+    if [ "$REMOVE_JVM_OPTIONS_DIRECTORY" = "true" ]; then
+      if [ -d "${ES_PATH_CONF}/jvm.options.d" ]; then
+        echo -n "Deleting jvm.options.d directory..."
+        rm -rf "${ES_PATH_CONF}/jvm.options.d"
+        echo " OK"
+      fi
+    fi
+
     # delete the conf directory if and only if empty
-    if [ -d /etc/elasticsearch ]; then
-        rmdir --ignore-fail-on-non-empty /etc/elasticsearch
+    if [ -d "${ES_PATH_CONF}" ]; then
+        rmdir --ignore-fail-on-non-empty "${ES_PATH_CONF}"
     fi
 
 fi

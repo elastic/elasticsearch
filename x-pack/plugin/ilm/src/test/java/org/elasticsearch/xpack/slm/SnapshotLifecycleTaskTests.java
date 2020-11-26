@@ -18,7 +18,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
@@ -65,7 +66,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
                 .build())
             .build();
@@ -86,7 +87,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
                 .build())
             .build();
@@ -117,7 +118,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
                 .build())
             .build();
@@ -208,7 +209,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
                 .build())
             .build();
@@ -236,13 +237,16 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                          Boolean.parseBoolean((String) policy.getConfig().get("include_global_state"));
                      assertThat(req.includeGlobalState(), equalTo(globalState));
 
+                     long startTime = randomNonNegativeLong();
+                     long endTime = randomLongBetween(startTime, Long.MAX_VALUE);
                      return new CreateSnapshotResponse(
                          new SnapshotInfo(
                              new SnapshotId(req.snapshot(), "uuid"),
                              Arrays.asList(req.indices()),
-                             randomNonNegativeLong(),
+                             Collections.emptyList(),
+                             startTime,
                              "snapshot started",
-                             randomNonNegativeLong(),
+                             endTime,
                              3,
                              Collections.singletonList(
                                  new SnapshotShardFailure("nodeId", new ShardId("index", "uuid", 0), "forced failure")),

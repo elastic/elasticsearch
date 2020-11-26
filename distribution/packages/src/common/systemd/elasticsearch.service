@@ -1,6 +1,6 @@
 [Unit]
 Description=Elasticsearch
-Documentation=http://www.elastic.co
+Documentation=https://www.elastic.co
 Wants=network-online.target
 After=network-online.target
 
@@ -19,7 +19,7 @@ WorkingDirectory=/usr/share/elasticsearch
 User=elasticsearch
 Group=elasticsearch
 
-ExecStart=/usr/share/elasticsearch/bin/elasticsearch -p ${PID_DIR}/elasticsearch.pid --quiet
+ExecStart=/usr/share/elasticsearch/bin/systemd-entrypoint -p ${PID_DIR}/elasticsearch.pid --quiet
 
 # StandardOutput is configured to redirect to journalctl since
 # some error messages may be logged in standard output before
@@ -56,6 +56,9 @@ SendSIGKILL=no
 
 # When a JVM receives a SIGTERM signal it exits with code 143
 SuccessExitStatus=143
+
+# Allow a slow startup before the systemd notifier module kicks in to extend the timeout
+TimeoutStartSec=75
 
 [Install]
 WantedBy=multi-user.target

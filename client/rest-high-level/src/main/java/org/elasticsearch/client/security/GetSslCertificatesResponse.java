@@ -55,7 +55,7 @@ public final class GetSslCertificatesResponse {
 
     public static GetSslCertificatesResponse fromXContent(XContentParser parser) throws IOException {
         List<CertificateInfo> certificates = new ArrayList<>();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             certificates.add(CertificateInfo.PARSER.parse(parser, null));
         }

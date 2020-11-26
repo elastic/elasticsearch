@@ -1,7 +1,7 @@
 [[tune-for-indexing-speed]]
 == Tune for indexing speed
 
-[float]
+[discrete]
 === Use bulk requests
 
 Bulk requests will yield much better performance than single-document index
@@ -16,7 +16,7 @@ cluster under memory pressure when many of them are sent concurrently, so
 it is advisable to avoid going beyond a couple tens of megabytes per request
 even if larger requests seem to perform better.
 
-[float]
+[discrete]
 [[multiple-workers-threads]]
 === Use multiple workers/threads to send data to Elasticsearch
 
@@ -36,15 +36,14 @@ Similarly to sizing bulk requests, only testing can tell what the optimal
 number of workers is. This can be tested by progressively increasing the
 number of workers until either I/O or CPU is saturated on the cluster.
 
-[float]
+[discrete]
 === Unset or increase the refresh interval
 
 The operation that consists of making changes visible to search - called a
 <<indices-refresh,refresh>> - is costly, and calling it often while there is
 ongoing indexing activity can hurt indexing speed.
 
-By default, Elasticsearch runs this operation every second, but only on
-indices that have received one search request or more in the last 30 seconds.
+include::{es-repo-dir}/indices/refresh.asciidoc[tag=refresh-interval-default]
 This is the optimal configuration if you have no or very little search traffic
 (e.g. less than one search request every 5 minutes) and want to optimize for
 indexing speed. This behavior aims to automatically optimize bulk indexing in
@@ -55,34 +54,37 @@ On the other hand, if your index experiences regular search requests, this
 default behavior means that Elasticsearch will refresh your index every 1
 second. If you can afford to increase the amount of time between when a document
 gets indexed and when it becomes visible, increasing the
-<<dynamic-index-settings,`index.refresh_interval`>> to a larger value, e.g.
+<<index-refresh-interval-setting,`index.refresh_interval`>> to a larger value, e.g.
 `30s`, might help improve indexing speed.
 
-[float]
-=== Disable refresh and replicas for initial loads
+[discrete]
+=== Disable replicas for initial loads
 
-If you need to load a large amount of data at once, you should disable refresh
-by setting `index.refresh_interval` to `-1` and set `index.number_of_replicas`
-to `0`. This will temporarily put your index at risk since the loss of any shard
-will cause data loss, but at the same time indexing will be faster since
-documents will be indexed only once. Once the initial loading is finished, you
-can set `index.refresh_interval` and `index.number_of_replicas` back to their
-original values.
+If you have a large amount of data that you want to load all at once into
+Elasticsearch, it may be beneficial to set `index.number_of_replicas` to `0` in
+order to speed up indexing. Having no replicas means that losing a single node
+may incur data loss, so it is important that the data lives elsewhere so that
+this initial load can be retried in case of an issue. Once the initial load is
+finished, you can set `index.number_of_replicas` back to its original value.
 
-[float]
+If `index.refresh_interval` is configured in the index settings, it may further
+help to unset it during this initial load and setting it back to its original
+value once the initial load is finished.
+
+[discrete]
 === Disable swapping
 
 You should make sure that the operating system is not swapping out the java
 process by <<setup-configuration-memory,disabling swapping>>.
 
-[float]
+[discrete]
 === Give memory to the filesystem cache
 
 The filesystem cache will be used in order to buffer I/O operations. You should
 make sure to give at least half the memory of the machine running Elasticsearch
 to the filesystem cache.
 
-[float]
+[discrete]
 === Use auto-generated ids
 
 When indexing a document that has an explicit id, Elasticsearch needs to check
@@ -91,7 +93,7 @@ is a costly operation and gets even more costly as the index grows. By using
 auto-generated ids, Elasticsearch can skip this check, which makes indexing
 faster.
 
-[float]
+[discrete]
 === Use faster hardware
 
 If indexing is I/O bound, you should investigate giving more memory to the
@@ -113,7 +115,7 @@ different nodes so there's redundancy for any node failures. You can also use
 <<modules-snapshots,snapshot and restore>> to backup the index for further
 insurance.
 
-[float]
+[discrete]
 === Indexing buffer size
 
 If your node is doing only heavy indexing, be sure
@@ -129,7 +131,16 @@ The default is `10%` which is often plenty: for example, if you give the JVM
 10GB of memory, it will give 1GB to the index buffer, which is enough to host
 two shards that are heavily indexing.
 
-[float]
+[discrete]
+=== Use {ccr} to prevent searching from stealing resources from indexing
+
+Within a single cluster, indexing and searching can compete for resources. By
+setting up two clusters, configuring <<xpack-ccr,{ccr}>> to replicate data from
+one cluster to the other one, and routing all searches to the cluster that has
+the follower indices, search activity will no longer steal resources from
+indexing on the cluster that hosts the leader indices.
+
+[discrete]
 === Additional optimizations
 
 Many of the strategies outlined in <<tune-for-disk-usage>> also

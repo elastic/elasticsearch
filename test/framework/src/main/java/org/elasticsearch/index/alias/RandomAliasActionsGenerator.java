@@ -54,6 +54,11 @@ public final class RandomAliasActionsGenerator {
             }
             action.indices(indices);
         }
+        if (action.actionType() == AliasActions.Type.REMOVE) {
+            if (randomBoolean()) {
+                action.mustExist(randomBoolean());
+            }
+        }
         if (action.actionType() != AliasActions.Type.REMOVE_INDEX) {
             if (randomBoolean()) {
                 action.alias(randomAlphaOfLength(5));
@@ -84,6 +89,9 @@ public final class RandomAliasActionsGenerator {
             }
             if (randomBoolean()) {
                 action.writeIndex(randomBoolean());
+            }
+            if (randomBoolean()) {
+                action.isHidden(randomBoolean());
             }
         }
         return action;

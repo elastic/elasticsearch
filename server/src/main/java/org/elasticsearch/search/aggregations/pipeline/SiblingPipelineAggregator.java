@@ -19,67 +19,26 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
-    protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
-        super(name, bucketsPaths, metaData);
+    protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metadata) {
+        super(name, bucketsPaths, metadata);
     }
 
-    /**
-     * Read from a stream.
-     */
-    SiblingPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    @SuppressWarnings("unchecked")
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        if (aggregation instanceof InternalMultiBucketAggregation) {
-            @SuppressWarnings("rawtypes")
-            InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
-            List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
-            List<Bucket> newBuckets = new ArrayList<>();
-            for (Bucket bucket1 : buckets) {
-                InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) bucket1;
-                InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map((p) -> (InternalAggregation) p)
-                    .collect(Collectors.toList());
-                aggs.add(aggToAdd);
-                InternalMultiBucketAggregation.InternalBucket newBucket = multiBucketsAgg.createBucket(new InternalAggregations(aggs),
-                    bucket);
-                newBuckets.add(newBucket);
-            }
-
-            return multiBucketsAgg.create(newBuckets);
-        } else if (aggregation instanceof InternalSingleBucketAggregation) {
-            InternalSingleBucketAggregation singleBucketAgg = (InternalSingleBucketAggregation) aggregation;
-            InternalAggregation aggToAdd = doReduce(singleBucketAgg.getAggregations(), reduceContext);
-            List<InternalAggregation> aggs = StreamSupport.stream(singleBucketAgg.getAggregations().spliterator(), false)
-                .map((p) -> (InternalAggregation) p)
-                .collect(Collectors.toList());
-            aggs.add(aggToAdd);
-            return singleBucketAgg.create(new InternalAggregations(aggs));
-        } else {
-            throw new IllegalStateException("Aggregation [" + aggregation.getName() + "] must be a bucket aggregation ["
-                    + aggregation.getWriteableName() + "]");
-        }
+        return aggregation.copyWithRewritenBuckets(aggregations -> {
+            List<InternalAggregation> aggs = aggregations.copyResults();
+            aggs.add(doReduce(aggregations, reduceContext));
+            return InternalAggregations.from(aggs);
+        });
     }
 
     public abstract InternalAggregation doReduce(Aggregations aggregations, ReduceContext context);

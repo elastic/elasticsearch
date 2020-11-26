@@ -18,29 +18,15 @@
  */
 
 dependencies {
-     if (isEclipse == false || project.path == ":libs:elasticsearch-dissect-tests") {
-        testCompile(project(":test:framework")) {
-            exclude group: 'org.elasticsearch', module: 'elasticsearch-dissect'
-        }
-    }
-    testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-    testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-dissect'
+  }
+  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
 }
 
-if (isEclipse) {
-    // in eclipse the project is under a fake root, we need to change around the source sets
-    sourceSets {
-        if (project.path == ":libs:elasticsearch-dissect") {
-            main.java.srcDirs = ['java']
-            main.resources.srcDirs = ['resources']
-        } else {
-            test.java.srcDirs = ['java']
-            test.resources.srcDirs = ['resources']
-        }
-    }
-}

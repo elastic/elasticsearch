@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.client.transform.transforms.util.TimeUtil;
+import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

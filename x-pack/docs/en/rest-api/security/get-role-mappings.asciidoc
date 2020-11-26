@@ -23,7 +23,12 @@ Retrieves role mappings.
 ==== {api-description-title}
 
 Role mappings define which roles are assigned to each user. For more information, 
-see {stack-ov}/mapping-roles.html[Mapping users and groups to roles]. 
+see <<mapping-roles>>.
+
+The role mapping APIs are generally the preferred way to manage role mappings
+rather than using <<mapping-roles-file,role mapping files>>.
+The get role mappings API cannot retrieve role mappings that are defined
+in role mapping files.
 
 [[security-api-get-role-mapping-path-params]]
 ==== {api-path-parms-title}

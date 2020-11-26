@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import com.google.common.collect.Iterables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -161,6 +161,7 @@ public class ExecutionService {
         assert stoppedListener != null;
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
         this.clearExecutions(stoppedListener);
+        historyStore.flush();
         return cancelledTaskCount;
     }
 
@@ -433,7 +434,14 @@ public class ExecutionService {
                             "Error storing watch history record for watch [{}] after thread pool rejection",
                             triggeredWatch.id()), exc);
                 }
-                deleteTrigger(triggeredWatch.id());
+                try {
+                    deleteTrigger(triggeredWatch.id());
+                } catch (Exception exc) {
+                    logger.error((Supplier<?>) () ->
+                        new ParameterizedMessage(
+                            "Error deleting entry from .triggered_watches for watch [{}] after thread pool rejection",
+                            triggeredWatch.id()), exc);
+                }
             }));
         }
     }
@@ -443,12 +451,11 @@ public class ExecutionService {
      * Any existing watchRecord will be overwritten.
      */
     private void forcePutHistory(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try {
             try (XContentBuilder builder = XContentFactory.jsonBuilder();
                  ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
-                IndexRequest request = new IndexRequest(index)
+                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM)
                     .id(watchRecord.id().value())
                     .source(builder)
                     .opType(IndexRequest.OpType.CREATE);
@@ -459,7 +466,7 @@ public class ExecutionService {
                     "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
                      ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
-                    IndexRequest request = new IndexRequest(index)
+                    IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM)
                         .id(watchRecord.id().value())
                         .source(xContentBuilder.value(watchRecord));
                     client.index(request).get(30, TimeUnit.SECONDS);

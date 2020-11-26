@@ -1,7 +1,8 @@
 {
   "indices.freeze":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/frozen.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/freeze-index-api.html",
+      "description":"Freezes an index. A frozen index has almost no overhead on the cluster (except for maintaining its metadata in memory) and is read-only."
     },
     "stability":"stable",
     "url":{
@@ -42,6 +43,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],

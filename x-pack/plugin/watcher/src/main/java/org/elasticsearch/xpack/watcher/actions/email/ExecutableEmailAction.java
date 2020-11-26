@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher.actions.email;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
@@ -23,8 +25,11 @@ import org.elasticsearch.xpack.watcher.support.Variables;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
+
+    private static final AtomicLong counter = new AtomicLong(0);
 
     private final EmailService emailService;
     private final TextTemplateEngine templateEngine;
@@ -57,13 +62,18 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
                     Attachment attachment = parser.toAttachment(ctx, payload, emailAttachment);
                     attachments.put(attachment.id(), attachment);
                 } catch (ElasticsearchException | IOException e) {
+                    logger().error(
+                        (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), actionId), e);
                     return new EmailAction.Result.FailureWithException(action.type(), e);
                 }
             }
         }
 
         Email.Builder email = action.getEmail().render(templateEngine, model, htmlSanitizer, attachments);
-        email.id(actionId + "_" + ctx.id().value());
+        // the counter ensures that a different message id is generated, even if the method is called with the same parameters
+        // this may happen if a foreach loop is used for this action
+        // same message ids will result in emails not being accepted by mail servers and thus have to be prevented at all times
+        email.id(actionId + "_" + ctx.id().value() + "_" + Long.toUnsignedString(counter.incrementAndGet()));
 
         if (ctx.simulateAction(actionId)) {
             return new EmailAction.Result.Simulated(email.build());

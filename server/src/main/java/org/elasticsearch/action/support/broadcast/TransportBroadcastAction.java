@@ -184,11 +184,6 @@ public abstract class TransportBroadcastAction<
                                 }
 
                                 @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
-                                }
-
-                                @Override
                                 public void handleResponse(ShardResponse response) {
                                     onOperation(shard, shardIndex, response);
                                 }
@@ -300,6 +295,6 @@ public abstract class TransportBroadcastAction<
 
     private void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
         transportService.getThreadPool().executor(shardExecutor)
-            .execute(ActionRunnable.wrap(listener, l -> l.onResponse(shardOperation(request, task))));
+            .execute(ActionRunnable.supply(listener, () -> shardOperation(request, task)));
     }
 }

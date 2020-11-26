@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.persistence;
 
+import org.elasticsearch.Version;
+
 public final class TransformInternalIndexConstants {
 
     /* Constants for internal indexes of the transform plugin
@@ -17,23 +19,33 @@ public final class TransformInternalIndexConstants {
      *
      *    - XPackRestTestConstants
      *    - yaml tests under x-pack/qa/
+     *    - upgrade tests under x-pack/qa/rolling-upgrade
      *
      * (pro-tip: grep for the constant)
      */
 
     // internal index
-    public static final String INDEX_VERSION = "2";
-    public static final String INDEX_PATTERN = ".data-frame-internal-";
+
+    // version is not a rollover pattern, however padded because sort is string based
+    public static final Version INDEX_VERSION_LAST_CHANGED = Version.V_7_7_0;
+    public static final String INDEX_VERSION = "005";
+    public static final String INDEX_PATTERN = ".transform-internal-";
     public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
     public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;
     public static final String INDEX_NAME_PATTERN = INDEX_PATTERN + "*";
+    public static final String INDEX_NAME_PATTERN_DEPRECATED = ".data-frame-internal-*";
 
     // audit index
-    public static final String AUDIT_TEMPLATE_VERSION = "1";
-    public static final String AUDIT_INDEX_PREFIX = ".data-frame-notifications-";
+    // gh #49730: upped version of audit index to 000002
+    public static final String AUDIT_TEMPLATE_VERSION = "000002";
+    public static final String AUDIT_INDEX_PREFIX = ".transform-notifications-";
+    public static final String AUDIT_INDEX_PATTERN = AUDIT_INDEX_PREFIX + "*";
+    public static final String AUDIT_INDEX_DEPRECATED = ".data-frame-notifications-1";
+    public static final String AUDIT_INDEX_PATTERN_DEPRECATED = ".data-frame-notifications-*";
+
+    public static final String AUDIT_INDEX_READ_ALIAS = ".transform-notifications-read";
     public static final String AUDIT_INDEX = AUDIT_INDEX_PREFIX + AUDIT_TEMPLATE_VERSION;
 
-    private TransformInternalIndexConstants() {
-    }
+    private TransformInternalIndexConstants() {}
 
 }

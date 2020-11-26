@@ -23,12 +23,12 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
 /**
- * An base action listener that ensures shard target and shard index is set on all responses
+ * A base action listener that ensures shard target and shard index is set on all responses
  * received by this listener.
  */
 abstract class SearchActionListener<T extends SearchPhaseResult> implements ActionListener<T> {
 
-    private final int requestIndex;
+    final int requestIndex;
     private final SearchShardTarget searchShardTarget;
 
     protected SearchActionListener(SearchShardTarget searchShardTarget,

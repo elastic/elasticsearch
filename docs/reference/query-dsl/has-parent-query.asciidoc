@@ -25,21 +25,21 @@ field mapping. For example:
 
 [source,console]
 ----
-PUT /my-index
+PUT /my-index-000001
 {
-    "mappings": {
-        "properties" : {
-            "my-join-field" : {
-                "type" : "join",
-                "relations": {
-                    "parent": "child"
-                }
-            },
-            "tag" : {
-                "type" : "keyword"
-            }
+  "mappings": {
+    "properties": {
+      "my-join-field": {
+        "type": "join",
+        "relations": {
+          "parent": "child"
         }
+      },
+      "tag": {
+        "type": "keyword"
+      }
     }
+  }
 }
 
 ----
@@ -50,20 +50,20 @@ PUT /my-index
 
 [source,console]
 ----
-GET /my-index/_search
+GET /my-index-000001/_search
 {
-    "query": {
-        "has_parent" : {
-            "parent_type" : "parent",
-            "query" : {
-                "term" : {
-                    "tag" : {
-                        "value" : "Elasticsearch"
-                    }
-                }
-            }
+  "query": {
+    "has_parent": {
+      "parent_type": "parent",
+      "query": {
+        "term": {
+          "tag": {
+            "value": "Elasticsearch"
+          }
         }
+      }
     }
+  }
 }
 ----
 
@@ -82,7 +82,7 @@ its child documents.
 `score`::
 +
 --
-(Optional, boolean) Indicates whether the <<query-filter-context,relevance
+(Optional, Boolean) Indicates whether the <<query-filter-context,relevance
 score>> of a matching parent document is aggregated into its child documents.
 Defaults to `false`.
 
@@ -97,7 +97,7 @@ into its child documents' relevance scores.
 `ignore_unmapped`::
 +
 --
-(Optional, boolean) Indicates whether to ignore an unmapped `parent_type` and
+(Optional, Boolean) Indicates whether to ignore an unmapped `parent_type` and
 not return any documents instead of an error. Defaults to `false`.
 
 If `false`, {es} returns an error if the `parent_type` is unmapped.
@@ -112,7 +112,7 @@ You can use this parameter to query multiple indices that may not contain the
 [[has-parent-query-performance]]
 ===== Sorting
 You cannot sort the results of a `has_parent` query using standard
-<<search-request-sort,sort options>>.
+<<sort-search-results,sort options>>.
 
 If you need to sort returned documents by a field in their parent documents, use
 a `function_score` query and sort by `_score`. For example, the following query
@@ -122,18 +122,18 @@ sorts returned documents by the `view_count` field of their parent documents.
 ----
 GET /_search
 {
-    "query": {
-        "has_parent" : {
-            "parent_type" : "parent",
-            "score" : true,
-            "query" : {
-                "function_score" : {
-                    "script_score": {
-                        "script": "_score * doc['view_count'].value"
-                    }
-                }
-            }
+  "query": {
+    "has_parent": {
+      "parent_type": "parent",
+      "score": true,
+      "query": {
+        "function_score": {
+          "script_score": {
+            "script": "_score * doc['view_count'].value"
+          }
         }
+      }
     }
+  }
 }
 ----

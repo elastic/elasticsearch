@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -220,6 +219,17 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      */
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
+    /**
+     * Resolves a list of concrete index names. Override this if index names should be resolved differently than normal.
+     *
+     * @param clusterState the cluster state
+     * @param request the underlying request
+     * @return a list of concrete index names that this action should operate on
+     */
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, Request request) {
+        return indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+    }
+
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncAction(task, request, listener).start();
@@ -249,7 +259,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw globalBlockException;
             }
 
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+            String[] concreteIndices = resolveConcreteIndexNames(clusterState, request);
             ClusterBlockException requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (requestBlockException != null) {
                 throw requestBlockException;
@@ -324,11 +334,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                     @Override
                     public void handleException(TransportException exp) {
                         onNodeFailure(node, nodeIndex, exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
                     }
                 });
             } catch (Exception e) {

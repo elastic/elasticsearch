@@ -7,9 +7,10 @@
 package org.elasticsearch.xpack.ccr.repository;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -46,8 +47,8 @@ import static org.mockito.Mockito.when;
 public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
 
     public void testWhenRetentionLeaseAlreadyExistsWeTryToRenewIt() {
-        final RepositoryMetaData repositoryMetaData = mock(RepositoryMetaData.class);
-        when(repositoryMetaData.name()).thenReturn(CcrRepository.NAME_PREFIX);
+        final RepositoryMetadata repositoryMetadata = mock(RepositoryMetadata.class);
+        when(repositoryMetadata.name()).thenReturn(CcrRepository.NAME_PREFIX);
         final Set<Setting<?>> settings =
                 Stream.concat(
                         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
@@ -55,7 +56,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                         .collect(Collectors.toSet());
 
         final CcrRepository repository = new CcrRepository(
-                repositoryMetaData,
+                repositoryMetadata,
                 mock(Client.class),
                 new CcrLicenseChecker(() -> true, () -> true),
                 Settings.EMPTY,
@@ -74,8 +75,8 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                 ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
         doAnswer(
                 invocationOnMock -> {
-                    @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
-                            (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
+                    @SuppressWarnings("unchecked") final ActionListener<ActionResponse.Empty> listener =
+                            (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
                     listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
                     return null;
                 })
@@ -85,9 +86,9 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                 ArgumentCaptor.forClass(RetentionLeaseActions.RenewRequest.class);
         doAnswer(
                 invocationOnMock -> {
-                    @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
-                            (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
-                    listener.onResponse(new RetentionLeaseActions.Response());
+                    @SuppressWarnings("unchecked") final ActionListener<ActionResponse.Empty> listener =
+                            (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
+                    listener.onResponse(ActionResponse.Empty.INSTANCE);
                     return null;
                 })
                 .when(remoteClient)
@@ -111,8 +112,8 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
     }
 
     public void testWhenRetentionLeaseExpiresBeforeWeCanRenewIt() {
-        final RepositoryMetaData repositoryMetaData = mock(RepositoryMetaData.class);
-        when(repositoryMetaData.name()).thenReturn(CcrRepository.NAME_PREFIX);
+        final RepositoryMetadata repositoryMetadata = mock(RepositoryMetadata.class);
+        when(repositoryMetadata.name()).thenReturn(CcrRepository.NAME_PREFIX);
         final Set<Setting<?>> settings =
                 Stream.concat(
                         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
@@ -120,7 +121,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                         .collect(Collectors.toSet());
 
         final CcrRepository repository = new CcrRepository(
-                repositoryMetaData,
+                repositoryMetadata,
                 mock(Client.class),
                 new CcrLicenseChecker(() -> true, () -> true),
                 Settings.EMPTY,
@@ -137,8 +138,8 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final Client remoteClient = mock(Client.class);
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
-        final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
-        response.onResponse(new RetentionLeaseActions.Response());
+        final PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
+        response.onResponse(ActionResponse.Empty.INSTANCE);
         doAnswer(
                 new Answer<Void>() {
 
@@ -146,12 +147,12 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
 
                     @Override
                     public Void answer(final InvocationOnMock invocationOnMock) {
-                        @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
-                                (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
+                        @SuppressWarnings("unchecked") final ActionListener<ActionResponse.Empty> listener =
+                                (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
                         if (firstInvocation.compareAndSet(true, false)) {
                             listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
                         } else {
-                            listener.onResponse(new RetentionLeaseActions.Response());
+                            listener.onResponse(ActionResponse.Empty.INSTANCE);
                         }
                         return null;
                     }
@@ -162,8 +163,8 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                 ArgumentCaptor.forClass(RetentionLeaseActions.RenewRequest.class);
         doAnswer(
                 invocationOnMock -> {
-                    @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
-                            (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
+                    @SuppressWarnings("unchecked") final ActionListener<ActionResponse.Empty> listener =
+                            (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
                     listener.onFailure(new RetentionLeaseNotFoundException(retentionLeaseId));
                     return null;
                 }

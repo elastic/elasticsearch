@@ -23,20 +23,30 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FakeThreadPoolMasterServiceTests extends ESTestCase {
 
@@ -48,7 +58,15 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         lastClusterStateRef.set(ClusterStateCreationUtils.state(discoveryNode, discoveryNode));
         long firstClusterStateVersion = lastClusterStateRef.get().version();
         AtomicReference<ActionListener<Void>> publishingCallback = new AtomicReference<>();
-        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService("test_node","test", runnableTasks::add);
+        final ThreadContext context = new ThreadContext(Settings.EMPTY);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(context);
+
+        final ExecutorService executorService = mock(ExecutorService.class);
+        doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
+        when(mockThreadPool.generic()).thenReturn(executorService);
+
+        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService("test_node","test", mockThreadPool, runnableTasks::add);
         masterService.setClusterStateSupplier(lastClusterStateRef::get);
         masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             lastClusterStateRef.set(event.state());
@@ -61,7 +79,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
-                    .metaData(MetaData.builder(currentState.metaData()).put(indexBuilder("test1"))).build();
+                    .metadata(Metadata.builder(currentState.metadata()).put(indexBuilder("test1"))).build();
             }
 
             @Override
@@ -76,13 +94,20 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
         });
         assertThat(runnableTasks.size(), equalTo(1));
-        assertThat(lastClusterStateRef.get().metaData().indices().size(), equalTo(0));
+        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(0));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion));
         assertNull(publishingCallback.get());
         assertFalse(firstTaskCompleted.get());
 
-        runnableTasks.remove(0).run();
-        assertThat(lastClusterStateRef.get().metaData().indices().size(), equalTo(1));
+        final Runnable scheduleTask = runnableTasks.remove(0);
+        assertThat(scheduleTask, hasToString("master service scheduling next task"));
+        scheduleTask.run();
+
+        final Runnable publishTask = runnableTasks.remove(0);
+        assertThat(publishTask, hasToString(containsString("publish change of cluster state")));
+        publishTask.run();
+
+        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(1));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 1));
         assertNotNull(publishingCallback.get());
         assertFalse(firstTaskCompleted.get());
@@ -93,7 +118,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
-                    .metaData(MetaData.builder(currentState.metaData()).put(indexBuilder("test2"))).build();
+                    .metadata(Metadata.builder(currentState.metadata()).put(indexBuilder("test2"))).build();
             }
 
             @Override
@@ -113,8 +138,9 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertTrue(firstTaskCompleted.get());
         assertThat(runnableTasks.size(), equalTo(1)); // check that new task gets queued
 
-        runnableTasks.remove(0).run();
-        assertThat(lastClusterStateRef.get().metaData().indices().size(), equalTo(2));
+        runnableTasks.remove(0).run(); // schedule again
+        runnableTasks.remove(0).run(); // publish again
+        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(2));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 2));
         assertNotNull(publishingCallback.get());
         assertFalse(secondTaskCompleted.get());
@@ -123,8 +149,8 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(0)); // check that no more tasks are queued
     }
 
-    private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+    private static IndexMetadata.Builder indexBuilder(String index) {
+        return IndexMetadata.builder(index).settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
     }
 }

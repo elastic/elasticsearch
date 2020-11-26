@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
@@ -53,7 +54,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     @Before
     public void init() {
         settings = Settings.builder()
-            .put("resource.reload.interval.high", "2s")
+            .put("resource.reload.interval.high", "100ms")
             .put("path.home", createTempDir())
             .put("xpack.security.authc.password_hashing.algorithm", randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000",
                 "pbkdf2_50000"))
@@ -76,9 +77,10 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
         RealmConfig config = getRealmConfig();
-        ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService);
-        assertThat(store.usersCount(), is(0));
+        try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
+            FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService);
+            assertThat(store.usersCount(), is(0));
+        }
     }
 
     public void testStore_AutoReload() throws Exception {
@@ -89,38 +91,53 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
         final Hasher hasher = Hasher.resolve(settings.get("xpack.security.authc.password_hashing.algorithm"));
         RealmConfig config = getRealmConfig();
-        ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        final CountDownLatch latch = new CountDownLatch(1);
+        try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
+            final CountDownLatch latch = new CountDownLatch(1);
 
-        FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
-        //Test users share the hashing algorithm name for convenience
-        String username = settings.get("xpack.security.authc.password_hashing.algorithm");
-        User user = new User(username);
-        assertThat(store.userExists(username), is(true));
-        AuthenticationResult result = store.verifyPassword(username, new SecureString("test123"), () -> user);
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser(), is(user));
+            FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
+            //Test users share the hashing algorithm name for convenience
+            String username = settings.get("xpack.security.authc.password_hashing.algorithm");
+            User user = new User(username);
+            assertThat(store.userExists(username), is(true));
+            AuthenticationResult result = store.verifyPassword(username, new SecureString("test123"), () -> user);
+            assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+            assertThat(result.getUser(), is(user));
 
-        watcherService.start();
+            try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+                writer.append("\n");
+            }
 
-        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
-            writer.newLine();
-            writer.append("foobar:").append(new String(hasher.hash(new SecureString("barfoo"))));
+            watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+            if (latch.getCount() != 1) {
+                fail("Listener should not be called as users passwords are not changed.");
+            }
+
+            assertThat(store.userExists(username), is(true));
+            result = store.verifyPassword(username, new SecureString("test123"), () -> user);
+            assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+            assertThat(result.getUser(), is(user));
+
+            try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+                writer.newLine();
+                writer.append("foobar:").append(new String(hasher.hash(new SecureString("barfoo"))));
+            }
+
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                fail("Waited too long for the updated file to be picked up");
+            }
+
+            assertThat(store.userExists("foobar"), is(true));
+            result = store.verifyPassword("foobar", new SecureString("barfoo"), () -> user);
+            assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+            assertThat(result.getUser(), is(user));
         }
-
-        if (!latch.await(5, TimeUnit.SECONDS)) {
-            fail("Waited too long for the updated file to be picked up");
-        }
-
-        assertThat(store.userExists("foobar"), is(true));
-        result = store.verifyPassword("foobar", new SecureString("barfoo"), () -> user);
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser(), is(user));
     }
 
     private RealmConfig getRealmConfig() {
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("file", "file-test");
-        return new RealmConfig(identifier, settings, env, threadPool.getThreadContext());
+        return new RealmConfig(identifier,
+            Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0).build(),
+            env, threadPool.getThreadContext());
     }
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {
@@ -131,27 +148,26 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.copy(users, testUsers, StandardCopyOption.REPLACE_EXISTING);
 
         RealmConfig config = getRealmConfig();
-        ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        final CountDownLatch latch = new CountDownLatch(1);
+        try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
+            final CountDownLatch latch = new CountDownLatch(1);
 
-        FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
-        //Test users share the hashing algorithm name for convenience
-        String username = settings.get("xpack.security.authc.password_hashing.algorithm");
-        User user = new User(username);
-        final AuthenticationResult result = store.verifyPassword(username, new SecureString("test123"), () -> user);
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser(), is(user));
+            FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService, latch::countDown);
+            //Test users share the hashing algorithm name for convenience
+            String username = settings.get("xpack.security.authc.password_hashing.algorithm");
+            User user = new User(username);
+            final AuthenticationResult result = store.verifyPassword(username, new SecureString("test123"), () -> user);
+            assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+            assertThat(result.getUser(), is(user));
 
-        watcherService.start();
+            // now replacing the content of the users file with something that cannot be read
+            Files.write(testUsers, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
-        // now replacing the content of the users file with something that cannot be read
-        Files.write(testUsers, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                fail("Waited too long for the updated file to be picked up");
+            }
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
-            fail("Waited too long for the updated file to be picked up");
+            assertThat(store.usersCount(), is(0));
         }
-
-        assertThat(store.usersCount(), is(0));
     }
 
     public void testParseFile() throws Exception {

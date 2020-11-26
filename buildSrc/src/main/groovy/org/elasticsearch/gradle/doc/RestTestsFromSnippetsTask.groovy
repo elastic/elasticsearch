@@ -23,6 +23,7 @@ import groovy.transform.PackageScope
 import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 
 import java.nio.file.Files
@@ -31,7 +32,7 @@ import java.nio.file.Path
 /**
  * Generates REST tests for each snippet marked // TEST.
  */
-public class RestTestsFromSnippetsTask extends SnippetsTask {
+class RestTestsFromSnippetsTask extends SnippetsTask {
     /**
      * These languages aren't supported by the syntax highlighter so we
      * shouldn't use them.
@@ -58,7 +59,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
     @OutputDirectory
     File testRoot = project.file('build/rest')
 
-    public RestTestsFromSnippetsTask() {
+    @Internal
+    Set<String> names = new HashSet<>()
+
+    RestTestsFromSnippetsTask() {
         project.afterEvaluate {
             // Wait to set this so testRoot can be customized
             project.sourceSets.test.output.dir(testRoot, builtBy: this)
@@ -238,7 +242,14 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 }
             } else {
                 current.println('---')
-                current.println("\"line_$test.start\":")
+                if (test.name != null && test.name.isBlank() == false) {
+                    if(names.add(test.name) == false) {
+                        throw new InvalidUserDataException("Duplicated snippet name '$test.name': $test")
+                    }
+                    current.println("\"$test.name\":")
+                } else {
+                    current.println("\"line_$test.start\":")
+                }
                 /* The Elasticsearch test runner doesn't support quite a few
                  * constructs unless we output this skip. We don't know if
                  * we're going to use these constructs, but we might so we
@@ -255,6 +266,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                     case 'basic':
                     case 'gold':
                     case 'platinum':
+                    case 'enterprise':
                         current.println("        - xpack")
                         break;
                     default:
@@ -293,7 +305,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (null == response.skip) {
                 current.println("  - match: ")
                 current.println("      \$body: ")
-                response.contents.eachLine { current.println("        $it") }
+                replaceBlockQuote(response.contents).eachLine {
+                    current.println("        $it")
+                }
             }
         }
 
@@ -303,10 +317,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (path == null) {
                 path = '' // Catch requests to the root...
             } else {
-                // Escape some characters that are also escaped by sense
                 path = path.replace('<', '%3C').replace('>', '%3E')
-                path = path.replace('{', '%7B').replace('}', '%7D')
-                path = path.replace('|', '%7C')
             }
             current.println("  - do:")
             if (catchPart != null) {
@@ -406,6 +417,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (lastDocsPath == test.path) {
                 return
             }
+            names.clear()
             finishLastTest()
             lastDocsPath = test.path
 

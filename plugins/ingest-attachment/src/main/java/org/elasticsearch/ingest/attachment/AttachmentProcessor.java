@@ -57,9 +57,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final String indexedCharsField;
 
-    AttachmentProcessor(String tag, String field, String targetField, Set<Property> properties,
+    AttachmentProcessor(String tag, String description, String field, String targetField, Set<Property> properties,
                         int indexedChars, boolean ignoreMissing, String indexedCharsField) {
-        super(tag);
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.properties = properties;
@@ -195,7 +195,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         @Override
         public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                          Map<String, Object> config) throws Exception {
+                                          String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
@@ -218,7 +218,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 properties = DEFAULT_PROPERTIES;
             }
 
-            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing, indexedCharsField);
+            return new AttachmentProcessor(processorTag, description, field, targetField, properties, indexedChars, ignoreMissing,
+                indexedCharsField);
         }
     }
 

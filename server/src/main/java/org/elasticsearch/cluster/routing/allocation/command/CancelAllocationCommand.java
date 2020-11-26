@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -126,13 +126,13 @@ public class CancelAllocationCommand implements AllocationCommand {
         ShardRouting shardRouting = null;
         RoutingNodes routingNodes = allocation.routingNodes();
         RoutingNode routingNode = routingNodes.node(discoNode.getId());
-        IndexMetaData indexMetaData = null;
+        IndexMetadata indexMetadata = null;
         if (routingNode != null) {
-            indexMetaData = allocation.metaData().index(index());
-            if (indexMetaData == null) {
+            indexMetadata = allocation.metadata().index(index());
+            if (indexMetadata == null) {
                 throw new IndexNotFoundException(index());
             }
-            ShardId shardId = new ShardId(indexMetaData.getIndex(), shardId());
+            ShardId shardId = new ShardId(indexMetadata.getIndex(), shardId());
             shardRouting = routingNode.getByShardId(shardId);
         }
         if (shardRouting == null) {
@@ -155,7 +155,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             }
         }
         routingNodes.failShard(LogManager.getLogger(CancelAllocationCommand.class), shardRouting,
-            new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null), indexMetaData, allocation.changes());
+            new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null), indexMetadata, allocation.changes());
         // TODO: We don't have to remove a cancelled shard from in-sync set once we have a strict resync implementation.
         allocation.removeAllocationId(shardRouting);
         return new RerouteExplanation(this, allocation.decision(Decision.YES, "cancel_allocation_command",

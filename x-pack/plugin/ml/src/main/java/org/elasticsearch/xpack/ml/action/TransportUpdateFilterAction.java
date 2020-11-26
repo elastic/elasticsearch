@@ -101,13 +101,13 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     private void indexUpdatedFilter(MlFilter filter, final long seqNo, final long primaryTerm,
                                     UpdateFilterAction.Request request,
                                     ActionListener<PutFilterAction.Response> listener) {
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
+        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
         indexRequest.setIfSeqNo(seqNo);
         indexRequest.setIfPrimaryTerm(primaryTerm);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
             indexRequest.source(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
@@ -125,7 +125,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             @Override
             public void onFailure(Exception e) {
                 Exception reportedException;
-                if (e instanceof VersionConflictEngineException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                     reportedException = ExceptionsHelper.conflictStatusException("Error updating filter with id [" + filter.getId()
                             + "] because it was modified while the update was in progress", e);
                 } else {
@@ -137,7 +137,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     }
 
     private void getFilterWithVersion(String filterId, ActionListener<FilterWithSeqNo> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), MlFilter.documentId(filterId));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getDocResponse) {

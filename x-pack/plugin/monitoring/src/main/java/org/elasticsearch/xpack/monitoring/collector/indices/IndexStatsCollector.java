@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -70,11 +70,12 @@ public class IndexStatsCollector extends Collector {
                 .setRefresh(true)
                 .setQueryCache(true)
                 .setRequestCache(true)
+                .setBulk(true)
                 .get(getCollectionTimeout());
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUuid(clusterState);
-        final MetaData metadata = clusterState.metaData();
+        final Metadata metadata = clusterState.metadata();
         final RoutingTable routingTable = clusterState.routingTable();
 
         // Filters the indices stats to only return the statistics for the indices known by the collector's

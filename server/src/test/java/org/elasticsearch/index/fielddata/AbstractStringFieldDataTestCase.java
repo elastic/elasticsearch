@@ -467,7 +467,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         // First segment
         assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.Consumer.class));
         LeafReaderContext leaf = topLevelReader.leaves().get(0);
-        AtomicOrdinalsFieldData afd = globalOrdinals.load(leaf);
+        LeafOrdinalsFieldData afd = globalOrdinals.load(leaf);
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
         long ord = values.nextOrd();
@@ -553,7 +553,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
         IndexOrdinalsFieldData ifd = getForField("value");
         for (LeafReaderContext atomicReaderContext : atomicReaderContexts) {
-            AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
+            LeafOrdinalsFieldData afd = ifd.load(atomicReaderContext);
 
             TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
             int size = 0;

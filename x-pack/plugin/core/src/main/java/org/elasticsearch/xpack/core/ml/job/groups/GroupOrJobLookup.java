@@ -55,8 +55,8 @@ public class GroupOrJobLookup {
         }
     }
 
-    public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
-        return new GroupOrJobResolver().expand(expression, allowNoJobs);
+    public Set<String> expandJobIds(String expression, boolean allowNoMatch) {
+        return new GroupOrJobResolver().expand(expression, allowNoMatch);
     }
 
     public boolean isGroupOrJob(String id) {

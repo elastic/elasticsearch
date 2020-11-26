@@ -106,7 +106,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[]{"2", "2.0", ""});
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndCategorization() throws Exception {
@@ -142,7 +142,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         }
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndTimestampsAreOutOfOrder() throws Exception {
@@ -164,7 +164,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
 
         verify(dataCountsReporter, times(2)).reportOutOfOrderRecord(2);
         verify(dataCountsReporter, never()).reportLatestTimeIncrementalStats(anyLong());
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws Exception {
@@ -195,7 +195,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
 
         verify(dataCountsReporter, times(1)).reportOutOfOrderRecord(2);
         verify(dataCountsReporter, never()).reportLatestTimeIncrementalStats(anyLong());
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenMalformedJsonWithoutNestedLevels() throws Exception {
@@ -223,7 +223,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         assertWrittenRecordsEqualTo(expectedRecords);
 
         verify(dataCountsReporter).reportMissingFields(1);
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenMalformedJsonWithNestedLevels()
@@ -251,7 +251,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[]{"3", "3.0", ""});
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenMalformedJsonThatNeverRecovers()
@@ -293,7 +293,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[]{"2", "2.0", ""});
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_GivenJsonWithMissingFields() throws Exception {
@@ -330,7 +330,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter, times(1)).reportRecordWritten(1, 3000);
         verify(dataCountsReporter, times(1)).reportRecordWritten(1, 4000);
         verify(dataCountsReporter, times(1)).reportDateParseError(0);
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     public void testWrite_Smile() throws Exception {
@@ -367,7 +367,7 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         expectedRecords.add(new String[]{"2", "2.0", ""});
         assertWrittenRecordsEqualTo(expectedRecords);
 
-        verify(dataCountsReporter).finishReporting(any());
+        verify(dataCountsReporter).finishReporting();
     }
 
     private static InputStream createInputStream(String input) {

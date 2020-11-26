@@ -26,8 +26,6 @@ import org.elasticsearch.common.Strings;
 /** Request the mappings of specific fields */
 public class GetFieldMappingsRequest implements Validatable {
 
-    private boolean local = false;
-
     private String[] fields = Strings.EMPTY_ARRAY;
 
     private boolean includeDefaults = false;
@@ -35,19 +33,6 @@ public class GetFieldMappingsRequest implements Validatable {
     private String[] indices = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-
-    /**
-     * Indicate whether the receiving node should operate based on local index information or forward requests,
-     * where needed, to other nodes. If running locally, request will not raise errors if running locally &amp; missing indices.
-     */
-    public GetFieldMappingsRequest local(boolean local) {
-        this.local = local;
-        return this;
-    }
-
-    public boolean local() {
-        return local;
-    }
 
     public GetFieldMappingsRequest indices(String... indices) {
         this.indices = indices;

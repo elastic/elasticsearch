@@ -38,8 +38,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.nio.file.Path;
@@ -82,11 +82,11 @@ public class DiscoveryModule {
 
     private final Discovery discovery;
 
-    public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public DiscoveryModule(Settings settings, TransportService transportService,
                            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
                            ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
                            AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState,
-                           RerouteService rerouteService) {
+                           RerouteService rerouteService, NodeHealthService nodeHealthService) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
@@ -148,12 +148,16 @@ public class DiscoveryModule {
                 settings, clusterSettings,
                 transportService, namedWriteableRegistry, allocationService, masterService, gatewayMetaState::getPersistedState,
                 seedHostsProvider, clusterApplier, joinValidators, new Random(Randomness.get().nextLong()), rerouteService,
-                electionStrategy);
+                electionStrategy, nodeHealthService);
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
 
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
+    }
+
+    public static boolean isSingleNodeDiscovery(Settings settings) {
+        return SINGLE_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
     }
 
     public Discovery getDiscovery() {

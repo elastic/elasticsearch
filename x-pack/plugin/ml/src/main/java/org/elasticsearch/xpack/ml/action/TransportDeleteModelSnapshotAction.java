@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -28,6 +31,8 @@ import java.util.List;
 
 public class TransportDeleteModelSnapshotAction extends HandledTransportAction<DeleteModelSnapshotAction.Request,
     AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportDeleteModelSnapshotAction.class);
 
     private final Client client;
     private final JobManager jobManager;
@@ -86,9 +91,9 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                                                         deleteCandidate.getSnapshotId(), deleteCandidate.getDescription());
 
                                                 auditor.info(request.getJobId(), msg);
-                                                logger.debug("[{}] {}", request.getJobId(), msg);
+                                                logger.debug(() -> new ParameterizedMessage("[{}] {}", request.getJobId(), msg));
                                                 // We don't care about the bulk response, just that it succeeded
-                                                listener.onResponse(new AcknowledgedResponse(true));
+                                                listener.onResponse(AcknowledgedResponse.TRUE);
                                             }
 
                                             @Override

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.breaker;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 
@@ -29,15 +27,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
  * that load field data.
  */
 public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(CircuitBreakerService.class);
 
     protected CircuitBreakerService() {
     }
-
-    /**
-     * Allows to register of a custom circuit breaker.
-     */
-    public abstract void registerBreaker(BreakerSettings breakerSettings);
 
     /**
      * @return the breaker that can be used to register estimates against

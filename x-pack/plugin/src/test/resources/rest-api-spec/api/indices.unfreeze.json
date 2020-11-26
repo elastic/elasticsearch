@@ -1,7 +1,8 @@
 {
   "indices.unfreeze":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/frozen.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/unfreeze-index-api.html",
+      "description":"Unfreezes an index. When a frozen index is unfrozen, the index goes through the normal recovery process and becomes writeable again."
     },
     "stability":"stable",
     "url":{
@@ -42,6 +43,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],

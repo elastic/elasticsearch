@@ -36,29 +36,41 @@ import java.util.Locale;
 
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
-    ClusterStatsNodes nodesStats;
-    ClusterStatsIndices indicesStats;
-    ClusterHealthStatus status;
-    long timestamp;
-    String clusterUUID;
+    final ClusterStatsNodes nodesStats;
+    final ClusterStatsIndices indicesStats;
+    final ClusterHealthStatus status;
+    final long timestamp;
+    final String clusterUUID;
 
     public ClusterStatsResponse(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
         // it may be that the master switched on us while doing the operation. In this case the status may be null.
         status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
+
+        String clusterUUID = in.readOptionalString();
+        MappingStats mappingStats = in.readOptionalWriteable(MappingStats::new);
+        AnalysisStats analysisStats = in.readOptionalWriteable(AnalysisStats::new);
+        this.clusterUUID = clusterUUID;
+
+        // built from nodes rather than from the stream directly
+        nodesStats = new ClusterStatsNodes(getNodes());
+        indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats);
     }
 
     public ClusterStatsResponse(long timestamp,
                                 String clusterUUID,
                                 ClusterName clusterName,
                                 List<ClusterStatsNodeResponse> nodes,
-                                List<FailedNodeException> failures) {
+                                List<FailedNodeException> failures,
+                                MappingStats mappingStats,
+                                AnalysisStats analysisStats) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
-        indicesStats = new ClusterStatsIndices(nodes);
+        indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats);
+        ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
             if (response.clusterStatus() != null) {
@@ -66,6 +78,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                 break;
             }
         }
+        this.status = status;
     }
 
     public String getClusterUUID() {
@@ -93,17 +106,14 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         super.writeTo(out);
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(status);
+        out.writeOptionalString(clusterUUID);
+        out.writeOptionalWriteable(indicesStats.getMappings());
+        out.writeOptionalWriteable(indicesStats.getAnalysis());
     }
 
     @Override
     protected List<ClusterStatsNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        List<ClusterStatsNodeResponse> nodes = in.readList(ClusterStatsNodeResponse::readNodeResponse);
-
-        // built from nodes rather than from the stream directly
-        nodesStats = new ClusterStatsNodes(nodes);
-        indicesStats = new ClusterStatsIndices(nodes);
-
-        return nodes;
+        return in.readList(ClusterStatsNodeResponse::readNodeResponse);
     }
 
     @Override

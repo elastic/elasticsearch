@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -40,6 +39,7 @@ public class CompoundProcessor implements Processor {
     public static final String ON_FAILURE_MESSAGE_FIELD = "on_failure_message";
     public static final String ON_FAILURE_PROCESSOR_TYPE_FIELD = "on_failure_processor_type";
     public static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
+    public static final String ON_FAILURE_PIPELINE_FIELD = "on_failure_pipeline";
 
     private final boolean ignoreFailure;
     private final List<Processor> processors;
@@ -114,6 +114,11 @@ public class CompoundProcessor implements Processor {
     }
 
     @Override
+    public String getDescription() {
+        return null;
+    }
+
+    @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         throw new UnsupportedOperationException("this method should not get executed");
     }
@@ -135,16 +140,16 @@ public class CompoundProcessor implements Processor {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metric.preIngest();
         processor.execute(ingestDocument, (result, e) -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metric.postIngest(ingestTimeInMillis);
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metric.postIngest(ingestTimeInNanos);
 
             if (e != null) {
                 metric.ingestFailed();
                 if (ignoreFailure) {
                     innerExecute(currentProcessor + 1, ingestDocument, handler);
                 } else {
-                    ElasticsearchException compoundProcessorException =
-                        newCompoundProcessorException(e, processor.getType(), processor.getTag());
+                    IngestProcessorException compoundProcessorException =
+                        newCompoundProcessorException(e, processor, ingestDocument);
                     if (onFailureProcessors.isEmpty()) {
                         handler.accept(null, compoundProcessorException);
                     } else {
@@ -177,7 +182,7 @@ public class CompoundProcessor implements Processor {
         onFailureProcessor.execute(ingestDocument, (result, e) -> {
             if (e != null) {
                 removeFailureMetadata(ingestDocument);
-                handler.accept(null, newCompoundProcessorException(e, onFailureProcessor.getType(), onFailureProcessor.getTag()));
+                handler.accept(null, newCompoundProcessorException(e, onFailureProcessor, ingestDocument));
                 return;
             }
             if (result == null) {
@@ -192,12 +197,17 @@ public class CompoundProcessor implements Processor {
     private void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {
         List<String> processorTypeHeader = cause.getHeader("processor_type");
         List<String> processorTagHeader = cause.getHeader("processor_tag");
+        List<String> processorOriginHeader = cause.getHeader("pipeline_origin");
         String failedProcessorType = (processorTypeHeader != null) ? processorTypeHeader.get(0) : null;
         String failedProcessorTag = (processorTagHeader != null) ? processorTagHeader.get(0) : null;
+        String failedPipelineId = (processorOriginHeader != null) ? processorOriginHeader.get(0) : null;
         Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
         ingestMetadata.put(ON_FAILURE_MESSAGE_FIELD, cause.getRootCause().getMessage());
         ingestMetadata.put(ON_FAILURE_PROCESSOR_TYPE_FIELD, failedProcessorType);
         ingestMetadata.put(ON_FAILURE_PROCESSOR_TAG_FIELD, failedProcessorTag);
+        if (failedPipelineId != null) {
+            ingestMetadata.put(ON_FAILURE_PIPELINE_FIELD, failedPipelineId);
+        }
     }
 
     private void removeFailureMetadata(IngestDocument ingestDocument) {
@@ -205,22 +215,30 @@ public class CompoundProcessor implements Processor {
         ingestMetadata.remove(ON_FAILURE_MESSAGE_FIELD);
         ingestMetadata.remove(ON_FAILURE_PROCESSOR_TYPE_FIELD);
         ingestMetadata.remove(ON_FAILURE_PROCESSOR_TAG_FIELD);
+        ingestMetadata.remove(ON_FAILURE_PIPELINE_FIELD);
     }
 
-    private ElasticsearchException newCompoundProcessorException(Exception e, String processorType, String processorTag) {
-        if (e instanceof ElasticsearchException && ((ElasticsearchException) e).getHeader("processor_type") != null) {
-            return (ElasticsearchException) e;
+    static IngestProcessorException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
+        if (e instanceof IngestProcessorException && ((IngestProcessorException) e).getHeader("processor_type") != null) {
+            return (IngestProcessorException) e;
         }
 
-        ElasticsearchException exception = new ElasticsearchException(new IllegalArgumentException(e));
+        IngestProcessorException exception = new IngestProcessorException(e);
 
+        String processorType = processor.getType();
         if (processorType != null) {
             exception.addHeader("processor_type", processorType);
         }
+        String processorTag = processor.getTag();
         if (processorTag != null) {
             exception.addHeader("processor_tag", processorTag);
+        }
+        List<String> pipelineStack = document.getPipelineStack();
+        if (pipelineStack.size() > 1) {
+            exception.addHeader("pipeline_origin", pipelineStack);
         }
 
         return exception;
     }
+
 }

@@ -27,10 +27,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -46,9 +44,7 @@ public class RestNodesActionTests extends ESTestCase {
 
     @Before
     public void setUpAction() {
-        UsageService usageService = new UsageService();
-        action = new RestNodesAction(
-            new RestController(Collections.emptySet(), null, null, null, usageService));
+        action = new RestNodesAction();
     }
 
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {

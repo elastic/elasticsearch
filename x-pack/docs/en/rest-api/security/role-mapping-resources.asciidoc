@@ -5,7 +5,7 @@
 A role mapping resource has the following properties: 
 
 `enabled`::
-(boolean)  Mappings that have `enabled` set to `false` are ignored when role
+(Boolean)  Mappings that have `enabled` set to `false` are ignored when role
 mapping is performed.
 
 `metadata`::
@@ -31,7 +31,7 @@ A rule is a logical condition that is expressed by using a JSON DSL. The DSL sup
 its child is `false`, the `except` is `true`.
 
 
-[float]
+[discrete]
 [[mapping-roles-rule-field]]
 ==== Field rules
 
@@ -49,7 +49,7 @@ The value specified in the field rule can be one of the following types:
 | Simple String      | Exactly matches the provided value.                             | "esadmin"
 | Wildcard String    | Matches the provided value using a wildcard.                    | "*,dc=example,dc=com"
 | Regular Expression | Matches the provided value using a
-                       {ref}/regexp-syntax.html[Lucene regexp]. | "/.\*-admin[0-9]*/"
+                       <<regexp-syntax,Lucene regexp>>. | "/.\*-admin[0-9]*/"
 | Number             | Matches an equivalent numerical value.                          | 7
 | Null               | Matches a null or missing value.                                | null
 | Array              | Tests each element in the array in
@@ -57,7 +57,7 @@ The value specified in the field rule can be one of the following types:
                       If _any_ of elements match, the match is successful.             | ["admin", "operator"]
 |=======================
 
-[float]
+[discrete]
 ===== User fields
 
 The _user object_ against which rules are evaluated has the following fields:
@@ -87,4 +87,4 @@ other groups they belong to:
 // NOTCONSOLE
 
 For additional realm-specific details, see
-{stack-ov}/mapping-roles.html#ldap-role-mapping[Mapping Users and Groups to Roles].
+<<ldap-role-mapping>>.

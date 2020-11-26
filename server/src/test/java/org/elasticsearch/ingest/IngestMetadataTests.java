@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -58,7 +58,7 @@ public class IngestMetadataTests extends ESTestCase {
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
         try (XContentParser parser = createParser(shuffled)) {
-            MetaData.Custom custom = IngestMetadata.fromXContent(parser);
+            Metadata.Custom custom = IngestMetadata.fromXContent(parser);
             assertTrue(custom instanceof IngestMetadata);
             IngestMetadata m = (IngestMetadata) custom;
             assertEquals(2, m.getPipelines().size());

@@ -9,6 +9,7 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -98,7 +99,7 @@ public class SetupPasswordToolIT extends ESRestTestCase {
             }
         });
 
-        assertEquals(6, userPasswordMap.size());
+        assertEquals(7, userPasswordMap.size());
         userPasswordMap.entrySet().forEach(entry -> {
             final String basicHeader = "Basic " +
                     Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
@@ -106,6 +107,10 @@ public class SetupPasswordToolIT extends ESRestTestCase {
                 Request request = new Request("GET", "/_security/_authenticate");
                 RequestOptions.Builder options = request.getOptions().toBuilder();
                 options.addHeader("Authorization", basicHeader);
+                if ("kibana".equals(entry.getKey())) {
+                    // the kibana user is deprecated so a warning header is expected
+                    options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+                }
                 request.setOptions(options);
                 Map<String, Object> userInfoMap = entityAsMap(client().performRequest(request));
                 assertEquals(entry.getKey(), userInfoMap.get("username"));

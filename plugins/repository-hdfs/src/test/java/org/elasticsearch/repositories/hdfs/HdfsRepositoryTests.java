@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.hdfs;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +47,6 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
     protected void createRepository(String repoName) {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository(repoName)
             .setType("hdfs")
             .setSettings(Settings.builder()

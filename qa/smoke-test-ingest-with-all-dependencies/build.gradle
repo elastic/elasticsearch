@@ -20,19 +20,20 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-    testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
-    testCompile project(path: ':modules:ingest-geoip', configuration: 'runtime')
-    testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
-    testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
-    testCompile project(path: ':modules:reindex', configuration: 'runtime')
+  testImplementation project(':modules:ingest-common')
+  testImplementation project(':modules:ingest-geoip')
+  testImplementation project(':modules:lang-mustache')
+  testImplementation project(':modules:lang-painless')
+  testImplementation project(':modules:reindex')
 }
 
 testingConventions {
-    naming {
-        IT {
-            baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
-        }
+  naming {
+    IT {
+      baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
     }
+  }
 }

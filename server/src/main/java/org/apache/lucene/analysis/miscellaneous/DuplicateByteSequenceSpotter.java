@@ -25,20 +25,18 @@ import org.apache.lucene.util.RamUsageEstimator;
  * A Trie structure for analysing byte streams for duplicate sequences. Bytes
  * from a stream are added one at a time using the addByte method and the number
  * of times it has been seen as part of a sequence is returned.
- * 
+ * <p>
  * The minimum required length for a duplicate sequence detected is 6 bytes.
- * 
+ * <p>
  * The design goals are to maximize speed of lookup while minimizing the space
  * required to do so. This has led to a hybrid solution for representing the
  * bytes that make up a sequence in the trie.
- * 
+ * <p>
  * If we have 6 bytes in sequence e.g. abcdef then they are represented as
  * object nodes in the tree as follows:
  * <p>
  * (a)-(b)-(c)-(def as an int)
  * <p>
- * 
- * 
  * {@link RootTreeNode} objects are used for the first two levels of the tree
  * (representing bytes a and b in the example sequence). The combinations of
  * objects at these 2 levels are few so internally these objects allocate an
@@ -61,11 +59,9 @@ import org.apache.lucene.util.RamUsageEstimator;
  * reached
  * <li>halting any growth of the tree
  * </ol>
- * 
  * Tests on real-world-text show that the size of the tree is a multiple of the
  * input text where that multiplier varies between 10 and 5 times as the content
  * size increased from 10 to 100 megabytes of content.
- * 
  */
 public class DuplicateByteSequenceSpotter {
     public static final int TREE_DEPTH = 6;

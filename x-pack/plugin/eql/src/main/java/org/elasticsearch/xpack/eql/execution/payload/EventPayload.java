@@ -1,0 +1,40 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.eql.execution.payload;
+
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
+import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class EventPayload extends AbstractPayload {
+
+    private final List<Event> values;
+
+    public EventPayload(SearchResponse response) {
+        super(response.isTimedOut(), response.getTook());
+
+        List<SearchHit> hits = RuntimeUtils.searchHits(response);
+        values = new ArrayList<>(hits.size());
+        for (SearchHit hit : hits) {
+            values.add(new Event(hit.getIndex(), hit.getId(), hit.getSourceRef()));
+        }
+    }
+
+    @Override
+    public Type resultType() {
+        return Type.EVENT;
+    }
+
+    @Override
+    public List<Event> values() {
+        return values;
+    }
+}

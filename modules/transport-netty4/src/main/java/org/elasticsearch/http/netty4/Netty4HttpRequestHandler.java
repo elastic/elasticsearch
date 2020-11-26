@@ -19,17 +19,14 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.FullHttpRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.http.HttpPipelinedRequest;
 
 @ChannelHandler.Sharable
-class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
+class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
     private final Netty4HttpServerTransport serverTransport;
 
@@ -38,35 +35,16 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) {
-        Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
-        FullHttpRequest request = msg.getRequest();
-        final FullHttpRequest copiedRequest;
+    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
+        final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        boolean success = false;
         try {
-            copiedRequest =
-                new DefaultFullHttpRequest(
-                    request.protocolVersion(),
-                    request.method(),
-                    request.uri(),
-                    Unpooled.copiedBuffer(request.content()),
-                    request.headers(),
-                    request.trailingHeaders());
-        } finally {
-            // As we have copied the buffer, we can release the request
-            request.release();
-        }
-        Netty4HttpRequest httpRequest = new Netty4HttpRequest(copiedRequest, msg.getSequence());
-
-        if (request.decoderResult().isFailure()) {
-            Throwable cause = request.decoderResult().cause();
-            if (cause instanceof Error) {
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
-            } else {
-                serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
-            }
-        } else {
             serverTransport.incomingRequest(httpRequest, channel);
+            success = true;
+        } finally {
+            if (success == false) {
+                httpRequest.release();
+            }
         }
     }
 

@@ -20,9 +20,6 @@
 package org.elasticsearch.cloud.azure.classic;
 
 public class AzureServiceDisableException extends IllegalStateException {
-    public AzureServiceDisableException(String msg) {
-        super(msg);
-    }
 
     public AzureServiceDisableException(String msg, Throwable cause) {
         super(msg, cause);

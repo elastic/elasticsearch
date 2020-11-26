@@ -29,6 +29,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -38,6 +40,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
+
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -51,18 +55,19 @@ public class PreVoteCollector {
     private final Runnable startElection;
     private final LongConsumer updateMaxTermSeen;
     private final ElectionStrategy electionStrategy;
+    private NodeHealthService nodeHealthService;
 
     // Tuple for simple atomic updates. null until the first call to `update()`.
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.
 
     PreVoteCollector(final TransportService transportService, final Runnable startElection, final LongConsumer updateMaxTermSeen,
-                     final ElectionStrategy electionStrategy) {
+                     final ElectionStrategy electionStrategy, NodeHealthService nodeHealthService) {
         this.transportService = transportService;
         this.startElection = startElection;
         this.updateMaxTermSeen = updateMaxTermSeen;
         this.electionStrategy = electionStrategy;
+        this.nodeHealthService = nodeHealthService;
 
-        // TODO does this need to be on the generic threadpool or can it use SAME?
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
             PreVoteRequest::new,
             (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));
@@ -105,6 +110,13 @@ public class PreVoteCollector {
 
         final DiscoveryNode leader = state.v1();
         final PreVoteResponse response = state.v2();
+
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            String message = "rejecting " + request + " on unhealthy node: [" + statusInfo.getInfo() + "]";
+            logger.debug(message);
+            throw new NodeHealthCheckFailureException(message);
+        }
 
         if (leader == null) {
             return response;

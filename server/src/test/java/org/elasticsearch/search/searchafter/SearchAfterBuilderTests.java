@@ -28,20 +28,26 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Collections;
 
 import static org.elasticsearch.search.searchafter.SearchAfterBuilder.extractSortType;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterBuilderTests extends ESTestCase {
@@ -52,7 +58,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
         for (int i = 0; i < numSearchFrom; i++) {
-            int branch = randomInt(9);
+            int branch = randomInt(10);
             switch (branch) {
                 case 0:
                     values[i] = randomInt();
@@ -83,6 +89,9 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     break;
                 case 9:
                     values[i] = null;
+                    break;
+                case 10:
+                    values[i] = randomBigInteger();
                     break;
             }
         }
@@ -187,6 +196,29 @@ public class SearchAfterBuilderTests extends ESTestCase {
         }
     }
 
+    public void testFromXContentIllegalType() throws Exception {
+        for (XContentType type : XContentType.values()) {
+            // BIG_DECIMAL
+            // ignore json and yaml, they parse floating point numbers as floats/doubles
+            if (type == XContentType.JSON || type == XContentType.YAML) {
+                continue;
+            }
+            XContentBuilder xContent = XContentFactory.contentBuilder(type);
+            xContent.startObject()
+                .startArray("search_after")
+                    .value(new BigDecimal("9223372036854776003.3"))
+                .endArray()
+                .endObject();
+            try (XContentParser parser = createParser(xContent)) {
+                parser.nextToken();
+                parser.nextToken();
+                parser.nextToken();
+                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
+                assertThat(exc.getMessage(), containsString("BIG_DECIMAL"));
+            }
+        }
+    }
+
     public void testWithNullArray() throws Exception {
         SearchAfterBuilder builder = new SearchAfterBuilder();
         try {
@@ -238,6 +270,12 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
             @Override
             public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+                return null;
+            }
+
+            @Override
+            public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                    int bucketSize, BucketedSort.ExtraData extra) {
                 return null;
             }
         };

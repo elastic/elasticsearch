@@ -9,18 +9,21 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ChainingProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<StDistanceProcessor> {
 
+    @Override
     public StDistanceProcessor createTestInstance() {
         return new StDistanceProcessor(
             constantPoint(randomDoubleBetween(-180, 180, true), randomDoubleBetween(-90, 90, true)),
@@ -42,6 +45,10 @@ public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<St
         Object result = proc.process(null);
         assertThat(result, instanceOf(Double.class));
         assertEquals(GeoUtils.arcDistance(20, 10, 40, 30), (double) result, 0.000001);
+    }
+
+    public static Literal l(Object value) {
+        return new Literal(EMPTY, value, DataTypes.fromJava(value));
     }
 
     public void testNullHandling() {

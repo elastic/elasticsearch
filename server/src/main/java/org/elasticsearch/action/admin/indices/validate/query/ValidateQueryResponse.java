@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -48,7 +47,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
     public static final String EXPLANATIONS_FIELD = "explanations";
 
     @SuppressWarnings("unchecked")
-    static ConstructingObjectParser<ValidateQueryResponse, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<ValidateQueryResponse, Void> PARSER = new ConstructingObjectParser<>(
         "validate_query",
         true,
         arg -> {
@@ -72,30 +71,21 @@ public class ValidateQueryResponse extends BroadcastResponse {
         );
     }
 
-    private boolean valid;
+    private final boolean valid;
 
-    private List<QueryExplanation> queryExplanations;
+    private final List<QueryExplanation> queryExplanations;
 
     ValidateQueryResponse(StreamInput in) throws IOException {
         super(in);
         valid = in.readBoolean();
-        int size = in.readVInt();
-        if (size > 0) {
-            queryExplanations = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                queryExplanations.add(new QueryExplanation(in));
-            }
-        }
+        queryExplanations = in.readList(QueryExplanation::new);
     }
 
     ValidateQueryResponse(boolean valid, List<QueryExplanation> queryExplanations, int totalShards, int successfulShards, int failedShards,
                           List<DefaultShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.valid = valid;
-        this.queryExplanations = queryExplanations;
-        if (queryExplanations == null) {
-            this.queryExplanations = Collections.emptyList();
-        }
+        this.queryExplanations = queryExplanations == null ? Collections.emptyList() : queryExplanations;
     }
 
     /**
@@ -109,9 +99,6 @@ public class ValidateQueryResponse extends BroadcastResponse {
      * The list of query explanations.
      */
     public List<? extends QueryExplanation> getQueryExplanation() {
-        if (queryExplanations == null) {
-            return Collections.emptyList();
-        }
         return queryExplanations;
     }
 
@@ -119,11 +106,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(valid);
-        out.writeVInt(queryExplanations.size());
-        for (QueryExplanation exp : queryExplanations) {
-            exp.writeTo(out);
-        }
-
+        out.writeCollection(queryExplanations);
     }
 
     @Override

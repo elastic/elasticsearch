@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -86,21 +85,10 @@ public class FutureUtils {
     }
 
     public static RuntimeException rethrowExecutionException(ExecutionException e) {
-        if (e.getCause() instanceof ElasticsearchException) {
-            ElasticsearchException esEx = (ElasticsearchException) e.getCause();
-            return unwrapEsException(esEx);
-        } else if (e.getCause() instanceof RuntimeException) {
+        if (e.getCause() instanceof RuntimeException) {
             return (RuntimeException) e.getCause();
         } else {
             return new UncategorizedExecutionException("Failed execution", e);
         }
-    }
-
-    public static RuntimeException unwrapEsException(ElasticsearchException esEx) {
-        Throwable root = esEx.unwrapCause();
-        if (root instanceof ElasticsearchException || root instanceof RuntimeException) {
-            return (RuntimeException) root;
-        }
-        return new UncategorizedExecutionException("Failed execution", root);
     }
 }

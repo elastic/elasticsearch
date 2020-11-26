@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 public class IndexerUtilsTests extends AggregatorTestCase {
     public void testMissingFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -90,15 +90,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
-        DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
-        timestampFieldType.setHasDocValues(true);
-        timestampFieldType.setName(timestampField);
-
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         DateHistogramGroupConfig dateHistoGroupConfig
@@ -113,8 +106,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -131,7 +123,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testCorrectFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -154,15 +146,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
-        DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
-        timestampFieldType.setHasDocValues(true);
-        timestampFieldType.setName(timestampField);
-
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
@@ -181,8 +166,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -199,7 +183,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testNumericTerms() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String valueField = "the_avg";
 
@@ -219,10 +203,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         TermsValuesSourceBuilder terms
@@ -237,8 +218,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -255,7 +235,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testEmptyCounts() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "ts";
         String valueField = "the_avg";
@@ -278,15 +258,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
-        DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
-        timestampFieldType.setHasDocValues(true);
-        timestampFieldType.setName(timestampField);
-
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         DateHistogramValuesSourceBuilder dateHisto
@@ -304,8 +277,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -444,7 +416,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testMissingBuckets() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String metricField = "metric_field";
         String valueField = "value_field";
@@ -472,15 +444,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
-
-        MappedFieldType metricFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        metricFieldType.setName(metricField);
-        metricFieldType.setHasDocValues(true);
-        metricFieldType.setName(metricField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
+        MappedFieldType metricFieldType = new NumberFieldMapper.NumberFieldType(metricField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         TermsGroupConfig termsGroupConfig = new TermsGroupConfig(valueField);
@@ -495,8 +460,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType, metricFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -517,7 +481,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testTimezone() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -546,15 +510,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
-        DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
-        timestampFieldType.setHasDocValues(true);
-        timestampFieldType.setName(timestampField);
-
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         DateHistogramValuesSourceBuilder dateHisto
@@ -573,8 +530,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 

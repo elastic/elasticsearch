@@ -1,15 +1,21 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
+}
+
+restResources {
+  restApi {
+    includeXpack 'security'
+  }
 }
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_admin", password: "x-pack-test-password"

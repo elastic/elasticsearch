@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.lenientExpand();
+    private IndicesOptions indicesOptions = IndicesOptions.lenientExpandHidden();
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
     private boolean waitForNoRelocatingShards = false;
@@ -62,18 +61,10 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     public ClusterHealthRequest(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        if (size == 0) {
-            indices = Strings.EMPTY_ARRAY;
-        } else {
-            indices = new String[size];
-            for (int i = 0; i < indices.length; i++) {
-                indices[i] = in.readString();
-            }
-        }
+        indices = in.readStringArray();
         timeout = in.readTimeValue();
         if (in.readBoolean()) {
-            waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
+            waitForStatus = ClusterHealthStatus.readFrom(in);
         }
         waitForNoRelocatingShards = in.readBoolean();
         waitForActiveShards = ActiveShardCount.readFrom(in);
@@ -95,10 +86,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (indices == null) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeString(index);
-            }
+            out.writeStringArray(indices);
         }
         out.writeTimeValue(timeout);
         if (waitForStatus == null) {
@@ -141,6 +129,11 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     public ClusterHealthRequest indicesOptions(final IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     public TimeValue timeout() {

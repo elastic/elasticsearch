@@ -22,8 +22,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +35,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -42,7 +44,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -64,7 +66,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -106,14 +107,17 @@ public class MlConfigMigrator {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver expressionResolver;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private final AtomicBoolean migrationInProgress;
     private final AtomicBoolean tookConfigSnapshot;
 
-    public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService) {
+    public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService,
+                            IndexNameExpressionResolver expressionResolver) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.expressionResolver = Objects.requireNonNull(expressionResolver);
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.migrationInProgress = new AtomicBoolean(false);
         this.tookConfigSnapshot = new AtomicBoolean(false);
@@ -159,7 +163,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        if (clusterState.metaData().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+        if (clusterState.metadata().hasIndex(MlConfigIndex.indexName()) == false) {
             createConfigIndex(ActionListener.wrap(
                     response -> {
                         unMarkMigrationInProgress.onResponse(Boolean.FALSE);
@@ -241,18 +245,18 @@ public class MlConfigMigrator {
                         MlMetadata.getMlMetadata(currentState));
                 removedConfigs.set(removed);
 
-                PersistentTasksCustomMetaData updatedTasks = rewritePersistentTaskParams(jobsMap, datafeedMap,
-                        currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE), currentState.nodes());
+                PersistentTasksCustomMetadata updatedTasks = rewritePersistentTaskParams(jobsMap, datafeedMap,
+                        currentState.metadata().custom(PersistentTasksCustomMetadata.TYPE), currentState.nodes());
 
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
+                Metadata.Builder metadataBuilder = Metadata.builder(currentState.getMetadata())
                     .putCustom(MlMetadata.TYPE, removed.mlMetadata);
 
                 // If there are no tasks in the cluster state metadata to begin with, this could be null.
                 if (updatedTasks != null) {
-                    metaDataBuilder = metaDataBuilder.putCustom(PersistentTasksCustomMetaData.TYPE, updatedTasks);
+                    metadataBuilder = metadataBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, updatedTasks);
                 }
-                newState.metaData(metaDataBuilder.build());
+                newState.metadata(metadataBuilder.build());
                 return newState.build();
             }
 
@@ -290,21 +294,21 @@ public class MlConfigMigrator {
      * @param nodes         The nodes in the cluster
      * @return  The updated tasks
      */
-    public static PersistentTasksCustomMetaData rewritePersistentTaskParams(Map<String, Job> jobs, Map<String, DatafeedConfig> datafeeds,
-                                                                            PersistentTasksCustomMetaData currentTasks,
+    public static PersistentTasksCustomMetadata rewritePersistentTaskParams(Map<String, Job> jobs, Map<String, DatafeedConfig> datafeeds,
+                                                                            PersistentTasksCustomMetadata currentTasks,
                                                                             DiscoveryNodes nodes) {
 
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedDatafeedsTasks =
-                MlTasks.unallocatedDatafeedTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> unallocatedJobTasks = MlTasks.unassignedJobTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> unallocatedDatafeedsTasks =
+                MlTasks.unassignedDatafeedTasks(currentTasks, nodes);
 
         if (unallocatedJobTasks.isEmpty() && unallocatedDatafeedsTasks.isEmpty()) {
             return currentTasks;
         }
 
-        PersistentTasksCustomMetaData.Builder taskBuilder = PersistentTasksCustomMetaData.builder(currentTasks);
+        PersistentTasksCustomMetadata.Builder taskBuilder = PersistentTasksCustomMetadata.builder(currentTasks);
 
-        for (PersistentTasksCustomMetaData.PersistentTask<?> jobTask : unallocatedJobTasks) {
+        for (PersistentTasksCustomMetadata.PersistentTask<?> jobTask : unallocatedJobTasks) {
             OpenJobAction.JobParams originalParams = (OpenJobAction.JobParams) jobTask.getParams();
             if (originalParams.getJob() == null) {
                 Job job = jobs.get(originalParams.getJobId());
@@ -325,7 +329,7 @@ public class MlConfigMigrator {
             }
         }
 
-        for (PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask : unallocatedDatafeedsTasks) {
+        for (PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask : unallocatedDatafeedsTasks) {
             StartDatafeedAction.DatafeedParams originalParams = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
 
             if (originalParams.getJobId() == null) {
@@ -417,7 +421,7 @@ public class MlConfigMigrator {
     }
 
     private IndexRequest indexRequest(ToXContentObject source, String documentId, ToXContent.Params params) {
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName()).id(documentId);
+        IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(documentId);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(source.toXContent(builder, params));
@@ -444,6 +448,7 @@ public class MlConfigMigrator {
         String documentId = "ml-config";
         IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
                 .id(documentId)
+                .setRequireAlias(true)
                 .opType(DocWriteRequest.OpType.CREATE);
 
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
@@ -459,7 +464,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), ActionListener.wrap(
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), expressionResolver, ActionListener.wrap(
             r -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest,
                     ActionListener.<IndexResponse>wrap(
@@ -467,7 +472,7 @@ public class MlConfigMigrator {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
                         e -> {
-                            if (e instanceof VersionConflictEngineException) {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                                 // the snapshot already exists
                                 listener.onResponse(Boolean.TRUE);
                             } else {
@@ -483,16 +488,16 @@ public class MlConfigMigrator {
 
     private void createConfigIndex(ActionListener<Boolean> listener) {
         logger.info("creating the .ml-config index");
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(AnomalyDetectorsIndex.configIndexName());
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(MlConfigIndex.indexName());
         try
         {
             createIndexRequest.settings(
                     Settings.builder()
-                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                             .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             );
-            createIndexRequest.mapping(SINGLE_MAPPING_NAME, ElasticsearchMappings.configMapping());
+            createIndexRequest.mapping(MlConfigIndex.mapping());
         } catch (Exception e) {
             logger.error("error writing the .ml-config mappings", e);
             listener.onFailure(e);
@@ -546,9 +551,9 @@ public class MlConfigMigrator {
      * @return The closed job configurations
       */
     public static List<Job> closedOrUnallocatedJobs(ClusterState clusterState) {
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         Set<String> openJobIds = MlTasks.openJobIds(persistentTasks);
-        openJobIds.removeAll(MlTasks.unallocatedJobIds(persistentTasks, clusterState.nodes()));
+        openJobIds.removeAll(MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getJobs().values().stream()
@@ -566,9 +571,9 @@ public class MlConfigMigrator {
      * @return The closed job configurations
      */
     public static List<DatafeedConfig> stopppedOrUnallocatedDatafeeds(ClusterState clusterState) {
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(persistentTasks);
-        startedDatafeedIds.removeAll(MlTasks.unallocatedDatafeedIds(persistentTasks, clusterState.nodes()));
+        startedDatafeedIds.removeAll(MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getDatafeeds().values().stream()

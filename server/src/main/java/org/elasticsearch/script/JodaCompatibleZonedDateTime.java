@@ -19,10 +19,11 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 
@@ -50,7 +51,6 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQuery;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.ValueRange;
-import java.time.temporal.WeekFields;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -59,16 +59,18 @@ import java.util.Objects;
  */
 public class JodaCompatibleZonedDateTime
         implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
-    
+
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JodaCompatibleZonedDateTime.class);
 
     private static void logDeprecated(String key, String message, Object... params) {
-        // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.deprecatedAndMaybeLog(key, message, params);
-            return null;
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @SuppressLoggerChecks(reason = "safely delegates to logger")
+            @Override
+            public Void run() {
+                deprecationLogger.deprecate(key, message, params);
+                return null;
+            }
         });
     }
 
@@ -474,14 +476,14 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getWeekOfWeekyear() {
-        logDeprecatedMethod("getWeekOfWeekyear()", "get(WeekFields.ISO.weekOfWeekBasedYear())");
-        return dt.get(WeekFields.ISO.weekOfWeekBasedYear());
+        logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())");
+        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear());
     }
 
     @Deprecated
     public int getWeekyear() {
-        logDeprecatedMethod("getWeekyear()", "get(WeekFields.ISO.weekBasedYear())");
-        return dt.get(WeekFields.ISO.weekBasedYear());
+        logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekBasedYear())");
+        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear());
     }
 
     @Deprecated

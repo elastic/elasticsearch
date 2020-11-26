@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -23,14 +24,18 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -41,12 +46,23 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     private static final Logger logger = LogManager.getLogger(SetSingleNodeAllocateStep.class);
     public static final String NAME = "set-single-node-allocation";
 
+    private static final Set<Setting<?>> ALL_CLUSTER_SETTINGS;
+
+    static {
+        Set<Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
+        ALL_CLUSTER_SETTINGS = allSettings;
+    }
+
     // These allocation deciders were chosen because these are the conditions that can prevent
     // allocation long-term, and that we can inspect in advance. Most other allocation deciders
     // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
     // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
     private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(List.of(
         new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+        new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
         new NodeVersionAllocationDecider()
     ));
 
@@ -55,16 +71,21 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
+    public void performAction(IndexMetadata indexMetadata, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, routingNodes, clusterState, null,
-                System.nanoTime());
+                null, System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
+        String indexName = indexMetadata.getIndex().getName();
         final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
-            .allShards(indexMetaData.getIndex().getName())
+            .allShards(indexName)
             .stream()
             .collect(Collectors.groupingBy(ShardRouting::shardId));
-
 
         if (routingsByShardId.isEmpty() == false) {
             for (RoutingNode node : routingNodes) {
@@ -79,21 +100,25 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             // Shuffle the list of nodes so the one we pick is random
             Randomness.shuffle(validNodeIds);
             Optional<String> nodeId = validNodeIds.stream().findAny();
+
             if (nodeId.isPresent()) {
                 Settings settings = Settings.builder()
-                        .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
-                UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName())
+                        .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
+                UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
+                        .masterNodeTimeout(getMasterTimeout(clusterState))
                         .settings(settings);
                 getClient().admin().indices().updateSettings(updateSettingsRequest,
                         ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
             } else {
-                // No nodes currently match the allocation rules so just wait until there is one that does
-                logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink");
-                listener.onResponse(false);
+                // No nodes currently match the allocation rules, so report this as an error and we'll retry
+                logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
+                listener.onFailure(new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto" +
+                    " prior to shrink"));
             }
         } else {
-            // There are no shards for the index, the index might be gone
-            listener.onFailure(new IndexNotFoundException(indexMetaData.getIndex()));
+            // There are no shards for the index, the index might be gone. Even though this is a retryable step ILM will not retry in
+            // this case as we're using the periodic loop to trigger the retries and that is run over *existing* indices.
+            listener.onFailure(new IndexNotFoundException(indexMetadata.getIndex()));
         }
     }
 

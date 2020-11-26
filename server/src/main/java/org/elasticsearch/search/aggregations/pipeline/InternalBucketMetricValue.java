@@ -40,9 +40,8 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     private double value;
     private String[] keys;
 
-    public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.keys = keys;
         this.value = value;
         this.format = formatter;
@@ -85,7 +84,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

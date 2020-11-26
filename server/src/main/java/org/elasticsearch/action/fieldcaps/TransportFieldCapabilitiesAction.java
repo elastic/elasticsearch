@@ -67,6 +67,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
+        // retrieve the initial timestamp in case the action is a cross cluster search
+        long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
         final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
             request.indices());
@@ -78,26 +80,27 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         } else {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
         }
-        final String[] allIndices = mergeIndiceNames(concreteIndices, remoteClusterIndices);
         final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
         final Runnable onResponse = () -> {
             if (completionCounter.countDown()) {
                 if (request.isMergeResults()) {
-                    listener.onResponse(merge(allIndices, indexResponses, request.includeUnmapped()));
+                    listener.onResponse(merge(indexResponses, request.includeUnmapped()));
                 } else {
                     listener.onResponse(new FieldCapabilitiesResponse(indexResponses));
                 }
             }
         };
         if (totalNumRequest == 0) {
-            listener.onResponse(new FieldCapabilitiesResponse(allIndices, Collections.emptyMap()));
+            listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
         } else {
             ActionListener<FieldCapabilitiesIndexResponse> innerListener = new ActionListener<FieldCapabilitiesIndexResponse>() {
                 @Override
                 public void onResponse(FieldCapabilitiesIndexResponse result) {
-                    indexResponses.add(result);
+                    if (result.canMatch()) {
+                        indexResponses.add(result);
+                    }
                     onResponse.run();
                 }
 
@@ -108,8 +111,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
             };
             for (String index : concreteIndices) {
-                client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE,
-                    new FieldCapabilitiesIndexRequest(request.fields(), index, localIndices), innerListener);
+                client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE, new FieldCapabilitiesIndexRequest(request.fields(),
+                    index, localIndices, request.indexFilter(), nowInMillis), innerListener);
             }
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
@@ -123,10 +126,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 remoteRequest.indicesOptions(originalIndices.indicesOptions());
                 remoteRequest.indices(originalIndices.indices());
                 remoteRequest.fields(request.fields());
+                remoteRequest.indexFilter(request.indexFilter());
+                remoteRequest.nowInMillis(nowInMillis);
                 remoteClusterClient.fieldCaps(remoteRequest,  ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {
                         indexResponses.add(new FieldCapabilitiesIndexResponse(RemoteClusterAware.
-                            buildRemoteIndexName(clusterAlias, res.getIndexName()), res.get()));
+                            buildRemoteIndexName(clusterAlias, res.getIndexName()), res.get(), res.canMatch()));
                     }
                     onResponse.run();
                 }, failure -> onResponse.run()));
@@ -134,19 +139,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private String[] mergeIndiceNames(String[] localIndices, Map<String, OriginalIndices> remoteIndices) {
-        Set<String> allIndices = new HashSet<>();
-        Arrays.stream(localIndices).forEach(allIndices::add);
-        for (Map.Entry<String, OriginalIndices> entry : remoteIndices.entrySet()) {
-            for (String index : entry.getValue().indices()) {
-                allIndices.add(RemoteClusterAware.buildRemoteIndexName(entry.getKey(), index));
-            }
-        }
-        return allIndices.stream().toArray(String[]::new);
-    }
-
-    private FieldCapabilitiesResponse merge(String[] indices, List<FieldCapabilitiesIndexResponse> indexResponses,
-                                            boolean includeUnmapped) {
+    private FieldCapabilitiesResponse merge(List<FieldCapabilitiesIndexResponse> indexResponses, boolean includeUnmapped) {
+        String[] indices = indexResponses.stream()
+            .map(FieldCapabilitiesIndexResponse::getIndexName)
+            .sorted()
+            .toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<> ();
         for (FieldCapabilitiesIndexResponse response : indexResponses) {
             innerMerge(responseMapBuilder, response.getIndexName(), response.get());
@@ -176,20 +173,20 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             typeMap.put("unmapped", unmapped);
             for (String index : unmappedIndices) {
-                unmapped.add(index, false, false);
+                unmapped.add(index, false, false, Collections.emptyMap());
             }
         }
     }
 
     private void innerMerge(Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-                                String indexName, Map<String, FieldCapabilities> map) {
-        for (Map.Entry<String, FieldCapabilities> entry : map.entrySet()) {
+                                String indexName, Map<String, IndexFieldCapabilities> map) {
+        for (Map.Entry<String, IndexFieldCapabilities> entry : map.entrySet()) {
             final String field = entry.getKey();
-            final FieldCapabilities fieldCap = entry.getValue();
+            final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.getType(),
                 key -> new FieldCapabilities.Builder(field, key));
-            builder.add(indexName, fieldCap.isSearchable(), fieldCap.isAggregatable());
+            builder.add(indexName, fieldCap.isSearchable(), fieldCap.isAggregatable(), fieldCap.meta());
         }
     }
 }

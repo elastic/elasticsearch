@@ -72,7 +72,6 @@ class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Res
     }
 
     private void schedule(Runnable runnable, TimeValue delay) {
-        // schedule does not preserve context so have to do this manually
-        threadPool.schedule(threadPool.preserveContext(runnable), delay, ThreadPool.Names.SAME);
+        threadPool.schedule(runnable, delay, ThreadPool.Names.SAME);
     }
 }

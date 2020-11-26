@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class EvaluateDataFrameResponse implements ToXContentObject {
@@ -42,23 +43,23 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         String evaluationName = parser.currentName();
         parser.nextToken();
-        Map<String, EvaluationMetric.Result> metrics = parser.map(LinkedHashMap::new, EvaluateDataFrameResponse::parseMetric);
+        Map<String, EvaluationMetric.Result> metrics = parser.map(LinkedHashMap::new, p -> parseMetric(evaluationName, p));
         List<EvaluationMetric.Result> knownMetrics =
             metrics.values().stream()
                 .filter(Objects::nonNull)  // Filter out null values returned by {@link EvaluateDataFrameResponse::parseMetric}.
                 .collect(Collectors.toList());
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return new EvaluateDataFrameResponse(evaluationName, knownMetrics);
     }
 
-    private static EvaluationMetric.Result parseMetric(XContentParser parser) throws IOException {
+    private static EvaluationMetric.Result parseMetric(String evaluationName, XContentParser parser) throws IOException {
         String metricName = parser.currentName();
         try {
-            return parser.namedObject(EvaluationMetric.Result.class, metricName, null);
+            return parser.namedObject(EvaluationMetric.Result.class, registeredMetricName(evaluationName, metricName), null);
         } catch (NamedObjectNotFoundException e) {
             parser.skipChildren();
             // Metric name not recognized. Return {@code null} value here and filter it out later.

@@ -41,15 +41,18 @@ import static org.elasticsearch.client.transform.transforms.SourceConfigTests.ra
 public class TransformConfigTests extends AbstractXContentTestCase<TransformConfig> {
 
     public static TransformConfig randomTransformConfig() {
-        return new TransformConfig(randomAlphaOfLengthBetween(1, 10),
+        return new TransformConfig(
+            randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
             randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
-            randomBoolean() ? null : randomSyncConfig(), 
+            randomBoolean() ? null : randomSyncConfig(),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
+            SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.CURRENT.toString());
+            randomBoolean() ? null : Version.CURRENT.toString()
+        );
     }
 
     public static SyncConfig randomSyncConfig() {

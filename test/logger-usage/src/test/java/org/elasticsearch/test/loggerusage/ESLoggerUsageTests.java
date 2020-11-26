@@ -26,9 +26,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,7 +40,9 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ESLoggerUsageTests extends ESTestCase {
 
@@ -73,13 +76,13 @@ public class ESLoggerUsageTests extends ESTestCase {
                 if (method.isVarArgs()) {
                     assertEquals(2, paramLength);
                     assertEquals(String.class, method.getParameterTypes()[markerOffset]);
-                    assertThat(method.getParameterTypes()[markerOffset + 1], Matchers.<Class<?>>isOneOf(Object[].class, Supplier[].class));
+                    assertThat(method.getParameterTypes()[markerOffset + 1], is(oneOf(Object[].class, Supplier[].class)));
                 } else {
-                    assertThat(method.getParameterTypes()[markerOffset], Matchers.<Class<?>>isOneOf(Message.class, MessageSupplier.class,
-                        CharSequence.class, Object.class, String.class, Supplier.class));
+                    assertThat(method.getParameterTypes()[markerOffset], is(oneOf(Message.class, MessageSupplier.class,
+                        CharSequence.class, Object.class, String.class, Supplier.class)));
 
                     if (paramLength == 2) {
-                        assertThat(method.getParameterTypes()[markerOffset + 1], Matchers.<Class<?>>isOneOf(Throwable.class, Object.class));
+                        assertThat(method.getParameterTypes()[markerOffset + 1], is(oneOf(Throwable.class, Object.class)));
                         if (method.getParameterTypes()[markerOffset + 1].equals(Object.class)) {
                             assertEquals(String.class, method.getParameterTypes()[markerOffset]);
                         }
@@ -102,7 +105,7 @@ public class ESLoggerUsageTests extends ESTestCase {
         for (Constructor<?> constructor : ParameterizedMessage.class.getConstructors()) {
             assertThat(constructor.getParameterTypes().length, greaterThanOrEqualTo(2));
             assertEquals(String.class, constructor.getParameterTypes()[0]);
-            assertThat(constructor.getParameterTypes()[1], Matchers.<Class<?>>isOneOf(String[].class, Object[].class, Object.class));
+            assertThat(constructor.getParameterTypes()[1], is(oneOf(String[].class, Object[].class, Object.class)));
 
             if (constructor.getParameterTypes().length > 2) {
                 assertEquals(3, constructor.getParameterTypes().length);
@@ -116,15 +119,31 @@ public class ESLoggerUsageTests extends ESTestCase {
 
         assertEquals(5, ParameterizedMessage.class.getConstructors().length);
     }
-    public void checkForSubclasses() {
-        logger.debug(new TestMessage("message", "x-opaque-id"));
+
+    public void checkArgumentsProvidedInConstructor() {
+        logger.debug(new ESLogMessage("message {}", "some-arg")
+            .field("x-opaque-id", "some-value"));
     }
 
-    public void checkArraySizeForSubclasses() {
-        logger.debug(new TestMessage("message {}", "x-opaque-id", 1));
+    public void checkWithUsage() {
+        logger.debug(new ESLogMessage("message {}")
+            .argAndField("x-opaque-id", "some-value")
+            .field("field", "value")
+            .with("field2", "value2"));
     }
+
+
     public void checkFailArraySizeForSubclasses(Object... arr) {
-        logger.debug(new TestMessage("message {}", "x-opaque-id", arr));
+        logger.debug(new ESLogMessage("message {}", arr));
+    }
+
+    public void checkFailForTooManyArgumentsInConstr() {
+        logger.debug(new ESLogMessage("message {}", "arg1", "arg2"));
+    }
+
+    public void checkFailForTooManyArgumentsWithChain() {
+        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value")
+                                                   .argAndField("too-many-arg", "xxx"));
     }
 
     public void checkFailArraySize(String... arr) {
@@ -240,6 +259,11 @@ public class ESLoggerUsageTests extends ESTestCase {
             args = new Object[] { "world", 43, "another argument" };
         }
         logger.info(message, args);
+    }
+
+    public void checkDeprecationLogger() {
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
+        deprecationLogger.deprecate("key","message {}", 123);
     }
 
 }

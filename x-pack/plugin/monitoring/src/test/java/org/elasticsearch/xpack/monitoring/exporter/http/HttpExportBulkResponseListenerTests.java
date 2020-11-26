@@ -112,26 +112,29 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
         when(xContent.createParser(Mockito.any(NamedXContentRegistry.class),
                 Mockito.any(DeprecationHandler.class), Mockito.eq(stream))).thenReturn(parser);
 
-        // {, "took", 4, "errors", false                                                      nextToken, currentName
-        when(parser.nextToken()).thenReturn(Token.START_OBJECT,                            // 1
-                                            Token.FIELD_NAME, Token.VALUE_NUMBER,          // 3, 1
-                                            Token.FIELD_NAME, Token.VALUE_BOOLEAN,         // 5, 2
-                                            Token.FIELD_NAME, Token.START_ARRAY,           // 7, 3
-                                                // no error:
-                                                Token.START_OBJECT,                        // 8
-                                                    Token.FIELD_NAME, Token.START_OBJECT,  // 10, 4
-                                                    Token.FIELD_NAME, Token.VALUE_STRING,  // 12, 5
-                                                    Token.FIELD_NAME, Token.VALUE_STRING,  // 14, 6
-                                                    Token.FIELD_NAME, Token.VALUE_STRING,  // 16, 7
-                                                Token.END_OBJECT,                          // 17
-                                                Token.START_OBJECT,                        // 18
-                                                    Token.FIELD_NAME, Token.START_OBJECT,  // 20, 8
-                                                    Token.FIELD_NAME, Token.VALUE_STRING,  // 22, 9
-                                                    Token.FIELD_NAME, Token.VALUE_STRING,  // 24, 10
-                                                    Token.FIELD_NAME, Token.VALUE_STRING,  // 26, 11
-                                                    Token.FIELD_NAME, Token.VALUE_STRING,  // 28, 12 ("error")
-                                                Token.END_OBJECT,                          // 29
-                                            Token.END_ARRAY);                              // 30
+        // tag::disable-formatting
+        // {, "took", 4, "errors", false
+        when(parser.nextToken()).thenReturn(               // nextToken, currentName
+            Token.START_OBJECT,                            // 1
+            Token.FIELD_NAME, Token.VALUE_NUMBER,          // 3, 1
+            Token.FIELD_NAME, Token.VALUE_BOOLEAN,         // 5, 2
+            Token.FIELD_NAME, Token.START_ARRAY,           // 7, 3
+                // no error:
+                Token.START_OBJECT,                        // 8
+                    Token.FIELD_NAME, Token.START_OBJECT,  // 10, 4
+                    Token.FIELD_NAME, Token.VALUE_STRING,  // 12, 5
+                    Token.FIELD_NAME, Token.VALUE_STRING,  // 14, 6
+                    Token.FIELD_NAME, Token.VALUE_STRING,  // 16, 7
+                Token.END_OBJECT,                          // 17
+                Token.START_OBJECT,                        // 18
+                    Token.FIELD_NAME, Token.START_OBJECT,  // 20, 8
+                    Token.FIELD_NAME, Token.VALUE_STRING,  // 22, 9
+                    Token.FIELD_NAME, Token.VALUE_STRING,  // 24, 10
+                    Token.FIELD_NAME, Token.VALUE_STRING,  // 26, 11
+                    Token.FIELD_NAME, Token.VALUE_STRING,  // 28, 12 ("error")
+                Token.END_OBJECT,                          // 29
+            Token.END_ARRAY);                              // 30
+        // end::disable-formatting
         when(parser.currentName()).thenReturn("took", "errors", "items",
                                               "index", "_index", "_type", "_id",
                                               "index", "_index", "_type", "_id", "error");

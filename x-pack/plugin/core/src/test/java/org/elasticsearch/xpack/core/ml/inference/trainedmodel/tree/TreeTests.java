@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -15,11 +18,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 
@@ -47,26 +48,30 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         return field -> field.startsWith("feature_names");
     }
 
-
     @Override
     protected Tree createTestInstance() {
         return createRandom();
     }
 
-    public static Tree createRandom() {
-        return buildRandomTree(randomIntBetween(2, 15),  6);
-    }
-
-    public static Tree buildRandomTree(int numFeatures, int depth) {
-
-        Tree.Builder builder = Tree.builder();
-        List<String> featureNames = new ArrayList<>(numFeatures);
-        for(int i = 0; i < numFeatures; i++) {
+    public static Tree createRandom(TargetType targetType) {
+        int numberOfFeatures = randomIntBetween(1, 10);
+        List<String> featureNames = new ArrayList<>();
+        for (int i = 0; i < numberOfFeatures; i++) {
             featureNames.add(randomAlphaOfLength(10));
         }
+        return buildRandomTree(targetType, featureNames,  6);
+    }
+
+    public static Tree createRandom() {
+        return createRandom(randomFrom(TargetType.values()));
+    }
+
+    public static Tree buildRandomTree(TargetType targetType, List<String> featureNames, int depth) {
+        Tree.Builder builder = Tree.builder();
+        int maxFeatureIndex = featureNames.size() - 1;
         builder.setFeatureNames(featureNames);
 
-        TreeNode.Builder node = builder.addJunction(0, randomInt(numFeatures), true, randomDouble());
+        TreeNode.Builder node = builder.addJunction(0, randomInt(maxFeatureIndex), true, randomDouble());
         List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
 
         for (int i = 0; i < depth -1; i++) {
@@ -77,15 +82,23 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                     builder.addLeaf(nodeId, randomDouble());
                 } else {
                     TreeNode.Builder childNode =
-                        builder.addJunction(nodeId, randomInt(numFeatures), true, randomDouble());
+                        builder.addJunction(nodeId, randomInt(maxFeatureIndex), true, randomDouble());
                     nextNodes.add(childNode.getLeftChild());
                     nextNodes.add(childNode.getRightChild());
                 }
             }
             childNodes = nextNodes;
         }
+        List<String> categoryLabels = null;
+        if (randomBoolean() && targetType == TargetType.CLASSIFICATION) {
+            categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
+        }
 
-        return builder.build();
+        return builder.setTargetType(targetType).setClassificationLabels(categoryLabels).build();
+    }
+
+    public static Tree buildRandomTree(List<String> featureNames, int depth) {
+        return buildRandomTree(randomFrom(TargetType.values()), featureNames, depth);
     }
 
     @Override
@@ -93,68 +106,45 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         return Tree::new;
     }
 
-    public void testInfer() {
-        // Build a tree with 2 nodes and 3 leaves using 2 features
-        // The leaves have unique values 0.1, 0.2, 0.3
-        Tree.Builder builder = Tree.builder();
-        TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);
-        builder.addLeaf(rootNode.getRightChild(), 0.3);
-        TreeNode.Builder leftChildNode = builder.addJunction(rootNode.getLeftChild(), 1, true, 0.8);
-        builder.addLeaf(leftChildNode.getLeftChild(), 0.1);
-        builder.addLeaf(leftChildNode.getRightChild(), 0.2);
-
-        List<String> featureNames = Arrays.asList("foo", "bar");
-        Tree tree = builder.setFeatureNames(featureNames).build();
-
-        // This feature vector should hit the right child of the root node
-        List<Double> featureVector = Arrays.asList(0.6, 0.0);
-        Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(0.3, tree.infer(featureMap), 0.00001);
-
-        // This should hit the left child of the left child of the root node
-        // i.e. it takes the path left, left
-        featureVector = Arrays.asList(0.3, 0.7);
-        featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(0.1, tree.infer(featureMap), 0.00001);
-
-        // This should hit the right child of the left child of the root node
-        // i.e. it takes the path left, right
-        featureVector = Arrays.asList(0.3, 0.9);
-        featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(0.2, tree.infer(featureMap), 0.00001);
-    }
-
     public void testTreeWithNullRoot() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Tree.builder().setNodes(Collections.singletonList(null))
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> Tree.builder()
+                .setNodes(Collections.singletonList(null))
+                .setFeatureNames(Arrays.asList("foo", "bar"))
                 .build());
-        assertThat(ex.getMessage(), equalTo("[tree] must have non-null root node."));
+        assertThat(ex.getMessage(), equalTo("[tree] cannot contain null nodes"));
     }
 
     public void testTreeWithInvalidNode() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Tree.builder().setNodes(TreeNode.builder(0)
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> Tree.builder()
+                .setNodes(TreeNode.builder(0)
                 .setLeftChild(1)
                 .setSplitFeature(1)
                 .setThreshold(randomDouble()))
-                .build());
-        assertThat(ex.getMessage(), equalTo("[tree] contains null or missing nodes [1]"));
+                .setFeatureNames(Arrays.asList("foo", "bar"))
+                .build().validate());
+        assertThat(ex.getMessage(), equalTo("[tree] contains missing nodes [1]"));
     }
 
     public void testTreeWithNullNode() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Tree.builder().setNodes(TreeNode.builder(0)
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> Tree.builder()
+                .setNodes(TreeNode.builder(0)
                 .setLeftChild(1)
                 .setSplitFeature(1)
                 .setThreshold(randomDouble()),
                 null)
-                .build());
-        assertThat(ex.getMessage(), equalTo("[tree] contains null or missing nodes [1]"));
+                .setFeatureNames(Arrays.asList("foo", "bar"))
+                .build()
+                .validate());
+        assertThat(ex.getMessage(), equalTo("[tree] cannot contain null nodes"));
     }
 
     public void testTreeWithCycle() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Tree.builder().setNodes(TreeNode.builder(0)
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> Tree.builder()
+                .setNodes(TreeNode.builder(0)
                     .setLeftChild(1)
                     .setSplitFeature(1)
                     .setThreshold(randomDouble()),
@@ -162,11 +152,134 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                     .setLeftChild(0)
                     .setSplitFeature(1)
                     .setThreshold(randomDouble()))
-                .build());
+                .setFeatureNames(Arrays.asList("foo", "bar"))
+                .build()
+                .validate());
         assertThat(ex.getMessage(), equalTo("[tree] contains cycle at node 0"));
     }
 
-    private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {
-        return IntStream.range(0, keys.size()).boxed().collect(Collectors.toMap(keys::get, values::get));
+    public void testTreeWithTargetTypeAndLabelsMismatch() {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        String msg = "[target_type] should be [classification] if [classification_labels] are provided";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Tree.builder()
+                .setRoot(TreeNode.builder(0)
+                        .setLeftChild(1)
+                        .setSplitFeature(1)
+                        .setThreshold(randomDouble()))
+                .setFeatureNames(featureNames)
+                .setClassificationLabels(Arrays.asList("label1", "label2"))
+                .build()
+                .validate();
+        });
+        assertThat(ex.getMessage(), equalTo(msg));
     }
+
+    public void testTreeWithEmptyFeaturesAndOneNode() {
+        // Shouldn't throw
+        Tree.builder()
+            .setRoot(TreeNode.builder(0).setLeafValue(10.0))
+            .setFeatureNames(Collections.emptyList())
+            .build()
+            .validate();
+    }
+
+    public void testTreeWithEmptyFeaturesAndThreeNodes() {
+        String msg = "[feature_names] is empty and the tree has > 1 nodes; num nodes [3]. " +
+            "The model Must have features if tree is not a stump";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Tree.builder()
+                .setRoot(TreeNode.builder(0)
+                    .setLeftChild(1)
+                    .setRightChild(2)
+                    .setThreshold(randomDouble()))
+                .addNode(TreeNode.builder(1)
+                    .setLeafValue(randomDouble()))
+                .addNode(TreeNode.builder(2)
+                    .setLeafValue(randomDouble()))
+                .setFeatureNames(Collections.emptyList())
+                .build()
+                .validate();
+        });
+        assertThat(ex.getMessage(), equalTo(msg));
+    }
+
+    public void testOperationsEstimations() {
+        Tree tree = buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);
+        assertThat(tree.estimatedNumOperations(), equalTo(7L));
+    }
+
+    public void testMaxFeatureIndex() {
+
+        int numFeatures = randomIntBetween(1, 15);
+        // We need a tree where every feature is used, choose a depth big enough to
+        // accommodate those non-leave nodes (leaf nodes don't have a feature index)
+        int depth = (int) Math.ceil(Math.log(numFeatures +1) / Math.log(2)) + 1;
+        List<String> featureNames = new ArrayList<>(numFeatures);
+        for (int i=0; i<numFeatures; i++) {
+            featureNames.add("feature" + i);
+        }
+
+        Tree.Builder builder = Tree.builder().setFeatureNames(featureNames);
+
+        // build a tree using feature indices 0..numFeatures -1
+        int featureIndex = 0;
+        TreeNode.Builder node = builder.addJunction(0, featureIndex++, true, randomDouble());
+        List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
+
+        for (int i = 0; i < depth -1; i++) {
+            List<Integer> nextNodes = new ArrayList<>();
+            for (int nodeId : childNodes) {
+                if (i == depth -2) {
+                    builder.addLeaf(nodeId, randomDouble());
+                } else {
+                    TreeNode.Builder childNode =
+                            builder.addJunction(nodeId, featureIndex++ % numFeatures, true, randomDouble());
+                    nextNodes.add(childNode.getLeftChild());
+                    nextNodes.add(childNode.getRightChild());
+                }
+            }
+            childNodes = nextNodes;
+        }
+
+        Tree tree = builder.build();
+
+        assertEquals(numFeatures, tree.maxFeatureIndex() +1);
+    }
+
+    public void testMaxFeatureIndexSingleNodeTree() {
+        Tree tree = Tree.builder()
+                .setRoot(TreeNode.builder(0).setLeafValue(10.0))
+                .setFeatureNames(Collections.emptyList())
+                .build();
+
+        assertEquals(-1, tree.maxFeatureIndex());
+    }
+
+    public void testValidateGivenMissingFeatures() {
+        List<String> featureNames = Arrays.asList("foo", "bar", "baz");
+
+        // build a tree referencing a feature at index 3 which is not in the featureNames list
+        Tree.Builder builder = Tree.builder().setFeatureNames(featureNames);
+        builder.addJunction(0, 0, true, randomDouble());
+        builder.addJunction(1, 1, true, randomDouble());
+        builder.addJunction(2, 3, true, randomDouble());
+        builder.addLeaf(3, randomDouble());
+        builder.addLeaf(4, randomDouble());
+        builder.addLeaf(5, randomDouble());
+        builder.addLeaf(6, randomDouble());
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build().validate());
+        assertThat(e.getDetailedMessage(), containsString("feature index [3] is out of bounds for the [feature_names] array"));
+    }
+
+    public void testValidateGivenTreeWithNoFeatures() {
+        Tree.builder()
+                .setRoot(TreeNode.builder(0).setLeafValue(10.0))
+                .setFeatureNames(Collections.emptyList())
+                .build()
+                .validate();
+    }
+
+
 }

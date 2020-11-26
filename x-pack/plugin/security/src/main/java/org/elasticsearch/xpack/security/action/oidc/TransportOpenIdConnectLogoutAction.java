@@ -54,7 +54,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
     protected void doExecute(Task task, OpenIdConnectLogoutRequest request, ActionListener<OpenIdConnectLogoutResponse> listener) {
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             final String token = request.getToken();
-            tokenService.getAuthenticationAndMetaData(token, ActionListener.wrap(
+            tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(
                 tuple -> {
                     final Authentication authentication = tuple.v1();
                     final Map<String, Object> tokenMetadata = tuple.v2();

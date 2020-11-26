@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
@@ -37,7 +37,7 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
     public void testMixedAlphabetTokenization() throws IOException {
 
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
@@ -52,7 +52,7 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
 
     public void testMiddleDots() throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
@@ -66,7 +66,7 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
     public void testUnicodeNumericCharacters() throws IOException {
 
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
@@ -80,7 +80,7 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
     public void testBadSettings() {
 
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("mode", "wrong")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

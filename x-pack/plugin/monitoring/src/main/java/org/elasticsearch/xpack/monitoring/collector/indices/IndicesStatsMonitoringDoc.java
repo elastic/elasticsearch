@@ -100,6 +100,11 @@ public class IndicesStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "indices_stats._all.primaries.search.query_time_in_millis",
                         "indices_stats._all.primaries.search.query_total",
                         "indices_stats._all.primaries.store.size_in_bytes",
+                        "indices_stats._all.primaries.bulk.total_operations",
+                        "indices_stats._all.primaries.bulk.total_time_in_millis",
+                        "indices_stats._all.primaries.bulk.total_size_in_bytes",
+                        "indices_stats._all.primaries.bulk.avg_time_in_millis",
+                        "indices_stats._all.primaries.bulk.avg_size_in_bytes",
                         "indices_stats._all.total.docs.count",
                         "indices_stats._all.total.indexing.index_time_in_millis",
                         "indices_stats._all.total.indexing.index_total",
@@ -107,5 +112,10 @@ public class IndicesStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "indices_stats._all.total.indexing.throttle_time_in_millis",
                         "indices_stats._all.total.search.query_time_in_millis",
                         "indices_stats._all.total.search.query_total",
-                        "indices_stats._all.total.store.size_in_bytes");
+                        "indices_stats._all.total.store.size_in_bytes",
+                        "indices_stats._all.total.bulk.total_operations",
+                        "indices_stats._all.total.bulk.total_time_in_millis",
+                        "indices_stats._all.total.bulk.total_size_in_bytes",
+                        "indices_stats._all.total.bulk.avg_time_in_millis",
+                        "indices_stats._all.total.bulk.avg_size_in_bytes");
 }

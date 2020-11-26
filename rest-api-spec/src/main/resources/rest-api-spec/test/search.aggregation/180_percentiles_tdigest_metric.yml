@@ -262,7 +262,7 @@ setup:
 "Invalid params test":
 
   - do:
-      catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\] in \[percentiles_int\]/
+      catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\]/
       search:
         rest_total_hits_as_int: true
         body:
@@ -274,7 +274,7 @@ setup:
                   compression: -1
 
   - do:
-      catch: /\[percents\] must not be empty/
+      catch: bad_request
       search:
         rest_total_hits_as_int: true
         body:

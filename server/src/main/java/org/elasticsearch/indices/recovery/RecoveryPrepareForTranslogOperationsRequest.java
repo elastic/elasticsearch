@@ -19,21 +19,20 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
+class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
     private final int totalTranslogOps;
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, long requestSeqNo, ShardId shardId, int totalTranslogOps) {
+        super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
@@ -44,9 +43,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().before(Version.V_7_4_0)) {
-            in.readBoolean(); // was fileBasedRecovery
-        }
     }
 
     public long recoveryId() {
@@ -67,8 +63,5 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().before(Version.V_7_4_0)) {
-            out.writeBoolean(true); // was fileBasedRecovery
-        }
     }
 }

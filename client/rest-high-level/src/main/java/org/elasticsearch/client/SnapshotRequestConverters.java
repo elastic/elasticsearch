@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -123,6 +124,21 @@ final class SnapshotRequestConverters {
         return request;
     }
 
+    static Request cloneSnapshot(CloneSnapshotRequest cloneSnapshotRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPart("_snapshot")
+                .addPathPart(cloneSnapshotRequest.repository())
+                .addPathPart(cloneSnapshotRequest.source())
+                .addPathPart("_clone")
+                .addPathPart(cloneSnapshotRequest.target())
+                .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(cloneSnapshotRequest.masterNodeTimeout());
+        request.addParameters(params.asMap());
+        request.setEntity(RequestConverters.createEntity(cloneSnapshotRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
             .addCommaSeparatedPathParts(getSnapshotsRequest.repositories());
@@ -176,7 +192,7 @@ final class SnapshotRequestConverters {
     static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(deleteSnapshotRequest.repository())
-            .addPathPart(deleteSnapshotRequest.snapshot())
+            .addCommaSeparatedPathParts(deleteSnapshotRequest.snapshots())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 

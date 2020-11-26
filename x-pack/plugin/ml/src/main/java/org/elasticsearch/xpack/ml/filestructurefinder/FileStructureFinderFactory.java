@@ -25,10 +25,12 @@ public interface FileStructureFinderFactory {
      * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
      *                    can be appended by this method.
      * @param sample A sample from the file to be ingested.
+     * @param allowedFractionOfBadLines How many lines of the passed sample are allowed to be considered "bad".
+     *                                  Provided as a fraction from interval [0, 1]
      * @return <code>true</code> if this factory can create an appropriate
      *         file structure given the sample; otherwise <code>false</code>.
      */
-    boolean canCreateFromSample(List<String> explanation, String sample);
+    boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines);
 
     /**
      * Create an object representing the structure of a file.

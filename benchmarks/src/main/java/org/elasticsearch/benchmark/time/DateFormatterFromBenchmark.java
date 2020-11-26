@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
-@SuppressWarnings("unused") //invoked by benchmarking framework
+@SuppressWarnings("unused") // invoked by benchmarking framework
 public class DateFormatterFromBenchmark {
 
     private final TemporalAccessor accessor = DateFormatter.forPattern("epoch_millis").parse("1234567890");

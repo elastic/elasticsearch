@@ -46,8 +46,8 @@ public class MaxBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new MaxBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new MaxBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metadata);
     }
 
     @Override

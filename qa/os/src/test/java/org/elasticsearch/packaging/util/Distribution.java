@@ -29,16 +29,31 @@ public class Distribution {
     public final Platform platform;
     public final Flavor flavor;
     public final boolean hasJdk;
+    public final String version;
 
     public Distribution(Path path) {
         this.path = path;
         String filename = path.getFileName().toString();
-        int lastDot = filename.lastIndexOf('.');
-        String extension = filename.substring(lastDot + 1);
-        this.packaging = Packaging.valueOf(extension.equals("gz") ? "TAR" : extension.toUpperCase(Locale.ROOT));
+
+        if (filename.endsWith(".gz")) {
+            this.packaging = Packaging.TAR;
+        } else if (filename.endsWith(".docker.tar")) {
+            this.packaging = Packaging.DOCKER;
+        } else if (filename.endsWith(".ubi.tar")) {
+            this.packaging = Packaging.DOCKER_UBI;
+        } else {
+            int lastDot = filename.lastIndexOf('.');
+            this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
+        }
+
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
         this.hasJdk = filename.contains("no-jdk") == false;
+        String version = filename.split("-", 3)[1];
+        if (filename.contains("-SNAPSHOT")) {
+            version += "-SNAPSHOT";
+        }
+        this.version = version;
     }
 
     public boolean isDefault() {
@@ -57,12 +72,18 @@ public class Distribution {
         return packaging == Packaging.RPM || packaging == Packaging.DEB;
     }
 
+    public boolean isDocker() {
+        return packaging == Packaging.DOCKER || packaging == Packaging.DOCKER_UBI;
+    }
+
     public enum Packaging {
 
         TAR(".tar.gz", Platforms.LINUX || Platforms.DARWIN),
         ZIP(".zip", Platforms.WINDOWS),
         DEB(".deb", Platforms.isDPKG()),
-        RPM(".rpm", Platforms.isRPM());
+        RPM(".rpm", Platforms.isRPM()),
+        DOCKER(".docker.tar", Platforms.isDocker()),
+        DOCKER_UBI(".ubi.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

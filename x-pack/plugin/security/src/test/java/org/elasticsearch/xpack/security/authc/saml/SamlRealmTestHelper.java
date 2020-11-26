@@ -13,7 +13,7 @@ import java.util.Collections;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
@@ -43,10 +43,11 @@ public class SamlRealmTestHelper {
         final SpConfiguration spConfiguration = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, SP_LOGOUT_URL,
             new SigningConfiguration(Collections.singleton("*"), credential), Arrays.asList(credential), Collections.emptyList());
         return new SamlRealm(realmConfig, mock(UserRoleMapper.class), mock(SamlAuthenticator.class),
-                mock(SamlLogoutRequestHandler.class), () -> idpDescriptor, spConfiguration);
+            mock(SamlLogoutRequestHandler.class), mock(SamlLogoutResponseHandler.class),
+            () -> idpDescriptor, spConfiguration);
     }
 
-    public static void writeIdpMetaData(Path path, String idpEntityId) throws IOException {
+    public static void writeIdpMetadata(Path path, String idpEntityId) throws IOException {
         Files.write(path, Arrays.asList(
             "<?xml version=\"1.0\"?>",
             "<md:EntityDescriptor xmlns:md='urn:oasis:names:tc:SAML:2.0:metadata' entityID='" + idpEntityId + "'>",

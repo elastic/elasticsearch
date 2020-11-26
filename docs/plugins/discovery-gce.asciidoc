@@ -182,29 +182,7 @@ Failing to set this will result in unauthorized messages when starting Elasticse
 See <<discovery-gce-usage-tips-permissions>>.
 ==============================================
 
-
-Once connected, install Elasticsearch:
-
-[source,sh]
---------------------------------------------------
-sudo apt-get update
-
-# Download Elasticsearch
-wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-2.0.0.deb
-
-# Prepare Java installation (Oracle)
-sudo echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee /etc/apt/sources.list.d/webupd8team-java.list
-sudo echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee -a /etc/apt/sources.list.d/webupd8team-java.list
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys EEA14886
-sudo apt-get update
-sudo apt-get install oracle-java8-installer
-
-# Prepare Java installation (or OpenJDK)
-# sudo apt-get install java8-runtime-headless
-
-# Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-2.0.0.deb
---------------------------------------------------
+Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
 
 [[discovery-gce-usage-long-install-plugin]]
 ===== Install Elasticsearch discovery gce plugin
@@ -241,7 +219,7 @@ Start Elasticsearch:
 
 [source,sh]
 --------------------------------------------------
-sudo /etc/init.d/elasticsearch start
+sudo systemctl start elasticsearch
 --------------------------------------------------
 
 If anything goes wrong, you should check logs:
@@ -327,7 +305,7 @@ gcloud compute instances delete myesnode1 myesnode2 \
        --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
-gcloud compute disks deleted boot-myesnode1 boot-myesnode2  \
+gcloud compute disks delete boot-myesnode1 boot-myesnode2  \
        --zone=europe-west1-a
 --------------------------------------------------
 

@@ -16,7 +16,7 @@ value and its hash are stored in the index:
 
 [source,console]
 --------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -40,17 +40,17 @@ of the values of the `my_field` field. This is only useful in order to run
 [source,console]
 --------------------------
 # Example documents
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_field": "This is a document"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_field": "This is another document"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "aggs": {
     "my_field_cardinality": {

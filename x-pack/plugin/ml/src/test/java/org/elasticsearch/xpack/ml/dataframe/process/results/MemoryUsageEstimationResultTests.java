@@ -18,8 +18,8 @@ public class MemoryUsageEstimationResultTests extends AbstractXContentTestCase<M
 
     public static MemoryUsageEstimationResult createRandomResult() {
         return new MemoryUsageEstimationResult(
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null);
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null,
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null);
     }
 
     @Override
@@ -43,9 +43,17 @@ public class MemoryUsageEstimationResultTests extends AbstractXContentTestCase<M
         assertThat(result.getExpectedMemoryWithDisk(), nullValue());
     }
 
+    public void testConstructor_SmallValues() {
+        MemoryUsageEstimationResult result =
+            new MemoryUsageEstimationResult(ByteSizeValue.ofKb(120), ByteSizeValue.ofKb(30));
+        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(ByteSizeValue.ofKb(120)));
+        assertThat(result.getExpectedMemoryWithDisk(), equalTo(ByteSizeValue.ofKb(30)));
+    }
+
     public void testConstructor() {
-        MemoryUsageEstimationResult result = new MemoryUsageEstimationResult(new ByteSizeValue(2048), new ByteSizeValue(1024));
-        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(2048)));
-        assertThat(result.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(1024)));
+        MemoryUsageEstimationResult result =
+            new MemoryUsageEstimationResult(ByteSizeValue.ofMb(20), ByteSizeValue.ofMb(10));
+        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(ByteSizeValue.ofMb(20)));
+        assertThat(result.getExpectedMemoryWithDisk(), equalTo(ByteSizeValue.ofMb(10)));
     }
 }

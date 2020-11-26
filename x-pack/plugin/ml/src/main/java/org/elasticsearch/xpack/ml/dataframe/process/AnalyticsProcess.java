@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
 import java.io.IOException;
@@ -37,4 +38,11 @@ public interface AnalyticsProcess<ProcessResult> extends NativeProcess {
      * @return the process config
      */
     AnalyticsProcessConfig getConfig();
+
+    /**
+     * Restores the model state from a previously persisted one
+     * @param client the client to use for fetching the state documents
+     * @param stateDocIdPrefix the prefix of ids of the state documents
+     */
+    void restoreState(Client client, String stateDocIdPrefix) throws IOException;
 }

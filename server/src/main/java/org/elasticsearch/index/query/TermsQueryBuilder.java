@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
@@ -33,12 +34,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
@@ -417,11 +417,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (termsLookup != null || supplier != null) {
+        if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
-        }
-        if (values == null || values.isEmpty()) {
-            return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
         if (values.size() > maxTermsCount){
@@ -430,17 +427,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
                     IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-
-        if (fieldType != null) {
-            return fieldType.termsQuery(values, context);
-        } else {
-            BytesRef[] filterValues = new BytesRef[values.size()];
-            for (int i = 0; i < filterValues.length; i++) {
-                filterValues[i] = BytesRefs.toBytesRef(values.get(i));
-            }
-            return new TermInSetQuery(fieldName, filterValues);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            throw new IllegalStateException("Rewrite first");
         }
+        return fieldType.termsQuery(values, context);
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
@@ -449,7 +440,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
             if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+                List<Object> extractedValues = XContentMapValues.    extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
                 terms.addAll(extractedValues);
             }
             delegatedListener.onResponse(terms);
@@ -482,6 +473,31 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             })));
             return new TermsQueryBuilder(this.fieldName, supplier::get);
         }
+
+        if (values == null || values.isEmpty()) {
+            return new MatchNoneQueryBuilder();
+        }
+
+        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        if (context != null) {
+            MappedFieldType fieldType = context.getFieldType(this.fieldName);
+            if (fieldType == null) {
+                return new MatchNoneQueryBuilder();
+            } else if (fieldType instanceof ConstantFieldType) {
+                // This logic is correct for all field types, but by only applying it to constant
+                // fields we also have the guarantee that it doesn't perform I/O, which is important
+                // since rewrites might happen on a network thread.
+                Query query = fieldType.termsQuery(values, context);
+                if (query instanceof MatchAllDocsQuery) {
+                    return new MatchAllQueryBuilder();
+                } else if (query instanceof MatchNoDocsQuery) {
+                    return new MatchNoneQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
+                }
+            }
+        }
+
         return this;
     }
 }

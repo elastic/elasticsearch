@@ -39,7 +39,10 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -58,6 +61,8 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -69,16 +74,19 @@ import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -113,8 +121,11 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getJobRequest.getAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.getAllowNoJobs()));
+        if (getJobRequest.getAllowNoMatch() != null) {
+            params.putParam(GetJobRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getJobRequest.getAllowNoMatch()));
+        }
+        if (getJobRequest.getExcludeGenerated() != null) {
+            params.putParam(GetJobRequest.EXCLUDE_GENERATED, Boolean.toString(getJobRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -130,8 +141,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getJobStatsRequest.getAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.getAllowNoJobs()));
+        if (getJobStatsRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getJobStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -161,13 +172,14 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) {
+    static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml")
             .addPathPartAsIs("_delete_expired_data")
+            .addPathPart(deleteExpiredDataRequest.getJobId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
+        request.setEntity(createEntity(deleteExpiredDataRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -258,9 +270,12 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getDatafeedRequest.getAllowNoDatafeeds() != null) {
-            params.putParam(GetDatafeedRequest.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                    Boolean.toString(getDatafeedRequest.getAllowNoDatafeeds()));
+        if (getDatafeedRequest.getAllowNoMatch() != null) {
+            params.putParam(GetDatafeedRequest.ALLOW_NO_MATCH.getPreferredName(),
+                    Boolean.toString(getDatafeedRequest.getAllowNoMatch()));
+        }
+        if (getDatafeedRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDatafeedRequest.EXCLUDE_GENERATED, Boolean.toString(getDatafeedRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -315,8 +330,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        if (getDatafeedStatsRequest.getAllowNoDatafeeds() != null) {
-            params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.getAllowNoDatafeeds()));
+        if (getDatafeedStatsRequest.getAllowNoMatch() != null) {
+            params.putParam("allow_no_match", Boolean.toString(getDatafeedStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -412,6 +427,29 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(updateModelSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request upgradeJobSnapshot(UpgradeJobModelSnapshotRequest upgradeJobModelSnapshotRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(upgradeJobModelSnapshotRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .addPathPart(upgradeJobModelSnapshotRequest.getSnapshotId())
+            .addPathPartAsIs("_upgrade")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (upgradeJobModelSnapshotRequest.getTimeout() != null) {
+            params.putParam(UpgradeJobModelSnapshotRequest.TIMEOUT.getPreferredName(),
+                upgradeJobModelSnapshotRequest.getTimeout().getStringRep());
+        }
+        if (upgradeJobModelSnapshotRequest.getWaitForCompletion() != null) {
+            params.putParam(UpgradeJobModelSnapshotRequest.WAIT_FOR_COMPLETION.getPreferredName(),
+                upgradeJobModelSnapshotRequest.getWaitForCompletion().toString());
+        }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -588,6 +626,17 @@ final class MLRequestConverters {
         return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
+    static Request estimateModelMemory(EstimateModelMemoryRequest estimateModelMemoryRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPartAsIs("_estimate_model_memory")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(estimateModelMemoryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request putDataFrameAnalytics(PutDataFrameAnalyticsRequest putRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml", "data_frame", "analytics")
@@ -595,6 +644,17 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request updateDataFrameAnalytics(UpdateDataFrameAnalyticsRequest updateRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(updateRequest.getUpdate().getId())
+            .addPathPartAsIs("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -615,7 +675,10 @@ final class MLRequestConverters {
             }
         }
         if (getRequest.getAllowNoMatch() != null) {
-            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getRequest.getAllowNoMatch()));
+            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH, Boolean.toString(getRequest.getAllowNoMatch()));
+        }
+        if (getRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.EXCLUDE_GENERATED, Boolean.toString(getRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -688,7 +751,19 @@ final class MLRequestConverters {
             .addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(deleteRequest.getId())
             .build();
-        return new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (deleteRequest.getForce() != null) {
+            params.putParam("force", Boolean.toString(deleteRequest.getForce()));
+        }
+        if (deleteRequest.getTimeout() != null) {
+            params.withTimeout(deleteRequest.getTimeout());
+        }
+        request.addParameters(params.asMap());
+
+        return request;
     }
 
     static Request evaluateDataFrame(EvaluateDataFrameRequest evaluateRequest) throws IOException {
@@ -700,12 +775,98 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request estimateMemoryUsage(PutDataFrameAnalyticsRequest estimateRequest) throws IOException {
+    static Request explainDataFrameAnalytics(ExplainDataFrameAnalyticsRequest explainRequest) throws IOException {
+        EndpointBuilder endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics");
+        if (explainRequest.getId() != null) {
+            endpoint.addPathPart(explainRequest.getId());
+        }
+        endpoint.addPathPartAsIs("_explain");
+
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint.build());
+        if (explainRequest.getConfig() != null) {
+            request.setEntity(createEntity(explainRequest.getConfig(), REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
+    }
+
+    static Request getTrainedModels(GetTrainedModelsRequest getTrainedModelsRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics", "_estimate_memory_usage")
+            .addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIds()))
             .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(estimateRequest, REQUEST_BODY_CONTENT_TYPE));
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getTrainedModelsRequest.getPageParams() != null) {
+            PageParams pageParams = getTrainedModelsRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getTrainedModelsRequest.getAllowNoMatch() != null) {
+            params.putParam(GetTrainedModelsRequest.ALLOW_NO_MATCH,
+                Boolean.toString(getTrainedModelsRequest.getAllowNoMatch()));
+        }
+        if (getTrainedModelsRequest.getDecompressDefinition() != null) {
+            params.putParam(GetTrainedModelsRequest.DECOMPRESS_DEFINITION,
+                Boolean.toString(getTrainedModelsRequest.getDecompressDefinition()));
+        }
+        if (getTrainedModelsRequest.getIncludes().isEmpty() == false) {
+            params.putParam(GetTrainedModelsRequest.INCLUDE,
+                Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIncludes()));
+        }
+        if (getTrainedModelsRequest.getTags() != null) {
+            params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
+        }
+        if (getTrainedModelsRequest.getExcludeGenerated() != null) {
+            params.putParam(GetTrainedModelsRequest.EXCLUDE_GENERATED, Boolean.toString(getTrainedModelsRequest.getExcludeGenerated()));
+        }
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getTrainedModelsStats(GetTrainedModelsStatsRequest getTrainedModelsStatsRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsStatsRequest.getIds()))
+            .addPathPart("_stats")
+            .build();
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getTrainedModelsStatsRequest.getPageParams() != null) {
+            PageParams pageParams = getTrainedModelsStatsRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getTrainedModelsStatsRequest.getAllowNoMatch() != null) {
+            params.putParam(GetTrainedModelsStatsRequest.ALLOW_NO_MATCH,
+                Boolean.toString(getTrainedModelsStatsRequest.getAllowNoMatch()));
+        }
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteTrainedModel(DeleteTrainedModelRequest deleteRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(deleteRequest.getId())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
+    static Request putTrainedModel(PutTrainedModelRequest putTrainedModelRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "trained_models")
+            .addPathPart(putTrainedModelRequest.getTrainedModelConfig().getModelId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putTrainedModelRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

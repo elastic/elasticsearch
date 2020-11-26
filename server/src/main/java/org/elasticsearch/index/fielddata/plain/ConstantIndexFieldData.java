@@ -28,47 +28,49 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Function;
 
 public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
 
-        private final Function<MapperService, String> valueFunction;
+        private final String constantValue;
+        private final String name;
+        private final ValuesSourceType valuesSourceType;
 
-        public Builder(Function<MapperService, String> valueFunction) {
-            this.valueFunction = valueFunction;
+        public Builder(String constantValue, String name, ValuesSourceType valuesSourceType) {
+            this.constantValue = constantValue;
+            this.name = name;
+            this.valuesSourceType = valuesSourceType;
         }
 
         @Override
-        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
+        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new ConstantIndexFieldData(name, constantValue, valuesSourceType);
         }
-
     }
 
-    private static class ConstantAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
+    private static class ConstantLeafFieldData extends AbstractLeafOrdinalsFieldData {
 
         private final String value;
 
-        ConstantAtomicFieldData(String value) {
+        ConstantLeafFieldData(String value) {
             super(DEFAULT_SCRIPT_FUNCTION);
             this.value = value;
         }
@@ -86,6 +88,9 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public SortedSetDocValues getOrdinalsValues() {
+            if (value == null) {
+                return DocValues.emptySortedSet();
+            }
             final BytesRef term = new BytesRef(value);
             final SortedDocValues sortedValues = new AbstractSortedDocValues() {
 
@@ -107,7 +112,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 }
 
                 @Override
-                public boolean advanceExact(int target) throws IOException {
+                public boolean advanceExact(int target) {
                     docID = target;
                     return true;
                 }
@@ -117,7 +122,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
                     return docID;
                 }
             };
-            return (SortedSetDocValues) DocValues.singleton(sortedValues);
+            return DocValues.singleton(sortedValues);
         }
 
         @Override
@@ -126,28 +131,20 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     }
 
-    private final ConstantAtomicFieldData atomicFieldData;
+    private final ConstantLeafFieldData atomicFieldData;
 
-    private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value) {
-        super(indexSettings, name, null, null,
-                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
-        atomicFieldData = new ConstantAtomicFieldData(value);
+    private ConstantIndexFieldData(String name, String value, ValuesSourceType valuesSourceType) {
+        super(name, valuesSourceType, null, null, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        atomicFieldData = new ConstantLeafFieldData(value);
     }
 
     @Override
-    public void clear() {
-    }
-
-    @Override
-    public final AtomicOrdinalsFieldData load(LeafReaderContext context) {
+    public final LeafOrdinalsFieldData load(LeafReaderContext context) {
         return atomicFieldData;
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context)
-            throws Exception {
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) {
         return atomicFieldData;
     }
 
@@ -159,12 +156,18 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+        throw new IllegalArgumentException("only supported on numeric fields");
+    }
+
+    @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         return this;
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) {
         return loadGlobal(indexReader);
     }
 

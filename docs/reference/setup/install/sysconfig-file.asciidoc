@@ -3,24 +3,6 @@
 
   Set a custom Java path to be used.
 
-`MAX_OPEN_FILES`::
-
-    Maximum number of open files, defaults to `65535`.
-
-`MAX_LOCKED_MEMORY`::
-
-    Maximum locked memory size. Set to `unlimited` if you use the
-    `bootstrap.memory_lock` option in elasticsearch.yml.
-
-`MAX_MAP_COUNT`::
-
-    Maximum number of memory map areas a process may have. If you use `mmapfs`
-    as index store type, make sure this is set to a high value. For more
-    information, check the
-    https://github.com/torvalds/linux/blob/master/Documentation/sysctl/vm.txt[linux kernel documentation]
-    about `max_map_count`. This is set via `sysctl` before starting
-    Elasticsearch. Defaults to `262144`.
-
 `ES_PATH_CONF`::
 
     Configuration file directory (which needs to include `elasticsearch.yml`,

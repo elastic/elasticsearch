@@ -29,7 +29,7 @@ public class PutStoredScriptAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/script/put";
 
     private PutStoredScriptAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

@@ -1,0 +1,37 @@
+[[ssl-tls]]
+=== Setting up TLS on a cluster
+
+The {stack} {security-features} enable you to encrypt traffic to, from, and
+within your {es} cluster. Connections are secured using Transport Layer Security
+(TLS), which is commonly referred to as "SSL".
+
+WARNING: Clusters that do not have encryption enabled send all data in plain text
+including passwords. If the {es} {security-features} are enabled, unless you have a trial license, you must configure SSL/TLS for internode-communication.
+
+The following steps describe how to enable encryption across the various
+components of the {stack}. You must perform each of the steps that are
+applicable to your cluster.
+
+. Generate a private key and X.509 certificate for each of your {es} nodes. See
+<<node-certificates>>.
+
+. Configure each node in the cluster to identify itself using its signed
+certificate and enable TLS on the transport layer. You can also optionally
+enable TLS on the HTTP layer. See
+<<tls-transport>> and
+<<tls-http>>.
+
+. Configure the {monitor-features} to use encrypted connections. See <<secure-monitoring>>.
+
+. Configure {kib} to encrypt communications between the browser and
+the {kib} server and to connect to {es} via HTTPS. See
+{kibana-ref}/using-kibana-with-security.html[Configuring security in {kib}].
+
+. Configure Logstash to use TLS encryption. See
+{logstash-ref}/ls-security.html[Configuring security in {ls}].
+
+. Configure Beats to use encrypted connections. For example, see
+{filebeat-ref}/securing-filebeat.html[Configure {filebeat} to use {security-features}].
+
+. Configure {es} for Apache Hadoop to use secured transport. See
+{hadoop-ref}/security.html[{es} for Apache Hadoop Security].

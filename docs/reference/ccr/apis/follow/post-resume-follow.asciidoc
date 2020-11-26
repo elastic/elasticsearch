@@ -51,7 +51,7 @@ POST /<follower_index>/_ccr/resume_follow
 index privileges for the follower index. You must have `read` and `monitor`
 index privileges for the leader index. You must also have `manage_ccr` cluster
 privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
+see <<security-privileges>>.
 
 [[ccr-post-resume-follow-desc]]
 ==== {api-description-title}

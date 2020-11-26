@@ -12,26 +12,24 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -43,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,25 +50,18 @@ public final class TransportFreezeIndexAction extends
     private static final Logger logger = LogManager.getLogger(TransportFreezeIndexAction.class);
 
     private final DestructiveOperations destructiveOperations;
-    private final MetaDataIndexStateService indexStateService;
-    private final TransportCloseIndexAction transportCloseIndexAction;
+    private final MetadataIndexStateService indexStateService;
 
     @Inject
-    public TransportFreezeIndexAction(MetaDataIndexStateService indexStateService, TransportService transportService,
+    public TransportFreezeIndexAction(MetadataIndexStateService indexStateService, TransportService transportService,
                                       ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                      DestructiveOperations destructiveOperations,
-                                      TransportCloseIndexAction transportCloseIndexAction) {
+                                      DestructiveOperations destructiveOperations) {
         super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, FreezeRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, FreezeResponse::new, ThreadPool.Names.SAME);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
-        this.transportCloseIndexAction = transportCloseIndexAction;
-    }
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -80,16 +70,11 @@ public final class TransportFreezeIndexAction extends
         super.doExecute(task, request, listener);
     }
 
-    @Override
-    protected FreezeResponse read(StreamInput in) throws IOException {
-        return new FreezeResponse(in);
-    }
-
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {
         List<Index> indices = new ArrayList<>();
         for (Index index : indexNameExpressionResolver.concreteIndices(state, request)) {
-            IndexMetaData metaData = state.metaData().index(index);
-            Settings settings = metaData.getSettings();
+            IndexMetadata metadata = state.metadata().index(index);
+            Settings settings = metadata.getSettings();
             // only unfreeze if we are frozen and only freeze if we are not frozen already.
             // this prevents all indices that are already frozen that match a pattern to
             // go through the cycles again.
@@ -140,7 +125,7 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
@@ -148,7 +133,7 @@ public final class TransportFreezeIndexAction extends
                         .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
                     indexStateService.openIndex(updateRequest, new ActionListener<>() {
                         @Override
-                        public void onResponse(OpenIndexClusterStateUpdateResponse openIndexClusterStateUpdateResponse) {
+                        public void onResponse(ShardsAcknowledgedResponse openIndexClusterStateUpdateResponse) {
                             listener.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
                                 openIndexClusterStateUpdateResponse.isShardsAcknowledged()));
                         }
@@ -167,36 +152,31 @@ public final class TransportFreezeIndexAction extends
             }) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final MetaData.Builder builder = MetaData.builder(currentState.metaData());
+                final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (Index index : concreteIndices) {
-                    IndexMetaData meta = currentState.metaData().getIndexSafe(index);
-                    if (meta.getState() != IndexMetaData.State.CLOSE) {
+                    IndexMetadata meta = currentState.metadata().getIndexSafe(index);
+                    if (meta.getState() != IndexMetadata.State.CLOSE) {
                         throw new IllegalStateException("index [" + index.getName() + "] is not closed");
                     }
-                    final IndexMetaData.Builder imdBuilder = IndexMetaData.builder(meta);
+                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(meta);
                     imdBuilder.settingsVersion(meta.getSettingsVersion() + 1);
                     final Settings.Builder settingsBuilder =
                         Settings.builder()
-                            .put(currentState.metaData().index(index).getSettings())
+                            .put(currentState.metadata().index(index).getSettings())
                             .put(FrozenEngine.INDEX_FROZEN.getKey(), request.freeze())
                             .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), request.freeze());
                     if (request.freeze()) {
                         settingsBuilder.put("index.blocks.write", true);
-                        blocks.addIndexBlock(index.getName(), IndexMetaData.INDEX_WRITE_BLOCK);
+                        blocks.addIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                     } else {
                         settingsBuilder.remove("index.blocks.write");
-                        blocks.removeIndexBlock(index.getName(), IndexMetaData.INDEX_WRITE_BLOCK);
+                        blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                     }
                     imdBuilder.settings(settingsBuilder);
                     builder.put(imdBuilder.build(), true);
                 }
-                return ClusterState.builder(currentState).blocks(blocks).metaData(builder).build();
-            }
-
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
+                return ClusterState.builder(currentState).blocks(blocks).metadata(builder).build();
             }
         });
     }

@@ -21,18 +21,24 @@ package org.elasticsearch.client.transform.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Script;
 
+import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
 public abstract class SingleGroupSource implements ToXContentObject {
 
     protected static final ParseField FIELD = new ParseField("field");
+    protected static final ParseField SCRIPT = new ParseField("script");
+    protected static final ParseField MISSING_BUCKET = new ParseField("missing_bucket");
 
     public enum Type {
         TERMS,
         HISTOGRAM,
-        DATE_HISTOGRAM;
+        DATE_HISTOGRAM,
+        GEOTILE_GRID;
 
         public String value() {
             return name().toLowerCase(Locale.ROOT);
@@ -40,15 +46,39 @@ public abstract class SingleGroupSource implements ToXContentObject {
     }
 
     protected final String field;
+    protected final Script script;
+    protected final boolean missingBucket;
 
-    public SingleGroupSource(final String field) {
+    public SingleGroupSource(final String field, final Script script, final boolean missingBucket) {
         this.field = field;
+        this.script = script;
+        this.missingBucket = missingBucket;
     }
 
     public abstract Type getType();
 
     public String getField() {
         return field;
+    }
+
+    public Script getScript() {
+        return script;
+    }
+
+    public boolean getMissingBucket() {
+        return missingBucket;
+    }
+
+    protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
+        if (field != null) {
+            builder.field(FIELD.getPreferredName(), field);
+        }
+        if (script != null) {
+            builder.field(SCRIPT.getPreferredName(), script);
+        }
+        if (missingBucket) {
+            builder.field(MISSING_BUCKET.getPreferredName(), missingBucket);
+        }
     }
 
     @Override
@@ -63,11 +93,13 @@ public abstract class SingleGroupSource implements ToXContentObject {
 
         final SingleGroupSource that = (SingleGroupSource) other;
 
-        return Objects.equals(this.field, that.field);
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.script, that.script);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field);
+        return Objects.hash(field, script, missingBucket);
     }
 }

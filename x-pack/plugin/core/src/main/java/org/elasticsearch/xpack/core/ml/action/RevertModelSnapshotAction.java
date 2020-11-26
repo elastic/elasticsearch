@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,8 +40,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
         public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
 
-        private static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString((request, snapshotId) -> request.snapshotId = snapshotId, SNAPSHOT_ID);
@@ -135,13 +132,6 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId) && Objects.equals(snapshotId, other.snapshotId)
                     && Objects.equals(deleteInterveningResults, other.deleteInterveningResults);
-        }
-    }
-
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 

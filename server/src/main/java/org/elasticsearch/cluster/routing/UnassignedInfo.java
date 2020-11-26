@@ -21,7 +21,8 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,15 +39,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
-    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("dateOptionalTime").withZone(ZoneOffset.UTC);
+    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
@@ -99,7 +103,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
          */
         REROUTE_CANCELLED,
         /**
-         * When a shard moves from started back to initializing, for example, during shadow replica
+         * When a shard moves from started back to initializing.
          */
         REINITIALIZED,
         /**
@@ -213,6 +217,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     private final String message;
     private final Exception failure;
     private final int failedAllocations;
+    private final Set<String> failedNodeIds;
     private final AllocationStatus lastAllocationStatus; // result of the last allocation attempt for this shard
 
     /**
@@ -223,7 +228,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      **/
     public UnassignedInfo(Reason reason, String message) {
         this(reason, message, null, reason == Reason.ALLOCATION_FAILED ? 1 : 0, System.nanoTime(), System.currentTimeMillis(), false,
-             AllocationStatus.NO_ATTEMPT);
+             AllocationStatus.NO_ATTEMPT, Collections.emptySet());
     }
 
     /**
@@ -234,9 +239,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
      * @param delayed              if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
      * @param lastAllocationStatus the result of the last allocation attempt for this shard
+     * @param failedNodeIds        a set of nodeIds that failed to complete allocations for this shard
      */
     public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Exception failure, int failedAllocations,
-                          long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed, AllocationStatus lastAllocationStatus) {
+                          long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed, AllocationStatus lastAllocationStatus,
+                          Set<String> failedNodeIds) {
         this.reason = Objects.requireNonNull(reason);
         this.unassignedTimeMillis = unassignedTimeMillis;
         this.unassignedTimeNanos = unassignedTimeNanos;
@@ -245,6 +252,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = failure;
         this.failedAllocations = failedAllocations;
         this.lastAllocationStatus = Objects.requireNonNull(lastAllocationStatus);
+        this.failedNodeIds = Collections.unmodifiableSet(failedNodeIds);
         assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED) :
             "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
@@ -262,6 +270,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
+        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -273,6 +282,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
+        out.writeCollection(failedNodeIds, StreamOutput::writeString);
     }
 
     /**
@@ -348,6 +358,19 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
+     * A set of nodeIds that failed to complete allocations for this shard. {@link org.elasticsearch.gateway.ReplicaShardAllocator}
+     * uses this set to avoid repeatedly canceling ongoing recoveries for copies on those nodes although they can perform noop recoveries.
+     * This set will be discarded when a shard moves to started. And if a shard is failed while started (i.e., from started to unassigned),
+     * the currently assigned node won't be added to this set.
+     *
+     * @see org.elasticsearch.gateway.ReplicaShardAllocator#processExistingRecoveries(RoutingAllocation)
+     * @see org.elasticsearch.cluster.routing.allocation.AllocationService#applyFailedShards(ClusterState, List, List)
+     */
+    public Set<String> getFailedNodeIds() {
+        return failedNodeIds;
+    }
+
+    /**
      * Calculates the delay left based on current time (in nanoseconds) and the delay defined by the index settings.
      * Only relevant if shard is effectively delayed (see {@link #isDelayed()})
      * Returns 0 if delay is negative
@@ -379,13 +402,13 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Returns -1 if no delayed shard is found.
      */
     public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
-        MetaData metaData = state.metaData();
+        Metadata metadata = state.metadata();
         RoutingTable routingTable = state.routingTable();
         long nextDelayNanos = Long.MAX_VALUE;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.isDelayed()) {
-                Settings indexSettings = metaData.index(shard.index()).getSettings();
+                Settings indexSettings = metadata.index(shard.index()).getSettings();
                 // calculate next time to schedule
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings);
                 if (newComputedLeftDelayNanos < nextDelayNanos) {
@@ -402,6 +425,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         sb.append(", at[").append(DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis))).append("]");
         if (failedAllocations >  0) {
             sb.append(", failed_attempts[").append(failedAllocations).append("]");
+        }
+        if (failedNodeIds.isEmpty() == false) {
+            sb.append(", failed_nodes[").append(failedNodeIds).append("]");
         }
         sb.append(", delayed=").append(delayed);
         String details = getDetails();
@@ -425,6 +451,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         builder.field("at", DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis)));
         if (failedAllocations >  0) {
             builder.field("failed_attempts", failedAllocations);
+        }
+        if (failedNodeIds.isEmpty() == false) {
+            builder.field("failed_nodes", failedNodeIds);
         }
         builder.field("delayed", delayed);
         String details = getDetails();
@@ -459,13 +488,16 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (reason != that.reason) {
             return false;
         }
-        if (message != null ? !message.equals(that.message) : that.message != null) {
+        if (Objects.equals(message, that.message) == false) {
             return false;
         }
         if (lastAllocationStatus != that.lastAllocationStatus) {
             return false;
         }
-        return !(failure != null ? !failure.equals(that.failure) : that.failure != null);
+        if (Objects.equals(failure, that.failure) == false) {
+            return false;
+        }
+        return failedNodeIds.equals(that.failedNodeIds);
     }
 
     @Override
@@ -477,6 +509,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         result = 31 * result + (message != null ? message.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
         result = 31 * result + lastAllocationStatus.hashCode();
+        result = 31 * result + failedNodeIds.hashCode();
         return result;
     }
 

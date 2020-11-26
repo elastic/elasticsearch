@@ -25,13 +25,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * Test that needsScores() is reported correctly depending on whether _score is used
@@ -46,24 +47,22 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         contexts.put(NumberSortScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
-        QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);
-        SearchLookup lookup = new SearchLookup(index.mapperService(), shardContext::getForField);
+        QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null, emptyMap());
 
         NumberSortScript.Factory factory = service.compile(null, "1.2", NumberSortScript.CONTEXT, Collections.emptyMap());
-        NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), lookup);
+        NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());
         assertFalse(ss.needs_score());
 
         factory = service.compile(null, "doc['d'].value", NumberSortScript.CONTEXT, Collections.emptyMap());
-        ss = factory.newFactory(Collections.emptyMap(), lookup);
+        ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());
         assertFalse(ss.needs_score());
 
         factory = service.compile(null, "1/_score", NumberSortScript.CONTEXT, Collections.emptyMap());
-        ss = factory.newFactory(Collections.emptyMap(), lookup);
+        ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());
         assertTrue(ss.needs_score());
 
         factory = service.compile(null, "doc['d'].value * _score", NumberSortScript.CONTEXT, Collections.emptyMap());
-        ss = factory.newFactory(Collections.emptyMap(), lookup);
+        ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());
         assertTrue(ss.needs_score());
     }
-
 }

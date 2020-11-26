@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ml.datafeed;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -79,6 +80,16 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
         }
         if (randomBoolean()) {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig());
+        }
+        if (randomBoolean()) {
+            builder.setMaxEmptySearches(randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()));
         }
         return builder.build();
     }

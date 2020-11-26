@@ -36,7 +36,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -117,9 +117,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
-        MappedFieldType clone = GeoPointFieldMapper.Defaults.FIELD_TYPE.clone();
-        clone.setName(name);
-        return clone;
+        return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
     private static GeoPoint[] points(GeoPoint[] original) {
@@ -495,7 +493,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new TermQuery(new Term(TypeFieldMapper.NAME, "__path")), nested.getInnerQuery());
+        assertEquals(new TermQuery(new Term(NestedPathFieldMapper.NAME, "path")), nested.getInnerQuery());
 
         sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0)
             .setNestedSort(new NestedSortBuilder("path")

@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.translog.Translog;
@@ -55,9 +56,10 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testSegmentStats() throws Exception {
+        IndexModule.Type storeType = IndexModule.defaultStoreType(true);
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("doc")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "keyword")
@@ -74,9 +76,10 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping)
+            .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey())));
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
+        client().prepareIndex("test").setId("1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
         client().admin().indices().prepareRefresh("test").get();
 
         IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
@@ -85,11 +88,15 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getTermVectorsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getNormsMemoryInBytes(), greaterThan(0L));
-        assertThat(stats.getPointsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0L));
+        if ((storeType == IndexModule.Type.MMAPFS) || (storeType == IndexModule.Type.HYBRIDFS)) {
+            assertEquals(0, stats.getPointsMemoryInBytes()); // bkd tree is stored off-heap
+        } else {
+            assertThat(stats.getPointsMemoryInBytes(), greaterThan(0L)); // bkd tree is stored on heap
+        }
 
         // now check multiple segments stats are merged together
-        client().prepareIndex("test", "doc", "2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
+        client().prepareIndex("test").setId("2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
         client().admin().indices().prepareRefresh("test").get();
 
         rsp = client().admin().indices().prepareStats("test").get();
@@ -98,8 +105,13 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertThat(stats2.getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
         assertThat(stats2.getTermVectorsMemoryInBytes(), greaterThan(stats.getTermVectorsMemoryInBytes()));
         assertThat(stats2.getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
-        assertThat(stats2.getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));
+
         assertThat(stats2.getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
+        if ((storeType == IndexModule.Type.MMAPFS) || (storeType == IndexModule.Type.HYBRIDFS)) {
+            assertEquals(0, stats2.getPointsMemoryInBytes()); // bkd tree is stored off-heap
+        } else {
+            assertThat(stats2.getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));  // bkd tree is stored on heap
+        }
     }
 
     public void testCommitStats() throws Exception {
@@ -112,7 +124,6 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             assertNotNull(commitStats);
             assertThat(commitStats.getGeneration(), greaterThan(0L));
             assertThat(commitStats.getId(), notNullValue());
-            assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
         }
     }
@@ -122,7 +133,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         createIndex("test", Settings.builder().put("refresh_interval", -1).build());
 
         // Index a document asynchronously so the request will only return when document is refreshed
-        ActionFuture<IndexResponse> index = client().prepareIndex("test", "test", "test").setSource("test", "test")
+        ActionFuture<IndexResponse> index = client().prepareIndex("test").setId("test").setSource("test", "test")
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
 
         // Wait for the refresh listener to appear in the stats. Wait a long time because NFS tests can be quite slow!

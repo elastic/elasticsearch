@@ -39,7 +39,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         Function<String, ZonedDateTime> function = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSXX", ZoneOffset.UTC, Locale.ROOT);
         DateIndexNameProcessor processor = createProcessor("_field", Collections.singletonList(function),
             ZoneOffset.UTC, "events-", "y", "yyyyMMdd");
-        IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument document = new IngestDocument("_index", "_id", null, null, null,
                 Collections.singletonMap("_field", "2016-04-25T12:24:20.101Z"));
         processor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20160425||/y{yyyyMMdd|UTC}}>"));
@@ -49,7 +49,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         Function<String, ZonedDateTime> function = DateFormat.Tai64n.getFunction(null, ZoneOffset.UTC, null);
         DateIndexNameProcessor dateProcessor = createProcessor("_field", Collections.singletonList(function),
                 ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
-        IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument document = new IngestDocument("_index", "_id", null, null, null,
                 Collections.singletonMap("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20121222||/m{yyyyMMdd|UTC}}>"));
@@ -59,12 +59,12 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         Function<String, ZonedDateTime> function = DateFormat.UnixMs.getFunction(null, ZoneOffset.UTC, null);
         DateIndexNameProcessor dateProcessor = createProcessor("_field", Collections.singletonList(function),
                 ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
-        IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument document = new IngestDocument("_index", "_id", null, null, null,
                 Collections.singletonMap("_field", "1000500"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
 
-        document = new IngestDocument("_index", "_type", "_id", null, null, null,
+        document = new IngestDocument("_index", "_id", null, null, null,
                 Collections.singletonMap("_field", 1000500L));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
@@ -74,7 +74,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         Function<String, ZonedDateTime> function = DateFormat.Unix.getFunction(null, ZoneOffset.UTC, null);
         DateIndexNameProcessor dateProcessor = createProcessor("_field", Collections.singletonList(function),
                 ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
-        IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument document = new IngestDocument("_index", "_id", null, null, null,
                 Collections.singletonMap("_field", "1000.5"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
@@ -91,7 +91,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
             Collections.singletonList(dateTimeFunction),  ZoneOffset.UTC, indexNamePrefix,
             dateRounding, indexNameFormat);
 
-        IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument document = new IngestDocument("_index", "_id", null, null, null,
             Collections.singletonMap("_field", date));
         dateProcessor.execute(document);
 
@@ -103,7 +103,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
     private DateIndexNameProcessor createProcessor(String field, List<Function<String, ZonedDateTime>> dateFormats,
                                                    ZoneId timezone, String indexNamePrefix, String dateRounding,
                                                    String indexNameFormat) {
-        return new DateIndexNameProcessor(randomAlphaOfLength(10), field, dateFormats, timezone,
+        return new DateIndexNameProcessor(randomAlphaOfLength(10), null, field, dateFormats, timezone,
             new TestTemplateService.MockTemplateScript.Factory(indexNamePrefix),
             new TestTemplateService.MockTemplateScript.Factory(dateRounding),
             new TestTemplateService.MockTemplateScript.Factory(indexNameFormat)

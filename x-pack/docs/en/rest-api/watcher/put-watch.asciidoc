@@ -16,7 +16,7 @@ Either registers a new watch in {watcher} or updates an existing one.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 [[watcher-api-put-watch-desc]]
 ==== {api-description-title}
@@ -53,7 +53,7 @@ is executed.
 ==== {api-query-parms-title}
 
 `active`::
-  (Optional, boolean) Defines whether the watch is active or inactive by default.
+  (Optional, Boolean) Defines whether the watch is active or inactive by default.
   The default value is `true`, which means the watch is active by default.
 
 [[watcher-api-put-watch-request-body]]

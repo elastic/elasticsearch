@@ -31,9 +31,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -56,9 +56,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
-    private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
@@ -90,11 +90,12 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private int maxConcurrentShardRequests = 0;
 
-    private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
+    private Integer preFilterShardSize;
 
     private boolean ccsMinimizeRoundtrips = true;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
+        IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -202,7 +203,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
-        preFilterShardSize = in.readVInt();
+        preFilterShardSize = in.readOptionalVInt();
         allowPartialSearchResults = in.readOptionalBoolean();
         localClusterAlias = in.readOptionalString();
         if (localClusterAlias != null) {
@@ -232,7 +233,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
-        out.writeVInt(preFilterShardSize);
+        out.writeOptionalVInt(preFilterShardSize);
         out.writeOptionalBoolean(allowPartialSearchResults);
         out.writeOptionalString(localClusterAlias);
         if (localClusterAlias != null) {
@@ -268,6 +269,16 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             if (requestCache != null && requestCache) {
                 validationException =
                     addValidationError("[request_cache] cannot be used in a scroll context", validationException);
+            }
+        }
+        if (source != null) {
+            if (source.aggregations() != null) {
+                validationException = source.aggregations().validate(validationException);
+            }
+        }
+        if (pointInTimeBuilder() != null) {
+            if (scroll) {
+                validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
             }
         }
         return validationException;
@@ -333,6 +344,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     /**
@@ -417,6 +433,13 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    public PointInTimeBuilder pointInTimeBuilder() {
+        if (source != null) {
+            return source.pointInTimeBuilder();
+        }
+        return null;
     }
 
     /**
@@ -532,8 +555,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
     public void setPreFilterShardSize(int preFilterShardSize) {
         if (preFilterShardSize < 1) {
@@ -544,11 +574,20 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     /**
      * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
-     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * the search request expands to exceeds the threshold, or <code>null</code> if the threshold is unspecified.
+     * This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
-    public int getPreFilterShardSize() {
+    @Nullable
+    public Integer getPreFilterShardSize() {
         return preFilterShardSize;
     }
 
@@ -559,26 +598,39 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         return source != null && source.isSuggestOnly();
     }
 
-    @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        // generating description in a lazy way since source can be quite big
-        return new SearchTask(id, type, action, null, parentTaskId, headers) {
-            @Override
-            public String getDescription() {
-                StringBuilder sb = new StringBuilder();
-                sb.append("indices[");
-                Strings.arrayToDelimitedString(indices, ",", sb);
-                sb.append("], ");
-                sb.append("search_type[").append(searchType).append("], ");
-                if (source != null) {
+    public int resolveTrackTotalHitsUpTo() {
+        return resolveTrackTotalHitsUpTo(scroll, source);
+    }
 
-                    sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
-                } else {
-                    sb.append("source[]");
-                }
-                return sb.toString();
-            }
-        };
+    public static int resolveTrackTotalHitsUpTo(Scroll scroll, SearchSourceBuilder source) {
+        if (scroll != null) {
+            // no matter what the value of track_total_hits is
+            return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        }
+        return source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo() == null ?
+            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+    }
+
+    @Override
+    public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers);
+    }
+
+    public final String buildDescription() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("indices[");
+        Strings.arrayToDelimitedString(indices, ",", sb);
+        sb.append("], ");
+        sb.append("search_type[").append(searchType).append("], ");
+        if (scroll != null) {
+            sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+        }
+        if (source != null) {
+            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+        } else {
+            sb.append("source[]");
+        }
+        return sb.toString();
     }
 
     @Override

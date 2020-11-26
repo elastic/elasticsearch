@@ -6,13 +6,19 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CategorizationAnalyzerConfigTests extends AbstractSerializingTestCase<CategorizationAnalyzerConfig> {
 
@@ -62,6 +68,17 @@ public class CategorizationAnalyzerConfigTests extends AbstractSerializingTestCa
             }
         }
         return builder;
+    }
+
+    public void testAsMap() throws IOException {
+        Map<String, Object> map = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.emptyList())
+            .asMap(NamedXContentRegistry.EMPTY);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> firstLevel =
+            (Map<String, Object>) map.get(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName());
+        assertThat(firstLevel, not(nullValue()));
+        String tokenizer = (String) firstLevel.get(CategorizationAnalyzerConfig.TOKENIZER.getPreferredName());
+        assertThat(tokenizer, is("ml_classic"));
     }
 
     @Override

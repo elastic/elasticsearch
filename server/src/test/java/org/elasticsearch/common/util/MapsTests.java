@@ -22,13 +22,18 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
+import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -64,7 +69,7 @@ public class MapsTests extends ESTestCase {
         final Map<String, String> map = Maps.ofEntries(entries);
         final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
         final String value = randomAlphaOfLength(16);
-        final Map<String, String> add = Maps.copyMayWithAddedOrReplacedEntry(map, key, value);
+        final Map<String, String> add = Maps.copyMapWithAddedOrReplacedEntry(map, key, value);
         assertMapEntriesAndImmutability(
                 add,
                 Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList()));
@@ -82,7 +87,7 @@ public class MapsTests extends ESTestCase {
         final Map<String, String> map = Maps.ofEntries(entries);
         final String key = randomFrom(map.keySet());
         final String value = randomAlphaOfLength(16);
-        final Map<String, String> replaced = Maps.copyMayWithAddedOrReplacedEntry(map, key, value);
+        final Map<String, String> replaced = Maps.copyMapWithAddedOrReplacedEntry(map, key, value);
         assertMapEntriesAndImmutability(
                 replaced,
                 Stream.concat(
@@ -101,6 +106,31 @@ public class MapsTests extends ESTestCase {
         }
         final Map<String, String> map = Maps.ofEntries(entries);
         assertMapEntriesAndImmutability(map, entries);
+    }
+
+    public void testDeepEquals() {
+        final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
+        final Supplier<int[]> arrayValueGenerator = () -> random().ints(randomInt(5)).toArray();
+        final Map<String, int[]> map = randomMap(randomInt(5), keyGenerator, arrayValueGenerator);
+        final Map<String, int[]> mapCopy = map.entrySet().stream()
+                .collect(toMap(Map.Entry::getKey, e -> Arrays.copyOf(e.getValue(), e.getValue().length)));
+
+        assertTrue(Maps.deepEquals(map, mapCopy));
+
+        final Map<String, int[]> mapModified = mapCopy;
+        if (mapModified.isEmpty()) {
+            mapModified.put(keyGenerator.get(), arrayValueGenerator.get());
+        } else {
+            if (randomBoolean()) {
+                final String randomKey = mapModified.keySet().toArray(new String[0])[randomInt(mapModified.size() - 1)];
+                final int[] value = mapModified.get(randomKey);
+                mapModified.put(randomKey, randomValueOtherThanMany((v) -> Arrays.equals(v, value), arrayValueGenerator));
+            } else {
+                mapModified.put(randomValueOtherThanMany(mapModified::containsKey, keyGenerator), arrayValueGenerator.get());
+            }
+        }
+
+        assertFalse(Maps.deepEquals(map, mapModified));
     }
 
     private void assertMapEntries(final Map<String, String> map, final Collection<Map.Entry<String, String>> entries) {
@@ -158,6 +188,12 @@ public class MapsTests extends ESTestCase {
             final Collection<Map.Entry<String, String>> entries) {
         assertMapEntries(map, entries);
         assertMapImmutability(map);
+    }
+
+    private static <K, V> Map<K, V> randomMap(int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
+        final Map<K, V> map = new HashMap<>();
+        IntStream.range(0, size).forEach(i -> map.put(keyGenerator.get(), valueGenerator.get()));
+        return map;
     }
 
 }

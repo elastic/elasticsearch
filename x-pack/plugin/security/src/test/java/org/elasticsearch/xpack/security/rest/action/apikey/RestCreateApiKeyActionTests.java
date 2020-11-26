@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -20,9 +20,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.test.ESTestCase;
@@ -42,7 +42,6 @@ import static org.mockito.Mockito.when;
 
 public class RestCreateApiKeyActionTests extends ESTestCase {
     private final XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
-    private final RestController mockRestController = mock(RestController.class);
     private Settings settings = null;
     private ThreadPool threadPool = null;
 
@@ -55,8 +54,9 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         threadPool = new ThreadPool(settings);
-        when(mockLicenseState.isSecurityAvailable()).thenReturn(true);
-        when(mockLicenseState.isApiKeyServiceAllowed()).thenReturn(true);
+        when(mockLicenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
+        when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
+        when(mockLicenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
     }
 
     @Override
@@ -98,8 +98,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                 }
             }
         }) {
-            final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockRestController,
-                    mockLicenseState);
+            final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockLicenseState);
             restCreateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
             final RestResponse restResponse = responseSetOnce.get();

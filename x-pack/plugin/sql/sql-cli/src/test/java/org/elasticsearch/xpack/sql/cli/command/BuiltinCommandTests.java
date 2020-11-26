@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.cli.SqlCliTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.client.Version;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 
-public class BuiltinCommandTests extends ESTestCase {
+public class BuiltinCommandTests extends SqlCliTestCase {
 
     public void testInvalidCommand() throws Exception {
         TestTerminal testTerminal = new TestTerminal();
@@ -94,7 +94,7 @@ public class BuiltinCommandTests extends ESTestCase {
         testTerminal.print("not clean");
         assertTrue(new PrintLogoCommand().handle(testTerminal, cliSession, "logo"));
         assertThat(testTerminal.toString(), containsString("SQL"));
-        assertThat(testTerminal.toString(), containsString(Version.CURRENT.version));
+        assertThat(testTerminal.toString(), containsString(ClientVersion.CURRENT.version));
         verifyNoMoreInteractions(httpClient);
     }
 

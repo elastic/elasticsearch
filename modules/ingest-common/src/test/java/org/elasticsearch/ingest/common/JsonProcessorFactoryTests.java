@@ -39,7 +39,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         config.put("target_field", randomTargetField);
-        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, config);
+        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
         assertThat(jsonProcessor.getField(), equalTo(randomField));
         assertThat(jsonProcessor.getTargetField(), equalTo(randomTargetField));
@@ -51,7 +51,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         config.put("add_to_root", true);
-        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, config);
+        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
         assertThat(jsonProcessor.getField(), equalTo(randomField));
         assertThat(jsonProcessor.getTargetField(), equalTo(randomField));
@@ -63,7 +63,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         String randomField = randomAlphaOfLength(10);
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
-        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, config);
+        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
         assertThat(jsonProcessor.getField(), equalTo(randomField));
         assertThat(jsonProcessor.getTargetField(), equalTo(randomField));
@@ -73,7 +73,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> FACTORY.create(null, processorTag, config));
+            () -> FACTORY.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -85,7 +85,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         config.put("target_field", randomTargetField);
         config.put("add_to_root", true);
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> FACTORY.create(null, randomAlphaOfLength(10), config));
+            () -> FACTORY.create(null, randomAlphaOfLength(10), null, config));
         assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
     }
 }

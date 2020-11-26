@@ -19,10 +19,9 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptException;
@@ -47,16 +46,13 @@ public class ExpressionFieldScriptTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName("field")).thenReturn(fieldType);
-        when(mapperService.fullName("alias")).thenReturn(fieldType);
+        NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
         when(doubleValues.nextValue()).thenReturn(2.718);
 
-        AtomicNumericFieldData atomicFieldData = mock(AtomicNumericFieldData.class);
+        LeafNumericFieldData atomicFieldData = mock(LeafNumericFieldData.class);
         when(atomicFieldData.getDoubleValues()).thenReturn(doubleValues);
 
         IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class);
@@ -64,7 +60,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, ignored -> fieldData);
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData);
     }
 
     private FieldScript.LeafFactory compile(String expression) {
@@ -88,14 +84,6 @@ public class ExpressionFieldScriptTests extends ESTestCase {
 
     public void testFieldAccess() throws IOException {
         FieldScript script = compile("doc['field'].value").newInstance(null);
-        script.setDocument(1);
-
-        Object result = script.execute();
-        assertThat(result, equalTo(2.718));
-    }
-
-    public void testFieldAccessWithFieldAlias() throws IOException {
-        FieldScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
         Object result = script.execute();

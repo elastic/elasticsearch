@@ -19,15 +19,19 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -39,6 +43,7 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * duplication but for now we have no real way to share code.
  */
 public class IndexingIT extends AbstractRollingTestCase {
+
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:
@@ -65,16 +70,19 @@ public class IndexingIT extends AbstractRollingTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
             client().performRequest(createTestIndex);
 
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
             createIndexWithReplicas.setJsonEntity(recoverQuickly);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createIndexWithReplicas);
             client().performRequest(createIndexWithReplicas);
 
             Request createEmptyIndex = new Request("PUT", "/empty_index");
             // Ask for recovery to be quick
             createEmptyIndex.setJsonEntity(recoverQuickly);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createEmptyIndex);
             client().performRequest(createEmptyIndex);
 
             bulk("test_index", "_OLD", 5);
@@ -120,15 +128,68 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
     }
 
+    public void testAutoIdWithOpTypeCreate() throws IOException {
+        final String indexName = "auto_id_and_op_type_create_index";
+        StringBuilder b = new StringBuilder();
+        b.append("{\"create\": {\"_index\": \"").append(indexName).append("\"}}\n");
+        b.append("{\"f1\": \"v\"}\n");
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity(b.toString());
+
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Request createTestIndex = new Request("PUT", "/" + indexName);
+                createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+                client().performRequest(createTestIndex);
+                break;
+            case MIXED:
+                Request waitForGreen = new Request("GET", "/_cluster/health");
+                waitForGreen.addParameter("wait_for_nodes", "3");
+                client().performRequest(waitForGreen);
+
+                Version minNodeVersion = null;
+                Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+                Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+                for (Map.Entry<?, ?> node : nodes.entrySet()) {
+                    Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+                    Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
+                    if (minNodeVersion == null) {
+                        minNodeVersion = nodeVersion;
+                    } else if (nodeVersion.before(minNodeVersion)) {
+                        minNodeVersion = nodeVersion;
+                    }
+                }
+
+                if (minNodeVersion.before(Version.V_7_5_0)) {
+                    ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
+                    assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+                    assertThat(e.getMessage(),
+                        // if request goes to 7.5+ node
+                        either(containsString("optype create not supported for indexing requests without explicit id until"))
+                            // if request goes to < 7.5 node
+                            .or(containsString("an id must be provided if version type or value are set")
+                            ));
+                } else {
+                    client().performRequest(bulk);
+                }
+                break;
+            case UPGRADED:
+                client().performRequest(bulk);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        }
+    }
+
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"_doc\"}}\n");
+            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
     }

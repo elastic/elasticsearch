@@ -45,7 +45,11 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "ignored as shard is not being recovered from a snapshot");
         }
 
-        RecoverySource.SnapshotRecoverySource source = (RecoverySource.SnapshotRecoverySource) recoverySource;
+        final RecoverySource.SnapshotRecoverySource source = (RecoverySource.SnapshotRecoverySource) recoverySource;
+        if (source.restoreUUID().equals(RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID)) {
+            return allocation.decision(Decision.YES, NAME, "not an API-level restore");
+        }
+
         final RestoreInProgress restoresInProgress = allocation.custom(RestoreInProgress.TYPE);
 
         if (restoresInProgress != null) {

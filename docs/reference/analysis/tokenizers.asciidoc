@@ -1,5 +1,5 @@
 [[analysis-tokenizers]]
-== Tokenizers
+== Tokenizer reference
 
 A _tokenizer_  receives a stream of characters, breaks it up into individual
 _tokens_ (usually individual words), and outputs a stream of _tokens_. For
@@ -7,15 +7,18 @@ instance, a <<analysis-whitespace-tokenizer,`whitespace`>> tokenizer breaks
 text into tokens whenever it sees any whitespace.  It would convert the text
 `"Quick brown fox!"` into the terms `[Quick, brown, fox!]`.
 
-The tokenizer is also responsible for recording the order or _position_ of
-each term (used for phrase and word proximity queries) and the start and end
-_character offsets_ of the original word which the term represents (used for
-highlighting search snippets).
+The tokenizer is also responsible for recording the following:
+
+* Order or _position_ of each term (used for phrase and word proximity queries)
+* Start and end _character offsets_ of the original word which the term
+represents (used for highlighting search snippets).
+* _Token type_, a classification of each term produced, such as `<ALPHANUM>`,
+`<HANGUL>`, or `<NUM>`. Simpler analyzers only produce the `word` token type.
 
 Elasticsearch has a number of built in tokenizers which can be used to build
 <<analysis-custom-analyzer,custom analyzers>>.
 
-[float]
+[discrete]
 === Word Oriented Tokenizers
 
 The following tokenizers are usually used for tokenizing full text into
@@ -56,7 +59,7 @@ The `classic` tokenizer is a grammar based tokenizer for the English Language.
 
 The `thai` tokenizer segments Thai text into words.
 
-[float]
+[discrete]
 === Partial Word Tokenizers
 
 These tokenizers break up text or words into small fragments, for partial word
@@ -77,7 +80,7 @@ n-grams of each word which are anchored to the start of the word, e.g. `quick` -
 `[q, qu, qui, quic, quick]`.
 
 
-[float]
+[discrete]
 === Structured Text Tokenizers
 
 The following tokenizers are usually used with structured text like
@@ -121,41 +124,32 @@ path, splits on the path separator, and emits a term for each component in the
 tree, e.g. `/foo/bar/baz` -> `[/foo, /foo/bar, /foo/bar/baz ]`.
 
 
+include::tokenizers/chargroup-tokenizer.asciidoc[]
 
+include::tokenizers/classic-tokenizer.asciidoc[]
 
+include::tokenizers/edgengram-tokenizer.asciidoc[]
 
-include::tokenizers/standard-tokenizer.asciidoc[]
+include::tokenizers/keyword-tokenizer.asciidoc[]
 
 include::tokenizers/letter-tokenizer.asciidoc[]
 
 include::tokenizers/lowercase-tokenizer.asciidoc[]
 
-include::tokenizers/whitespace-tokenizer.asciidoc[]
-
-include::tokenizers/uaxurlemail-tokenizer.asciidoc[]
-
-include::tokenizers/classic-tokenizer.asciidoc[]
-
-include::tokenizers/thai-tokenizer.asciidoc[]
-
-
 include::tokenizers/ngram-tokenizer.asciidoc[]
 
-include::tokenizers/edgengram-tokenizer.asciidoc[]
-
-
-include::tokenizers/keyword-tokenizer.asciidoc[]
+include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
 
 include::tokenizers/pattern-tokenizer.asciidoc[]
-
-include::tokenizers/chargroup-tokenizer.asciidoc[]
 
 include::tokenizers/simplepattern-tokenizer.asciidoc[]
 
 include::tokenizers/simplepatternsplit-tokenizer.asciidoc[]
 
-include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
+include::tokenizers/standard-tokenizer.asciidoc[]
 
-include::tokenizers/pathhierarchy-tokenizer-examples.asciidoc[]
+include::tokenizers/thai-tokenizer.asciidoc[]
 
+include::tokenizers/uaxurlemail-tokenizer.asciidoc[]
 
+include::tokenizers/whitespace-tokenizer.asciidoc[]

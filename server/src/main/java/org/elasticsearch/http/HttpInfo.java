@@ -21,17 +21,16 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 
-public class HttpInfo implements Writeable, ToXContentFragment {
+public class HttpInfo implements ReportingService.Info {
 
     private final BoundTransportAddress address;
     private final long maxContentLength;

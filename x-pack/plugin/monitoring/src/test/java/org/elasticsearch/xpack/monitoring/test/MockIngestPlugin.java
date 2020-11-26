@@ -52,13 +52,13 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
         @Override
         public Processor create(Map<String, Processor.Factory> processorFactories,
                                 String tag,
-                                Map<String, Object> config) throws Exception {
+                                String description, Map<String, Object> config) throws Exception {
             // read fields so the processor succeeds
             for (final String field : fields) {
                 ConfigurationUtils.readObject(type, tag, config, field);
             }
 
-            return new MockProcessor(type, tag);
+            return new MockProcessor(type, tag, description);
         }
 
     }
@@ -67,10 +67,12 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
 
         private final String type;
         private final String tag;
+        private final String description;
 
-        MockProcessor(final String type, final String tag) {
+        MockProcessor(final String type, final String tag, final String description) {
             this.type = type;
             this.tag = tag;
+            this.description = description;
         }
 
         @Override
@@ -87,6 +89,11 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
         @Override
         public String getTag() {
             return tag;
+        }
+
+        @Override
+        public String getDescription() {
+            return description;
         }
 
     }

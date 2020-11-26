@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
@@ -52,7 +51,7 @@ public class DateUtils {
         return DateTimeZone.forID(zoneId.getId());
     }
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DateFormatters.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DateUtils.class);
     // pkg private for tests
     static final Map<String, String> DEPRECATED_SHORT_TIMEZONES;
     public static final Set<String> DEPRECATED_SHORT_TZ_IDS;
@@ -198,14 +197,14 @@ public class DateUtils {
     public static ZoneId of(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
-            deprecationLogger.deprecatedAndMaybeLog("timezone",
+            deprecationLogger.deprecate("timezone",
                 "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead");
             return ZoneId.of(deprecatedId);
         }
         return ZoneId.of(zoneId).normalized();
     }
 
-    private static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+    static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
 
@@ -226,6 +225,26 @@ public class DateUtils {
                 "stored in nanosecond resolution");
         }
         return instant.getEpochSecond() * 1_000_000_000 + instant.getNano();
+    }
+
+    /**
+     * Returns an instant that is with valid nanosecond resolution. If
+     * the parameter is before the valid nanosecond range then this returns
+     * the minimum {@linkplain Instant} valid for nanosecond resultion. If
+     * the parameter is after the valid nanosecond range then this returns
+     * the maximum {@linkplain Instant} valid for nanosecond resolution.
+     * <p>
+     * Useful for checking if all values for the field are within some range,
+     * even if the range's endpoints are not valid nanosecond resolution.
+     */
+    public static Instant clampToNanosRange(Instant instant) {
+        if (instant.isBefore(Instant.EPOCH)) {
+            return Instant.EPOCH;
+        }
+        if (instant.isAfter(MAX_NANOSECOND_INSTANT)) {
+            return MAX_NANOSECOND_INSTANT;
+        }
+        return instant;
     }
 
     /**
@@ -290,7 +309,7 @@ public class DateUtils {
      * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
      *
      * Note: This does not check for correctness of the result, as this only works with units smaller or equal than a day
-     *       In order to ensure the performane of this methods, there are no guards or checks in it
+     *       In order to ensure the performance of this methods, there are no guards or checks in it
      *
      * @param utcMillis   the milliseconds since the epoch
      * @param unitMillis  the unit to round to

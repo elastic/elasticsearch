@@ -152,7 +152,6 @@ setup:
 
   - do:
         indices.create:
-          include_type_name: false
           index: test_nanos
           body:
               mappings:
@@ -201,7 +200,6 @@ setup:
   - is_false: fields.object\.nested2.keyword.non_searchable_indices
 ---
 "Get object and nested field caps":
-
 
   - do:
       field_caps:
@@ -318,4 +316,3 @@ setup:
   - match: {fields.misc.unmapped.searchable:            false}
   - match: {fields.misc.unmapped.aggregatable:          false}
   - match: {fields.misc.unmapped.indices:               ["test2", "test3"]}
-

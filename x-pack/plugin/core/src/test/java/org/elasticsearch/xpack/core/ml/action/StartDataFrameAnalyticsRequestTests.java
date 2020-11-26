@@ -7,8 +7,15 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.Request;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class StartDataFrameAnalyticsRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -24,5 +31,16 @@ public class StartDataFrameAnalyticsRequestTests extends AbstractWireSerializing
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
+    }
+
+    public void testDefaultTimeout() throws IOException {
+        {
+            Request request = new Request("foo");
+            assertThat(request.getTimeout(), is(notNullValue()));
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}")) {
+            Request request = Request.parseRequest("foo", parser);
+            assertThat(request.getTimeout(), is(notNullValue()));
+        }
     }
 }

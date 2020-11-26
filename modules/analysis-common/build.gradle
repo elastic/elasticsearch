@@ -16,13 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    description 'Adds "built in" analyzers to Elasticsearch.'
-    classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
-    extendedPlugins = ['lang-painless']
+  description 'Adds "built in" analyzers to Elasticsearch.'
+  classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
+  extendedPlugins = ['lang-painless']
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
+  }
 }
 
 dependencies {
-    compileOnly project(':modules:lang-painless')
+  compileOnly project(':modules:lang-painless')
 }

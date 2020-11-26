@@ -32,15 +32,16 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Context used for inner hits retrieval
@@ -50,6 +51,10 @@ public final class InnerHitsContext {
 
     public InnerHitsContext() {
         this.innerHits = new HashMap<>();
+    }
+
+    InnerHitsContext(Map<String, InnerHitSubContext> innerHits) {
+        this.innerHits = Objects.requireNonNull(innerHits);
     }
 
     public Map<String, InnerHitSubContext> getInnerHits() {
@@ -72,33 +77,71 @@ public final class InnerHitsContext {
     public abstract static class InnerHitSubContext extends SubSearchContext {
 
         private final String name;
+        protected final SearchContext context;
+        private InnerHitsContext childInnerHits;
+        private Weight innerHitQueryWeight;
 
-        // TODO: when types are complete removed just use String instead for the id:
-        private Uid uid;
+        private String rootId;
+        private SourceLookup rootLookup;
 
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
             this.name = name;
+            this.context = context;
         }
 
-        public abstract TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException;
+        public abstract TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException;
 
         public String getName() {
             return name;
         }
 
-        protected Weight createInnerHitQueryWeight() throws IOException {
-            final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
-            return searcher().createWeight(searcher().rewrite(query()),
+        @Override
+        public InnerHitsContext innerHits() {
+            return childInnerHits;
+        }
+
+        public void setChildInnerHits(Map<String, InnerHitSubContext> childInnerHits) {
+            this.childInnerHits = new InnerHitsContext(childInnerHits);
+        }
+
+        protected Weight getInnerHitQueryWeight() throws IOException {
+            if (innerHitQueryWeight == null) {
+                final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
+                innerHitQueryWeight = context.searcher().createWeight(context.searcher().rewrite(query()),
                     needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
+            }
+            return innerHitQueryWeight;
         }
 
-        public Uid getUid() {
-            return uid;
+        public SearchContext parentSearchContext() {
+            return context;
         }
 
-        public void setUid(Uid uid) {
-            this.uid = uid;
+        /**
+         * The _id of the root document.
+         *
+         * Since this ID is available on the context, inner hits can avoid re-loading the root _id.
+         */
+        public String getRootId() {
+            return rootId;
+        }
+
+        public void setRootId(String rootId) {
+            this.rootId = rootId;
+        }
+
+        /**
+         * A source lookup for the root document.
+         *
+         * This shared lookup allows inner hits to avoid re-loading the root _source.
+         */
+        public SourceLookup getRootLookup() {
+            return rootLookup;
+        }
+
+        public void setRootLookup(SourceLookup rootLookup) {
+            this.rootLookup = rootLookup;
         }
     }
 

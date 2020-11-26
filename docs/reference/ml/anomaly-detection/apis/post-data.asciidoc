@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-post-data]]
-=== Post data to jobs API
+= Post data to jobs API
 ++++
 <titleabbrev>Post data to jobs</titleabbrev>
 ++++
@@ -9,19 +9,19 @@
 Sends data to an anomaly detection job for analysis.
 
 [[ml-post-data-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/_data`
 
 [[ml-post-data-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-post-data-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 The job must have a state of `open` to receive and process the data.
 
@@ -37,26 +37,25 @@ and upload each one separately in sequential time order. When running in
 real time, it is generally recommended that you perform many small uploads,
 rather than queueing data to upload larger files.
 
-When uploading data, check the <<ml-datacounts,job data counts>> for progress.
-The following records will not be processed:
+When uploading data, check the job data counts for progress.
+The following documents will not be processed:
 
-* Records not in chronological order and outside the latency window
+* Documents not in chronological order and outside the latency window
 * Records with an invalid timestamp
-
-//TBD link to Working with Out of Order timeseries concept doc
 
 IMPORTANT:  For each job, data can only be accepted from a single connection at
 a time. It is not currently possible to post data to multiple jobs using wildcards
 or a comma-separated list.
 
 [[ml-post-data-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
-		(Required, string) Identifier for the job.
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-post-data-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `reset_start`::
 		(Optional, string) Specifies the start of the bucket resetting range.
@@ -65,13 +64,13 @@ or a comma-separated list.
 		(Optional, string) Specifies the end of the bucket resetting range.
 
 [[ml-post-data-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 A sequence of one or more JSON documents containing the data to be analyzed.
 Only whitespace characters are permitted in between the documents.
 
 [[ml-post-data-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following example posts data from the `it_ops_new_kpi.json` file to the
 `it_ops_new_kpi` job:
@@ -108,4 +107,4 @@ the job. For example:
 }
 ----
 
-For more information about these properties, see <<ml-jobstats,Job Stats>>.
+For more information about these properties, see <<ml-get-job-stats-results>>.

@@ -14,10 +14,10 @@ setup:
                   type: keyword
 
   - do:
-        index:
-          index: test
-          id: foo|bar|baz0
-          body: { "notifications" : ["abc"] }
+      index:
+        index: test
+        id: foo|bar|baz0
+        body: { "notifications" : ["abc"] }
 
   - do:
       index:
@@ -73,3 +73,78 @@ setup:
   - match: { _all.total.request_cache.hit_count: 0 }
   - match: { _all.total.request_cache.miss_count: 1 }
   - is_true: indices.test
+
+---
+"As a child of terms":
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"category": "bar", "val": 8}
+          {"index":{}}
+          {"category": "bar", "val": 0}
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            category:
+              terms:
+                field: category.keyword
+              aggs:
+                high:
+                  filter:
+                    range:
+                      val:
+                        gte: 7
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.category.buckets.0.key: bar }
+  - match: { aggregations.category.buckets.0.doc_count: 2 }
+  - match: { aggregations.category.buckets.0.high.doc_count: 1 }
+
+---
+"Sorting terms":
+  - skip:
+      version: " - 7.6.99"
+      reason: fixed in 7.7.0
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"category": "foo", "val": 7}
+          {"index":{}}
+          {"category": "bar", "val": 8}
+          {"index":{}}
+          {"category": "bar", "val": 9}
+          {"index":{}}
+          {"category": "bar", "val": 0}
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            category:
+              terms:
+                field: category.keyword
+                order:
+                  high.doc_count: desc
+              aggs:
+                high:
+                  filter:
+                    range:
+                      val:
+                        gte: 7
+
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.category.buckets.0.key: bar }
+  - match: { aggregations.category.buckets.0.doc_count: 3 }
+  - match: { aggregations.category.buckets.0.high.doc_count: 2 }
+  - match: { aggregations.category.buckets.1.key: foo }
+  - match: { aggregations.category.buckets.1.doc_count: 1 }
+  - match: { aggregations.category.buckets.1.high.doc_count: 1 }

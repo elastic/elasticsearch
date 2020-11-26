@@ -4,14 +4,16 @@
 <titleabbrev>cat fielddata</titleabbrev>
 ++++
 
-Returns the amount of heap memory currently used by fielddata on every data node
-in the cluster.
+Returns the amount of heap memory currently used by the
+<<modules-fielddata, field data cache>> on every data node in the cluster.
 
 
 [[cat-fielddata-api-request]]
 ==== {api-request-title}
 
 `GET /_cat/fielddata/<field>`
+
+`GET /_cat/fielddata`
 
 
 [[cat-fielddata-api-path-params]]
@@ -25,21 +27,17 @@ information.
 [[cat-fielddata-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-fielddata-api-example]]
@@ -48,7 +46,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ////
 Hidden setup snippet to build an index with fielddata so our results are real:
 
-[source,console]
+[source,console,id=cat-fielddata-example]
 --------------------------------------------------
 PUT test
 {

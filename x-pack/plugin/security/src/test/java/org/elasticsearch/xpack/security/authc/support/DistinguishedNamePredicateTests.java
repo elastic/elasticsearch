@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 
 import java.util.Locale;

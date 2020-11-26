@@ -213,12 +213,12 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
 
     public void testWeekOfWeekyear() {
         assertMethodDeprecation(() -> assertThat(javaTime.getWeekOfWeekyear(), equalTo(jodaTime.getWeekOfWeekyear())),
-            "getWeekOfWeekyear()", "get(WeekFields.ISO.weekOfWeekBasedYear())");
+            "getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())");
     }
 
     public void testWeekyear() {
         assertMethodDeprecation(() -> assertThat(javaTime.getWeekyear(), equalTo(jodaTime.getWeekyear())),
-            "getWeekyear()", "get(WeekFields.ISO.weekBasedYear())");
+            "getWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekBasedYear())");
     }
 
     public void testYearOfCentury() {

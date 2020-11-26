@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.99.99" #TODO change this after backport
-      reason:  "not backported yet"
+      version: " - 7.6.99"
+      reason:  "Start of the week Monday was enabled in a backport to 7.7 PR#50916"
 
   - do:
         indices.create:

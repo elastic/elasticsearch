@@ -19,18 +19,16 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RecoveryTranslogOperationsRequest extends TransportRequest {
+public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
@@ -43,6 +41,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
 
     RecoveryTranslogOperationsRequest(
             final long recoveryId,
+            final long requestSeqNo,
             final ShardId shardId,
             final List<Translog.Operation> operations,
             final int totalTranslogOps,
@@ -50,6 +49,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
             final long maxSeqNoOfUpdatesOrDeletesOnPrimary,
             final RetentionLeases retentionLeases,
             final long mappingVersionOnPrimary) {
+        super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
@@ -106,11 +106,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
         retentionLeases = new RetentionLeases(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            mappingVersionOnPrimary = in.readVLong();
-        } else {
-            mappingVersionOnPrimary = Long.MAX_VALUE;
-        }
+        mappingVersionOnPrimary = in.readVLong();
     }
 
     @Override
@@ -123,9 +119,6 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
         retentionLeases.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeVLong(mappingVersionOnPrimary);
-        }
+        out.writeVLong(mappingVersionOnPrimary);
     }
-    
-    }
+}

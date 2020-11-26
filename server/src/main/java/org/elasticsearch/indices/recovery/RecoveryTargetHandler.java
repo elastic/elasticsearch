@@ -23,7 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.List;
@@ -52,8 +52,9 @@ public interface RecoveryTargetHandler {
      * Handoff the primary context between the relocation source and the relocation target.
      *
      * @param primaryContext the primary context from the relocation source
+     * @param listener         the listener which will be notified when this method is completed
      */
-    void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext);
+    void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener);
 
     /**
      * Index a set of translog operations on the target
@@ -98,12 +99,13 @@ public interface RecoveryTargetHandler {
      *
      * @param totalTranslogOps an update number of translog operations that will be replayed later on
      * @param globalCheckpoint the global checkpoint on the primary
-     * @param sourceMetaData   meta data of the source store
+     * @param sourceMetadata   meta data of the source store
      */
-    void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData, ActionListener<Void> listener);
+    void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener);
 
     /** writes a partial file chunk to the target store */
-    void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+    void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener);
 
+    default void cancel() {}
 }

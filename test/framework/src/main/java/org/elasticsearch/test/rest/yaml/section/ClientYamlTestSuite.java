@@ -111,7 +111,7 @@ public class ClientYamlTestSuite {
     private final TeardownSection teardownSection;
     private final List<ClientYamlTestSection> testSections;
 
-    ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
+    public ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
                         List<ClientYamlTestSection> testSections) {
         this.api = api;
         this.name = name;
@@ -162,6 +162,14 @@ public class ClientYamlTestSuite {
             .map(section -> "attempted to add a [do] with a [warnings] section " +
                 "without a corresponding [\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] " +
                 "section can skip the test at line [" + section.getLocation().lineNumber + "]");
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+                .map(section -> (DoSection) section)
+                .filter(section -> false == section.getAllowedWarningHeaders().isEmpty())
+                .filter(section -> false == hasSkipFeature("allowed_warnings", testSection, setupSection, teardownSection))
+                .map(section -> "attempted to add a [do] with a [allowed_warnings] section " +
+                    "without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not " +
+                    "support the [allowed_warnings] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)

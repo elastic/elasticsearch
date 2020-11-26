@@ -184,7 +184,7 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("unmapped_groups_as_roles", randomBoolean())
                 .put("files.role_mapping", "x-pack/" + randomAlphaOfLength(8) + ".yml")
                 .put("timeout.tcp_connect", randomPositiveTimeValue())
-                .put("timeout.tcp_read", randomPositiveTimeValue())
+                .put("timeout.response", randomPositiveTimeValue())
                 .put("timeout.ldap_search", randomPositiveTimeValue());
         if (configureSSL) {
             configureSsl("ssl.", builder, randomBoolean(), randomBoolean());

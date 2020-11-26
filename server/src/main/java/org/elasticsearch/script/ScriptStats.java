@@ -26,13 +26,26 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class ScriptStats implements Writeable, ToXContentFragment {
+    private final List<ScriptContextStats> contextStats;
     private final long compilations;
     private final long cacheEvictions;
     private final long compilationLimitTriggered;
 
-    public ScriptStats(long compilations, long cacheEvictions, long compilationLimitTriggered) {
+
+    public ScriptStats(List<ScriptContextStats> contextStats) {
+        this.contextStats = contextStats.stream().sorted().collect(Collectors.toUnmodifiableList());
+        long compilations = 0;
+        long cacheEvictions = 0;
+        long compilationLimitTriggered = 0;
+        for (ScriptContextStats stats: contextStats) {
+            compilations += stats.getCompilations();
+            cacheEvictions += stats.getCacheEvictions();
+            compilationLimitTriggered += stats.getCompilationLimitTriggered();
+        }
         this.compilations = compilations;
         this.cacheEvictions = cacheEvictions;
         this.compilationLimitTriggered = compilationLimitTriggered;
@@ -42,6 +55,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
         compilationLimitTriggered = in.readVLong();
+        contextStats = in.readList(ScriptContextStats::new);
     }
 
     @Override
@@ -49,6 +63,11 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
         out.writeVLong(compilationLimitTriggered);
+        out.writeList(contextStats);
+    }
+
+    public List<ScriptContextStats> getContextStats() {
+        return contextStats;
     }
 
     public long getCompilations() {
@@ -66,15 +85,21 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SCRIPT_STATS);
-        builder.field(Fields.COMPILATIONS, getCompilations());
-        builder.field(Fields.CACHE_EVICTIONS, getCacheEvictions());
-        builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, getCompilationLimitTriggered());
+        builder.field(Fields.COMPILATIONS, compilations);
+        builder.field(Fields.CACHE_EVICTIONS, cacheEvictions);
+        builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
+        builder.startArray(Fields.CONTEXTS);
+        for (ScriptContextStats contextStats: contextStats) {
+            contextStats.toXContent(builder, params);
+        }
+        builder.endArray();
         builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final String SCRIPT_STATS = "script";
+        static final String CONTEXTS = "contexts";
         static final String COMPILATIONS = "compilations";
         static final String CACHE_EVICTIONS = "cache_evictions";
         static final String COMPILATION_LIMIT_TRIGGERED = "compilation_limit_triggered";

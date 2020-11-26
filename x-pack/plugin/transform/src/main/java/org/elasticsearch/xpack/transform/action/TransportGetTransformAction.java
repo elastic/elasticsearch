@@ -38,9 +38,14 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                                                                                      Response> {
 
     @Inject
-    public TransportGetTransformAction(TransportService transportService, ActionFilters actionFilters,
-                                       Client client, NamedXContentRegistry xContentRegistry) {
-        super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
+    public TransportGetTransformAction(TransportService transportService, ActionFilters actionFilters, Client client,
+                                       NamedXContentRegistry xContentRegistry) {
+        this(GetTransformAction.NAME, transportService, actionFilters, client, xContentRegistry);
+    }
+
+    protected TransportGetTransformAction(String name, TransportService transportService, ActionFilters actionFilters, Client client,
+                                          NamedXContentRegistry xContentRegistry) {
+        super(name, transportService, actionFilters, Request::new, client, xContentRegistry);
     }
 
     @Override
@@ -58,7 +63,8 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected String[] getIndices() {
-        return new String[]{TransformInternalIndexConstants.INDEX_NAME_PATTERN};
+        return new String[] { TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED };
     }
 
     @Override

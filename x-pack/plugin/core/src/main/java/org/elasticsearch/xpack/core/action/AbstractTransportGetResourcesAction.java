@@ -121,7 +121,13 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                     if (requiredMatches.hasUnmatchedIds()) {
                         listener.onFailure(notFoundException(requiredMatches.unmatchedIdsString()));
                     } else {
-                        listener.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
+                        // if only exact ids have been given, take the count from docs to avoid potential duplicates
+                        // in versioned indexes (like transform)
+                        if (requiredMatches.isOnlyExact()) {
+                            listener.onResponse(new QueryPage<>(docs, docs.size(), getResultsField()));
+                        } else {
+                            listener.onResponse(new QueryPage<>(docs, totalHitCount, getResultsField()));
+                        }
                     }
                 }
 

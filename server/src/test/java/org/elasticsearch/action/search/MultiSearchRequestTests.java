@@ -25,9 +25,13 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -43,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -90,7 +95,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON).build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, true));
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true));
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
 
@@ -99,7 +104,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
@@ -113,7 +118,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             .withContent(new BytesArray(requestContent), XContentType.JSON)
             .withParams(Collections.singletonMap("ignore_unavailable", "true"))
             .build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(),
@@ -204,13 +209,13 @@ public class MultiSearchRequestTests extends ESTestCase {
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
                 .withContent(new BytesArray(mserchAction.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
         IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class,
-                () -> RestMultiSearchAction.parseRequest(restRequest, true));
+                () -> RestMultiSearchAction.parseRequest(restRequest, null, true));
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
         String mserchActionWithNewLine = mserchAction + "\n";
         RestRequest restRequestWithNewLine = new FakeRestRequest.Builder(xContentRegistry())
                 .withContent(new BytesArray(mserchActionWithNewLine.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).build();
-        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, true);
+        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, null, true);
         assertEquals(3, msearchRequest.requests().size());
     }
 
@@ -253,6 +258,37 @@ public class MultiSearchRequestTests extends ESTestCase {
             MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
                     consumer, null, null, null, null, null, xContentRegistry(), true);
             assertEquals(originalRequest, parsedRequest);
+        }
+    }
+
+    public void testWritingExpandWildcards() throws IOException {
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "all");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open,closed");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open,hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "closed,hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "closed");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "none");
+    }
+
+    private void assertExpandWildcardsValue(IndicesOptions options, String expectedValue) throws IOException {
+        SearchRequest request = new SearchRequest();
+        request.indicesOptions(options);
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            MultiSearchRequest.writeSearchRequestParams(request, builder);
+            Map<String, Object> map =
+                XContentHelper.convertToMap(XContentType.JSON.xContent(), BytesReference.bytes(builder).streamInput(), false);
+            final String value = (String) map.get("expand_wildcards");
+            assertEquals(expectedValue, value);
         }
     }
 
@@ -300,9 +336,10 @@ public class MultiSearchRequestTests extends ESTestCase {
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
             IndicesOptions msearchDefault = SearchRequest.DEFAULT_INDICES_OPTIONS;
             searchRequest.indicesOptions(IndicesOptions.fromOptions(
-                    randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
-                    randomlyGenerated.expandWildcardsClosed(), msearchDefault.allowAliasesToMultipleIndices(),
-                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled()
+                randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
+                randomlyGenerated.expandWildcardsClosed(), msearchDefault.expandWildcardsHidden(),
+                msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(),
+                msearchDefault.ignoreThrottled()
             ));
 
             request.add(searchRequest);

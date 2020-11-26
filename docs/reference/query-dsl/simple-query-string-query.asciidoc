@@ -75,12 +75,8 @@ For example, a query string of `capital of Hungary` is interpreted as `capital
 AND of AND Hungary`.
 --
 
-`all_fields`::
-deprecated:[6.0.0, set `fields` to `*` instead](Optional, boolean) If `true`,
-search all searchable fields in the index's field mapping.
-
 `analyze_wildcard`::
-(Optional, boolean) If `true`, the query attempts to analyze wildcard terms in
+(Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in
 the query string. Defaults to `false`.
 
 `analyzer`::
@@ -90,7 +86,7 @@ query string into tokens. Defaults to the
 `default_field`. If no analyzer is mapped, the index's default analyzer is used.
 
 `auto_generate_synonyms_phrase_query`::
-(Optional, boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
+(Optional, Boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
 queries are automatically created for multi-term synonyms. Defaults to `true`.
 See <<simple-query-string-synonyms>> for an example.
 
@@ -108,11 +104,11 @@ matching. Defaults to `50`.
 matching. Defaults to `0`.
 
 `fuzzy_transpositions`::
-(Optional, boolean) If `true`, edits for fuzzy matching include
+(Optional, Boolean) If `true`, edits for fuzzy matching include
 transpositions of two adjacent characters (ab → ba). Defaults to `true`.
 
 `lenient`::
-(Optional, boolean) If `true`, format-based errors, such as providing a text
+(Optional, Boolean) If `true`, format-based errors, such as providing a text
 value for a <<number,numeric>> field, are ignored. Defaults to `false`.
 
 `minimum_should_match`::
@@ -156,12 +152,12 @@ value. For example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "simple_query_string" : {
-            "fields" : ["content"],
-            "query" : "foo bar -baz"
-        }
+  "query": {
+    "simple_query_string": {
+      "fields": [ "content" ],
+      "query": "foo bar -baz"
     }
+  }
 }
 --------------------------------------------------
 
@@ -184,12 +180,12 @@ and `PREFIX`.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "simple_query_string" : {
-            "query" : "foo | bar + baz*",
-            "flags" : "OR|AND|PREFIX"
-        }
+  "query": {
+    "simple_query_string": {
+      "query": "foo | bar + baz*",
+      "flags": "OR|AND|PREFIX"
     }
+  }
 }
 --------------------------------------------------
 
@@ -281,7 +277,7 @@ GET /_search
 
 The `simple_query_string` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
 synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
-For example, the following synonym: `"ny, new york" would produce:`
+For example, the following synonym: `"ny, new york"` would produce:
 
 `(ny OR ("new york"))`
 

@@ -26,6 +26,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -103,6 +104,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private static class MergeSortQueue extends PriorityQueue<ShardRef> {
         // These are really FieldDoc instances:
         final ScoreDoc[][] shardHits;
@@ -137,6 +139,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
 
         // Returns true if first is < second
         @Override
+        @SuppressWarnings({"rawtypes", "unchecked"})
         public boolean lessThan(ShardRef first, ShardRef second) {
             assert first != second;
             final FieldDoc firstFD = (FieldDoc) shardHits[first.shardIndex][first.hitIndex];
@@ -184,7 +187,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             if (shard.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
-            if (shard.scoreDocs != null && shard.scoreDocs.length > 0) {
+            if (CollectionUtils.isEmpty(shard.scoreDocs) == false) {
                 availHitCount += shard.scoreDocs.length;
                 queue.add(new ShardRef(shardIDX, setShardIndex == false));
             }

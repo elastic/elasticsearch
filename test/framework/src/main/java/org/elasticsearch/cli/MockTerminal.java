@@ -85,7 +85,7 @@ public class MockTerminal extends Terminal {
         textInput.add(input);
     }
 
-    /** Adds an an input that will be return from {@link #readText(String)}. Values are read in FIFO order. */
+    /** Adds an an input that will be return from {@link #readSecret(String)}. Values are read in FIFO order. */
     public void addSecretInput(String input) {
         secretInput.add(input);
     }

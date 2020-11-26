@@ -27,7 +27,7 @@ revoke a user's access to {es}. To re-enable a user, there is an
 <<security-api-enable-user,enable users API>>. 
 
 For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<native-realm>>. 
 
 [[security-api-disable-user-path-params]]
 ==== {api-path-parms-title}

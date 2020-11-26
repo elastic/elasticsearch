@@ -58,7 +58,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
 
     private static final int ERROR_PIPE_CONNECTED = 535;
 
-    private static final Pointer INVALID_HANDLE_VALUE = Pointer.createConstant(Pointer.SIZE == 8 ? -1 : 0xFFFFFFFFL);
+    private static final Pointer INVALID_HANDLE_VALUE = Pointer.createConstant(Native.POINTER_SIZE == 8 ? -1 : 0xFFFFFFFFL);
 
     static {
         // Have to use JNA for Windows named pipes

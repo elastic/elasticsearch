@@ -1,27 +1,9 @@
 // this file must exist so that qa projects are found
 // by the elasticsearch x-plugins include mechanism
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
 apply plugin: 'elasticsearch.build'
 test.enabled = false
 
 dependencies {
-  compile project(':test:framework')
-}
-
-subprojects {
-  // HACK: please fix this
-  // we want to add the rest api specs for xpack to qa tests, but we
-  // need to wait until after the project is evaluated to only apply
-  // to those that rest tests. this used to be done automatically
-  // when xpack was a plugin, but now there is no place with xpack as a module.
-  // instead, we should package these and make them easy to use for rest tests,
-  // but currently, they must be copied into the resources of the test runner.
-  project.tasks.withType(RestIntegTestTask) {
-    File xpackResources = new File(xpackProject('plugin').projectDir, 'src/test/resources')
-    project.copyRestSpec.from(xpackResources) {
-      include 'rest-api-spec/api/**'
-    }
-  }
+  api project(':test:framework')
 }

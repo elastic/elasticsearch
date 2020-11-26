@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -31,8 +31,11 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        public static Request parseRequest(String datafeedId, XContentParser parser) {
+        public static Request parseRequest(String datafeedId, @Nullable IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedUpdate.Builder update = DatafeedUpdate.PARSER.apply(parser, null);
+            if (indicesOptions != null) {
+                update.setIndicesOptions(indicesOptions);
+            }
             update.setId(datafeedId);
             return new Request(update.build());
         }
@@ -41,9 +44,6 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
 
         public Request(DatafeedUpdate update) {
             this.update = update;
-        }
-
-        public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -85,12 +85,4 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
             return Objects.hash(update);
         }
     }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, PutDatafeedAction.Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, UpdateDatafeedAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

@@ -22,5 +22,5 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-    testCompile project(":client:rest-high-level")
+  testImplementation project(":client:rest-high-level")
 }

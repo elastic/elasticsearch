@@ -16,37 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  compile project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-core')
 
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-  if (isEclipse == false || project.path == ":libs:elasticsearch-nio-tests") {
-      testCompile(project(":test:framework")) {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
-      }
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
   }
 }
 
-if (isEclipse) {
-  // in eclipse the project is under a fake root, we need to change around the source sets
-  sourceSets {
-    if (project.path == ":libs:elasticsearch-nio") {
-      main.java.srcDirs = ['java']
-      main.resources.srcDirs = ['resources']
-    } else {
-      test.java.srcDirs = ['java']
-      test.resources.srcDirs = ['resources']
-    }
-  }
-}
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // nio does not depend on core, so only jdk signatures should be checked
   // es-all is not checked as we connect and accept sockets
   replaceSignatureFiles 'jdk-signatures'

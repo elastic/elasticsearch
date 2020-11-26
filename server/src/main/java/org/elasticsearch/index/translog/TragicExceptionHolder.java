@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
+
 import java.util.concurrent.atomic.AtomicReference;
 
 public class TragicExceptionHolder {
@@ -30,10 +33,15 @@ public class TragicExceptionHolder {
      */
     public void setTragicException(Exception ex) {
         assert ex != null;
-        if (tragedy.compareAndSet(null, ex) == false) {
-            if (tragedy.get() != ex) { // to ensure there is no self-suppression
-                tragedy.get().addSuppressed(ex);
-            }
+        if (tragedy.compareAndSet(null, ex)) {
+            return; // first exception
+        }
+        final Exception tragedy = this.tragedy.get();
+        // ensure no circular reference
+        if (ExceptionsHelper.unwrapCausesAndSuppressed(ex, e -> e == tragedy).isEmpty()) {
+            tragedy.addSuppressed(ex);
+        } else {
+            assert ex == tragedy || ex instanceof AlreadyClosedException : new AssertionError("must be ACE or tragic exception", ex);
         }
     }
 

@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisConfig> {
 
@@ -39,14 +40,16 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         int numDetectors = randomIntBetween(1, 10);
         for (int i = 0; i < numDetectors; i++) {
             Detector.Builder builder = new Detector.Builder("count", null);
-            builder.setPartitionFieldName(isCategorization ? "mlcategory" : "part");
+            if (isCategorization) {
+                builder.setByFieldName("mlcategory");
+            }
+            builder.setPartitionFieldName("part");
             detectors.add(builder.build());
         }
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(detectors);
 
-        TimeValue bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN;
         if (randomBoolean()) {
-            bucketSpan = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000));
+            TimeValue bucketSpan = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000));
             builder.setBucketSpan(bucketSpan);
         }
         if (isCategorization) {
@@ -82,6 +85,11 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
                     }
                 }
                 builder.setCategorizationAnalyzerConfig(analyzerBuilder.build());
+            }
+            if (randomBoolean()) {
+                boolean enabled = randomBoolean();
+                builder.setPerPartitionCategorizationConfig(
+                    new PerPartitionCategorizationConfig(enabled, enabled && randomBoolean()));
             }
         }
         if (randomBoolean()) {
@@ -609,6 +617,79 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
 
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_INVALID_REGEX, "("), e.getMessage());
+    }
+
+    public void testVerify_GivenPerPartitionCategorizationAndNoPartitions() {
+        AnalysisConfig.Builder analysisConfig = createValidCategorizationConfig();
+        analysisConfig.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, analysisConfig::build);
+
+        assertEquals(
+            "partition_field_name must be set for detectors that reference mlcategory when per-partition categorization is enabled",
+            e.getMessage());
+    }
+
+    public void testVerify_GivenPerPartitionCategorizationAndMultiplePartitionFields() {
+
+        List<Detector> detectors = new ArrayList<>();
+        for (String partitionFieldValue : Arrays.asList("part1", "part2")) {
+            Detector.Builder detector = new Detector.Builder("count", null);
+            detector.setByFieldName("mlcategory");
+            detector.setPartitionFieldName(partitionFieldValue);
+            detectors.add(detector.build());
+        }
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
+        analysisConfig.setCategorizationFieldName("msg");
+        analysisConfig.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, analysisConfig::build);
+
+        assertEquals(
+            "partition_field_name cannot vary between detectors when per-partition categorization is enabled: [part1] and [part2] are used",
+            e.getMessage());
+    }
+
+    public void testVerify_GivenPerPartitionCategorizationAndNoPartitionFieldOnCategorizationDetector() {
+
+        List<Detector> detectors = new ArrayList<>();
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setByFieldName("mlcategory");
+        detectors.add(detector.build());
+        detector = new Detector.Builder("mean", "responsetime");
+        detector.setPartitionFieldName("airline");
+        detectors.add(detector.build());
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
+        analysisConfig.setCategorizationFieldName("msg");
+        analysisConfig.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, analysisConfig::build);
+
+        assertEquals(
+            "partition_field_name must be set for detectors that reference mlcategory when per-partition categorization is enabled",
+            e.getMessage());
+    }
+
+    public void testVerify_GivenComplexPerPartitionCategorizationConfig() {
+
+        List<Detector> detectors = new ArrayList<>();
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setByFieldName("mlcategory");
+        detector.setPartitionFieldName("event.dataset");
+        detectors.add(detector.build());
+        detector = new Detector.Builder("mean", "responsetime");
+        detector.setByFieldName("airline");
+        detectors.add(detector.build());
+        detector = new Detector.Builder("rare", null);
+        detector.setByFieldName("mlcategory");
+        detector.setPartitionFieldName("event.dataset");
+        detectors.add(detector.build());
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
+        analysisConfig.setCategorizationFieldName("msg");
+        boolean stopOnWarn = randomBoolean();
+        analysisConfig.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, stopOnWarn));
+
+        assertThat(analysisConfig.build().getPerPartitionCategorizationConfig().isStopOnWarn(), is(stopOnWarn));
     }
 
     private static AnalysisConfig.Builder createValidConfig() {

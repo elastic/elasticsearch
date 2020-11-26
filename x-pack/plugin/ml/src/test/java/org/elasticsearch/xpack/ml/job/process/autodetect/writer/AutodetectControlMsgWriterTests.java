@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 import org.junit.Before;
@@ -30,7 +31,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -178,12 +181,13 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
     public void testWriteUpdateModelPlotMessage() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
 
-        writer.writeUpdateModelPlotMessage(new ModelPlotConfig(true, "foo,bar"));
+        writer.writeUpdateModelPlotMessage(new ModelPlotConfig(true, "foo,bar", false));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[modelPlotConfig]\nboundspercentile = 95.0\nterms = foo,bar\n");
+        inOrder.verify(lengthEncodedWriter)
+            .writeField("u[modelPlotConfig]\nboundspercentile = 95.0\nterms = foo,bar\nannotations_enabled = false\n");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -274,6 +278,39 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("w");
+
+        inOrder.verify(lengthEncodedWriter).writeNumFields(2);
+        inOrder.verify(lengthEncodedWriter).writeField("");
+        StringBuilder spaces = new StringBuilder();
+        IntStream.rangeClosed(1, AutodetectControlMsgWriter.FLUSH_SPACES_LENGTH).forEach(i -> spaces.append(' '));
+        inOrder.verify(lengthEncodedWriter).writeField(spaces.toString());
+        inOrder.verify(lengthEncodedWriter).flush();
+
+        verifyNoMoreInteractions(lengthEncodedWriter);
+    }
+
+    public void testWriteForecastParamsMessage() throws IOException {
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 2);
+
+        ForecastParams params = ForecastParams.builder()
+            .duration(TimeValue.timeValueHours(3))
+            .expiresIn(TimeValue.timeValueDays(4))
+            .tmpStorage("/my_temp_dir")
+            .maxModelMemory(12345)
+            .minAvailableDiskSpace(98765)
+            .build();
+
+        writer.writeForecastMessage(params);
+
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeNumFields(2);
+        inOrder.verify(lengthEncodedWriter).writeField("");
+        ArgumentCaptor<String> capturedMessage = ArgumentCaptor.forClass(String.class);
+        inOrder.verify(lengthEncodedWriter).writeField(capturedMessage.capture());
+
+        assertThat(capturedMessage.getValue(), startsWith("p{\"forecast_id\":\""));
+        assertThat(capturedMessage.getValue(), endsWith("\"duration\":10800,\"expires_in\":345600,\"tmp_storage\":\"/my_temp_dir\","
+            +"\"max_model_memory\":12345,\"min_available_disk_space\":98765}"));
 
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter).writeField("");

@@ -9,10 +9,12 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class PreProcessingTests<T extends PreProcessor> extends AbstractSerializingTestCase<T> {
@@ -41,6 +43,22 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
         );
     }
 
+    public void testInputOutputFieldOrderConsistency() throws IOException {
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .supportsUnknownFields(supportsUnknownFields())
+            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(this::assertFieldConsistency)
+            .assertToXContentEquivalence(false)
+            .test();
+    }
+
+    private void assertFieldConsistency(T lft, T rgt) {
+        assertThat(lft.inputFields(), equalTo(rgt.inputFields()));
+        assertThat(lft.outputFields(), equalTo(rgt.outputFields()));
+    }
+
     public void testWithMissingField() {
         Map<String, Object> fields = randomFieldValues();
         PreProcessor preProcessor = this.createTestInstance();
@@ -58,9 +76,9 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
         return fieldValues;
     }
 
-    Map<String, Object> randomFieldValues(String categoricalField, String catigoricalValue) {
+    Map<String, Object> randomFieldValues(String categoricalField, Object categoricalValue) {
         Map<String, Object> fieldValues = randomFieldValues();
-        fieldValues.put(categoricalField, catigoricalValue);
+        fieldValues.put(categoricalField, categoricalValue);
         return fieldValues;
     }
 

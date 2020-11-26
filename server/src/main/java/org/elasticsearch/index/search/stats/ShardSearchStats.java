@@ -22,8 +22,10 @@ package org.elasticsearch.index.search.stats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -47,7 +49,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     public SearchStats stats(String... groups) {
         SearchStats.Stats total = totalStats.stats();
         Map<String, SearchStats.Stats> groupsSt = null;
-        if (groups != null && groups.length > 0) {
+        if (CollectionUtils.isEmpty(groups) == false) {
             groupsSt = new HashMap<>(groupsStats.size());
             if (groups.length == 1 && groups[0].equals("_all")) {
                 for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
@@ -146,25 +148,25 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
-    public void onNewContext(SearchContext context) {
+    public void onNewReaderContext(ReaderContext readerContext) {
         openContexts.inc();
     }
 
     @Override
-    public void onFreeContext(SearchContext context) {
+    public void onFreeReaderContext(ReaderContext readerContext) {
         openContexts.dec();
     }
 
     @Override
-    public void onNewScrollContext(SearchContext context) {
+    public void onNewScrollContext(ReaderContext readerContext) {
         totalStats.scrollCurrent.inc();
     }
 
     @Override
-    public void onFreeScrollContext(SearchContext context) {
+    public void onFreeScrollContext(ReaderContext readerContext) {
         totalStats.scrollCurrent.dec();
         assert totalStats.scrollCurrent.count() >= 0;
-        totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - context.getOriginNanoTime()));
+        totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
     }
 
     static final class StatsHolder {

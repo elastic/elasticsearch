@@ -114,7 +114,7 @@ public class ClientYamlSuiteRestApiTests extends ESTestCase {
     private static final String REST_SPEC_API = "{\n" +
         "  \"index\":{\n" +
         "    \"documentation\":{\n" +
-        "      \"url\":\"http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html\",\n" +
+        "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html\",\n" +
         "      \"description\":\"Creates or updates a document in an index.\"\n" +
         "    },\n" +
         "    \"stability\":\"stable\",\n" +

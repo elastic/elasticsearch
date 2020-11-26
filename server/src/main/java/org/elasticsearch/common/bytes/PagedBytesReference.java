@@ -31,7 +31,7 @@ import java.util.Objects;
  * A page based bytes reference, internally holding the bytes in a paged
  * data structure.
  */
-public class PagedBytesReference extends BytesReference {
+public class PagedBytesReference extends AbstractBytesReference {
 
     private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
 
@@ -39,11 +39,8 @@ public class PagedBytesReference extends BytesReference {
     private final int offset;
     private final int length;
 
-    public PagedBytesReference(ByteArray byteArray, int length) {
-        this(byteArray, 0, length);
-    }
-
-    private PagedBytesReference(ByteArray byteArray, int from, int length) {
+    PagedBytesReference(ByteArray byteArray, int from, int length) {
+        assert byteArray.hasArray() == false : "use BytesReference#fromByteArray";
         this.byteArray = byteArray;
         this.offset = from;
         this.length = length;
@@ -68,7 +65,6 @@ public class PagedBytesReference extends BytesReference {
     @Override
     public BytesRef toBytesRef() {
         BytesRef bref = new BytesRef();
-        // if length <= pagesize this will dereference the page, or materialize the byte[]
         byteArray.get(offset, length, bref);
         return bref;
     }

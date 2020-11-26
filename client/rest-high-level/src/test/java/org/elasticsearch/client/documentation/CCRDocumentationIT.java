@@ -19,11 +19,8 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -44,10 +41,12 @@ import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse.Pattern;
 import org.elasticsearch.client.ccr.IndicesFollowStats;
+import org.elasticsearch.client.ccr.PauseAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
+import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
@@ -55,8 +54,7 @@ import org.elasticsearch.client.core.BroadcastResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
@@ -74,21 +72,8 @@ import static org.hamcrest.Matchers.is;
 public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @Before
-    public void setupRemoteClusterConfig() throws IOException {
-        RestHighLevelClient client = highLevelClient();
-        // Configure local cluster as remote cluster:
-        // TODO: replace with nodes info highlevel rest client code when it is available:
-        final Request request = new Request("GET", "/_nodes");
-        Map<?, ?> nodesResponse = (Map<?, ?>) toMap(client().performRequest(request)).get("nodes");
-        // Select node info of first node (we don't know the node id):
-        nodesResponse = (Map<?, ?>) nodesResponse.get(nodesResponse.keySet().iterator().next());
-        String transportAddress = (String) nodesResponse.get("transport_address");
-
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Collections.singletonMap("cluster.remote.local.seeds", transportAddress));
-        ClusterUpdateSettingsResponse updateSettingsResponse =
-            client.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
-        assertThat(updateSettingsResponse.isAcknowledged(), is(true));
+    public void setupRemoteClusterConfig() throws Exception {
+        setupRemoteClusterConfig("local");
     }
 
     public void testPutFollow() throws Exception {
@@ -96,7 +81,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -108,6 +92,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             "follower", // <3>
             ActiveShardCount.ONE // <4>
         );
+        Settings settings =
+            Settings.builder().put("index.number_of_replicas", 0L).build();
+        putFollowRequest.setSettings(settings); // <5>
         // end::ccr-put-follow-request
 
         // tag::ccr-put-follow-execute
@@ -177,7 +164,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -243,7 +229,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -319,7 +304,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -408,7 +392,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             final Map<String, String> settings = new HashMap<>(2);
             final int numberOfShards = randomIntBetween(1, 2);
             settings.put("index.number_of_shards", Integer.toString(numberOfShards));
-            settings.put("index.soft_deletes.enabled", Boolean.TRUE.toString());
             createIndexRequest.settings(settings);
             final CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
@@ -505,6 +488,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
                 Arrays.asList("logs-*", "metrics-*") // <3>
         );
         request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <4>
+        Settings settings =
+            Settings.builder().put("index.number_of_replicas", 0L).build();
+        request.setSettings(settings); // <5>
         // end::ccr-put-auto-follow-pattern-request
 
         // tag::ccr-put-auto-follow-pattern-execute
@@ -681,6 +667,122 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testPauseAutoFollowPattern() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        {
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest("my_pattern", "local", List.of("logs-*"));
+            AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
+            assertThat(putResponse.isAcknowledged(), is(true));
+        }
+
+        // tag::ccr-pause-auto-follow-pattern-request
+        PauseAutoFollowPatternRequest request =
+            new PauseAutoFollowPatternRequest("my_pattern"); // <1>
+        // end::ccr-pause-auto-follow-pattern-request
+
+        // tag::ccr-pause-auto-follow-pattern-execute
+        AcknowledgedResponse response = client.ccr()
+            .pauseAutoFollowPattern(request, RequestOptions.DEFAULT);
+        // end::ccr-pause-auto-follow-pattern-execute
+
+        // tag::ccr-pause-auto-follow-pattern-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::ccr-pause-auto-follow-pattern-response
+
+        // tag::ccr-pause-auto-follow-pattern-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) { // <1>
+                    boolean paused = response.isAcknowledged();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-pause-auto-follow-pattern-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-pause-auto-follow-pattern-execute-async
+        client.ccr().pauseAutoFollowPatternAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-pause-auto-follow-pattern-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        {
+            DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
+    }
+
+    public void testResumeAutoFollowPattern() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        {
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest("my_pattern", "local", List.of("logs-*"));
+            AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
+            assertThat(putResponse.isAcknowledged(), is(true));
+
+            final PauseAutoFollowPatternRequest pauseRequest = new PauseAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse pauseResponse = client.ccr().pauseAutoFollowPattern(pauseRequest, RequestOptions.DEFAULT);
+            assertThat(pauseResponse.isAcknowledged(), is(true));
+        }
+
+        // tag::ccr-resume-auto-follow-pattern-request
+        ResumeAutoFollowPatternRequest request =
+            new ResumeAutoFollowPatternRequest("my_pattern"); // <1>
+        // end::ccr-resume-auto-follow-pattern-request
+
+        // tag::ccr-resume-auto-follow-pattern-execute
+        AcknowledgedResponse response = client.ccr()
+            .resumeAutoFollowPattern(request, RequestOptions.DEFAULT);
+        // end::ccr-resume-auto-follow-pattern-execute
+
+        // tag::ccr-resume-auto-follow-pattern-response
+        boolean acknowledged = response.isAcknowledged(); // <1>
+        // end::ccr-resume-auto-follow-pattern-response
+
+        // tag::ccr-resume-auto-follow-pattern-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) { // <1>
+                    boolean resumed = response.isAcknowledged();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-resume-auto-follow-pattern-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-resume-auto-follow-pattern-execute-async
+        client.ccr().resumeAutoFollowPatternAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-resume-auto-follow-pattern-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // Cleanup:
+        {
+            DeleteAutoFollowPatternRequest deleteRequest = new DeleteAutoFollowPatternRequest("my_pattern");
+            AcknowledgedResponse deleteResponse = client.ccr().deleteAutoFollowPattern(deleteRequest, RequestOptions.DEFAULT);
+            assertThat(deleteResponse.isAcknowledged(), is(true));
+        }
+    }
+
     public void testGetCCRStats() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -737,7 +839,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -805,7 +906,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create leader index:
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
             CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -865,10 +965,6 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
         }
-    }
-
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 
 }

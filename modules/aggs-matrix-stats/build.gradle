@@ -16,8 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
-    description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
-    classname 'org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin'
+  description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
+  classname 'org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin'
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
+  }
 }

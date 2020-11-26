@@ -38,7 +38,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.seqno.LocalCheckpointTracker.BIT_SET_SIZE;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class LocalCheckpointTrackerTests extends ESTestCase {
 
@@ -202,7 +203,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getProcessedCheckpoint(), equalTo(unFinishedSeq - 1L));
         tracker.markSeqNoAsProcessed(unFinishedSeq);
         assertThat(tracker.getProcessedCheckpoint(), equalTo(maxOps - 1L));
-        assertThat(tracker.processedSeqNo.size(), isOneOf(0, 1));
+        assertThat(tracker.processedSeqNo.size(), is(oneOf(0, 1)));
         if (tracker.processedSeqNo.size() == 1) {
             assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
         }
@@ -256,7 +257,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getProcessedCheckpoint(), equalTo(maxOps - 1L));
         assertThat(tracker.hasProcessed(unFinishedSeq), equalTo(true));
         assertThat(tracker.hasProcessed(randomLongBetween(maxOps, Long.MAX_VALUE)), equalTo(false));
-        assertThat(tracker.processedSeqNo.size(), isOneOf(0, 1));
+        assertThat(tracker.processedSeqNo.size(), is(oneOf(0, 1)));
         if (tracker.processedSeqNo.size() == 1) {
             assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
         }

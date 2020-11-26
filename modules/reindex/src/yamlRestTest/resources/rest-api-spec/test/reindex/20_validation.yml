@@ -1,0 +1,401 @@
+---
+"no body fails":
+  - do:
+      catch: param
+      reindex: {}
+
+---
+"junk in body fails":
+  - do:
+      catch: /unknown field \[junk\]/
+      reindex:
+        body:
+          junk:
+            more_junk:
+
+---
+"junk in source fails":
+  - do:
+      catch: /Unknown key for a START_OBJECT in \[junk\]./
+      reindex:
+        body:
+          source:
+            junk: {}
+
+---
+"junk in dest fails":
+  - do:
+      catch: /unknown field \[junk\]/
+      reindex:
+        body:
+          dest:
+            junk: {}
+
+---
+"no index on destination fails":
+  - do:
+      catch: /index must be specified/
+      reindex:
+        body:
+          dest: {}
+
+---
+"source size is accepted":
+  - do:
+      index:
+        index:   source
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      reindex:
+        body:
+          source:
+            index: source
+            size:  1000
+          dest:
+            index: dest
+
+---
+"search size fails if not a number":
+  - do:
+      catch: '/number_format_exception.*For input string: \"cat\"/'
+      reindex:
+        body:
+          source:
+            size: cat
+          dest:
+            index: dest
+
+---
+"search from is not supported":
+  - do:
+      catch: /from is not supported in this context/
+      reindex:
+        body:
+          source:
+            from: 1
+          dest:
+            index: dest
+
+---
+"overwriting version is not supported":
+  - do:
+      catch: /.*\[dest\] unknown field \[version\].*/
+      reindex:
+        body:
+          dest:
+            version: 10
+
+---
+"bad conflicts is error":
+  - do:
+      catch: /.*conflicts may only be "proceed" or "abort" but was \[cat\]/
+      reindex:
+        body:
+          conflicts: cat
+
+---
+"specifying size fails":
+  - skip:
+      version: " - 7.99.99"
+      reason: "size supported until 8"
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "text": "test" }
+
+  - do:
+      catch: /invalid parameter \[size\], use \[max_docs\] instead/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          size: 1
+
+---
+"invalid max_docs in body fails":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          max_docs: -4
+
+---
+"max_docs shoule be greater than slices":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] should be >= \[slices\]/
+      reindex:
+        max_docs: 1
+        slices: 2
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"invalid max_docs in URL fails":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
+      reindex:
+        max_docs: -4
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"inconsistent max_docs in body and max_docs in URL fails":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
+      reindex:
+        max_docs: 5
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          max_docs: 4
+
+---
+"requests_per_second cannot be an empty string":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
+      reindex:
+        requests_per_second: ""
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"requests_per_second cannot be negative":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
+      reindex:
+        requests_per_second: -12
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"requests_per_second cannot be zero":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
+      reindex:
+        requests_per_second: 0
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"requests_per_second cannot be unlimited":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
+      reindex:
+        requests_per_second: unlimited
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"reindex without source gives useful error message":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              enabled: false
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { age: 23 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /\[test\]\[1\] didn't store _source/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"source fields may not be modified":
+  - do:
+      catch: /stored_fields is not supported in this context/
+      reindex:
+        body:
+          source:
+            index: test
+            stored_fields: [_id]
+          dest:
+            index: dest
+
+---
+"unwhitelisted remote host fails":
+  - do:
+      catch: /\[badremote:9200\] not whitelisted in reindex.remote.whitelist/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://badremote:9200
+            index: test
+          dest:
+            index: dest
+
+---
+"badly formatted remote host fails":
+  - do:
+      catch: /\[host\] must be of the form \[scheme\].//\[host\].\[port\]/
+      reindex:
+        body:
+          source:
+            remote:
+              host: badremote
+              weird: stuff
+              badkey: is bad
+            index: test
+          dest:
+            index: dest
+
+---
+"junk in remote fails":
+  - do:
+      catch: /Unsupported fields in \[remote\]. \[weird,badkey\]/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              weird: stuff
+              badkey: is bad
+            index: test
+          dest:
+            index: dest
+
+---
+"broken socket timeout in remote fails":
+  - do:
+      catch: /number_format_exception/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              socket_timeout: borked
+            index: test
+          dest:
+            index: dest
+
+---
+"broken connect timeout in remote fails":
+  - do:
+      catch: /number_format_exception/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              connect_timeout: borked
+            index: test
+          dest:
+            index: dest
+
+---
+"junk in slices fails":
+  - do:
+      catch: /\[slices\] must be a positive integer or the string "auto"/
+      reindex:
+        slices: junk
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"zero slices fails":
+  - do:
+      catch: /\[slices\] must be a positive integer or the string "auto"/
+      reindex:
+        slices: 0
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"_source:false is rejected":
+  - do:
+      index:
+        index:   source
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /_source:false is not supported in this context/
+      reindex:
+        body:
+          source:
+            index: source
+            _source: false
+          dest:
+            index: dest

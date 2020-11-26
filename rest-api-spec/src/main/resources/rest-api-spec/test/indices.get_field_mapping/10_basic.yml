@@ -50,3 +50,17 @@ setup:
 
   - match: {test_index.mappings.text.mapping.text.type:     text}
   - match: {test_index.mappings.text.mapping.text.analyzer: default}
+
+---
+"Get field mapping with local parameter should fail":
+
+  - skip:
+      features: ["warnings", "node_selector"]
+
+  - do:
+      catch: bad_request
+      node_selector:
+        version: "8.0.0 - "
+      indices.get_field_mapping:
+        fields: text
+        local: true

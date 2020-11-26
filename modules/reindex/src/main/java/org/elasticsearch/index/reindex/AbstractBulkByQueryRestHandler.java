@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,7 +44,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         super(action);
     }
 
-    protected void parseInternalRequest(Request internal, RestRequest restRequest,
+    protected void parseInternalRequest(Request internal, RestRequest restRequest, NamedWriteableRegistry namedWriteableRegistry,
                                         Map<String, Consumer<Object>> bodyConsumers) throws IOException {
         assert internal != null : "Request should not be null";
         assert restRequest != null : "RestRequest should not be null";
@@ -51,7 +52,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         SearchRequest searchRequest = internal.getSearchRequest();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, size -> failOnSizeSpecified());
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, namedWriteableRegistry, size -> failOnSizeSpecified());
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));

@@ -1,20 +1,9 @@
 ---
 setup:
   - skip:
-      features: headers
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-        Content-Type: application/json
-      index:
-        index: .ml-meta
-        id: filter_imposter-filter
-        body: >
-          {
-            "filter_id": "imposter",
-            "items": ["a", "b"],
-            "type": "imposter"
-          }
+      features:
+        - headers
+        - warnings
 
   - do:
       headers:
@@ -38,6 +27,8 @@ setup:
           }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.ml-meta], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh: {}
@@ -128,28 +119,6 @@ setup:
         filter_id: "filter-foo2"
         description: "This filter has a description"
         items: ["123", "lmnop"]
-
----
-"Test invalid param combinations":
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        from: 0
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        size: 1
-
-  - do:
-      catch: bad_request
-      ml.get_filters:
-        filter_id: "filter-foo"
-        from: 0
-        size: 1
 
 ---
 "Test create filter given invalid filter_id":
@@ -335,17 +304,3 @@ setup:
   - match: { count: 0 }
   - match: { filters: [] }
 
----
-"Test get all filter given index exists but no mapping for filter_id":
-
-  - do:
-      indices.delete:
-        index: ".ml-meta"
-  - do:
-      indices.create:
-        index: ".ml-meta"
-
-  - do:
-      ml.get_filters: {}
-  - match: { count: 0 }
-  - match: { filters: [] }

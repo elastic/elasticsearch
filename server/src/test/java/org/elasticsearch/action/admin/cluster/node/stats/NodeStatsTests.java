@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
+import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
-import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -35,6 +35,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -45,9 +46,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -240,11 +243,35 @@ public class NodeStatsTests extends ESTestCase {
                     }
                 }
                 ScriptStats scriptStats = nodeStats.getScriptStats();
+                ScriptStats deserializedScriptStats = deserializedNodeStats.getScriptStats();
                 if (scriptStats == null) {
-                    assertNull(deserializedNodeStats.getScriptStats());
+                    assertNull(deserializedScriptStats);
                 } else {
-                    assertEquals(scriptStats.getCacheEvictions(), deserializedNodeStats.getScriptStats().getCacheEvictions());
-                    assertEquals(scriptStats.getCompilations(), deserializedNodeStats.getScriptStats().getCompilations());
+                    List<ScriptContextStats> deserialized = deserializedScriptStats.getContextStats();
+                    long evictions = 0;
+                    long limited = 0;
+                    long compilations = 0;
+                    List<ScriptContextStats> stats = scriptStats.getContextStats();
+                    for (ScriptContextStats generatedStats: stats) {
+                        List<ScriptContextStats> maybeDeserStats = deserialized.stream().filter(
+                            s -> s.getContext().equals(generatedStats.getContext())
+                        ).collect(Collectors.toList());
+
+                        assertEquals(1, maybeDeserStats.size());
+                        ScriptContextStats deserStats = maybeDeserStats.get(0);
+
+                        evictions += generatedStats.getCacheEvictions();
+                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
+
+                        limited += generatedStats.getCompilationLimitTriggered();
+                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+
+                        compilations += generatedStats.getCompilations();
+                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+                    }
+                    assertEquals(evictions, scriptStats.getCacheEvictions());
+                    assertEquals(limited, scriptStats.getCompilationLimitTriggered());
+                    assertEquals(compilations, scriptStats.getCompilations());
                 }
                 DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
                 DiscoveryStats deserializedDiscoveryStats = deserializedNodeStats.getDiscoveryStats();
@@ -315,7 +342,7 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
-    private static NodeStats createNodeStats() {
+    public static NodeStats createNodeStats() {
         DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         OsStats osStats = null;
@@ -413,7 +440,7 @@ public class NodeStatsTests extends ESTestCase {
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
         TransportStats transportStats = frequently() ? new TransportStats(randomNonNegativeLong(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
         HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
@@ -425,8 +452,21 @@ public class NodeStatsTests extends ESTestCase {
             }
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
-        ScriptStats scriptStats = frequently() ?
-                new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        ScriptStats scriptStats = null;
+        if (frequently()) {
+            int numContents = randomIntBetween(0, 20);
+            List<ScriptContextStats> stats = new ArrayList<>(numContents);
+            HashSet<String> contexts = new HashSet<>();
+            for (int i = 0; i < numContents; i++) {
+                stats.add(new ScriptContextStats(
+                    randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12)),
+                    randomLongBetween(0, 1024),
+                    randomLongBetween(0, 1024),
+                    randomLongBetween(0, 1024))
+                );
+            }
+            scriptStats = new ScriptStats(stats);
+        }
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
                 randomBoolean()
@@ -456,7 +496,8 @@ public class NodeStatsTests extends ESTestCase {
                 for (int j =0; j < numProcessors;j++) {
                     IngestStats.Stats processorStats = new IngestStats.Stats
                         (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-                    processorPerPipeline.add(new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10), processorStats));
+                    processorPerPipeline.add(new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10),
+                        randomAlphaOfLengthBetween(3, 10), processorStats));
                 }
                 ingestProcessorStats.put(pipelineId,processorPerPipeline);
             }
@@ -487,7 +528,7 @@ public class NodeStatsTests extends ESTestCase {
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats);
+                ingestStats, adaptiveSelectionStats, null);
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

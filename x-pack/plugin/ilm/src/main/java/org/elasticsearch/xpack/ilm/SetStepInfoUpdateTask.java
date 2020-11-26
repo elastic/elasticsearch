@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,7 +52,7 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
-        IndexMetaData idxMeta = currentState.getMetaData().index(index);
+        IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;
@@ -60,8 +60,8 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
         Settings indexSettings = idxMeta.getSettings();
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                && Objects.equals(currentStepKey, IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
-            return IndexLifecycleRunner.addStepInfoToClusterState(index, currentState, stepInfo);
+                && Objects.equals(currentStepKey, LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+            return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In

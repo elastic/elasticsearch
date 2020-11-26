@@ -24,13 +24,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -39,9 +39,8 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     final boolean keyed;
 
     AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -72,9 +71,14 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return value(Double.parseDouble(name));
     }
 
+    @Override
+    public Iterable<String> valueNames() {
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+    }
+
     public abstract double value(double key);
 
-    DocValueFormat formatter() {
+    public DocValueFormat formatter() {
         return format;
     }
 
@@ -82,12 +86,29 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return state.byteSize();
     }
 
-    TDigestState getState() {
+    /**
+     * Return the internal {@link TDigestState} sketch for this metric.
+     */
+    public TDigestState getState() {
         return state;
     }
 
+    /**
+     * Return the keys (percentiles) requested.
+     */
+    public double[] getKeys() {
+        return keys;
+    }
+
+    /**
+     * Should the output be keyed.
+     */
+    public boolean keyed() {
+        return keyed;
+    }
+
     @Override
-    public AbstractInternalTDigestPercentiles doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public AbstractInternalTDigestPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
@@ -96,11 +117,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetaData());
+        return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
     protected abstract AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+            Map<String, Object> metadata);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

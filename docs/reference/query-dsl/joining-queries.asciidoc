@@ -21,6 +21,15 @@ Also see the <<query-dsl-terms-lookup,terms-lookup mechanism>> in the `terms`
 query, which allows you to build a `terms` query from values contained in
 another document.
 
+[discrete]
+[[joining-queries-notes]]
+==== Notes
+
+[discrete]
+===== Allow expensive queries
+Joining queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.
+
 include::nested-query.asciidoc[]
 
 include::has-child-query.asciidoc[]

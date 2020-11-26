@@ -60,7 +60,7 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
         return bucketMap.get(key);
     }
 
-    private static ObjectParser<ParsedFilters, Void> PARSER =
+    private static final ObjectParser<ParsedFilters, Void> PARSER =
             new ObjectParser<>(ParsedFilters.class.getSimpleName(), true, ParsedFilters::new);
     static {
         declareMultiBucketAggregationFields(PARSER,
@@ -117,9 +117,9 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
             if (keyed) {
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                 bucket.key = currentFieldName;
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             }
 
             List<Aggregation> aggregations = new ArrayList<>();

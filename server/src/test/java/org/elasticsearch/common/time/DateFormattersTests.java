@@ -40,6 +40,31 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
 
+    public void testWeekBasedDates() {
+        // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
+        DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");
+
+        // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
+        assertThat(DateFormatters.from(dateFormatter.parse("2016-01")) ,
+            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+
+        // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
+        assertThat(DateFormatters.from(dateFormatter.parse("2015-01")) ,
+            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
+
+
+        // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
+         dateFormatter = DateFormatters.forPattern("YYYY");
+
+        // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
+        assertThat(DateFormatters.from(dateFormatter.parse("2016")) ,
+            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+
+        // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
+        assertThat(DateFormatters.from(dateFormatter.parse("2015")) ,
+            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
+    }
+
     // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
     // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact
@@ -114,8 +139,17 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(first, is(second));
     }
 
+    public void testNanoOfSecondWidth() throws Exception {
+        ZonedDateTime first = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1"));
+        assertThat(first.getNano(), is(100000000));
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.000000001"));
+        assertThat(second.getNano(), is(1));
+    }
+
     public void testLocales() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(IsoLocale.ROOT));
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(Locale.ROOT));
         Locale locale = randomLocale(random());
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).locale(), is(locale));
     }

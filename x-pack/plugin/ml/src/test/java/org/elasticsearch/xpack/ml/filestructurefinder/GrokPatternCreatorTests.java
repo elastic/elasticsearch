@@ -292,7 +292,7 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         Map<String, String> expectedDateMapping = new HashMap<>();
-        expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date_nanos");
         expectedDateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "dd/MM/yyyy HH:mm:ss,SSSSSS");
         assertEquals(expectedDateMapping, mappings.get("extra_timestamp"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));

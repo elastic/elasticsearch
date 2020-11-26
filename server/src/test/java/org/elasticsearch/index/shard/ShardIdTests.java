@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,13 +32,13 @@ public class ShardIdTests extends ESTestCase {
         assertEquals(indexName, id.getIndexName());
         assertEquals(shardId, id.getId());
         assertEquals(indexName, id.getIndex().getName());
-        assertEquals(IndexMetaData.INDEX_UUID_NA_VALUE, id.getIndex().getUUID());
+        assertEquals(IndexMetadata.INDEX_UUID_NA_VALUE, id.getIndex().getUUID());
 
         id = ShardId.fromString("[some]weird[0]Name][-125]");
         assertEquals("some]weird[0]Name", id.getIndexName());
         assertEquals(-125, id.getId());
         assertEquals("some]weird[0]Name", id.getIndex().getName());
-        assertEquals(IndexMetaData.INDEX_UUID_NA_VALUE, id.getIndex().getUUID());
+        assertEquals(IndexMetadata.INDEX_UUID_NA_VALUE, id.getIndex().getUUID());
 
         String badId = indexName + "," + shardId; // missing separator
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ShardId.fromString(badId));

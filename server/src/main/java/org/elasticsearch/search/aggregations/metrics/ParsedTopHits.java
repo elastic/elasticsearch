@@ -47,7 +47,7 @@ public class ParsedTopHits extends ParsedAggregation implements TopHits {
         return searchHits.toXContent(builder, params);
     }
 
-    private static ObjectParser<ParsedTopHits, Void> PARSER =
+    private static final ObjectParser<ParsedTopHits, Void> PARSER =
             new ObjectParser<>(ParsedTopHits.class.getSimpleName(), true, ParsedTopHits::new);
     static {
         declareAggregationFields(PARSER);

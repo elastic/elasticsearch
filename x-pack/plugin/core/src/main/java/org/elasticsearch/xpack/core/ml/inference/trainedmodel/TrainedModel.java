@@ -5,40 +5,34 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-import java.util.List;
-import java.util.Map;
 
-public interface TrainedModel extends NamedXContentObject, NamedWriteable {
+public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accountable {
 
     /**
-     * @return List of featureNames expected by the model. In the order that they are expected
+     * @return {@link TargetType} for the model.
      */
-    List<String> getFeatureNames();
+    TargetType targetType();
 
     /**
-     * Infer against the provided fields
+     * Runs validations against the model.
      *
-     * @param fields The fields and their values to infer against
-     * @return The predicted value. For classification this will be discrete values (e.g. 0.0, or 1.0).
-     *                              For regression this is continuous.
-     */
-    double infer(Map<String, Object> fields);
-
-    /**
-     * @return {@code true} if the model is classification, {@code false} otherwise.
-     */
-    boolean isClassification();
-
-    /**
-     * This gathers the probabilities for each potential classification value.
+     * Example: {@link org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree} should check if there are any loops
      *
-     * This only should return if the implementation model is inferring classification values and not regression
-     * @param fields The fields and their values to infer against
-     * @return The probabilities of each classification value
+     * @throws org.elasticsearch.ElasticsearchException if validations fail
      */
-    List<Double> inferProbabilities(Map<String, Object> fields);
+    void validate();
 
+    /**
+     * @return The estimated number of operations required at inference time
+     */
+    long estimatedNumOperations();
+
+    default Version getMinimalCompatibilityVersion() {
+        return Version.V_7_6_0;
+    }
 }

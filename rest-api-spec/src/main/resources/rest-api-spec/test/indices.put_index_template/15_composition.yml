@@ -1,0 +1,288 @@
+---
+"Component and index template composition":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: ct_low
+        body:
+          template:
+            settings:
+              number_of_replicas: 1
+            mappings:
+              properties:
+                field1:
+                  type: text
+            aliases:
+              aliasname:
+                is_write_index: false
+
+  - do:
+      cluster.put_component_template:
+        name: ct_high
+        body:
+          template:
+            settings:
+              index.number_of_replicas: 0
+            mappings:
+              properties:
+                field2:
+                  type: keyword
+            aliases:
+              aliasname:
+                is_write_index: true
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [foo, bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: ["foo", "bar-*"]
+          template:
+            settings:
+              index.number_of_shards: 2
+            mappings:
+              properties:
+                field3:
+                  type: integer
+            aliases:
+              my_alias: {}
+              aliasname:
+                filter:
+                  match_all: {}
+          composed_of: ["ct_low", "ct_high"]
+          priority: 400
+
+  - do:
+      indices.create:
+        index: bar-baz
+        body:
+          settings:
+            index.priority: 17
+          mappings:
+            properties:
+              foo:
+                type: keyword
+          aliases:
+            other: {}
+
+  - do:
+      indices.get:
+        index: bar-baz
+
+  - match: {bar-baz.settings.index.number_of_shards: "2"}
+  - match: {bar-baz.settings.index.number_of_replicas: "0"}
+  - match: {bar-baz.settings.index.priority: "17"}
+  - match: {bar-baz.mappings.properties.field1: {type: text}}
+  - match: {bar-baz.mappings.properties.field2: {type: keyword}}
+  - match: {bar-baz.mappings.properties.field3: {type: integer}}
+  - match: {bar-baz.mappings.properties.foo: {type: keyword}}
+  - match: {bar-baz.aliases.aliasname: {filter: {match_all: {}}}}
+  - match: {bar-baz.aliases.my_alias: {}}
+  - match: {bar-baz.aliases.other: {}}
+
+---
+"Index template priority":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [foo, bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: ["foo", "bar-*"]
+          template:
+            settings:
+              index.number_of_shards: 2
+          composed_of: []
+          priority: 400
+
+  - do:
+      allowed_warnings:
+        - "index template [another-template] has index patterns [bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [another-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: another-template
+        body:
+          index_patterns: ["bar-*"]
+          template:
+            settings:
+              index.number_of_shards: 3
+          composed_of: []
+          priority: 405
+
+  - do:
+      indices.create:
+        index: bar-baz
+
+  - do:
+      indices.get:
+        index: bar-baz
+
+  - match: {bar-baz.settings.index.number_of_shards: "3"}
+
+---
+"Component template only composition":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: ct_low
+        body:
+          template:
+            aliases:
+              alias1: {}
+
+  - do:
+      cluster.put_component_template:
+        name: ct_high
+        body:
+          template:
+            mappings:
+              properties:
+                field:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [baz*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: ["baz*"]
+          composed_of: ["ct_low", "ct_high"]
+
+  - do:
+      indices.create:
+        index: bazfoo
+
+  - do:
+      indices.get:
+        index: bazfoo
+
+  - match: {bazfoo.mappings.properties.field: {type: keyword}}
+  - match: {bazfoo.aliases.alias1: {}}
+
+---
+"Index template without component templates":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [eggplant] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: ["eggplant"]
+          template:
+            settings:
+              number_of_shards: 3
+
+  - do:
+      indices.create:
+        index: eggplant
+
+  - do:
+      indices.get:
+        index: eggplant
+
+  - match: {eggplant.settings.index.number_of_shards: "3"}
+
+---
+"Index template mapping merging":
+  - skip:
+      version: " - 7.8.99"
+      reason: "index template v2 mapping merging not available before 7.9"
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: red
+        body:
+          template:
+            mappings:
+              properties:
+                object1.red:
+                  type: keyword
+                object2.red:
+                  type: keyword
+
+  - do:
+      cluster.put_component_template:
+        name: blue
+        body:
+          template:
+            mappings:
+              properties:
+                object2.red:
+                  type: text
+                object1.blue:
+                  type: text
+                object2.blue:
+                  type: text
+
+  - do:
+      allowed_warnings:
+        - "index template [blue] has index patterns [purple-index] matching patterns from existing older templates [global] with patterns (global => [*]); this template [blue] will take precedence during new index creation"
+      indices.put_index_template:
+        name: blue
+        body:
+          index_patterns: ["purple-index"]
+          composed_of: ["red", "blue"]
+          template:
+            mappings:
+              properties:
+                object2.blue:
+                  type: integer
+                object1.purple:
+                  type: integer
+                object2.purple:
+                  type: integer
+                nested:
+                  type: nested
+                  include_in_root: true
+
+  - do:
+      indices.create:
+        index: purple-index
+        body:
+          mappings:
+            properties:
+              object2.purple:
+                type: double
+              object3.purple:
+                type: double
+              nested:
+                type: nested
+                include_in_root: false
+                include_in_parent: true
+
+  - do:
+      indices.get:
+        index: purple-index
+
+  - match: {purple-index.mappings.properties.object1.properties.red: {type: keyword}}
+  - match: {purple-index.mappings.properties.object1.properties.blue: {type: text}}
+  - match: {purple-index.mappings.properties.object1.properties.purple: {type: integer}}
+
+  - match: {purple-index.mappings.properties.object2.properties.red: {type: text}}
+  - match: {purple-index.mappings.properties.object2.properties.blue: {type: integer}}
+  - match: {purple-index.mappings.properties.object2.properties.purple: {type: double}}
+
+  - match: {purple-index.mappings.properties.object3.properties.purple: {type: double}}
+
+  - is_false: purple-index.mappings.properties.nested.include_in_root
+  - is_true: purple-index.mappings.properties.nested.include_in_parent

@@ -1,6 +1,7 @@
 `max_restore_bytes_per_sec`::
 
-    Throttles per node restore rate. Defaults to `40mb` per second.
+    Throttles per node restore rate. Defaults to unlimited.
+    Note that restores are also throttled through {ref}/recovery.html[recovery settings].
 
 `max_snapshot_bytes_per_sec`::
 

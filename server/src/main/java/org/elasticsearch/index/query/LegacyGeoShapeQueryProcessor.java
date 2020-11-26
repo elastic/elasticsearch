@@ -26,8 +26,10 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -49,7 +52,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
@@ -57,21 +60,23 @@ import org.locationtech.spatial4j.shape.Shape;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryProcessor {
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-    private AbstractGeometryFieldMapper.AbstractGeometryFieldType ft;
+public class LegacyGeoShapeQueryProcessor  {
 
-    public LegacyGeoShapeQueryProcessor(AbstractGeometryFieldMapper.AbstractGeometryFieldType ft) {
+    private AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft;
+
+    public LegacyGeoShapeQueryProcessor(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft) {
         this.ft = ft;
     }
 
-    @Override
-    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
-    }
+    public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy,
+                               ShapeRelation relation, QueryShardContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
 
-    @Override
-    public Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context) {
         LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (LegacyGeoShapeFieldMapper.GeoShapeFieldType) ft;
         SpatialStrategy spatialStrategy = shapeFieldType.strategy();
         if (strategy != null) {
@@ -83,7 +88,7 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
             // before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
-            Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
+            Query exists = ExistsQueryBuilder.newFilter(context, fieldName,false);
             Query intersects = prefixTreeStrategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
@@ -108,7 +113,6 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         }
     }
 
-
     /**
      * Builds JTS shape from a geometry
      * <p>
@@ -118,12 +122,11 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         return geometryToShapeBuilder(geometry).buildS4J();
     }
 
-
     public static ShapeBuilder<?, ?, ?> geometryToShapeBuilder(Geometry geometry) {
         ShapeBuilder<?, ?, ?> shapeBuilder = geometry.visit(new GeometryVisitor<>() {
             @Override
             public ShapeBuilder<?, ?, ?> visit(Circle circle) {
-                throw new UnsupportedOperationException("circle is not supported");
+                return new CircleBuilder().center(circle.getLon(), circle.getLat()).radius(circle.getRadiusMeters(), DistanceUnit.METERS);
             }
 
             @Override

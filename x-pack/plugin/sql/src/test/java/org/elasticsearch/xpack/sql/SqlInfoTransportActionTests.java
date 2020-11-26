@@ -57,25 +57,10 @@ public class SqlInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isSqlAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SQL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-    }
-
-    public void testEnabled() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.sql.enabled", enabled);
-            }
-        } else {
-            settings.put("xpack.sql.enabled", enabled);
-        }
-        SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(enabled));
     }
 
     @SuppressWarnings("unchecked")
@@ -110,15 +95,15 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(mockNode);
 
         var usageAction = new SqlUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
+            mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get().getUsage();
-        
+
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());
         long fooFoo = ObjectPath.eval("foo.foo", sqlUsage.stats());
         long spam = ObjectPath.eval("spam", sqlUsage.stats());
-        
+
         assertThat(sqlUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         assertThat(fooBarBaz, is(5L));
         assertThat(fooFoo, is(1L));

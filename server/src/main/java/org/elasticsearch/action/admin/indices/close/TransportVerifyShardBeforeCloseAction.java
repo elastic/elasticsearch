@@ -20,7 +20,6 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -32,7 +31,6 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -60,8 +58,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     public TransportVerifyShardBeforeCloseAction(final Settings settings, final TransportService transportService,
                                                  final ClusterService clusterService, final IndicesService indicesService,
                                                  final ThreadPool threadPool, final ShardStateAction stateAction,
-                                                 final ActionFilters actionFilters, final IndexNameExpressionResolver resolver) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction, actionFilters, resolver,
+                                                 final ActionFilters actionFilters) {
+        super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction, actionFilters,
             ShardRequest::new, ShardRequest::new, ThreadPool.Names.MANAGEMENT);
     }
 
@@ -97,9 +95,11 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws IOException {
-        executeShardOperation(shardRequest, replica);
-        return new ReplicaResult();
+    protected void shardOperationOnReplica(ShardRequest shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            executeShardOperation(shardRequest, replica);
+            return new ReplicaResult();
+        });
     }
 
     private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) throws IOException {
@@ -154,11 +154,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                phase1 = in.readBoolean();
-            } else {
-                phase1 = false;
-            }
+            phase1 = in.readBoolean();
         }
 
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final boolean phase1, final TaskId parentTaskId) {
@@ -177,9 +173,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeBoolean(phase1);
-            }
+            out.writeBoolean(phase1);
         }
 
         public ClusterBlock clusterBlock() {

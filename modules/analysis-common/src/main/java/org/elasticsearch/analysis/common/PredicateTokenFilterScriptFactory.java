@@ -69,5 +69,11 @@ public class PredicateTokenFilterScriptFactory extends AbstractTokenFilterFactor
             token.updatePosition();
             return script.execute(token);
         }
+
+        @Override
+        public void reset() throws IOException {
+            super.reset();
+            this.token.reset();
+        }
     }
 }

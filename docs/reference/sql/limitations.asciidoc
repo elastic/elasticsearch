@@ -3,7 +3,7 @@
 [[sql-limitations]]
 == SQL Limitations
 
-[float]
+[discrete]
 [[large-parsing-trees]]
 === Large queries may throw `ParsingExpection`
 
@@ -11,7 +11,7 @@ Extremely large queries can consume too much memory during the parsing phase, in
 abort parsing and throw an error. In such cases, consider reducing the query to a smaller size by potentially
 simplifying it or splitting it into smaller queries.
 
-[float]
+[discrete]
 [[sys-columns-describe-table-nested-fields]]
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 
@@ -31,7 +31,35 @@ For example:
 SELECT dep.dep_name.keyword FROM test_emp GROUP BY languages;
 --------------------------------------------------
 
-[float]
+[discrete]
+=== Scalar functions on nested fields are not allowed in `WHERE` and `ORDER BY` clauses
+{es-sql} doesn't support the usage of scalar functions on top of nested fields in `WHERE`
+and `ORDER BY` clauses with the exception of comparison and logical operators.
+
+For example:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp WHERE LENGTH(dep.dep_name.keyword) > 5;
+--------------------------------------------------
+
+and
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp ORDER BY YEAR(dep.start_date);
+--------------------------------------------------
+
+are not supported but:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test_emp WHERE dep.start_date >= CAST('2020-01-01' AS DATE) OR dep.dep_end_date IS NULL;
+--------------------------------------------------
+
+is supported.
+
+[discrete]
 === Multi-nested fields
 
 {es-sql} doesn't support multi-nested documents, so a query cannot reference more than one nested field in an index.
@@ -52,20 +80,20 @@ nested_B.text         |VARCHAR        |KEYWORD
 `nested_A` and `nested_B` cannot be used at the same time, nor `nested_A`/`nested_B` and `nested_A.nested_X` combination.
 For such situations, {es-sql} will display an error message.
 
-[float]
+[discrete]
 === Paginating nested inner hits
 
 When SELECTing a nested field, pagination will not work as expected, {es-sql} will return __at least__ the page size records. 
 This is because of the way nested queries work in {es}: the root nested field will be returned and it's matching inner nested fields as well,
 pagination taking place on the **root nested document and not on its inner hits**.
 
-[float]
+[discrete]
 [[normalized-keyword-fields]]
 === Normalized `keyword` fields
 
 `keyword` fields in {es} can be normalized by defining a `normalizer`. Such fields are not supported in {es-sql}.
 
-[float]
+[discrete]
 === Array type of fields
 
 Array fields are not supported due to the "invisible" way in which {es} handles an array of values: the mapping doesn't indicate whether
@@ -73,7 +101,7 @@ a field is an array (has multiple values) or not, so without reading all the dat
 When multiple values are returned for a field, by default, {es-sql} will throw an exception. However, it is possible to change this behavior through `field_multi_value_leniency` parameter in REST (disabled by default) or
 `field.multi.value.leniency` in drivers (enabled by default).
 
-[float]
+[discrete]
 === Sorting by aggregation
 
 When doing aggregations (`GROUP BY`) {es-sql} relies on {es}'s `composite` aggregation for its support for paginating results.
@@ -90,13 +118,18 @@ SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
 an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
 
-[float]
-=== Using aggregation functions on top of scalar functions
+Moreover, the aggregation(s) used in the `ORDER BY` must be only plain aggregate functions. No scalar
+functions or operators can be used, and therefore no complex columns that combine two ore more aggregate
+functions can be used for ordering. Here are some examples of queries that are *not allowed*:
 
-Aggregation functions like <<sql-functions-aggs-min,`MIN`>>, <<sql-functions-aggs-max,`MAX`>>, etc. can only be used
-directly on fields, and so queries like `SELECT MAX(abs(age)) FROM test` are not possible.
+[source, sql]
+--------------------------------------------------
+SELECT age, ROUND(AVG(salary)) AS avg FROM test GROUP BY age ORDER BY avg;
 
-[float]
+SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY age ORDER BY diff;
+--------------------------------------------------
+
+[discrete]
 === Using a sub-select
 
 Using sub-selects (`SELECT X FROM (SELECT Y)`) is **supported to a small degree**: any sub-select that can be "flattened" into a single
@@ -117,7 +150,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[limitationSubSelectRewritten]
 But, if the sub-select would include a `GROUP BY` or `HAVING` or the enclosing `SELECT` would be more complex than `SELECT X
 FROM (SELECT ...) WHERE [simple_condition]`, this is currently **un-supported**.
 
-[float]
+[discrete]
 [[first-last-agg-functions-having-clause]]
 === Using <<sql-functions-aggs-first, `FIRST`>>/<<sql-functions-aggs-last,`LAST`>> aggregation functions in `HAVING` clause
 
@@ -125,7 +158,7 @@ Using `FIRST` and `LAST` in the `HAVING` clause is not supported. The same appli
 <<sql-functions-aggs-min,`MIN`>> and <<sql-functions-aggs-max,`MAX`>> when their target column
 is of type <<keyword, `keyword`>> as they are internally translated to `FIRST` and `LAST`.
 
-[float]
+[discrete]
 [[group-by-time]]
 === Using TIME data type in GROUP BY or <<sql-functions-grouping-histogram>>
 
@@ -151,7 +184,7 @@ SELECT count(*) FROM test GROUP BY MINUTE((CAST(date_created AS TIME));
 SELECT HISTOGRAM(CAST(birth_date AS TIME), INTERVAL '10' MINUTES) as h, COUNT(*) FROM t GROUP BY h
 -------------------------------------------------------------
 
-[float]
+[discrete]
 [[geo-sql-limitations]]
 === Geo-related functions
 
@@ -162,7 +195,7 @@ indexed with some loss of precision from the original values (4.190951585769653E
 8.381903171539307E-8 for longitude). The altitude component is accepted but not stored in doc values nor indexed.
 Therefore calling `ST_Z` function in the filtering, grouping or sorting will return `null`.
 
-[float]
+[discrete]
 [[fields-from-source]]
 === Retrieving from `_source`
 
@@ -172,10 +205,34 @@ If a column, for which there is no source stored, is asked for in a query, {es-s
 this restriction are: `keyword`, `date`, `scaled_float`, `geo_point`, `geo_shape` since they are NOT returned from `_source` but
 from `docvalue_fields`.
 
-[float]
+[discrete]
 [[fields-from-docvalues]]
 === Retrieving from `docvalue_fields`
 
-When the number of columns retrieveable from `docvalue_fields` is greater than the configured <<dynamic-index-settings,`index.max_docvalue_fields_search` setting>>
+When the number of columns retrievable from `docvalue_fields` is greater than the configured <<dynamic-index-settings,`index.max_docvalue_fields_search` setting>>
 the query will fail with `IllegalArgumentException: Trying to retrieve too many docvalue_fields` error. Either the mentioned {es}
-setting needs to be adjusted or fewer columns retrieveable from `docvalue_fields` need to be selected.
+setting needs to be adjusted or fewer columns retrievable from `docvalue_fields` need to be selected.
+
+[discrete]
+[[aggs-in-pivot]]
+=== Aggregations in the <<sql-syntax-pivot, `PIVOT`>> clause
+
+The aggregation expression in <<sql-syntax-pivot, `PIVOT`>> will currently accept only one aggregation. It is thus not possible to obtain multiple aggregations for any one pivoted column.
+
+[discrete]
+[[subquery-in-pivot]]
+=== Using a subquery in <<sql-syntax-pivot, `PIVOT`>>'s `IN`-subclause
+
+The values that the <<sql-syntax-pivot, `PIVOT`>> query could pivot must be provided in the query as a list of literals; providing a subquery instead to build this list is not currently supported. For example, in this query:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (1, 2))
+-------------------------------------------------------------
+
+the `languages` of interest must be listed explicitly: `IN (1, 2)`. On the other hand, this example would **not work**:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (SELECT languages FROM test_emp WHERE languages <=2 GROUP BY languages))
+-------------------------------------------------------------

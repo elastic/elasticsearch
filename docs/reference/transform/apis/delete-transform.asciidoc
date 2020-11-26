@@ -1,53 +1,56 @@
 [role="xpack"]
 [testenv="basic"]
 [[delete-transform]]
-=== Delete {transforms} API
+= Delete {transform} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Delete {transforms}</titleabbrev>
+<titleabbrev>Delete {transform}</titleabbrev>
 ++++
 
 Deletes an existing {transform}.
 
-beta[]
-
 [[delete-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
-`DELETE _data_frame/transforms/<transform_id>`
+`DELETE _transform/<transform_id>`
 
 [[delete-transform-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * Before you can delete the {transform}, you must stop it.
-* If the {es} {security-features} are enabled, you must have
-`manage_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_admin` role has these privileges. For more information,
-see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* `manage_transform` 
+
+The built-in `transform_admin` role has this privilege. 
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[delete-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
-  (Required, string) Identifier for the {transform}.
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[delete-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `force`::
-(Optional, boolean) When `true`, the {transform} is deleted regardless of its
+(Optional, Boolean) When `true`, the {transform} is deleted regardless of its
 current state. The default value is `false`, meaning that the {transform} must be
 `stopped` before it can be deleted.
 
 [[delete-transform-examples]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
-DELETE _data_frame/transforms/ecommerce_transform
+DELETE _transform/ecommerce_transform
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 

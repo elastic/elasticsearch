@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -25,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -33,15 +31,20 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestDeletePrivilegesAction.class));
-
-    public RestDeletePrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestDeletePrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_security/privilege/{application}/{privilege}", this,
-            DELETE, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger);
+        return Collections.singletonList(new ReplacedRoute(DELETE, "/_security/privilege/{application}/{privilege}", DELETE,
+            "/_xpack/security/privilege/{application}/{privilege}"));
     }
 
     @Override

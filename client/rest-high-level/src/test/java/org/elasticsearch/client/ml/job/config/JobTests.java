@@ -133,7 +133,7 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         builder.setDataDescription(dataDescription);
 
         if (randomBoolean()) {
-            builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
+            builder.setModelPlotConfig(ModelPlotConfigTests.createRandomized());
         }
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());
@@ -141,8 +141,17 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         if (randomBoolean()) {
             builder.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         }
+        Long modelSnapshotRetentionDays = null;
         if (randomBoolean()) {
-            builder.setModelSnapshotRetentionDays(randomNonNegativeLong());
+            modelSnapshotRetentionDays = randomNonNegativeLong();
+            builder.setModelSnapshotRetentionDays(modelSnapshotRetentionDays);
+        }
+        if (randomBoolean()) {
+            if (modelSnapshotRetentionDays != null) {
+                builder.setDailyModelSnapshotRetentionAfterDays(randomLongBetween(0, modelSnapshotRetentionDays));
+            } else {
+                builder.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
+            }
         }
         if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());
@@ -158,6 +167,9 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setDeleting(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setAllowLazyOpen(randomBoolean());
         }
         return builder;
     }

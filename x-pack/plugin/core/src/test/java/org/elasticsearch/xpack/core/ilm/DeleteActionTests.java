@@ -30,20 +30,39 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
     }
 
     public void testToSteps() {
-        DeleteAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertNotNull(steps);
-        assertEquals(2, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
-        StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
-        WaitForNoFollowersStep firstStep = (WaitForNoFollowersStep) steps.get(0);
-        DeleteStep secondStep = (DeleteStep) steps.get(1);
-        assertEquals(expectedFirstStepKey, firstStep.getKey());
-        assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
-        assertEquals(expectedSecondStepKey, secondStep.getKey());
-        assertEquals(nextStepKey, secondStep.getNextStepKey());
+            randomAlphaOfLengthBetween(1, 10));
+        {
+            DeleteAction action = new DeleteAction(true);
+            List<Step> steps = action.toSteps(null, phase, nextStepKey);
+            assertNotNull(steps);
+            assertEquals(3, steps.size());
+            StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
+            StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, CleanupSnapshotStep.NAME);
+            StepKey expectedThirdKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
+            WaitForNoFollowersStep firstStep = (WaitForNoFollowersStep) steps.get(0);
+            CleanupSnapshotStep secondStep = (CleanupSnapshotStep) steps.get(1);
+            DeleteStep thirdStep = (DeleteStep) steps.get(2);
+            assertEquals(expectedFirstStepKey, firstStep.getKey());
+            assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
+            assertEquals(expectedSecondStepKey, secondStep.getKey());
+            assertEquals(expectedThirdKey, thirdStep.getKey());
+            assertEquals(nextStepKey, thirdStep.getNextStepKey());
+        }
+
+        {
+            DeleteAction actionKeepsSnapshot = new DeleteAction(false);
+            List<Step> steps = actionKeepsSnapshot.toSteps(null, phase, nextStepKey);
+            StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
+            StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
+            assertEquals(2, steps.size());
+            assertNotNull(steps);
+            WaitForNoFollowersStep firstStep = (WaitForNoFollowersStep) steps.get(0);
+            DeleteStep secondStep = (DeleteStep) steps.get(1);
+            assertEquals(expectedFirstStepKey, firstStep.getKey());
+            assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
+            assertEquals(nextStepKey, secondStep.getNextStepKey());
+        }
     }
 }

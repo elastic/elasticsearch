@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.script.TemplateScript;
+
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -26,18 +28,18 @@ public class PipelineProcessor extends AbstractProcessor {
 
     public static final String TYPE = "pipeline";
 
-    private final String pipelineName;
-
+    private final TemplateScript.Factory pipelineTemplate;
     private final IngestService ingestService;
 
-    private PipelineProcessor(String tag, String pipelineName, IngestService ingestService) {
-        super(tag);
-        this.pipelineName = pipelineName;
+    PipelineProcessor(String tag, String description, TemplateScript.Factory pipelineTemplate, IngestService ingestService) {
+        super(tag, description);
+        this.pipelineTemplate = pipelineTemplate;
         this.ingestService = ingestService;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        String pipelineName = ingestDocument.renderTemplate(this.pipelineTemplate);
         Pipeline pipeline = ingestService.getPipeline(pipelineName);
         if (pipeline != null) {
             ingestDocument.executePipeline(pipeline, handler);
@@ -52,8 +54,12 @@ public class PipelineProcessor extends AbstractProcessor {
         throw new UnsupportedOperationException("this method should not get executed");
     }
 
-    Pipeline getPipeline(){
-        return ingestService.getPipeline(pipelineName);
+    Pipeline getPipeline(IngestDocument ingestDocument) {
+        return ingestService.getPipeline(getPipelineToCallName(ingestDocument));
+    }
+
+    String getPipelineToCallName(IngestDocument ingestDocument){
+        return ingestDocument.renderTemplate(this.pipelineTemplate);
     }
 
     @Override
@@ -61,8 +67,8 @@ public class PipelineProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    String getPipelineName() {
-        return pipelineName;
+    TemplateScript.Factory getPipelineTemplate() {
+        return pipelineTemplate;
     }
 
     public static final class Factory implements Processor.Factory {
@@ -75,10 +81,10 @@ public class PipelineProcessor extends AbstractProcessor {
 
         @Override
         public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-            Map<String, Object> config) throws Exception {
-            String pipeline =
-                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "name");
-            return new PipelineProcessor(processorTag, pipeline, ingestService);
+                                        String description, Map<String, Object> config) throws Exception {
+            TemplateScript.Factory pipelineTemplate =
+                ConfigurationUtils.readTemplateProperty(TYPE, processorTag, config, "name", ingestService.getScriptService());
+            return new PipelineProcessor(processorTag, description, pipelineTemplate, ingestService);
         }
     }
 }

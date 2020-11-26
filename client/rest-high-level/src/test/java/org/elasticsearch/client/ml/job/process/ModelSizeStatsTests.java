@@ -24,6 +24,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.util.Date;
 
+import static org.elasticsearch.client.ml.job.process.ModelSizeStats.CategorizationStatus;
 import static org.elasticsearch.client.ml.job.process.ModelSizeStats.MemoryStatus;
 
 public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats> {
@@ -31,6 +32,7 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
         assertEquals(0, stats.getModelBytes());
+        assertNull(stats.getPeakModelBytes());
         assertNull(stats.getModelBytesExceeded());
         assertNull(stats.getModelBytesMemoryLimit());
         assertEquals(0, stats.getTotalByFieldCount());
@@ -38,6 +40,13 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
         assertEquals(0, stats.getTotalPartitionFieldCount());
         assertEquals(0, stats.getBucketAllocationFailuresCount());
         assertEquals(MemoryStatus.OK, stats.getMemoryStatus());
+        assertEquals(0, stats.getCategorizedDocCount());
+        assertEquals(0, stats.getTotalCategoryCount());
+        assertEquals(0, stats.getFrequentCategoryCount());
+        assertEquals(0, stats.getRareCategoryCount());
+        assertEquals(0, stats.getDeadCategoryCount());
+        assertEquals(0, stats.getFailedCategoryCount());
+        assertEquals(CategorizationStatus.OK, stats.getCategorizationStatus());
     }
 
     public void testSetMemoryStatus_GivenNull() {
@@ -70,6 +79,9 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
             stats.setModelBytes(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            stats.setPeakModelBytes(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             stats.setModelBytesExceeded(randomNonNegativeLong());
         }
         if (randomBoolean()) {
@@ -85,13 +97,34 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
             stats.setTotalPartitionFieldCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
+        }
+        if (randomBoolean()) {
+            stats.setCategorizedDocCount(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setTotalCategoryCount(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setFrequentCategoryCount(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setRareCategoryCount(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setDeadCategoryCount(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setFailedCategoryCount(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setCategorizationStatus(randomFrom(CategorizationStatus.values()));
+        }
+        if (randomBoolean()) {
             stats.setLogTime(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         }
         if (randomBoolean()) {
             stats.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
-        }
-        if (randomBoolean()) {
-            stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
         }
         return stats.build();
     }

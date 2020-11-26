@@ -1,0 +1,12 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[searchable-snapshots-apis]]
+== Searchable snapshots APIs
+
+beta::[]
+
+You can use the following APIs to perform searchable snapshots operations.
+
+* <<searchable-snapshots-api-mount-snapshot,Mount snapshot>>
+
+include::mount-snapshot.asciidoc[]

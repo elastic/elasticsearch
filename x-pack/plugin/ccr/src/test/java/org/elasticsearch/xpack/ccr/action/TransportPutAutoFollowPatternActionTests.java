@@ -8,8 +8,9 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
@@ -32,22 +34,31 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         request.setName("name1");
         request.setRemoteCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        final int numberOfReplicas = randomIntBetween(0, 4);
+        request.setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numberOfReplicas).build());
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metaData(MetaData.builder())
+            .metadata(Metadata.builder())
             .build();
 
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster"))
-            .metaData(MetaData.builder())
+            .metadata(Metadata.builder())
             .build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
+        assertThat(
+            autoFollowMetadata.getPatterns().get("name1").getSettings().keySet(),
+            hasItem(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey())
+        );
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(autoFollowMetadata.getPatterns().get("name1").getSettings()),
+            equalTo(numberOfReplicas));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(0));
     }
@@ -59,31 +70,31 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metaData(MetaData.builder())
+            .metadata(Metadata.builder())
             .build();
 
         int numLeaderIndices = randomIntBetween(1, 8);
         int numMatchingLeaderIndices = randomIntBetween(1, 8);
-        MetaData.Builder mdBuilder = MetaData.builder();
+        Metadata.Builder mdBuilder = Metadata.builder();
         for (int i = 0; i < numLeaderIndices; i++) {
-            mdBuilder.put(IndexMetaData.builder("transactions-" + i)
+            mdBuilder.put(IndexMetadata.builder("transactions-" + i)
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0));
         }
         for (int i = 0; i < numMatchingLeaderIndices; i++) {
-            mdBuilder.put(IndexMetaData.builder("logs-" + i)
+            mdBuilder.put(IndexMetadata.builder("logs-" + i)
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0));
         }
 
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster"))
-            .metaData(mdBuilder)
+            .metadata(mdBuilder)
             .build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
@@ -102,8 +113,24 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         Map<String, AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();
         List<String> existingPatterns = new ArrayList<>();
         existingPatterns.add("transactions-*");
-        existingAutoFollowPatterns.put("name1",
-            new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
+        existingAutoFollowPatterns.put(
+            "name1",
+            new AutoFollowPattern(
+                "eu_cluster",
+                existingPatterns,
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
         Map<String, List<String>> existingAlreadyFollowedIndexUUIDS = new HashMap<>();
         List<String> existingUUIDS = new ArrayList<>();
         existingUUIDS.add("_val");
@@ -112,25 +139,25 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         existingHeaders.put("name1", Collections.singletonMap("key", "val"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
+            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
         int numLeaderIndices = randomIntBetween(1, 8);
-        MetaData.Builder mdBuilder = MetaData.builder();
+        Metadata.Builder mdBuilder = Metadata.builder();
         for (int i = 0; i < numLeaderIndices; i++) {
-            mdBuilder.put(IndexMetaData.builder("logs-" + i)
+            mdBuilder.put(IndexMetadata.builder("logs-" + i)
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0));
         }
 
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster"))
-            .metaData(mdBuilder)
+            .metadata(mdBuilder)
             .build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));

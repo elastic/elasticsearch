@@ -53,7 +53,7 @@ import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
 
 class AwsEc2SeedHostsProvider implements SeedHostsProvider {
-    
+
     private static final Logger logger = LogManager.getLogger(AwsEc2SeedHostsProvider.class);
 
     private final TransportService transportService;
@@ -221,22 +221,13 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 
     private final class TransportAddressesCache extends SingleObjectCache<List<TransportAddress>> {
 
-        private boolean empty = true;
-
         protected TransportAddressesCache(TimeValue refreshInterval) {
             super(refreshInterval,  new ArrayList<>());
         }
 
         @Override
-        protected boolean needsRefresh() {
-            return (empty || super.needsRefresh());
-        }
-
-        @Override
         protected List<TransportAddress> refresh() {
-            final List<TransportAddress> nodes = fetchDynamicNodes();
-            empty = nodes.isEmpty();
-            return nodes;
+            return fetchDynamicNodes();
         }
     }
 }

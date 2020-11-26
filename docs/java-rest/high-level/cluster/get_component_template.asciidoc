@@ -1,0 +1,42 @@
+--
+:api: get-component-templates
+:request: GetComponentTemplatesRequest
+:response: GetComponentTemplatesResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Component Templates API
+
+The Get Component Templates API allows to retrieve information about one or more component templates.
+
+[id="{upid}-{api}-request"]
+==== Get Component Templates Request
+
+A +{request}+ specifies one component template name to retrieve.
+To return all component templates omit the name altogether.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> A single component template name
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Component Templates Response
+
+The returned +{response}+ consists a map of component template names and their corresponding definition.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> A map of matching component template names and the corresponding definitions

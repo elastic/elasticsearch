@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.logstash;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -17,8 +18,13 @@ public class LogstashFeatureSetUsage extends XPackFeatureSet.Usage {
         super(in);
     }
 
-    public LogstashFeatureSetUsage(boolean available, boolean enabled) {
-        super(XPackField.LOGSTASH, available, enabled);
+    public LogstashFeatureSetUsage(boolean available) {
+        super(XPackField.LOGSTASH, available, true);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
     }
 
 }

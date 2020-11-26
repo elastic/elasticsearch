@@ -31,20 +31,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 public class TransportClusterUpdateSettingsAction extends
     TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
@@ -60,14 +57,9 @@ public class TransportClusterUpdateSettingsAction extends
                                                 ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
         super(ClusterUpdateSettingsAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            ClusterUpdateSettingsRequest::new, indexNameExpressionResolver);
+            ClusterUpdateSettingsRequest::new, indexNameExpressionResolver, ClusterUpdateSettingsResponse::new, ThreadPool.Names.SAME);
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override
@@ -75,10 +67,10 @@ public class TransportClusterUpdateSettingsAction extends
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
         if (request.transientSettings().size() + request.persistentSettings().size() == 1) {
             // only one setting
-            if (MetaData.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())
-                || MetaData.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())
-                || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.transientSettings())
-                || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.persistentSettings())) {
+            if (Metadata.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())
+                || Metadata.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())
+                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.transientSettings())
+                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.persistentSettings())) {
                 // one of the settings above as the only setting in the request means - resetting the block!
                 return null;
             }
@@ -87,16 +79,11 @@ public class TransportClusterUpdateSettingsAction extends
     }
 
     @Override
-    protected ClusterUpdateSettingsResponse read(StreamInput in) throws IOException {
-        return new ClusterUpdateSettingsResponse(in);
-    }
-
-    @Override
     protected void masterOperation(Task task, final ClusterUpdateSettingsRequest request, final ClusterState state,
                                    final ActionListener<ClusterUpdateSettingsResponse> listener) {
         final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         clusterService.submitStateUpdateTask("cluster_update_settings",
-                new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(Priority.IMMEDIATE, request, listener) {
+                new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
 
             private volatile boolean changed = false;
 
@@ -139,7 +126,7 @@ public class TransportClusterUpdateSettingsAction extends
                 // to the components until the ClusterStateListener instances have been invoked, but are visible after
                 // the first update task has been completed.
                 clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings",
-                        new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(Priority.URGENT, request, listener) {
+                        new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 
                     @Override
                     public boolean mustAck(DiscoveryNode discoveryNode) {

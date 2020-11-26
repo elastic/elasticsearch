@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -32,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -60,6 +63,23 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
         this.numBuckets = numBuckets;
         this.roundingInfos = roundingInfos;
     }
+
+    @Override
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(
+                    roundingInfos,
+                    0,
+                    buildEmptySubAggregations()
+                );
+                return new InternalAutoDateHistogram(name, Collections.emptyList(), numBuckets, emptyBucketInfo,
+                    config.format(), metadata(), 1);
+            }
+        };
+    }
+
 
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,

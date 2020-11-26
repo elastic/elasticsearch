@@ -73,6 +73,7 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
             cardinality,
             metadata
         );
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Range) valuesSourceConfig.getValuesSource();
         if (this.valuesSource.rangeType().isNumeric() == false) {
             throw new IllegalArgumentException(

@@ -58,6 +58,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, aggregationContext, parent, metadata);
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
         this.wrapLongitude = wrapLongitude;
 

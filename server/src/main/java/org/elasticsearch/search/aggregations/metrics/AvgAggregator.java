@@ -49,6 +49,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     AvgAggregator(String name, ValuesSourceConfig valuesSourceConfig, SearchContext context,
                   Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
 

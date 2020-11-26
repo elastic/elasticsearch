@@ -63,7 +63,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
         this.sigma = sigma;

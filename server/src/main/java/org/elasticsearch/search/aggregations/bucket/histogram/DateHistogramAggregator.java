@@ -243,6 +243,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
 

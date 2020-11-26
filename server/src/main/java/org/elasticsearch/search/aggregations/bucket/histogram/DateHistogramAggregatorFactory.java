@@ -25,6 +25,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -33,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -80,6 +83,20 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
 
     public long minDocCount() {
         return minDocCount;
+    }
+
+    @Override
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
+                    ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
+                    : null;
+                return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount,
+                    rounding.offset(), emptyBucketInfo, config.format(), keyed, metadata());
+            }
+        };
     }
 
     protected Aggregator doCreateInternal(

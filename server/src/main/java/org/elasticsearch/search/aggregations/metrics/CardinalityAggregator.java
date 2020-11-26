@@ -77,6 +77,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = valuesSourceConfig.getValuesSource();
         this.precision = precision;
         this.counts = new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);

@@ -56,6 +56,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
 
         counts = bigArrays().newLongArray(1, true);

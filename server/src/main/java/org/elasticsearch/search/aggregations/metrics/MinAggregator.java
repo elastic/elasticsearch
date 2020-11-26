@@ -59,6 +59,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                     Aggregator parent,
                     Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
+        assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
 
         mins = context.bigArrays().newDoubleArray(1, false);

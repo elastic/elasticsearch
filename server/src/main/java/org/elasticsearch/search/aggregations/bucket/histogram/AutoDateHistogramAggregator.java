@@ -124,6 +124,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = targetBuckets;
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;

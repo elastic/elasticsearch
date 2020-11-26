@@ -56,6 +56,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, aggregationContext, parent, metadata);
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = valuesSourceConfig.getValuesSource();
 
         counts = bigArrays().newLongArray(1, true);

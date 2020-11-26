@@ -48,7 +48,8 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, aggregationContext, parent, cardinality, metadata);
-        this.valuesSource = valuesSourceConfig.getValuesSource();
+        // TODO: Stop using nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
     }
 
     @Override
@@ -56,7 +57,16 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
             final LeafBucketCollector sub) throws IOException {
         final DocValueBits docsWithValue;
 
-        docsWithValue = valuesSource.docsWithValue(ctx);
+        if (valuesSource != null) {
+            docsWithValue = valuesSource.docsWithValue(ctx);
+        } else {
+            docsWithValue = new DocValueBits() {
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return false;
+                }
+            };
+        }
         return new LeafBucketCollectorBase(sub, docsWithValue) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

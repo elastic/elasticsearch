@@ -76,6 +76,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
             cardinalityUpperBound,
             metadata
         );
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
     }
 

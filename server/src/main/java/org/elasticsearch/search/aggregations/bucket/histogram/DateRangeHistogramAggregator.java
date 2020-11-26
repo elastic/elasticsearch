@@ -100,6 +100,8 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
+
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Range) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         if (this.valuesSource.rangeType() != RangeType.DATE) {

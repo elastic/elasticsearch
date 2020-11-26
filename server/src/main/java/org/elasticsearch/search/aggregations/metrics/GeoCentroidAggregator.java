@@ -52,7 +52,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-
+        assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
 
         lonSum = bigArrays().newDoubleArray(1, true);

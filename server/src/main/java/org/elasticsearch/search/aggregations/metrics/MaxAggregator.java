@@ -58,6 +58,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                     SearchContext context,
                     Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
+        assert config.hasValues();
         this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
 
         maxes = context.bigArrays().newDoubleArray(1, false);
@@ -79,6 +80,14 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            if (parent != null) {
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            } else {
+                // we have no parent and the values source is empty so we can skip collecting hits.
+                throw new CollectionTerminatedException();
+            }
+        }
         if (pointConverter != null) {
             Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
             if (segMax != null) {

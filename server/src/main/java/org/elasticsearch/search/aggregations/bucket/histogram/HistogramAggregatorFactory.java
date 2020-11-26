@@ -24,6 +24,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -32,8 +34,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds.getEffectiveMax;
+import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds.getEffectiveMin;
 
 /**
  * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
@@ -83,6 +89,22 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
 
     public long minDocCount() {
         return minDocCount;
+    }
+
+    @Override
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
+                if (minDocCount == 0) {
+                    emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, getEffectiveMin(extendedBounds),
+                        getEffectiveMax(extendedBounds), buildEmptySubAggregations());
+                }
+                return new InternalHistogram(name, Collections.emptyList(), order, minDocCount,
+                    emptyBucketInfo, config.format(), keyed, metadata());
+            }
+        };
     }
 
     @Override

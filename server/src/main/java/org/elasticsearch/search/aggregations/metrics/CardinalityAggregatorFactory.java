@@ -24,6 +24,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -85,6 +87,16 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         final long ordinalsMemoryUsage = leaves.size() == 1 ? total * 4L : total * 3L;
         // we do not consider the size if the bitSet, I think at most they can be ~1MB per bucket
         return ordinalsMemoryUsage < countsMemoryUsage;
+    }
+
+    @Override
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return new InternalCardinality(name, null, metadata());
+            }
+        };
     }
 
     @Override

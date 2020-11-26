@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportRequest;
@@ -22,44 +21,72 @@ public class OperatorPrivileges {
     public static final Setting<Boolean> OPERATOR_PRIVILEGES_ENABLED =
         Setting.boolSetting("xpack.security.operator_privileges.enabled", false, Setting.Property.NodeScope);
 
-    private final OperatorUserDescriptor operatorUserDescriptor;
-    private final OperatorOnly operatorOnly;
-    private final XPackLicenseState licenseState;
-    private final boolean enabled;
+    public interface OperatorPrivilegesService {
+        /**
+         * Set a ThreadContext Header {@link AuthenticationField#PRIVILEGE_CATEGORY_KEY} if authentication
+         * is an operator user.
+         */
+        void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext);
 
-    public OperatorPrivileges(Settings settings, XPackLicenseState licenseState,
-                              OperatorUserDescriptor operatorUserDescriptor, OperatorOnly operatorOnly) {
-        this.operatorUserDescriptor = operatorUserDescriptor;
-        this.operatorOnly = operatorOnly;
-        this.licenseState = licenseState;
-        this.enabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
+        /**
+         * Check whether the user is an operator and whether the request is an operator-only.
+         * @return An exception if user is an non-operator and the request is operotor-only. Otherwise return null.
+         */
+        ElasticsearchSecurityException check(String action, TransportRequest request, ThreadContext threadContext);
     }
 
-    public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
-        if (shouldProcess() && operatorUserDescriptor.isOperatorUser(authentication)) {
-            threadContext.putHeader(
-                AuthenticationField.PRIVILEGE_CATEGORY_KEY,
-                AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
-        }
-    }
+    public static final class DefaultOperatorPrivilegesService implements OperatorPrivilegesService {
 
-    public ElasticsearchSecurityException check(String action, TransportRequest request, ThreadContext threadContext) {
-        if (false == shouldProcess()) {
-            return null;
+        private final FileOperatorUsersStore fileOperatorUsersStore;
+        private final OperatorOnlyRegistry operatorOnlyRegistry;
+        private final XPackLicenseState licenseState;
+
+        public DefaultOperatorPrivilegesService(
+            XPackLicenseState licenseState,
+            FileOperatorUsersStore fileOperatorUsersStore,
+            OperatorOnlyRegistry operatorOnlyRegistry) {
+            this.fileOperatorUsersStore = fileOperatorUsersStore;
+            this.operatorOnlyRegistry = operatorOnlyRegistry;
+            this.licenseState = licenseState;
         }
-        if (shouldProcess() && false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY))) {
-            // Only check whether request is operator only if user is not an operator
-            final Supplier<String> messageSupplier = operatorOnly.check(action, request);
-            if (messageSupplier != null) {
-                return new ElasticsearchSecurityException(
-                    "Operator privileges are required for " + messageSupplier.get());
+
+        public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
+            if (false == shouldProcess()) {
+                return;
+            }
+            if (fileOperatorUsersStore.isOperatorUser(authentication)) {
+                threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
             }
         }
-        return null;
+
+        public ElasticsearchSecurityException check(String action, TransportRequest request, ThreadContext threadContext) {
+            if (false == shouldProcess()) {
+                return null;
+            }
+            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
+                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY))) {
+                // Only check whether request is operator only if user is not an operator
+                final Supplier<String> messageSupplier = operatorOnlyRegistry.check(action, request);
+                if (messageSupplier != null) {
+                    return new ElasticsearchSecurityException("Operator privileges are required for " + messageSupplier.get());
+                }
+            }
+            return null;
+        }
+
+        private boolean shouldProcess() {
+            return licenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES);
+        }
     }
 
-    private boolean shouldProcess() {
-        return enabled && licenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES);
-    }
+    public static final OperatorPrivilegesService NOOP_OPERATOR_PRIVILEGES_SERVICE = new OperatorPrivilegesService() {
+        @Override
+        public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
+        }
+
+        @Override
+        public ElasticsearchSecurityException check(String action, TransportRequest request, ThreadContext threadContext) {
+            return null;
+        }
+    };
 }

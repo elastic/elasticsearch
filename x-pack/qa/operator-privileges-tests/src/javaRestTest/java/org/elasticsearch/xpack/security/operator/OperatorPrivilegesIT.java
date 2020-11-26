@@ -89,7 +89,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
         List<String> allActions = (List<String>) response.get("actions");
         assertFalse(allActions.isEmpty());
-        allActions.removeAll(OperatorOnly.SIMPLE_ACTIONS);
+        allActions.removeAll(OperatorOnlyRegistry.SIMPLE_ACTIONS);
         allActions.removeAll(Constants.NON_OPERATOR_ACTIONS);
         assertTrue(allActions.isEmpty());
     }

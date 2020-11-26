@@ -3,3 +3,4 @@ operator:
     realm_name: file
     realm_type: file
     auth_type: realm
+  - usernames: ['operator_3']

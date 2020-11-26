@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.DefaultOperatorPrivilegesService;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
@@ -26,14 +28,14 @@ import static org.mockito.Mockito.when;
 public class OperatorPrivilegesTests extends ESTestCase {
 
     private XPackLicenseState xPackLicenseState;
-    private OperatorUserDescriptor operatorUserDescriptor;
-    private OperatorOnly operatorOnly;
+    private FileOperatorUsersStore fileOperatorUsersStore;
+    private OperatorOnlyRegistry operatorOnlyRegistry;
 
     @Before
     public void init() {
         xPackLicenseState = mock(XPackLicenseState.class);
-        operatorUserDescriptor = mock(OperatorUserDescriptor.class);
-        operatorOnly = mock(OperatorOnly.class);
+        fileOperatorUsersStore = mock(FileOperatorUsersStore.class);
+        operatorOnlyRegistry = mock(OperatorOnlyRegistry.class);
     }
 
     public void testWillNotProcessWhenFeatureIsDisabledOrLicenseDoesNotSupport() {
@@ -42,17 +44,17 @@ public class OperatorPrivilegesTests extends ESTestCase {
             .build();
         when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(false);
 
-        final OperatorPrivileges operatorPrivileges =
-            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, operatorOnly);
+        final OperatorPrivilegesService operatorPrivilegesService =
+            new DefaultOperatorPrivilegesService(xPackLicenseState, fileOperatorUsersStore, operatorOnlyRegistry);
         final ThreadContext threadContext = new ThreadContext(settings);
 
-        operatorPrivileges.maybeMarkOperatorUser(mock(Authentication.class), threadContext);
-        verifyZeroInteractions(operatorUserDescriptor);
+        operatorPrivilegesService.maybeMarkOperatorUser(mock(Authentication.class), threadContext);
+        verifyZeroInteractions(fileOperatorUsersStore);
 
         final ElasticsearchSecurityException e =
-            operatorPrivileges.check("cluster:action", mock(TransportRequest.class), threadContext);
+            operatorPrivilegesService.check("cluster:action", mock(TransportRequest.class), threadContext);
         assertNull(e);
-        verifyZeroInteractions(operatorOnly);
+        verifyZeroInteractions(operatorOnlyRegistry);
     }
 
     public void testMarkOperatorUser() {
@@ -62,19 +64,19 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(true);
         final Authentication operatorAuth = mock(Authentication.class);
         final Authentication nonOperatorAuth = mock(Authentication.class);
-        when(operatorUserDescriptor.isOperatorUser(operatorAuth)).thenReturn(true);
-        when(operatorUserDescriptor.isOperatorUser(nonOperatorAuth)).thenReturn(false);
+        when(fileOperatorUsersStore.isOperatorUser(operatorAuth)).thenReturn(true);
+        when(fileOperatorUsersStore.isOperatorUser(nonOperatorAuth)).thenReturn(false);
 
-        final OperatorPrivileges operatorPrivileges =
-            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, operatorOnly);
+        final OperatorPrivilegesService operatorPrivilegesService =
+            new DefaultOperatorPrivilegesService(xPackLicenseState, fileOperatorUsersStore, operatorOnlyRegistry);
         ThreadContext threadContext = new ThreadContext(settings);
 
-        operatorPrivileges.maybeMarkOperatorUser(operatorAuth, threadContext);
+        operatorPrivilegesService.maybeMarkOperatorUser(operatorAuth, threadContext);
         assertEquals(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
             threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
 
         threadContext = new ThreadContext(settings);
-        operatorPrivileges.maybeMarkOperatorUser(nonOperatorAuth, threadContext);
+        operatorPrivilegesService.maybeMarkOperatorUser(nonOperatorAuth, threadContext);
         assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
     }
 
@@ -87,23 +89,24 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final String operatorAction = "cluster:operator_only/action";
         final String nonOperatorAction = "cluster:non_operator/action";
         final String message = "[" + operatorAction + "]";
-        when(operatorOnly.check(eq(operatorAction), any())).thenReturn(() -> message);
-        when(operatorOnly.check(eq(nonOperatorAction), any())).thenReturn(null);
+        when(operatorOnlyRegistry.check(eq(operatorAction), any())).thenReturn(() -> message);
+        when(operatorOnlyRegistry.check(eq(nonOperatorAction), any())).thenReturn(null);
 
-        final OperatorPrivileges operatorPrivileges =
-            new OperatorPrivileges(settings, xPackLicenseState, operatorUserDescriptor, operatorOnly);
+        final OperatorPrivilegesService operatorPrivilegesService =
+            new DefaultOperatorPrivilegesService(xPackLicenseState, fileOperatorUsersStore, operatorOnlyRegistry);
 
         ThreadContext threadContext = new ThreadContext(settings);
         if (randomBoolean()) {
             threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
-            assertNull(operatorPrivileges.check(operatorAction, mock(TransportRequest.class), threadContext));
+            assertNull(operatorPrivilegesService.check(operatorAction, mock(TransportRequest.class), threadContext));
         } else {
-            final ElasticsearchSecurityException e = operatorPrivileges.check(operatorAction, mock(TransportRequest.class), threadContext);
+            final ElasticsearchSecurityException e = operatorPrivilegesService.check(
+                operatorAction, mock(TransportRequest.class), threadContext);
             assertNotNull(e);
             assertThat(e.getMessage(), containsString("Operator privileges are required for " + message));
         }
 
-        assertNull(operatorPrivileges.check(nonOperatorAction, mock(TransportRequest.class), threadContext));
+        assertNull(operatorPrivilegesService.check(nonOperatorAction, mock(TransportRequest.class), threadContext));
     }
 
 }

@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.security.transport.filter.IPFilter.IP_FILTER_ENABLED_HTTP_SETTING;
 import static org.elasticsearch.xpack.security.transport.filter.IPFilter.IP_FILTER_ENABLED_SETTING;
 
-public class OperatorOnly {
+public class OperatorOnlyRegistry {
 
     public static final Set<String> SIMPLE_ACTIONS = Set.of(AddVotingConfigExclusionsAction.NAME,
         ClearVotingConfigExclusionsAction.NAME,

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.DefaultOpera
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.junit.Before;
 
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -107,6 +108,19 @@ public class OperatorPrivilegesTests extends ESTestCase {
         }
 
         assertNull(operatorPrivilegesService.check(nonOperatorAction, mock(TransportRequest.class), threadContext));
+    }
+
+    public void testNoOpService() {
+        final Authentication authentication = mock(Authentication.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        NOOP_OPERATOR_PRIVILEGES_SERVICE.maybeMarkOperatorUser(authentication, threadContext);
+        verifyZeroInteractions(authentication);
+        assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
+
+        final TransportRequest request = mock(TransportRequest.class);
+        assertNull(NOOP_OPERATOR_PRIVILEGES_SERVICE.check(
+            randomAlphaOfLengthBetween(10, 20), request, threadContext));
+        verifyZeroInteractions(request);
     }
 
 }

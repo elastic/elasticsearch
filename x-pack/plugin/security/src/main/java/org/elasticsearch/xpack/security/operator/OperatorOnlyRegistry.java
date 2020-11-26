@@ -40,14 +40,14 @@ public class OperatorOnlyRegistry {
         "cluster:admin/autoscaling/get_autoscaling_capacity");
 
     // This class is a prototype to showcase what it would look like for operator only settings
-    // It may not be included in phase 1 delivery. Also this may end up using Enum Property to
+    // It may NOT be included in phase 1 delivery. Also this may end up using Enum Property to
     // mark operator only settings instead of using the list here.
     public static final Set<String> SIMPLE_SETTINGS = Set.of(IP_FILTER_ENABLED_HTTP_SETTING.getKey(), IP_FILTER_ENABLED_SETTING.getKey(),
         // TODO: Use literal strings due to dependency. Alternatively we can let each plugin publish names of operator settings
         "xpack.ml.max_machine_memory_percent", "xpack.ml.max_model_memory_limit");
 
     // This map is just to showcase how "partial" operator-only API would work.
-    // It will not be included in phase 1 delivery.
+    // It will be REMOVED before phase 1 delivery.
     public static final Map<String, Function<TransportRequest, Supplier<String>>> PARAMETER_SENSITIVE_ACTIONS =
         Map.of(DeleteRepositoryAction.NAME, (request) -> {
             assert request instanceof DeleteRepositoryRequest;

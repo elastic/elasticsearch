@@ -6,25 +6,36 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class OperatorOnlyRegistryTests extends ESTestCase {
 
+    private OperatorOnlyRegistry operatorOnlyRegistry;
+
+    @Before
+    public void init() {
+        operatorOnlyRegistry = new OperatorOnlyRegistry();
+    }
+
     public void testSimpleOperatorOnlyApi() {
-        final OperatorOnlyRegistry operatorOnlyRegistry = new OperatorOnlyRegistry();
         for (final String actionName : OperatorOnlyRegistry.SIMPLE_ACTIONS) {
             final Supplier<String> messageSupplier = operatorOnlyRegistry.check(actionName, null);
             assertNotNull(messageSupplier);
-            assertNotNull(messageSupplier.get());
+            assertThat(messageSupplier.get(), containsString("action [" + actionName + "]"));
         }
     }
 
     public void testNonOperatorOnlyApi() {
-        final OperatorOnlyRegistry operatorOnlyRegistry = new OperatorOnlyRegistry();
-        assertNull(operatorOnlyRegistry.check(MainAction.NAME, null));
+        final String actionName = randomValueOtherThanMany(
+            OperatorOnlyRegistry.SIMPLE_ACTIONS::contains, () -> randomAlphaOfLengthBetween(10, 40));
+        assertNull(operatorOnlyRegistry.check(actionName, null));
     }
+
+    // TODO: not tests for settings yet since it's not settled whether it will be part of phase 1
 
 }

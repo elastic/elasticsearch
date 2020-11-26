@@ -187,15 +187,6 @@ public class AuthorizationService {
             // if there is already an original action, that stays put (eg. the current action is a child action)
             putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
-            // Check operator privileges first if applicable
-            final ElasticsearchSecurityException operatorException
-                = operatorPrivilegesService.check(action, originalRequest, threadContext);
-            if (operatorException != null) {
-                // TODO: audit
-                listener.onFailure(denialException(authentication, action, operatorException));
-                return;
-            }
-
             String auditId = AuditUtil.extractRequestId(threadContext);
             if (auditId == null) {
                 // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
@@ -214,6 +205,16 @@ public class AuthorizationService {
             // sometimes a request might be wrapped within another, which is the case for proxied
             // requests and concrete shard requests
             final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
+
+            // Check operator privileges
+            // TODO: audit?
+            final ElasticsearchSecurityException operatorException =
+                operatorPrivilegesService.check(action, originalRequest, threadContext);
+            if (operatorException != null) {
+                listener.onFailure(denialException(authentication, action, operatorException));
+                return;
+            }
+
             if (SystemUser.is(authentication.getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);

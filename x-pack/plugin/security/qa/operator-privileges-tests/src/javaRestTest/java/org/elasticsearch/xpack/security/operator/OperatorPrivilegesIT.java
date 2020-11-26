@@ -34,18 +34,9 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @SuppressWarnings("unchecked")
     public void testNonOperatorSuperuserWillFailToCallOperatorOnlyApiWhenOperatorPrivilegesIsEnabled() throws IOException {
-        final Request getClusterSettingsRequest = new Request(
-            "GET",
-            "_cluster/settings?flat_settings&include_defaults&filter_path=defaults.*operator_privileges*"
-        );
-        final Map<String, Object> settingsMap = entityAsMap(client().performRequest(getClusterSettingsRequest));
-        final Map<String, Object> defaults = (Map<String, Object>) settingsMap.get("defaults");
-        final Object isOperatorPrivilegesEnabled = defaults.get("xpack.security.operator_privileges.enabled");
-
         final Request postVotingConfigExclusionsRequest = new Request("POST", "_cluster/voting_config_exclusions?node_names=foo");
-        if ("true".equals(isOperatorPrivilegesEnabled)) {
+        if (isOperatorPrivilegesEnabled()) {
             final ResponseException responseException = expectThrows(
                 ResponseException.class,
                 () -> client().performRequest(postVotingConfigExclusionsRequest)
@@ -89,7 +80,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
         Set<String> doubleLabelled = Sets.intersection(Constants.NON_OPERATOR_ACTIONS, OperatorOnlyRegistry.SIMPLE_ACTIONS);
-        assertTrue("Actions are both operator-only and non-operator", doubleLabelled.isEmpty());
+        assertTrue("Actions are both operator-only and non-operator: " + doubleLabelled, doubleLabelled.isEmpty());
 
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
@@ -97,10 +88,33 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         final HashSet<String> labelledActions = new HashSet<>(OperatorOnlyRegistry.SIMPLE_ACTIONS);
         labelledActions.addAll(Constants.NON_OPERATOR_ACTIONS);
 
-        final Set<String> unlabelledActions = Sets.difference(allActions, labelledActions);
-        assertTrue("Actions are neither operator-only nor non-operator", unlabelledActions.isEmpty());
+        final Set<String> unlabelled = Sets.difference(allActions, labelledActions);
+        assertTrue("Actions are neither operator-only nor non-operator: " + unlabelled, unlabelled.isEmpty());
 
-        final Set<String> redundantLabelledActions = Sets.difference(labelledActions, allActions);
-        assertTrue("Actions are no longer valid", redundantLabelledActions.isEmpty());
+        final Set<String> redundant = Sets.difference(labelledActions, allActions);
+        assertTrue("Actions may no longer be valid: " + redundant, redundant.isEmpty());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testOperatorPrivilegesXpackInfo() throws IOException {
+        final Request xpackRequest = new Request("GET", "/_xpack");
+        final Map<String, Object> response = entityAsMap(client().performRequest(xpackRequest));
+        final Map<String, Object> features = (Map<String, Object>) response.get("features");
+        final Map<String, Object> featureInfo = (Map<String, Object>) features.get("operator_privileges");
+        assertTrue((boolean) featureInfo.get("available"));
+        if (isOperatorPrivilegesEnabled()) {
+            assertTrue((boolean) featureInfo.get("enabled"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean isOperatorPrivilegesEnabled() throws IOException {
+        final Request getClusterSettingsRequest = new Request(
+            "GET",
+            "_cluster/settings?flat_settings&include_defaults&filter_path=defaults.*operator_privileges*"
+        );
+        final Map<String, Object> settingsMap = entityAsMap(client().performRequest(getClusterSettingsRequest));
+        final Map<String, Object> defaults = (Map<String, Object>) settingsMap.get("defaults");
+        return Boolean.parseBoolean((String) defaults.get("xpack.security.operator_privileges.enabled"));
     }
 }

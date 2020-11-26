@@ -20,10 +20,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,19 +34,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ObjectMapperMergeTests extends ESTestCase {
 
-    private static FieldMapper barFieldMapper = createTextFieldMapper("bar");
-    private static FieldMapper bazFieldMapper = createTextFieldMapper("baz");
+    private final FieldMapper barFieldMapper = createTextFieldMapper("bar");
+    private final FieldMapper bazFieldMapper = createTextFieldMapper("baz");
 
-    private static RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
+    private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
-    @AfterClass
-    public static void cleanupReferences() {
-        barFieldMapper = null;
-        bazFieldMapper = null;
-        rootObjectMapper = null;
-    }
-
-    private static RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
+    private RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
                                                   boolean includeBarField, boolean includeBazField) {
         Map<String, Mapper> mappers = new HashMap<>();
         mappers.put("disabled", createObjectMapper("disabled", disabledFieldEnabled, emptyMap()));
@@ -151,9 +142,9 @@ public class ObjectMapperMergeTests extends ESTestCase {
             .build(context);
     }
 
-    private static TextFieldMapper createTextFieldMapper(String name) {
+    private TextFieldMapper createTextFieldMapper(String name) {
         final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
         final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        return new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).build(context);
+        return new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers()).build(context);
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -55,7 +54,6 @@ public class TypeParsersTests extends ESTestCase {
     }
 
     public void testMultiFieldWithinMultiField() throws IOException {
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .field("type", "keyword")
@@ -76,13 +74,13 @@ public class TypeParsersTests extends ESTestCase {
         Map<String, Object> fieldNode = XContentHelper.convertToMap(
             BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
         MapperService mapperService = mock(MapperService.class);
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(
             null, mapperService, type -> typeParser, Version.CURRENT, null, null, null);
 
-        builder.parse("some-field", olderContext, fieldNode);
+        TextFieldMapper.PARSER.parse("some-field", fieldNode, olderContext);
         assertWarnings("At least one multi-field, [sub-field], " +
             "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
             "and will no longer be supported in 8.0. To resolve the issue, all instances of [fields] " +

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.DynamicMap;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -92,6 +94,10 @@ public abstract class AbstractFieldScript {
      */
     public final Map<String, ScriptDocValues<?>> getDoc() {
         return leafSearchLookup.doc();
+    }
+
+    protected final List<Object> extractFromSource(String path) {
+        return XContentMapValues.extractRawValues(path, leafSearchLookup.source().loadSourceIfNeeded());
     }
 
     /**

@@ -50,7 +50,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     private final CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent;
 
     AbstractScriptFieldType(String name, TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory, Builder builder) {
-        this(name, factory, builder.script.getValue(), builder.meta.getValue(), builder::toXContent);
+        this(name, factory, builder.getScript(), builder.meta.getValue(), builder::toXContent);
     }
 
     AbstractScriptFieldType(
@@ -206,6 +206,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         toXContent.accept(builder, includeDefaults);
     }
 
+    // Placeholder Script for source-only fields
+    // TODO rework things so that we don't need this
+    private static final Script DEFAULT_SCRIPT = new Script("");
+
     /**
      *  For runtime fields the {@link RuntimeFieldType.Parser} returns directly the {@link MappedFieldType}.
      *  Internally we still create a {@link Builder} so we reuse the {@link FieldMapper.Parameter} infrastructure,
@@ -222,11 +226,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
             () -> null,
             Builder::parseScript,
             initializerNotSupported()
-        ).setValidator(script -> {
-            if (script == null) {
-                throw new IllegalArgumentException("script must be specified for runtime field [" + name + "]");
-            }
-        });
+        ).setSerializerCheck((id, ic, v) -> ic);
 
         Builder(String name) {
             super(name);
@@ -238,6 +238,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         }
 
         protected abstract AbstractScriptFieldType<?> buildFieldType();
+
+        protected final Script getScript() {
+            if (script.get() == null) {
+                return DEFAULT_SCRIPT;
+            }
+            return script.get();
+        }
 
         @Override
         public FieldMapper.Builder init(FieldMapper initializer) {

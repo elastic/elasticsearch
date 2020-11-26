@@ -19,6 +19,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -50,6 +53,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_REPOSITORY);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
     }
+
 
     public static SearchableSnapshotAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -99,6 +103,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
         BranchingStep conditionalSkipActionStep = new BranchingStep(preActionBranchingKey, checkNoWriteIndex, nextStepKey,
             (index, clusterState) -> {
+                XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
+                if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
+                    logger.error("[{}] action is not available in the current license", SearchableSnapshotAction.NAME);
+                    throw LicenseUtils.newComplianceException("searchable-snapshots");
+                }
+
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {

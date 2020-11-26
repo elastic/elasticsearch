@@ -52,6 +52,9 @@ testClusters.integTest {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
+    if (BuildParams.isSnapshotBuild() == true) {
+      systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+    }
     if (BuildParams.isSnapshotBuild() == false) {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
     }

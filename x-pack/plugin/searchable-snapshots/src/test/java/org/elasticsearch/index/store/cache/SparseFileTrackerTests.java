@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SparseFileTrackerTests extends ESTestCase {
 
@@ -414,7 +415,33 @@ public class SparseFileTrackerTests extends ESTestCase {
         checkThread.join();
     }
 
-    public void testCompletedRanges() {
+    public void testSparseFileTrackerCreatedWithCompletedRanges() {
+        final long fileLength = between(0, 1000);
+        final SortedSet<Tuple<Long, Long>> completedRanges = randomRanges(fileLength);
+
+        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileLength, completedRanges);
+        assertThat(sparseFileTracker.getCompletedRanges(), equalTo(completedRanges));
+
+        for (Tuple<Long, Long> completedRange : completedRanges) {
+            assertThat(sparseFileTracker.getAbsentRangeWithin(completedRange.v1(), completedRange.v2()), nullValue());
+
+            final AtomicBoolean listenerCalled = new AtomicBoolean();
+            assertThat(sparseFileTracker.waitForRange(completedRange, completedRange, new ActionListener<>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    listenerCalled.set(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+            }), hasSize(0));
+            assertThat(listenerCalled.get(), is(true));
+        }
+    }
+
+    public void testGetCompletedRanges() {
         final byte[] fileContents = new byte[between(0, 1000)];
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileContents.length);
 
@@ -535,5 +562,19 @@ public class SparseFileTrackerTests extends ESTestCase {
             gap.onCompletion();
             return true;
         }
+    }
+
+    /**
+     * Generates a sorted set of non-empty and non-contiguous random ranges that could fit into a file of a given maximum length.
+     */
+    private static SortedSet<Tuple<Long, Long>> randomRanges(long length) {
+        final SortedSet<Tuple<Long, Long>> randomRanges = new TreeSet<>(Comparator.comparingLong(Tuple::v1));
+        for (long i = 0L; i < length;) {
+            long start = randomLongBetween(i, Math.max(0L, length - 1L));
+            long end = randomLongBetween(start + 1L, length); // +1 for non empty ranges
+            randomRanges.add(Tuple.tuple(start, end));
+            i = end + 1L + randomLongBetween(0L, Math.max(0L, length - end)); // +1 for non contiguous ranges
+        }
+        return randomRanges;
     }
 }

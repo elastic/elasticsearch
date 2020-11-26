@@ -37,7 +37,6 @@ import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-
 public class ReactiveStorageIT extends DiskUsageIntegTestCase {
 
     private static final long WATERMARK_BYTES = 10240;
@@ -76,7 +75,6 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                 .build()
         );
-
         indexRandom(
             true,
             IntStream.range(1, 100)
@@ -94,8 +92,8 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
         long minShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).min().orElseThrow();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
         long enoughSpace = used + WATERMARK_BYTES + 1;
-        setTotalSpace(dataNodeName, enoughSpace);
 
+        setTotalSpace(dataNodeName, enoughSpace);
         GetAutoscalingCapacityAction.Response response = capacity();
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace));
@@ -103,7 +101,6 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
 
         setTotalSpace(dataNodeName, enoughSpace - 2);
-
         response = capacity();
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace - 2));

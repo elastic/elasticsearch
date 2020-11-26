@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.azure.core.util.serializer.JacksonAdapter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -58,6 +59,12 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
     public static final String NETTY_EVENT_LOOP_THREAD_POOL_NAME = "azure_event_loop";
+
+    static {
+        // Trigger static initialization with the plugin class loader
+        // so we have access to the proper xml parser
+        JacksonAdapter.createDefaultSerializerAdapter();
+    }
 
     // protected for testing
     final SetOnce<AzureStorageService> azureStoreService = new SetOnce<>();

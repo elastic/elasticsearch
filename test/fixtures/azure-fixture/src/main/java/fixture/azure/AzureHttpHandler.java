@@ -192,6 +192,7 @@ public class AzureHttpHandler implements HttpHandler {
 
                 }
                 list.append("</Blobs>");
+                list.append("<NextMarker />");
                 list.append("</EnumerationResults>");
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);

@@ -15,7 +15,7 @@ testClusters.all {
   setting 'xpack.security.enabled', 'false'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   /**
    * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch
    * can successfully startup.

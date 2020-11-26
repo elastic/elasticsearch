@@ -25,18 +25,15 @@
 
   - do:
       search:
-        query:
-          query_string:
-            fields: [ "body" ]
-            query: Bücher
+        index: test
+        q: "body:Bücher"
 
-  - match: { hits.total: 0 }
+  - match: { hits.total.value: 0 }
 
   - do:
       search:
-        query:
-          query_string:
-            fields: [ "body" ]
-            query: Bucher
+        index: test
+        q: "body:Bücher"
+        analyzer: simple
 
-  - match: { hits.total: 1 }
+  - match: { hits.total.value: 1 }

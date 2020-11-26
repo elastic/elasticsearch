@@ -585,11 +585,12 @@ public class JobResultsProvider {
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
             .add(createLatestDataCountsSearch(resultsIndex, jobId))
             .add(createLatestModelSizeStatsSearch(resultsIndex))
-            .add(createLatestTimingStatsSearch(resultsIndex, jobId))
-            // These next two document IDs never need to be the legacy ones due to the rule
-            // that you cannot open a 5.4 job in a subsequent version of the product
-            .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, snapshotId)))
-            .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
+            .add(createLatestTimingStatsSearch(resultsIndex, jobId));
+
+        if (snapshotId != null) {
+            msearch.add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, snapshotId)));
+            msearch.add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
+        }
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
             msearch.add(createDocIdSearch(MlMetaIndex.indexName(), MlFilter.documentId(filterId)));

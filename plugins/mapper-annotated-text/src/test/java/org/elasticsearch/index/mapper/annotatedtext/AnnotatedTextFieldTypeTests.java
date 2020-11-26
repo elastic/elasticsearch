@@ -22,9 +22,6 @@ package org.elasticsearch.index.mapper.annotatedtext;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -46,11 +43,8 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", () -> Lucene.STANDARD_ANALYZER)
-            .build(context)
+        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", createDefaultIndexAnalyzers())
+            .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath()))
             .fieldType();
 
         assertEquals(Collections.singletonList("value"), fetchSourceValue(fieldType, "value"));

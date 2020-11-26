@@ -33,6 +33,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -55,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -102,9 +102,9 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Float> boost = Parameter.boostParam();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(defaultAnalyzer);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers);
         }
 
         @Override
@@ -157,7 +157,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, () -> c.getIndexAnalyzers().getDefaultIndexAnalyzer()));
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     /**
      * Parses markdown-like syntax into plain text and AnnotationTokens with offsets for
@@ -571,6 +571,6 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzers).init(this);
     }
 }

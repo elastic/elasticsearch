@@ -622,7 +622,11 @@ public enum Hasher {
             result.put(Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded()));
             return result.array();
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
+            throw new ElasticsearchException("Error using PBKDF2 for password hashing", e);
+        } catch (Error e) {
+            // Security Providers might throw a subclass of Error in FIPS 140 mode, if some prerequisite like
+            // salt, iv, or password length is not met. We catch this because we don't want the JVM to exit.
+            throw new ElasticsearchException("Error using PBKDF2 implementation from the selected Security Provider", e);
         }
     }
 
@@ -648,7 +652,11 @@ public enum Hasher {
             final boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
             return result;
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
+            throw new ElasticsearchException("Error using PBKDF2 for password hashing", e);
+        } catch (Error e) {
+            // Security Providers might throw a subclass of Error in FIPS 140 mode, if some prerequisite like
+            // salt, iv, or password length is not met. We catch this because we don't want the JVM to exit.
+            throw new ElasticsearchException("Error using PBKDF2 implementation from the selected Security Provider", e);
         } finally {
             if (null != hashChars) {
                 Arrays.fill(hashChars, '\u0000');

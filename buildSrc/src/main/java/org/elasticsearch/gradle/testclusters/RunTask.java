@@ -46,6 +46,8 @@ public class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
 
+    private Boolean preserveData = false;
+
     private Path dataDir = null;
 
     private String keystorePassword = "";
@@ -63,6 +65,16 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
     public void setDataDir(String dataDirStr) {
         dataDir = Paths.get(dataDirStr).toAbsolutePath();
+    }
+
+    @Input
+    public Boolean getPreserveData() {
+        return preserveData;
+    }
+
+    @Option(option = "preserve-data", description = "Preserves data directory contents (path provided to --data-dir is always preserved)")
+    public void setPreserveData(Boolean preserveData) {
+        this.preserveData = preserveData;
     }
 
     @Option(option = "keystore-password", description = "Set the elasticsearch keystore password")
@@ -113,6 +125,7 @@ public class RunTask extends DefaultTestClustersTask {
             httpPort++;
             cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
             transportPort++;
+            cluster.setPreserveDataDir(preserveData);
             for (ElasticsearchNode node : cluster.getNodes()) {
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {

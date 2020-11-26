@@ -264,7 +264,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                          initialInput, settingName);
                     return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
-                    throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
+                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }
             }
         } catch (IllegalArgumentException e) {

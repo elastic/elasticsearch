@@ -48,6 +48,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -485,6 +486,26 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                 V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
                 verify.accept(agg);
+            }
+        }
+    }
+
+    protected void withAggregator(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        CheckedBiConsumer<IndexSearcher, Aggregator, IOException> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            buildIndex.accept(indexWriter);
+            indexWriter.close();
+
+            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+                IndexSearcher searcher = newIndexSearcher(indexReader);
+                SearchContext context = createSearchContext(searcher, query, fieldTypes);
+                verify.accept(searcher, createAggregator(aggregationBuilder, context));
             }
         }
     }

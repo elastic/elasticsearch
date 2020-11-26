@@ -465,8 +465,8 @@ addOperatorReversed
 process where 2 + serial_event_id == 41
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.add(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":2,"v1":"serial_event_id","v2":41}
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 addFunction
@@ -481,8 +481,8 @@ addFunctionReversed
 process where add(2, serial_event_id) == 41
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.add(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":2,"v1":"serial_event_id","v2":41}
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 divideOperator
@@ -561,8 +561,8 @@ multiplyOperatorReversed
 process where 2 * serial_event_id == 41
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":2,"v1":"serial_event_id","v2":41}
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 multiplyFunction
@@ -577,8 +577,8 @@ multiplyFunctionReversed
 process where multiply(2, serial_event_id) == 41
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":2,"v1":"serial_event_id","v2":41}
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 subtractOperator

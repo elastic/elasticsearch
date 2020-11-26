@@ -223,7 +223,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             // todo: multiple data path support.
             DiskUsage mostAvailable = clusterInfo.getNodeMostAvailableDiskUsages().get(node.getId());
             DiskUsage leastAvailable = clusterInfo.getNodeLeastAvailableDiskUsages().get(node.getId());
-            return mostAvailable == leastAvailable && totalStorage(clusterInfo.getNodeMostAvailableDiskUsages(), node) >= 0;
+            return mostAvailable != null && mostAvailable.getPath().equals(leastAvailable.getPath()) && totalStorage(clusterInfo.getNodeMostAvailableDiskUsages(), node) >= 0;
         }
 
         private AutoscalingCapacity calculateCurrentCapacity() {

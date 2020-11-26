@@ -80,6 +80,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         .setSettings(getSettings())
         .setMappings(getMappings())
         .setVersionMetaKey("version")
+        .setOrigin("FAKE_ORIGIN")
         .build();
 
     private Client client;
@@ -104,6 +105,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setPrimaryIndex(".bar-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setVersionMetaKey("version")
+            .setOrigin("FAKE_ORIGIN")
             .build();
 
         SystemIndices systemIndices = new SystemIndices(Map.of("index 1", List.of(d1), "index 2", List.of(d2)));
@@ -130,12 +133,16 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setPrimaryIndex(".foo-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setVersionMetaKey("version")
+            .setOrigin("FAKE_ORIGIN")
             .build();
         SystemIndexDescriptor d2 = SystemIndexDescriptor.builder()
             .setIndexPattern(".bar-*")
             .setPrimaryIndex(".bar-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setVersionMetaKey("version")
+            .setOrigin("FAKE_ORIGIN")
             .build();
 
         SystemIndices systemIndices = new SystemIndices(Map.of("index 1", List.of(d1), "index 2", List.of(d2)));

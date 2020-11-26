@@ -233,7 +233,8 @@ public class ClusterStateChanges {
         transportDeleteIndexAction = new TransportDeleteIndexAction(transportService,
             clusterService, threadPool, deleteIndexService, actionFilters, indexNameExpressionResolver, destructiveOperations);
         transportUpdateSettingsAction = new TransportUpdateSettingsAction(
-            transportService, clusterService, threadPool, metadataUpdateSettingsService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, metadataUpdateSettingsService, actionFilters, indexNameExpressionResolver,
+            systemIndices);
         transportClusterRerouteAction = new TransportClusterRerouteAction(
             transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
         transportCreateIndexAction = new TransportCreateIndexAction(

@@ -27,14 +27,14 @@ import java.util.Map;
 
 public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
 
-    private final Map<String, Analyzer> analyzers;
+    private final Map<String, NamedAnalyzer> analyzers;
 
-    public FieldNameAnalyzer(Map<String, Analyzer> analyzers) {
+    public FieldNameAnalyzer(Map<String, NamedAnalyzer> analyzers) {
         super(Analyzer.PER_FIELD_REUSE_STRATEGY);
         this.analyzers = CopyOnWriteHashMap.copyOf(analyzers);
     }
 
-    public Map<String, Analyzer> analyzers() {
+    public Map<String, NamedAnalyzer> analyzers() {
         return analyzers;
     }
 

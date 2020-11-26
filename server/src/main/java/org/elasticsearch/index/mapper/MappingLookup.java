@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 public final class MappingLookup {
@@ -80,7 +81,7 @@ public final class MappingLookup {
                          Collection<RuntimeFieldType> runtimeFieldTypes,
                          int metadataFieldCount) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
-        Map<String, Analyzer> indexAnalyzers = new HashMap<>();
+        Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
         boolean hasNested = false;
@@ -141,6 +142,13 @@ public final class MappingLookup {
      */
     public FieldNameAnalyzer indexAnalyzer() {
         return this.indexAnalyzer;
+    }
+
+    public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
+        if (this.indexAnalyzer.analyzers().containsKey(field)) {
+            return this.indexAnalyzer.analyzers().get(field);
+        }
+        return unmappedFieldAnalyzer.apply(field);
     }
 
     /**

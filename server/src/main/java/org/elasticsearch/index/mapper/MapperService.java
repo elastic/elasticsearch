@@ -445,11 +445,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzer;
     }
 
-    public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
+    /**
+     * Return the index-time analyzer associated with a particular field
+     * @param field                     the field name
+     * @param unindexedFieldAnalyzer    a function to return an Analyzer for a field with no
+     *                                  directly associated index-time analyzer
+     */
+    public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
         if (this.mapper == null) {
-            return unmappedFieldAnalyzer.apply(field);
+            return unindexedFieldAnalyzer.apply(field);
         }
-        return this.mapper.mappers().indexAnalyzer(field, unmappedFieldAnalyzer);
+        return this.mapper.mappers().indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
     public boolean containsBrokenAnalysis(String field) {

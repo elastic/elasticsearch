@@ -163,7 +163,7 @@ setup:
             fields:
               day_of_week: {}
 
-  - match: { hits.hits.0.highlights.day_of_week : "<em>Monday</em>" }
+  - match: { hits.hits.0.highlight.day_of_week : [ "<em>Monday</em>" ] }
 
 ---
 "explain term query":

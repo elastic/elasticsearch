@@ -349,11 +349,15 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
-    public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
+    /**
+     * Return the index-time analyzer for the current index
+     * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
+     */
+    public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
         return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
-                return mapperService.indexAnalyzer(fieldName, unmappedFieldAnalyzer);
+                return mapperService.indexAnalyzer(fieldName, unindexedFieldAnalyzer);
             }
         };
     }

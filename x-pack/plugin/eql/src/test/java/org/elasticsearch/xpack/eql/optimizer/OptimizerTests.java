@@ -152,6 +152,27 @@ public class OptimizerTests extends ESTestCase {
         }
     }
 
+    public void testEqualsWildcardQuestionmarkOnRight() {
+        List<String> tests = Arrays.asList(
+            "foo where command_line : \"? bar ?\""
+        );
+
+        for (String q : tests) {
+            LogicalPlan plan = defaultPipes(accept(q));
+            assertTrue(plan instanceof Filter);
+
+            Filter filter = (Filter) plan;
+            And condition = (And) filter.condition();
+            assertTrue(condition.right() instanceof Like);
+
+            Like like = (Like) condition.right();
+            assertEquals("command_line", ((FieldAttribute) like.field()).name());
+            assertEquals( "^. bar .$", like.pattern().asJavaRegex());
+            assertEquals("? bar ?", like.pattern().asLuceneWildcard());
+            assertEquals( "* bar *", like.pattern().asIndexNameWildcard());
+        }
+    }
+
     public void testEqualsWildcardWithLiteralsOnLeft() {
         List<String> tests = Arrays.asList(
             "foo where \"abc\": \"*b*\""
@@ -172,7 +193,11 @@ public class OptimizerTests extends ESTestCase {
         List<String> tests = Arrays.asList(
             "foo where \"*b*\" : \"abc\"",
             "foo where \"*b\" : \"abc\"",
-            "foo where \"b*\" : \"abc\""
+            "foo where \"b*\" : \"abc\"",
+            "foo where \"b*?\" : \"abc\"",
+            "foo where \"b?\" : \"abc\"",
+            "foo where \"?b\" : \"abc\"",
+            "foo where \"?b*\" : \"abc\""
         );
 
         // string comparison that evaluates to false
@@ -185,7 +210,9 @@ public class OptimizerTests extends ESTestCase {
     public void testEqualsWildcardWithLiteralsOnLeftAndPatternOnRightNotMatching() {
         List<String> tests = Arrays.asList(
             "foo where \"abc\": \"*b\"",
-            "foo where \"abc\": \"b*\""
+            "foo where \"abc\": \"b*\"",
+            "foo where \"abc\": \"b?\"",
+            "foo where \"abc\": \"?b\""
         );
 
         // string comparison that evaluates to false

@@ -24,6 +24,9 @@
       "anomaly_score" : {
         "type" : "double"
       },
+      "assignment_memory_source" : {
+        "type" : "string"
+      },
       "average_bucket_processing_time_ms" : {
         "type" : "double"
       },
@@ -350,6 +353,9 @@
       },
       "model_size_stats" : {
         "properties" : {
+          "assignment_memory_source" : {
+            "type" : "string"
+          },
           "bucket_allocation_failures_count" : {
             "type" : "long"
           },

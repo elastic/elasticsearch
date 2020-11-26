@@ -34,7 +34,7 @@ public class TranslogStats implements Writeable, ToXContentFragment {
     private int numberOfOperations;
     private long uncommittedSizeInBytes;
     private int  uncommittedOperations;
-    private long earliestLastModifiedAge = Long.MAX_VALUE;
+    private long earliestLastModifiedAge;
 
     public TranslogStats() {
     }
@@ -80,8 +80,12 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         this.translogSizeInBytes += translogStats.translogSizeInBytes;
         this.uncommittedOperations += translogStats.uncommittedOperations;
         this.uncommittedSizeInBytes += translogStats.uncommittedSizeInBytes;
-        this.earliestLastModifiedAge =
-            Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
+        if (this.earliestLastModifiedAge < 1) {
+            this.earliestLastModifiedAge = translogStats.earliestLastModifiedAge;
+        } else {
+            this.earliestLastModifiedAge =
+                Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
+        }
     }
 
     public long getTranslogSizeInBytes() {

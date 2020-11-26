@@ -9,7 +9,9 @@
               "type": "keyword"
             },
             "match_mapping_type": "string"
-          },
+          }
+        },
+        {
           "match_ip": {
             "match_mapping_type": "string",
             "match":   "ip",

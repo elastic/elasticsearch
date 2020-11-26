@@ -88,13 +88,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata);
-    }
-
-    @Override
     protected Aggregator doCreateInternal(
         SearchContext searchContext,
         Aggregator parent,

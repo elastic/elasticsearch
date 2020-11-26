@@ -87,7 +87,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
      * wasn't particularly rigorous. We had a performance test that collected
      * 123 buckets with an average of 900 documents per bucket that jumped
      * from 35ms to 90ms. I figure that 5000 is fairly close to where the break
-     * even point is. 
+     * even point is.
      */
     public static final double DOCS_PER_RANGE_TO_USE_FILTERS = 5000;
     /**
@@ -117,7 +117,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
          * <strong>must</strong> call this know that consumers prefer
          * {@code from} and {@code to} parameters if they are non-null
          * and finite. Otherwise they parse from {@code fromrStr} and
-         * {@code toStr}. 
+         * {@code toStr}.
          */
         public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
@@ -354,7 +354,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * that we work with will round differently in the native range
              * aggregator than in the filters aggregator. So we can't use
              * the filters. That is, if the input data type is a `long` in
-             * the first place. If it isn't then 
+             * the first place. If it isn't then
              */
             if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > MAX_ACCURATE_BOUND) {
                 return null;
@@ -474,7 +474,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
             Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
 
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
-        assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;
         this.keyed = keyed;
@@ -485,7 +484,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();

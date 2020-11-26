@@ -106,12 +106,4 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             metadata
         );
     }
-
-    @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
-            config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
-    }
 }

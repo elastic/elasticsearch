@@ -78,12 +78,4 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
             .getAggregator(VariableWidthHistogramAggregationBuilder.REGISTRY_KEY, config)
             .build(name, factories, numBuckets, shardSize, initialBuffer, config, searchContext, parent, metadata);
     }
-
-    @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, config,
-            searchContext, parent, metadata);
-    }
 }

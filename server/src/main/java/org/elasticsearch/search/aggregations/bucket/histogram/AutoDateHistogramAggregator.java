@@ -124,8 +124,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = targetBuckets;
-        // TODO: Remove null usage here, by using a different aggregator for create
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
         this.roundingPreparer = valuesSourceConfig.roundingPreparer();
@@ -133,7 +132,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public final ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
@@ -154,9 +153,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         return getLeafCollector(valuesSource.longValues(ctx), sub);
     }
 
@@ -414,7 +410,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          * up in {@link InternalAutoDateHistogram#reduceBucket}. In particular,
          * on final reduce we bump the rounding until it we appropriately
          * cover the date range across all of the results returned by all of
-         * the {@link AutoDateHistogramAggregator}s. 
+         * the {@link AutoDateHistogramAggregator}s.
          */
         private ByteArray roundingIndices;
         /**
@@ -428,7 +424,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         /**
          * An underestimate of the number of buckets that are "live" in the
-         * current rounding for each {@code owningBucketOrdinal}. 
+         * current rounding for each {@code owningBucketOrdinal}.
          */
         private IntArray liveBucketCountUnderestimate;
         /**

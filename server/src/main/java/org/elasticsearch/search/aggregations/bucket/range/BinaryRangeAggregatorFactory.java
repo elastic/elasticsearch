@@ -54,13 +54,6 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
-        return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, searchContext, parent, CardinalityUpperBound.NONE, metadata);
-    }
-
-    @Override
     protected Aggregator doCreateInternal(
         SearchContext searchContext,
         Aggregator parent,

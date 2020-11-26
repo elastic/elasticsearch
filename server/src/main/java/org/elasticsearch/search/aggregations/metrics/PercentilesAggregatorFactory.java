@@ -64,15 +64,6 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-
-        return percentilesConfig.createPercentilesAggregator(name, null, searchContext, parent, percents, keyed,
-            config.format(), metadata);
-    }
-
-    @Override
     protected Aggregator doCreateInternal(
         SearchContext searchContext,
         Aggregator parent,

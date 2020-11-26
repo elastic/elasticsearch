@@ -59,12 +59,10 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                     Aggregator parent,
                     Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop using nulls here
-        this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
-        if (valuesSource != null) {
-            mins = context.bigArrays().newDoubleArray(1, false);
-            mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-        }
+        this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
+
+        mins = context.bigArrays().newDoubleArray(1, false);
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         this.format = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
@@ -76,20 +74,12 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            if (parent == null) {
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-            } else {
-                // we have no parent and the values source is empty so we can skip collecting hits.
-                throw new CollectionTerminatedException();
-            }
-        }
         if (pointConverter != null) {
             Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
             if (segMin != null) {
@@ -128,7 +118,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= mins.size()) {
+        if (owningBucketOrd >= mins.size()) {
             return Double.POSITIVE_INFINITY;
         }
         return mins.get(owningBucketOrd);
@@ -136,7 +126,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= mins.size()) {
+        if (bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
         return new InternalMin(name, mins.get(bucket), format, metadata());

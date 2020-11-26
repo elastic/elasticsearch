@@ -109,12 +109,4 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                 metadata
             );
     }
-
-    @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
-            hardBounds, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
-    }
 }

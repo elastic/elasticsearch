@@ -54,13 +54,6 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new StatsAggregator(name, config, searchContext, parent, metadata);
-    }
-
-    @Override
     protected Aggregator doCreateInternal(
         SearchContext searchContext,
         Aggregator parent,

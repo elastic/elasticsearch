@@ -46,13 +46,6 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected MissingAggregator createUnmapped(SearchContext searchContext,
-                                                Aggregator parent,
-                                                Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
-    }
-
-    @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
                                           CardinalityUpperBound cardinality,

@@ -49,13 +49,6 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, config, wrapLongitude, metadata);
-    }
-
-    @Override
     protected Aggregator doCreateInternal(
         SearchContext searchContext,
         Aggregator parent,

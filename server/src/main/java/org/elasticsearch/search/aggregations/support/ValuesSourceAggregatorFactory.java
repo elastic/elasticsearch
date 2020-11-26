@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
@@ -52,9 +52,18 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
      * Create the {@linkplain Aggregator} for a {@link ValuesSource} that
      * doesn't have values.
      */
-    protected abstract Aggregator createUnmapped(SearchContext searchContext,
+    protected Aggregator createUnmapped(SearchContext searchContext,
                                                  Aggregator parent,
-                                                 Map<String, Object> metadata) throws IOException;
+                                                 Map<String, Object> metadata) throws IOException
+    {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return new InternalNonMapped(name, metadata);
+            }
+        };
+    }
 
     /**
      * Create the {@linkplain Aggregator} for a {@link ValuesSource} that has

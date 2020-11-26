@@ -80,21 +80,4 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
             metadata
         );
     }
-
-    @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return AutoDateHistogramAggregator.build(
-            name,
-            factories,
-            numBuckets,
-            roundingInfos,
-            config,
-            searchContext,
-            parent,
-            CardinalityUpperBound.NONE,
-            metadata
-        );
-    }
 }

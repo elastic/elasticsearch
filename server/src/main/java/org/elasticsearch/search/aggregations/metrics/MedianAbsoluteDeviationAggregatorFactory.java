@@ -58,22 +58,6 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-
-        return new MedianAbsoluteDeviationAggregator(
-            name,
-            null,
-            config.format(),
-            searchContext,
-            parent,
-            metadata,
-            compression
-        );
-    }
-
-    @Override
     protected Aggregator doCreateInternal(
         SearchContext searchContext,
         Aggregator parent,

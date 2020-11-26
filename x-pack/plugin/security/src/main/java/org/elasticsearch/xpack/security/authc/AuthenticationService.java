@@ -693,6 +693,8 @@ public class AuthenticationService {
             try {
                 authenticationSerializer.writeToContext(authentication, threadContext);
                 request.authenticationSuccess(authentication);
+                // Header for operator privileges will only be written if authentication actually happens,
+                // i.e. not read from either header or transient header
                 operatorPrivilegesService.maybeMarkOperatorUser(authentication, threadContext);
             } catch (Exception e) {
                 action = () -> {

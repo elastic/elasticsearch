@@ -82,10 +82,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             .total(autoscalingCapacity.tier().storage().getBytes() + unassigned + assigned, null)
             .node(maxShard, null)
             .build();
-        return new AutoscalingDeciderResult(
-            requiredCapacity,
-            new ReactiveReason(message, unassigned, assigned)
-        );
+        return new AutoscalingDeciderResult(requiredCapacity, new ReactiveReason(message, unassigned, assigned));
     }
 
     static boolean isDiskOnlyNoDecision(Decision decision) {
@@ -281,7 +278,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private long maxShardSize() {
-            return nodesInTier(state().getRoutingNodes(), nodeTierPredicate).flatMap(rn -> rn.copyShards().stream()).mapToLong(this::sizeOf).max().orElse(0L);
+            return nodesInTier(state().getRoutingNodes(), nodeTierPredicate).flatMap(rn -> rn.copyShards().stream())
+                .mapToLong(this::sizeOf)
+                .max()
+                .orElse(0L);
         }
     }
 

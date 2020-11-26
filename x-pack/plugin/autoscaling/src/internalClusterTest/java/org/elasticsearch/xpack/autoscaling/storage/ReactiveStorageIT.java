@@ -68,14 +68,21 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
         putAutoscalingPolicy(policyName);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
-            .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
-            .build());
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
+                .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                .build()
+        );
 
-        indexRandom(true, IntStream.range(1, 100).mapToObj(i -> client().prepareIndex(indexName).setSource("field",
-            randomAlphaOfLength(50))).toArray(IndexRequestBuilder[]::new));
+        indexRandom(
+            true,
+            IntStream.range(1, 100)
+                .mapToObj(i -> client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+                .toArray(IndexRequestBuilder[]::new)
+        );
         forceMerge();
         refresh();
 
@@ -100,9 +107,14 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
         response = capacity();
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace - 2));
-        assertThat(response.results().get(policyName).requiredCapacity().tier().storage().getBytes(), Matchers.greaterThan(enoughSpace - 2));
-        assertThat(response.results().get(policyName).requiredCapacity().tier().storage().getBytes(),
-            Matchers.lessThanOrEqualTo(enoughSpace + minShardSize));
+        assertThat(
+            response.results().get(policyName).requiredCapacity().tier().storage().getBytes(),
+            Matchers.greaterThan(enoughSpace - 2)
+        );
+        assertThat(
+            response.results().get(policyName).requiredCapacity().tier().storage().getBytes(),
+            Matchers.lessThanOrEqualTo(enoughSpace + minShardSize)
+        );
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
     }
 

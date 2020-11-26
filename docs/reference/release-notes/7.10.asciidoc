@@ -52,7 +52,7 @@ Mapping::
 * Unused boost parameter should not throw mapping exception {es-pull}64999[#64999] (issue: {es-issue}64982[#64982])
 
 SQL::
-* SQL:Fix the return type problem in the sign function {es-pull}64845[#64845]
+* Fix the return type problem in the sign function {es-pull}64845[#64845]
 
 Search::
 * Fix cacheability of custom LongValuesSource in TermsSetQueryBuilder {es-pull}65367[#65367]

@@ -516,14 +516,18 @@ public class TranslogTests extends ESTestCase {
 
     public void testTotalTests() {
         final TranslogStats total =
-            new TranslogStats(0, 0, 0, 0, 1);
+            new TranslogStats();
         final int n = randomIntBetween(0, 16);
         final List<TranslogStats> statsList = new ArrayList<>(n);
+        long earliestLastModifiedAge = Long.MAX_VALUE;
         for (int i = 0; i < n; i++) {
             final TranslogStats stats = new TranslogStats(randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20),
                 randomIntBetween(1, 1 << 20), randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20));
             statsList.add(stats);
             total.add(stats);
+            if (earliestLastModifiedAge > stats.getEarliestLastModifiedAge()) {
+                earliestLastModifiedAge = stats.getEarliestLastModifiedAge();
+            }
         }
 
         assertThat(
@@ -540,7 +544,7 @@ public class TranslogTests extends ESTestCase {
             equalTo(statsList.stream().mapToLong(TranslogStats::getUncommittedSizeInBytes).sum()));
         assertThat(
             total.getEarliestLastModifiedAge(),
-            equalTo(1L));
+            equalTo(earliestLastModifiedAge));
     }
 
     public void testNegativeNumberOfOperations() {

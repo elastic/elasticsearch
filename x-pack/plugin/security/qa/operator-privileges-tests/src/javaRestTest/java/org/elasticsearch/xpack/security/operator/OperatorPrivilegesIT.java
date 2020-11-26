@@ -100,10 +100,12 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         final Request xpackRequest = new Request("GET", "/_xpack");
         final Map<String, Object> response = entityAsMap(client().performRequest(xpackRequest));
         final Map<String, Object> features = (Map<String, Object>) response.get("features");
-        final Map<String, Object> featureInfo = (Map<String, Object>) features.get("operator_privileges");
-        assertTrue((boolean) featureInfo.get("available"));
+        final Map<String, Object> operatorPrivileges = (Map<String, Object>) features.get("operator_privileges");
+        assertTrue((boolean) operatorPrivileges.get("available"));
         if (isOperatorPrivilegesEnabled()) {
-            assertTrue((boolean) featureInfo.get("enabled"));
+            assertTrue((boolean) operatorPrivileges.get("enabled"));
+        } else {
+            assertFalse((boolean) operatorPrivileges.get("enabled"));
         }
     }
 

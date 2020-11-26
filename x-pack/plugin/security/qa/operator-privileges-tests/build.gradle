@@ -22,6 +22,7 @@ boolean enableOperatorPrivileges = (new Random(Long.parseUnsignedLong(BuildParam
 
 testClusters.all {
   testDistribution = 'DEFAULT'
+  numberOfNodes = 3
 
   extraConfigFile 'operator_users.yml', file('src/javaRestTest/resources/operator_users.yml')
   extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')

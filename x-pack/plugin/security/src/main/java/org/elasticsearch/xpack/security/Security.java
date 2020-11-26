@@ -771,8 +771,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SECURITY, SecurityUsageTransportAction.class);
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SECURITY, SecurityInfoTransportAction.class);
+        var opInfoAction = new ActionHandler<>(XPackInfoFeatureAction.OPERATOR_PRIVILEGES, OperatorPrivilegesInfoTransportAction.class);
         if (enabled == false) {
-            return Arrays.asList(usageAction, infoAction);
+            return Arrays.asList(usageAction, infoAction, opInfoAction);
         }
         return Arrays.asList(
                 new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
@@ -816,9 +817,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
                 new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
                 new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
-                new ActionHandler<>(XPackInfoFeatureAction.OPERATOR_PRIVILEGES, OperatorPrivilegesInfoTransportAction.class),
                 usageAction,
-                infoAction);
+                infoAction,
+                opInfoAction);
     }
 
     @Override

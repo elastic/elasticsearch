@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEquals
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
@@ -83,6 +84,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
+                new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
                 // prune/elimination
                 new PruneFilters(),

@@ -19,5 +19,5 @@ testClusters.all {
   module ':modules:mapper-extras'
 }
 
-test.enabled = false
-jarHell.enabled = false
+tasks.named("test").configure {enabled = false }
+tasks.named("jarHell").configure {enabled = false }

@@ -102,12 +102,6 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
     }
 
-    public void testScriptIsRequired() throws Exception {
-        XContentBuilder mapping = runtimeFieldMapping(b -> { b.field("type", typeName()); });
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: script must be specified for runtime field [field]", exception.getMessage());
-    }
-
     public void testCopyToIsNotSupported() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(b -> {
             minimalMapping(b);

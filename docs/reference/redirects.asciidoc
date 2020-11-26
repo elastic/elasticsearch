@@ -822,6 +822,66 @@ This page was deleted.
 
 See <<ilm-actions>>.
 
+[role="exclude",id="ilm-allocate-action"]
+==== Allocate action
+
+See <<ilm-allocate>>.
+
+[role="exclude",id="ilm-delete-action"]
+==== Delete action
+
+See <<ilm-delete>>.
+
+[role="exclude",id="ilm-forcemerge-action"]
+==== Force merge action
+
+See <<ilm-forcemerge>>.
+
+[role="exclude",id="ilm-freeze-action"]
+==== Freeze action
+
+See <<ilm-freeze>>.
+
+[role="exclude",id="ilm-migrate-action"]
+==== Migrate action
+
+See <<ilm-migrate>>.
+
+[role="exclude",id="ilm-readonly-action"]
+==== Read only action
+
+See <<ilm-readonly>>.
+
+[role="exclude",id="ilm-rollover-action"]
+==== Rollover action
+
+See <<ilm-rollover>>.
+
+[role="exclude",id="ilm-searchable-snapshot-action"]
+==== Searchable snapshot action
+
+See <<ilm-searchable-snapshot>>.
+
+[role="exclude",id="ilm-set-priority-action"]
+==== Set priority action
+
+See <<ilm-set-priority>>.
+
+[role="exclude",id="ilm-shrink-action"]
+==== Shrink action
+
+See <<ilm-shrink>>.
+
+[role="exclude",id="ilm-unfollow-action"]
+==== Unfollow action
+
+See <<ilm-unfollow>>.
+
+[role="exclude",id="ilm-wait-for-snapshot-action"]
+==== Wait for snapshot action
+
+See <<ilm-wait-for-snapshot>>.
+
 [role="exclude",id="ilm-policy-definition"]
 === {ilm-init} policy definition
 

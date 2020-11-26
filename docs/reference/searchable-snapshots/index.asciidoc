@@ -12,11 +12,12 @@ searching any other index, and minimizes the need to access the snapshot
 repository. Should a node fail, shards of a {search-snap} index are
 automatically recovered from the snapshot repository.
 
-This can result in significant cost savings. With {search-snaps}, you may be
-able to halve your cluster size without increasing the risk of data loss or
-reducing the amount of data you can search. Because {search-snaps} rely on the
-same snapshot mechanism you use for backups, they have a minimal impact on your
-snapshot repository storage costs.
+This can result in significant cost savings for less frequently searched data.
+With {search-snaps}, you no longer need an extra index shard copy to avoid data
+loss, potentially halving the node local storage capacity necessary for
+searching that data. Because {search-snaps} rely on the same snapshot mechanism
+you use for backups, they have a minimal impact on your snapshot repository
+storage costs.
 
 [discrete]
 [[using-searchable-snapshots]]

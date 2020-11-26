@@ -44,10 +44,6 @@ public final class HighlightUtils {
 
     }
 
-    // Note that this doesn't work for DocValueFetchers yet, because it doesn't do
-    // any positioning.  Can we maybe unify access to fetchers etc via SearchLookup,
-    // and let the FetchPhase drive positioning?
-
     /**
      * Load field values for highlighting.
      */

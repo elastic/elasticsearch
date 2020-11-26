@@ -19,12 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -51,6 +54,12 @@ public class ExternalMapper extends FieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
+    private static final IndexAnalyzers INDEX_ANALYZERS = new IndexAnalyzers(
+        Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+        Collections.emptyMap(),
+        Collections.emptyMap()
+    );
+
     public static class Builder extends FieldMapper.Builder {
 
         private final BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
@@ -66,7 +75,7 @@ public class ExternalMapper extends FieldMapper {
 
         public Builder(String name, String generatedValue, String mapperName, Version indexCreatedVersion) {
             super(name);
-            this.stringBuilder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).store(false);
+            this.stringBuilder = new TextFieldMapper.Builder(name, INDEX_ANALYZERS).store(false);
             this.generatedValue = generatedValue;
             this.mapperName = mapperName;
             this.indexCreatedVersion = indexCreatedVersion;

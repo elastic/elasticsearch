@@ -69,6 +69,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -376,6 +377,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        if (shardRouting.isRelocationTarget()) {
+            relocationCondition = new RelocationCondition(shardRouting);
+        }
     }
 
     public ThreadPool getThreadPool() {
@@ -457,6 +461,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return cachingPolicy;
     }
 
+    /**
+     * A ref counter that can be used to delay primary relocation handoff via {@link #createRelocationDependency()}.
+     */
+    private final class RelocationCondition extends AbstractRefCounted {
+
+        private Runnable asyncActivation;
+
+        RelocationCondition(ShardRouting routing) {
+            super("relocation condition for [" + routing.shardId() + "][" + routing.allocationId() + "]");
+        }
+
+        @Override
+        protected void closeInternal() {
+            synchronized (this) {
+                if (asyncActivation != null) {
+                    threadPool.generic().execute(asyncActivation);
+                }
+            }
+        }
+
+        // Set the relocation context when receiving it and execute the handoff right away if no more conditions are waiting or create a
+        // Runnable to execute once all conditions have finished
+        void receivePrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
+            synchronized (this) {
+                if (decRef()) {
+                    doActivateWithPrimaryContext(primaryContext, listener);
+                } else {
+                    asyncActivation = () -> doActivateWithPrimaryContext(primaryContext, listener);
+                }
+            }
+        }
+    }
 
     @Override
     public void updateShardState(final ShardRouting newRouting,
@@ -603,6 +639,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
                         }, null);
                 }
+            }
+            if (newRouting.isRelocationTarget()) {
+                if (currentRouting.isRelocationTarget() == false) {
+                    assert relocationCondition == null : "Found relocation condition even though there shouldn't be one";
+                    relocationCondition = new RelocationCondition(newRouting);
+                }
+            } else {
+                relocationCondition = null;
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
@@ -2409,23 +2453,62 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
+    private RelocationCondition relocationCondition;
+
+    /**
+     * Creates a {@link Runnable} that must be executed before primary relocation to this shard can complete by a call to
+     * {@link #activateThrottling()}.
+     *
+     * @return listener that must be resolved before primary relocation to this shard can complete
+     */
+    public Runnable createRelocationDependency() {
+        assert assertRelocationTarget();
+        logger.trace("adding relocation condition for [{}]", shardRouting);
+        final RelocationCondition condition;
+        synchronized (mutex) {
+            condition = this.relocationCondition;
+        }
+        condition.incRef();
+        return condition::decRef;
+    }
+
     /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
      * @param primaryContext the sequence number context
      */
-    public void activateWithPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
-        assert shardRouting.primary() && shardRouting.isRelocationTarget() :
-            "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
+    public void activateWithPrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
+        assert assertRelocationTarget();
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) :
             "primary context [" + primaryContext + "] does not contain relocation target [" + routingEntry() + "]";
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
             .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC :
             "local checkpoint [" + getLocalCheckpoint() + "] does not match checkpoint from primary context [" + primaryContext + "]";
+        final RelocationCondition condition;
         synchronized (mutex) {
-            replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
+            condition = relocationCondition;
         }
-        ensurePeerRecoveryRetentionLeasesExist();
+        condition.receivePrimaryContext(primaryContext, listener);
+    }
+
+    private void doActivateWithPrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
+        try {
+            synchronized (mutex) {
+                // make changes to primaryMode flag only under mutex
+                replicationTracker.activateWithPrimaryContext(primaryContext);
+            }
+            ensurePeerRecoveryRetentionLeasesExist();
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        listener.onResponse(null);
+    }
+
+    private boolean assertRelocationTarget() {
+        assert shardRouting.primary() && shardRouting.isRelocationTarget() :
+                "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
+        return true;
     }
 
     private void ensurePeerRecoveryRetentionLeasesExist() {

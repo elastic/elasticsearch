@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -83,6 +84,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
+
+    private volatile boolean recoveryMonitorEnabled = true;
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
@@ -159,6 +162,26 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /** sets the lasAccessTime flag to now */
     public void setLastAccessTime() {
         lastAccessTime = System.nanoTime();
+    }
+
+    /**
+     * Set flag to signal to {@link org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryMonitor} that it must not cancel this
+     * recovery temporarily. This is used by the primary relocation mechanism to avoid recovery failure in case a long running relocation
+     * condition was added to the shard via {@link IndexShard#createRelocationDependency()}.
+     *
+     * @return releasable that once closed will re-enable liveness checks by the recovery monitor
+     */
+    public Releasable disableRecoveryMonitor() {
+        assert recoveryMonitorEnabled : "recovery monitor already disabled";
+        recoveryMonitorEnabled = false;
+        return () -> {
+            setLastAccessTime();
+            recoveryMonitorEnabled = true;
+        };
+    }
+
+    public boolean isRecoveryMonitorEnabled() {
+        return recoveryMonitorEnabled;
     }
 
     public Store store() {
@@ -332,10 +355,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
-            indexShard.activateWithPrimaryContext(primaryContext);
-            return null;
-        });
+        indexShard.activateWithPrimaryContext(primaryContext, listener);
     }
 
     @Override

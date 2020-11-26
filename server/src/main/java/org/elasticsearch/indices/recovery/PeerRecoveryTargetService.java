@@ -38,6 +38,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -68,6 +70,8 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -312,16 +316,23 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel,
                                     Task task) throws Exception {
             final RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId());
+            final List<Releasable> toRelease = new ArrayList<>(2);
+            toRelease.add(recoveryRef::close);
             boolean success = false;
             try {
+                // Due to relocation conditions on the shard it could take a while for the hand-off to complete so we disable the recovery
+                // monitor since we don't expect any transport messages from master for the duration of the handoff and activate it again
+                // after the handoff.
+                final Releasable disabledMonitor = recoveryRef.target().disableRecoveryMonitor();
+                toRelease.add(disabledMonitor);
                 recoveryRef.target().handoffPrimaryContext(request.primaryContext(),
                         ActionListener.runBefore(ActionListener.map(
                                 new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request),
-                                v -> TransportResponse.Empty.INSTANCE), recoveryRef::close));
+                                v -> TransportResponse.Empty.INSTANCE), () -> Releasables.close(toRelease)));
                 success = true;
             } finally {
                 if (success == false) {
-                    recoveryRef.close();
+                    Releasables.close(toRelease);
                 }
             }
         }

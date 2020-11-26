@@ -9,6 +9,7 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -654,7 +655,9 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             );
             DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
             RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
-            final boolean loaded = directory.loadSnapshot(recoveryState);
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final boolean loaded = directory.loadSnapshot(recoveryState, future);
+            future.get();
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
             assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());

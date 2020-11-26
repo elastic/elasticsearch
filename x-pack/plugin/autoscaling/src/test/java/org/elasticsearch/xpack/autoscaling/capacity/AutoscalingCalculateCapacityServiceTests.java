@@ -174,10 +174,10 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         assertThat(context.nodes(), equalTo(expectedNodes));
         AutoscalingCapacity capacity = context.currentCapacity();
         assertThat(capacity.node().storage(), equalTo(new ByteSizeValue(maxTotal)));
-        assertThat(capacity.tier().storage(), equalTo(new ByteSizeValue(sumTotal)));
+        assertThat(capacity.total().storage(), equalTo(new ByteSizeValue(sumTotal)));
         // todo: fix these once we know memory of all nodes on master.
         assertThat(capacity.node().memory(), equalTo(ByteSizeValue.ZERO));
-        assertThat(capacity.tier().memory(), equalTo(ByteSizeValue.ZERO));
+        assertThat(capacity.total().memory(), equalTo(ByteSizeValue.ZERO));
     }
 
     public void testValidateDeciderName() {

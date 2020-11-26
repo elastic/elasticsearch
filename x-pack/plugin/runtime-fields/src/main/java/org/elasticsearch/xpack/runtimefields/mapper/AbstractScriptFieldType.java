@@ -207,6 +207,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     // Placeholder Script for source-only fields
+    // TODO rework things so that we don't need this
     private static final Script DEFAULT_SCRIPT = new Script("");
 
     /**

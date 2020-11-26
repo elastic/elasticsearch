@@ -12,25 +12,21 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
-public class PutInternalCcrRepositoryAction extends ActionType<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
+public class PutInternalCcrRepositoryAction extends ActionType<ActionResponse.Empty> {
 
     public static final PutInternalCcrRepositoryAction INSTANCE = new PutInternalCcrRepositoryAction();
     public static final String NAME = "internal:admin/ccr/internal_repository/put";
 
     private PutInternalCcrRepositoryAction() {
-        super(NAME, PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse::new);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
     public static class TransportPutInternalRepositoryAction
-        extends TransportAction<PutInternalCcrRepositoryRequest, PutInternalCcrRepositoryResponse> {
+        extends TransportAction<PutInternalCcrRepositoryRequest, ActionResponse.Empty> {
 
         private final RepositoriesService repositoriesService;
 
@@ -43,23 +39,9 @@ public class PutInternalCcrRepositoryAction extends ActionType<PutInternalCcrRep
 
         @Override
         protected void doExecute(Task task, PutInternalCcrRepositoryRequest request,
-                                 ActionListener<PutInternalCcrRepositoryResponse> listener) {
+                                 ActionListener<ActionResponse.Empty> listener) {
             repositoriesService.registerInternalRepository(request.getName(), request.getType());
-            listener.onResponse(new PutInternalCcrRepositoryResponse());
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
         }
-    }
-
-    public static class PutInternalCcrRepositoryResponse extends ActionResponse {
-
-        PutInternalCcrRepositoryResponse() {
-            super();
-        }
-
-        PutInternalCcrRepositoryResponse(StreamInput streamInput) throws IOException {
-            super(streamInput);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

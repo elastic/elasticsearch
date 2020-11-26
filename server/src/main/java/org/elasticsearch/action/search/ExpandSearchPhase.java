@@ -89,7 +89,8 @@ final class ExpandSearchPhase extends SearchPhase {
                     CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
                     SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder)
                         .query(groupQuery)
-                        .postFilter(searchRequest.source().postFilter());
+                        .postFilter(searchRequest.source().postFilter())
+                        .runtimeMappings(searchRequest.source().runtimeMappings());
                     SearchRequest groupRequest = new SearchRequest(searchRequest);
                     groupRequest.source(sourceBuilder);
                     multiRequest.add(groupRequest);

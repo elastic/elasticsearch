@@ -139,67 +139,51 @@ documentation].
 [[configuring-logging-levels]]
 === Configuring logging levels
 
-There are four ways to configuring logging levels, each having situations in which they are appropriate to use.
+Each Java package in the {es-repo}[{es} source code] has a related logger. For
+example, the `org.elasticsearch.transport` package has
+`logger.org.elasticsearch.transport` for logs related to communication between
+nodes.
 
-1. Via the command-line: `-E <name of logging hierarchy>=<level>` (e.g.,
-   `-E logger.org.elasticsearch.transport=trace`). This is most appropriate when
-   you are temporarily debugging a problem on a single node (for example, a
-   problem with startup, or during development).
-2. Via `elasticsearch.yml`: `<name of logging hierarchy>: <level>` (e.g.,
-   `logger.org.elasticsearch.transport: trace`). This is most appropriate when
-   you are temporarily debugging a problem but are not starting Elasticsearch
-   via the command-line (e.g., via a service) or you want a logging level
-   adjusted on a more permanent basis.
-3. Via <<cluster-logger,cluster settings>>:
-+
---
-[source,js]
--------------------------------
-PUT /_cluster/settings
-{
-  "transient": {
-    "<name of logging hierarchy>": "<level>"
-  }
-}
--------------------------------
-// NOTCONSOLE
-
-For example:
+To get more or less verbose logs, use the <<cluster-update-settings,cluster
+update settings API>> to change the related logger's log level. Each logger
+accepts Log4j 2's built-in log levels, from least to most verbose: `OFF`,
+`FATAL`, `ERROR`, `WARN`, `INFO`, `TRACE`, and `DEBUG`. The default log level is
+`INFO`.
 
 [source,console]
--------------------------------
+----
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.org.elasticsearch.transport": "trace"
+    "logger.org.elasticsearch.transport": "TRACE"
   }
 }
--------------------------------
+----
 
-This is most appropriate when you need to dynamically need to adjust a logging
-level on an actively-running cluster.
+Other ways to change log levels include:
 
+1. `elasticsearch.yml`:
++
 --
-4. Via the `log4j2.properties`:
+[source,yaml]
+----
+logger.org.elasticsearch.transport: TRACE
+----
+
+This is most appropriate when debugging a problem on a single node.
+--
+
+2. `log4j2.properties`:
 +
 --
 [source,properties]
---------------------------------------------------
-logger.<unique_identifier>.name = <name of logging hierarchy>
-logger.<unique_identifier>.level = <level>
---------------------------------------------------
-
-For example:
-
-[source,properties]
---------------------------------------------------
-logger.transport.name = org.elasticsearch.transport
+----
 logger.transport.level = trace
---------------------------------------------------
+----
 
-This is most appropriate when you need fine-grained control over the logger (for
-example, you want to send the logger to another file, or manage the logger
-differently; this is a rare use-case).
+This is most appropriate when you already need to change your Log4j 2
+configuration for other reasons. For example, you may want to send logs for a
+particular logger to another file. However, these use cases are rare.
 --
 
 [discrete]

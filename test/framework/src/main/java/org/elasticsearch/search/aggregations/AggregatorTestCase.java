@@ -48,6 +48,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -100,6 +101,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -137,6 +139,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
@@ -155,7 +158,6 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
-    private static final String TYPE_NAME = "type";
     protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
@@ -288,6 +290,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return null;
         });
 
+        NestedDocuments nestedDocuments = new NestedDocuments(mapperService, searchContext.bitsetFilterCache()::getBitSetProducer);
+        when(searchContext.getNestedDocuments())
+            .thenReturn(nestedDocuments);
+
         Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
         fieldNameToType.putAll(Arrays.stream(fieldTypes)
             .filter(Objects::nonNull)
@@ -336,7 +342,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true,
-            valuesSourceRegistry);
+            valuesSourceRegistry, emptyMap());
     }
 
     /**
@@ -480,6 +486,26 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                 V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
                 verify.accept(agg);
+            }
+        }
+    }
+
+    protected void withAggregator(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        CheckedBiConsumer<IndexSearcher, Aggregator, IOException> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            buildIndex.accept(indexWriter);
+            indexWriter.close();
+
+            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+                IndexSearcher searcher = newIndexSearcher(indexReader);
+                SearchContext context = createSearchContext(searcher, query, fieldTypes);
+                verify.accept(searcher, createAggregator(aggregationBuilder, context));
             }
         }
     }
@@ -785,7 +811,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null, null, null, null);
         }
 
         @Override

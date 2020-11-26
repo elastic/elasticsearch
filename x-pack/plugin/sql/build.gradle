@@ -48,21 +48,13 @@ dependencies {
  * in $ES_HOME/bin/x-pack/. This is useful because it is an
  * executable jar that can be moved wherever it is needed.
  */
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
   from(configurations.bin) {
     into 'bin'
   }
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
-
+addQaCheckDependencies()
 
 /**********************************************
  *          SQL Parser regeneration           *
@@ -134,7 +126,7 @@ tasks.register("regen") {
 }
 
 allprojects {
-  task checkNoBwc {
+  tasks.register("checkNoBwc") {
     dependsOn tasks.withType(Test).matching { it.name.contains('bwc') == false }
   }
 }

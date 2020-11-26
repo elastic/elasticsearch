@@ -28,7 +28,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 
 public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
 
@@ -65,7 +64,7 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
                 keyStore.decrypt(keyStorePassword.getChars());
             }
             executeCommand(terminal, options, env);
-        } catch (SecurityException | GeneralSecurityException e) {
+        } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         } finally {
             if (keyStorePassword != null) {

@@ -150,6 +150,17 @@
       search:
         index: test
         body:
+          fields: [ "flat*" ]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+  - do:
+      search:
+        index: test
+        body:
           fields: [ { "field" : "flat*", "include_unmapped" : true } ]
 
   - match:  { hits.total.value: 1 }

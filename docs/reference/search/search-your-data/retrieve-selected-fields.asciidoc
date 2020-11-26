@@ -177,7 +177,7 @@ setting <<dynamic-field-mapping,Dynamic field mapping>> to `false` or by using a
 object field with `enabled: false`, thereby disabling parsing and indexing of its content.
 
 Fields in such an object can be retrieved from `_source` using the `include_unmapped` option
-in the `fieldS` section:
+in the `fields` section:
 
 [source,console]
 ----
@@ -216,7 +216,7 @@ POST my-index-000001/_search
 
 The response will contain fields results under the  `session_data.object.*` path even if the
 fields are unmapped, but will not contain `user_id` since it is unmapped but the `include_unmapped`
-flag hasn't been set to `true for that field pattern.
+flag hasn't been set to `true` for that field pattern.
 
 [source,console-result]
 ----

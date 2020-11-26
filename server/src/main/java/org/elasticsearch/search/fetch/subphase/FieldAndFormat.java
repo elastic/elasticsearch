@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Wrapper around a field name and the format that should be used to
@@ -46,7 +45,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
 
     private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER =
         new ConstructingObjectParser<>("fetch_field_and_format",
-        a -> new FieldAndFormat((String) a[0], (String) a[1], Optional.ofNullable((Boolean) a[2])));
+        a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
@@ -73,8 +72,8 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         if (format != null) {
             builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
-        if (this.includeUnmapped.isPresent()) {
-            builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped.get());
+        if (this.includeUnmapped != null) {
+            builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped);
         }
         builder.endObject();
         return builder;
@@ -87,13 +86,13 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public final String format;
 
     /** Whether to include unmapped fields or not. */
-    public final Optional<Boolean> includeUnmapped;
+    public final Boolean includeUnmapped;
 
     public FieldAndFormat(String field, @Nullable String format) {
-        this(field, format, Optional.empty());
+        this(field, format, null);
     }
 
-    public FieldAndFormat(String field, @Nullable String format, Optional<Boolean> includeUnmapped) {
+    public FieldAndFormat(String field, @Nullable String format, @Nullable Boolean includeUnmapped) {
         this.field = Objects.requireNonNull(field);
         this.format = format;
         this.includeUnmapped = includeUnmapped;
@@ -104,9 +103,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         this.field = in.readString();
         format = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            this.includeUnmapped = Optional.ofNullable(in.readOptionalBoolean());
+            this.includeUnmapped = in.readOptionalBoolean();
         } else {
-            this.includeUnmapped = Optional.empty();
+            this.includeUnmapped = null;
         }
     }
 
@@ -115,7 +114,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         out.writeString(field);
         out.writeOptionalString(format);
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeOptionalBoolean(this.includeUnmapped.orElse(null));
+            out.writeOptionalBoolean(this.includeUnmapped);
         }
     }
 
@@ -123,7 +122,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public int hashCode() {
         int h = field.hashCode();
         h = 31 * h + Objects.hashCode(format);
-        h = 31 * h + Boolean.hashCode(this.includeUnmapped.orElse(false));
+        h = 31 * h + Objects.hashCode(includeUnmapped);
         return h;
     }
 

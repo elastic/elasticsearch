@@ -18,5 +18,6 @@
  */
 
 grant {
-  permission java.util.PropertyPermission "someProperty", "read";
+  // needed to waste paper
+  permission java.lang.RuntimePermission "queuePrintJob";
 };

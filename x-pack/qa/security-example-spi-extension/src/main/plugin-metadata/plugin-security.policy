@@ -1,4 +1,3 @@
 grant {
-  // example security manager permission
-  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "queuePrintJob";
 };

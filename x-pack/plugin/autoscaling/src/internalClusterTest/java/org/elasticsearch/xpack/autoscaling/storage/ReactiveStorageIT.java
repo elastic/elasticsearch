@@ -63,7 +63,7 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
     public void testScaleUp() throws InterruptedException {
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
-        String policyName = "test";
+        final String policyName = "test";
         putAutoscalingPolicy(policyName);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

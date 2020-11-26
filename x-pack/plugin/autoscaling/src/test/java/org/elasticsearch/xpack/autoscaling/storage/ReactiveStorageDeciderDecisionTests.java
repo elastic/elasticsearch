@@ -456,13 +456,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         private final ClusterState state;
         private final AutoscalingCapacity currentCapacity;
         private final Set<DiscoveryNode> nodes;
-        private final Set<DiscoveryNodeRole> roles;
         private ClusterInfo info;
 
         private TestAutoscalingDeciderContext(ClusterState state, Set<DiscoveryNodeRole> roles, AutoscalingCapacity currentCapacity) {
             this.state = state;
             this.currentCapacity = currentCapacity;
-            this.roles = roles;
             this.nodes = StreamSupport.stream(state.nodes().spliterator(), false)
                 .filter(n -> roles.stream().anyMatch(n.getRoles()::contains))
                 .collect(Collectors.toSet());
@@ -481,11 +479,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         @Override
         public Set<DiscoveryNode> nodes() {
             return nodes;
-        }
-
-        @Override
-        public Set<DiscoveryNodeRole> roles() {
-            return roles;
         }
 
         @Override

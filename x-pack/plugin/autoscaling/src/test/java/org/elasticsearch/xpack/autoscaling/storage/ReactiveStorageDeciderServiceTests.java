@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -303,9 +304,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testUnmovableSize() {
-        // disk is 100 kb. Default is 90 percent.
         Settings.Builder settingsBuilder = Settings.builder();
         if (randomBoolean()) {
+            // disk is 100 kb. Default is 90 percent. 10KB free is equivalent to default.
             String tenKb = ByteSizeValue.ofKb(10).toString();
             settingsBuilder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), tenKb);
             // also set these to pass validation
@@ -332,14 +333,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState clusterState = stateBuilder.build();
 
         Set<ShardRouting> shards = IntStream.range(0, between(1, 10))
-            .mapToObj(
-                i -> TestShardRouting.newShardRouting(
-                    new ShardId(indexMetadata.getIndex(), randomInt(10)),
-                    nodeId,
-                    randomBoolean(),
-                    ShardRoutingState.STARTED
-                )
-            )
+            .mapToObj(i -> Tuple.tuple(new ShardId(indexMetadata.getIndex(), randomInt(10)), randomBoolean()))
+            .distinct()
+            .map(t -> TestShardRouting.newShardRouting(t.v1(), nodeId, t.v2(), ShardRoutingState.STARTED))
             .collect(Collectors.toSet());
 
         long minShardSize = randomLongBetween(1, 10);
@@ -368,7 +364,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
 
         long result = allocationState.unmovableSize(nodeId, shards);
-        if (missingShard != null && (missingShard.primary() || info.getShardSize(missingShard.moveActiveReplicaToPrimary()) == null)
+        if (missingShard != null
+            && (missingShard.primary()
+                || clusterState.getRoutingNodes().activePrimary(missingShard.shardId()) == null
+                || info.getShardSize(clusterState.getRoutingNodes().activePrimary(missingShard.shardId())) == null)
             || minShardSize < 5) {
             // the diff between used and high watermark is 5 KB.
             assertThat(result, equalTo(ByteSizeUnit.KB.toBytes(5)));

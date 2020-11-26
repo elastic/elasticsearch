@@ -257,11 +257,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
 
         @Override
-        public Set<DiscoveryNodeRole> roles() {
-            return roles;
-        }
-
-        @Override
         public ClusterInfo info() {
             return clusterInfo;
         }

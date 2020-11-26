@@ -73,8 +73,8 @@ For resiliency, indices in the warm tier should be configured to use one or more
 [[cold-tier]]
 === Cold tier
 
-Once data in the warm tier is no longer being updated, it can move to the cold tier.
-The cold tier is typically the most cost effective tier and where data resides for its remaining life.
+Once data is no longer being updated, it can move from the warm tier to the cold tier where it
+stays for the rest of its life.
 The cold tier is still a responsive query tier, but data in the cold tier is not normally updated.
 As data transitions into the cold tier it can be compressed and shrunken.
 For resiliency, indices in the cold tier can rely on

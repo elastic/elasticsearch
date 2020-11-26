@@ -313,8 +313,10 @@ public class KeyStoreWrapper implements SecureSettings {
         SecretKey secretKey;
         try {
             secretKey = keyFactory.generateSecret(keySpec);
-        } catch (AssertionError ae) {
-            throw new GeneralSecurityException("Error generating an encryption key from the provided password", ae);
+        } catch (Error e) {
+            // Security Providers might throw a subclass of Error in FIPS 140 mode, if some prerequisite like
+            // salt, iv, or password length is not met. We catch this because we don't want the JVM to exit.
+            throw new GeneralSecurityException("Error generating an encryption key from the provided password", e);
         }
         SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), CIPHER_ALGO);
 

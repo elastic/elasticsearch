@@ -321,8 +321,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("reason", reason);
-            builder.field("unassgined", unassigned);
-            builder.field("assgined", assigned);
+            builder.field("unassigned", unassigned);
+            builder.field("assigned", assigned);
             builder.endObject();
             return builder;
         }

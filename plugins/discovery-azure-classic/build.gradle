@@ -122,6 +122,7 @@ tasks.named("thirdPartyAudit").configure {
           'javax.activation.MimeTypeParseException',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
+          'javax.jms.Message',
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',

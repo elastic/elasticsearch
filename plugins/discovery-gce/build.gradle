@@ -53,6 +53,7 @@ tasks.named("thirdPartyAudit").configure {
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
-          'org.apache.log.Logger'
+          'org.apache.log.Logger',
+          'javax.jms.Message'
   )
 }

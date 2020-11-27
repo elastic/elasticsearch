@@ -207,7 +207,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                         .startShard(
                             logger,
                             allocation.routingNodes()
-                                .relocateShard(shard, randomNodeId(allocation.routingNodes(), DATA_WARM_NODE_ROLE), 0L, allocation.changes())
+                                .relocateShard(
+                                    shard,
+                                    randomNodeId(allocation.routingNodes(), DATA_WARM_NODE_ROLE),
+                                    0L,
+                                    allocation.changes()
+                                )
                                 .v2(),
                             allocation.changes()
                         )

@@ -46,7 +46,6 @@ import java.util.stream.StreamSupport;
 public class ReactiveStorageDeciderService implements AutoscalingDeciderService {
     public static final String NAME = "reactive_storage";
 
-    private static final Logger logger = LogManager.getLogger(ReactiveStorageDeciderService.class);
     private final DiskThresholdSettings diskThresholdSettings;
     private final AllocationDeciders allocationDeciders;
 
@@ -94,7 +93,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             .filter(single -> single.type() == Decision.Type.NO)
             .collect(Collectors.toList());
         return nos.size() == 1 && DiskThresholdDecider.NAME.equals(nos.get(0).label());
-
     }
 
     static Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes, Predicate<DiscoveryNode> nodeTierPredicate) {

@@ -62,6 +62,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.xpack.core.DataTier.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.xpack.core.DataTier.DATA_WARM_NODE_ROLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -126,8 +128,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         );
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
         state = addRandomIndices(hotNodes, hotNodes, state);
-        state = addDataNodes("data_hot", "hot", state, hotNodes);
-        state = addDataNodes("data_warm", "warm", state, warmNodes);
+        state = addDataNodes(DATA_HOT_NODE_ROLE, "hot", state, hotNodes);
+        state = addDataNodes(DATA_WARM_NODE_ROLE, "warm", state, warmNodes);
         this.state = state;
 
         Set<ShardId> shardIds = shardIds(state.getRoutingNodes().unassigned());
@@ -157,7 +159,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             }
             verifyScale(0, "storage ok", mockCanAllocateDiskDecider, CAN_ALLOCATE_NO_DECIDER);
             verifyScale(0, "storage ok");
-            verifyScale(addDataNodes("data_hot", "additional", state, hotNodes), 0, "storage ok", mockCanAllocateDiskDecider);
+            verifyScale(addDataNodes(DATA_HOT_NODE_ROLE, "additional", state, hotNodes), 0, "storage ok", mockCanAllocateDiskDecider);
             lastState = state;
             startRandomShards();
             ++round;
@@ -213,7 +215,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                         .startShard(
                             logger,
                             allocation.routingNodes()
-                                .relocateShard(shard, randomNodeId(allocation.routingNodes(), "warm"), 0L, allocation.changes())
+                                .relocateShard(shard, randomNodeId(allocation.routingNodes(), DATA_WARM_NODE_ROLE), 0L, allocation.changes())
                                 .v2(),
                             allocation.changes()
                         )
@@ -236,7 +238,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size(), mockCanAllocateDiskDecider);
         verifyScale(0, "storage ok", mockCanAllocateDiskDecider, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok");
-        verifyScale(addDataNodes("data_hot", "additional", state, hotNodes), 0, "storage ok", mockCanAllocateDiskDecider);
+        verifyScale(addDataNodes(DATA_HOT_NODE_ROLE, "additional", state, hotNodes), 0, "storage ok", mockCanAllocateDiskDecider);
     }
 
     public void testStoragePreventsRemain() {
@@ -553,26 +555,26 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         return ClusterState.builder(state).metadata(builder).routingTable(routingTableBuilder.build()).build();
     }
 
-    private static ClusterState addDataNodes(String tier, String prefix, ClusterState state, int nodes) {
+    private static ClusterState addDataNodes(DiscoveryNodeRole role, String prefix, ClusterState state, int nodes) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(state.nodes());
-        IntStream.range(0, nodes).mapToObj(i -> newDataNode(tier, prefix + "_" + i)).forEach(builder::add);
+        IntStream.range(0, nodes).mapToObj(i -> newDataNode(role, prefix + "_" + i)).forEach(builder::add);
         return ClusterState.builder(state).nodes(builder).build();
     }
 
-    private static DiscoveryNode newDataNode(String tier, String nodeName) {
+    private static DiscoveryNode newDataNode(DiscoveryNodeRole role, String nodeName) {
         return new DiscoveryNode(
             nodeName,
             UUIDs.randomBase64UUID(),
             buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNode.getRoleFromRoleName(tier)),
+            Set.of(role),
             Version.CURRENT
         );
     }
 
-    private static String randomNodeId(RoutingNodes routingNodes, String tier) {
+    private static String randomNodeId(RoutingNodes routingNodes, DiscoveryNodeRole role) {
         return randomFrom(
-            ReactiveStorageDeciderService.nodesInTier(routingNodes, n -> n.getName().startsWith(tier)).collect(Collectors.toSet())
+            ReactiveStorageDeciderService.nodesInTier(routingNodes, n -> n.getRoles().contains(role)).collect(Collectors.toSet())
         ).nodeId();
     }
 

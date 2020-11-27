@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.ql.util;
 
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
-import java.math.BigInteger;
-
 /**
  * Utility class used for checking various conditions at runtime, with minimum amount of code.
  */
@@ -47,15 +45,6 @@ public abstract class Check {
     public static void isBoolean(Object obj) {
         if (!(obj instanceof Boolean)) {
             throw new QlIllegalArgumentException("A boolean is required; received [{}]", obj);
-        }
-    }
-
-    // 18446744073709551615
-    public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
-
-    public static void isUnsignedLong(BigInteger bi) {
-        if (bi.signum() < 0 || bi.compareTo(UNSIGNED_LONG_MAX) > 0) {
-            throw new ArithmeticException("unsigned_long overflow");
         }
     }
 }

@@ -106,7 +106,6 @@ public class TypeConverterTests extends ESTestCase {
     }
 
     private <T> Object convertAsNative(Object value, Class<T> nativeType) throws Exception {
-        Object copy = throughXContent(value);
         EsType esType = TypeUtils.of(value.getClass());
         return TypeConverter.convert(value, esType, nativeType, esType.toString());
     }

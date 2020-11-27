@@ -31,12 +31,12 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.sql.session.Compatibility.INTRODUCING_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.session.Compatibility.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedByClient;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
@@ -104,10 +104,8 @@ public class SysTypesTests extends ESTestCase {
                     SchemaRowSet r = (SchemaRowSet) p.rowSet();
                     List<String> types = new ArrayList<>();
                     r.forEachRow(rv -> types.add((String) rv.column(0)));
-                    List<String> expectedTypes = ALL_TYPES.stream()
-                        .filter(t -> Mode.isDriver(mode) == false || isTypeSupportedInVersion(DataTypes.fromTypeName(t), version))
-                        .collect(Collectors.toList());
-                    assertEquals(expectedTypes, types);
+                    assertEquals(isTypeSupportedByClient(mode, UNSIGNED_LONG, cmd.v2().configuration().version()),
+                        types.contains(UNSIGNED_LONG.toString()));
                 }, ex -> fail(ex.getMessage())));
             }
         }

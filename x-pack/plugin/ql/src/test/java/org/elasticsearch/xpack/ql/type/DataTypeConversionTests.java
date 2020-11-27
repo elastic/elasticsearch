@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.ql.util.Check.UNSIGNED_LONG_MAX;
+import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.UNSIGNED_LONG_MAX;
 
 public class DataTypeConversionTests extends ESTestCase {
 

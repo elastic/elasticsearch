@@ -38,8 +38,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
-import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
-import static org.elasticsearch.xpack.sql.session.Compatibility.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedByClient;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.displaySize;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDateTimeSub;
@@ -174,7 +173,7 @@ public class SysColumns extends Command {
             DataType type = field.getDataType();
 
             // skip the nested, object and unsupported types
-            if (isPrimitive(type) && (isDriver(mode) == false || isTypeSupportedInVersion(type, version))) {
+            if (isPrimitive(type) && isTypeSupportedByClient(mode, type, version)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                     rows.add(asList(clusterName,
                             // schema is not supported

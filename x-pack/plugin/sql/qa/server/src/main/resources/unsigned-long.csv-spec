@@ -1,0 +1,99 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Unsigned long tests
+//
+
+arithmeticUnsignedLongCast
+SELECT 1::unsigned_long + 1 AS x;
+
+       x:ul
+---------------
+2
+;
+
+nullArithmetics
+SELECT null + 18446744073709551614 AS x;
+
+       x:ul
+---------------
+null
+;
+
+arithmeticPlus
+SELECT 18446744073709551614 + 1 AS x;
+
+       x:ul
+---------------
+18446744073709551615
+;
+
+arithmeticMultiply
+SELECT 9223372036854775807::unsigned_long * 2 AS x;
+
+       x:ul
+---------------
+18446744073709551614
+;
+
+arithmeticDivide
+SELECT 18446744073709551614 / 2 AS x;
+
+       x:ul
+---------------
+9223372036854775807
+;
+
+arithmeticModulo
+SELECT 18446744073709551614 % 10 AS x;
+
+       x:ul
+---------------
+4
+;
+
+selectWithOrderByAndComparison
+SELECT salary_ul AS x FROM test_emp_copy WHERE salary_ul > 70000 ORDER by salary_ul DESC LIMIT 1;
+
+       x:ul
+---------------
+74999
+;
+
+selectWithImplicitAgg
+SELECT MAX(salary_ul)::STRING AS x FROM test_emp_copy;
+
+       x:s
+---------------
+74999.0
+;
+
+selectWithGroupByCountAndOrderBy
+SELECT salary_ul AS s, count(1) AS c FROM test_emp_copy GROUP BY 1 ORDER BY 1 LIMIT 3;
+
+       s:ul    |       c:l
+---------------+---------------
+25324          |1
+25945          |1
+25976          |1
+;
+
+selectWithMathFunction
+SELECT ROUND(SIN(salary_ul), 3) AS sin, salary_ul AS sal FROM test_emp_copy ORDER BY sal DESC LIMIT 3;
+
+      sin:d    |      sal:ul
+---------------+---------------
+0.239          |74999
+-0.823         |74970
+-0.015         |74572
+;
+
+selectWithIn
+SELECT salary_ul, salary_ul + languages AS s, languages FROM test_emp_copy WHERE salary_ul IN ('74999', 74970, 74572::unsigned_long);
+
+    salary_ul:ul  |       s:ul    |   languages:bt
+------------------+---------------+---------------
+74572             |74576          |4
+74999             |null           |null
+74970             |74973          |3
+;

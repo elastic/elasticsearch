@@ -28,7 +28,7 @@ emp_no:i             | first_name:s
 describeAlias
 DESCRIBE test_alias;
 
-       column       |     type      |    mapping    
+       column       |     type      |    mapping
 --------------------+---------------+---------------
 birth_date          |TIMESTAMP      |datetime
 dep                 |STRUCT         |nested
@@ -52,13 +52,14 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
+salary_ul           |BIGINT         |unsigned_long
 wildcard_name       |VARCHAR        |keyword
 ;
 
 describePattern
 DESCRIBE "test_*";
 
-       column       |     type      |    mapping    
+       column       |     type      |    mapping
 --------------------+---------------+---------------
 birth_date          |TIMESTAMP      |datetime
 dep                 |STRUCT         |nested
@@ -82,6 +83,7 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
+salary_ul           |BIGINT         |unsigned_long
 wildcard_name       |VARCHAR        |keyword
 ;
 

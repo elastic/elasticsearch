@@ -210,7 +210,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
         Number value;
         try {
-            value = StringUtils.parseInteger(text);
+            value = StringUtils.parseIntegral(text);
         } catch (QlIllegalArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
@@ -225,11 +225,10 @@ public class ExpressionBuilder extends IdentifierBuilder {
         if (value instanceof BigInteger) {
             type = DataTypes.UNSIGNED_LONG;
         } else {
-            assert value instanceof Long : "Expected value [" + value + "] of type Long but got: " + value.getClass();
             // try to downsize to int if possible (since that's the most common type)
             if (value.longValue() == value.intValue()) {
                 type = DataTypes.INTEGER;
-                value = Integer.valueOf(value.intValue());
+                value = value.intValue();
             } else {
                 type = DataTypes.LONG;
             }

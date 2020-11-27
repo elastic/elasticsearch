@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.util.Check.UNSIGNED_LONG_MAX;
+import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;

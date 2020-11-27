@@ -350,11 +350,7 @@ final class TypeConverter {
             case LONG:
                 return safeToByte(((Number) val).longValue());
             case UNSIGNED_LONG:
-                try {
-                    return ((BigInteger) val).byteValueExact();
-                } catch (ArithmeticException ae) {
-                    return failConversion(val, columnType, typeString, Byte.class, ae);
-                }
+                return safeToByte(((BigInteger) val));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -383,11 +379,7 @@ final class TypeConverter {
             case LONG:
                 return safeToShort(((Number) val).longValue());
             case UNSIGNED_LONG:
-                try {
-                    return ((BigInteger) val).shortValueExact();
-                } catch (ArithmeticException ae) {
-                    return failConversion(val, columnType, typeString, Short.class, ae);
-                }
+                return safeToShort((BigInteger) val);
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -415,11 +407,7 @@ final class TypeConverter {
             case LONG:
                 return safeToInt(((Number) val).longValue());
             case UNSIGNED_LONG:
-                try {
-                    return ((BigInteger) val).intValueExact();
-                } catch (ArithmeticException ae) {
-                    return failConversion(val, columnType, typeString, Integer.class, ae);
-                }
+                return safeToInt((BigInteger) val);
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -447,11 +435,7 @@ final class TypeConverter {
             case LONG:
                 return Long.valueOf(((Number) val).longValue());
             case UNSIGNED_LONG:
-                try {
-                    return ((BigInteger) val).longValueExact();
-                } catch (ArithmeticException ae) {
-                    return failConversion(val, columnType, typeString, Long.class, ae);
-                }
+                return safeToLong((BigInteger) val);
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -647,28 +631,60 @@ final class TypeConverter {
         throw new SQLFeatureNotSupportedException();
     }
 
-    private static byte safeToByte(long x) throws SQLException {
+    private static byte safeToByte(Number n) throws SQLException {
+        if (n instanceof BigInteger) {
+            try {
+                return ((BigInteger) n).byteValueExact();
+            } catch (ArithmeticException ae) {
+                throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
+            }
+        }
+        long x = n.longValue();
         if (x > Byte.MAX_VALUE || x < Byte.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
         }
         return (byte) x;
     }
 
-    private static short safeToShort(long x) throws SQLException {
+    private static short safeToShort(Number n) throws SQLException {
+        if (n instanceof BigInteger) {
+            try {
+                return ((BigInteger) n).shortValueExact();
+            } catch (ArithmeticException ae) {
+                throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
+            }
+        }
+        long x = n.longValue();
         if (x > Short.MAX_VALUE || x < Short.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
         }
         return (short) x;
     }
 
-    private static int safeToInt(long x) throws SQLException {
+    private static int safeToInt(Number n) throws SQLException {
+        if (n instanceof BigInteger) {
+            try {
+                return ((BigInteger) n).intValueExact();
+            } catch (ArithmeticException ae) {
+                throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
+            }
+        }
+        long x = n.longValue();
         if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
         }
         return (int) x;
     }
 
-    private static long safeToLong(double x) throws SQLException {
+    private static long safeToLong(Number n) throws SQLException {
+        if (n instanceof BigInteger) {
+            try {
+                return ((BigInteger) n).longValueExact();
+            } catch (ArithmeticException ae) {
+                throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
+            }
+        }
+        double x =  n.doubleValue();
         if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
             throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Double.toString(x)));
         }

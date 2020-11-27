@@ -161,6 +161,8 @@ public final class CsvTestUtils {
                 return "byte";
             case "sh":
                 return "short";
+            case "ul":
+                return "bigdecimal"; // CSV
             default:
                 return type;
         }

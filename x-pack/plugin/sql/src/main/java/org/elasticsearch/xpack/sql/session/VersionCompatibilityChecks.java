@@ -6,27 +6,29 @@
 
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import static org.elasticsearch.Version.V_7_11_0;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 
-public final class Compatibility {
+public final class VersionCompatibilityChecks {
 
     public static final SqlVersion INTRODUCING_UNSIGNED_LONG = SqlVersion.fromId(V_7_11_0.id);
 
-    private Compatibility() {}
+    private VersionCompatibilityChecks() {}
 
+    public static boolean isTypeSupportedByClient(Mode mode, DataType dataType, SqlVersion version) {
+        return isDriver(mode) == false || isTypeSupportedInVersion(dataType, version);
+    }
     /**
      * Is the provided {@code dataType} being supported in the provided {@code version}?
      */
-    public static boolean isTypeSupportedInVersion(DataType dataType, @Nullable SqlVersion version) {
-        if (version != null) {
-            if (dataType == UNSIGNED_LONG) {
-                return supportsUnsignedLong(version);
-            }
+    public static boolean isTypeSupportedInVersion(DataType dataType, SqlVersion version) {
+        if (dataType == UNSIGNED_LONG) {
+            return supportsUnsignedLong(version);
         }
         return true;
     }

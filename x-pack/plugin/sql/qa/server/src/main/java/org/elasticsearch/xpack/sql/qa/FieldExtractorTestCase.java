@@ -168,13 +168,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
-     *    "long/integer/short/byte_field": {
+     *    "unsigned_long/long/integer/short/byte_field": {
      *       "type": "long/integer/short/byte"
      *    }
      */
     public void testFractionsForNonFloatingPointTypes() throws IOException {
         String floatingPointNumber = "123.456";
-        String fieldType = randomFrom("long", "integer", "short", "byte");
+        String fieldType = randomFrom("unsigned_long", "long", "integer", "short", "byte");
 
         createIndexWithFieldTypeAndProperties(fieldType, null, null);
         index("{\"" + fieldType + "_field\":\"" + floatingPointNumber + "\"}");
@@ -274,6 +274,16 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         // Use Integer as the json parser that is used to read the values from the response will create
         // Integers for short and byte values
         testField("byte", ((Number) randomByte()).intValue());
+    }
+
+    /*
+     *    "unsigned_long_field": {
+     *       "type": "unsigned_long",
+     *       "ignore_malformed": true/false
+     *    }
+     */
+    public void testUnsignedLongFieldType() throws IOException {
+        testField("unsigned_long", randomBigInteger());
     }
 
     private void testField(String fieldType, Object value) throws IOException {
@@ -946,6 +956,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                 return JDBCType.FLOAT;
             case "scaled_float":
                 return JDBCType.DOUBLE;
+            case "unsigned_long":
+                return JDBCType.BIGINT;
             default:
                 throw new AssertionError("Illegal value [" + esType + "] for data type");
         }

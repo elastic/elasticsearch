@@ -116,7 +116,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving(),
                 new ResolveAggsInOrderBy()
                 //new ImplicitCasting()
-                //new VersionCompatibility()
                 );
         Batch finish = new Batch("Finish Analysis",
                 new PruneSubqueryAliases(),

@@ -40,9 +40,8 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
-import static java.sql.Types.BIGINT;
 import static java.time.ZoneOffset.UTC;
-import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.scaleOrLenght;
+import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.scaleOrLength;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
@@ -114,7 +113,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
-        setObject(parameterIndex, x, BIGINT);
+        setObject(parameterIndex, x, Types.BIGINT);
     }
 
     @Override
@@ -207,7 +206,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         // {@code java.sql.Array} etc) will generate the correct exception message. Otherwise, the method call
         // {@code TypeConverter.fromJavaToJDBC(x.getClass())} will report the implementing class as not being supported.
         checkKnownUnsupportedTypes(x);
-        setObject(parameterIndex, x, TypeUtils.of(x.getClass()).getVendorTypeNumber(), scaleOrLenght(x));
+        setObject(parameterIndex, x, TypeUtils.of(x.getClass()).getVendorTypeNumber(), scaleOrLength(x));
     }
 
 

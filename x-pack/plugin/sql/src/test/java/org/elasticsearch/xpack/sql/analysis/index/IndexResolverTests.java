@@ -433,7 +433,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static IndexResolution mergedMappings(String indexPattern, String[] indexNames,
-                                                  Map<String, Map<String, FieldCapabilities>> fieldCaps) {
+            Map<String, Map<String, FieldCapabilities>> fieldCaps) {
         return IndexResolver.mergedMappings(SqlDataTypeRegistry.INSTANCE, indexPattern, indexNames, fieldCaps);
     }
 

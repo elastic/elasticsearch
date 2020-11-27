@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.ql.util.Check.isUnsignedLong;
+import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.isUnsignedLong;
 
 public final class StringUtils {
 
@@ -327,21 +327,20 @@ public final class StringUtils {
         }
     }
 
-    public static Number parseInteger(String string) throws QlIllegalArgumentException {
+    public static Number parseIntegral(String string) throws QlIllegalArgumentException {
+        BigInteger bi;
         try {
-            BigInteger bi = new BigInteger(string);
-            try {
-                if (bi.signum() < 0 || bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0) {
-                    return bi.longValueExact();
-                }
-                isUnsignedLong(bi);
-                return bi;
-            } catch (ArithmeticException ae) {
-                throw new QlIllegalArgumentException("Number [{}] is too large", string);
-            }
+            bi = new BigInteger(string);
         } catch (NumberFormatException ex) {
             throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
         }
+        if (bi.signum() < 0 || bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0) {
+            return bi.longValueExact();
+        }
+        if (isUnsignedLong(bi) == false) {
+            throw new QlIllegalArgumentException("Number [{}] is too large", string);
+        }
+        return bi;
     }
 
     public static String ordinal(int i) {

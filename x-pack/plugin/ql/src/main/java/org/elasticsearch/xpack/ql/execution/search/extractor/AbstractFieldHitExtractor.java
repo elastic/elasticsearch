@@ -188,7 +188,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                 Number result = null;
                 try {
                     // TODO: don't mapper modules expose _source parsing methods? should the _source be (re)validated?
-                    result = dataType == UNSIGNED_LONG ? new BigInteger(values.toString()) : numberType(dataType).parse(values, true);
+                    result = createNumeric(dataType, values);
                 } catch(IllegalArgumentException iae) {
                     return null;
                 }
@@ -212,6 +212,10 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     private static NumberType numberType(DataType dataType) {
         return NumberType.valueOf(dataType.esType().toUpperCase(Locale.ROOT));
+    }
+
+    private static Number createNumeric(DataType dataType, Object value) {
+        return dataType == UNSIGNED_LONG ? new BigInteger(value.toString()) : numberType(dataType).parse(value, true);
     }
 
     protected abstract Object unwrapCustomValue(Object values);

@@ -41,9 +41,10 @@ final class TypeUtils {
             EsType.SHORT, EsType.INTEGER, EsType.LONG,
             EsType.FLOAT, EsType.HALF_FLOAT, EsType.SCALED_FLOAT, EsType.DOUBLE, EsType.DATETIME);
 
-    public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length(); /* type length value as defined in ES  */
+    public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length(); // type length value as defined in ES
 
     static {
+        // Note: keep in sync with org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils#CLASS_TO_ES_TYPE
         Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
         aMap.put(Boolean.class, EsType.BOOLEAN);
         aMap.put(Byte.class, EsType.BYTE);
@@ -190,7 +191,7 @@ final class TypeUtils {
         return dataType;
     }
 
-    static int scaleOrLenght(Object val) {
+    static int scaleOrLength(Object val) {
         return val instanceof BigInteger ? LONG_MAX_LENGTH + 1 : 0;
     }
 }

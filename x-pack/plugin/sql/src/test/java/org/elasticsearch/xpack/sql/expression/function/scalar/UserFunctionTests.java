@@ -37,7 +37,7 @@ public class UserFunctionTests extends ESTestCase {
                 sqlConfig,
                 new SqlFunctionRegistry(),
                 IndexResolution.valid(test),
-                new Verifier(new Metrics(), sqlConfig)
+                new Verifier(new Metrics(), sqlConfig.version())
         );
 
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT USER()"), true);

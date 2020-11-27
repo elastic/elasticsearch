@@ -136,6 +136,9 @@ public class DataLoader {
                 createIndex.startObject("birth_date").field("type", "date").endObject();
                 createIndex.startObject("hire_date").field("type", "date").endObject();
                 createIndex.startObject("salary").field("type", "integer").endObject();
+                if (extraFields) {
+                    createIndex.startObject("salary_ul").field("type", "unsigned_long").endObject();
+                }
                 createIndex.startObject("languages").field("type", "byte").endObject();
                 {
                     createIndex.startObject("dep").field("type", "nested");
@@ -197,8 +200,12 @@ public class DataLoader {
                     }
                     hadLastItem = true;
                     bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
-                    if (titles.get(f).equals("gender") && extraFields) {
-                        bulk.append(",\"extra_gender\":\"Female\"");
+                    if (extraFields) {
+                        if (titles.get(f).equals("gender")) {
+                            bulk.append(",\"extra_gender\":\"Female\"");
+                        } else if (titles.get(f).equals("salary")) {
+                            bulk.append(",\"salary_ul\":" + fields.get(f));
+                        }
                     }
                 }
                 if ((titles.get(f).equals("first_name") || titles.get(f).equals("last_name")) && extraFields && setWildcardName) {

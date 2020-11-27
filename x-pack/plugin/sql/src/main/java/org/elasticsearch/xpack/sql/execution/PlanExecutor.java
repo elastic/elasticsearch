@@ -61,11 +61,8 @@ public class PlanExecutor {
     }
 
     private SqlSession newSession(SqlConfiguration cfg) {
-        // TODO: SqlSession exposes no functionality that doesn't involve the Analyzer; would it make sense to:
-        // 1) instantiate an Analyzer in its c'tor? and
-        // 2) instantiate the Verifier in Analyzer's c'tor and add a getter for it?
-        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, new Verifier(metrics, cfg), optimizer, planner,
-            this);
+        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, new Verifier(metrics, cfg.version()), optimizer,
+            planner, this);
     }
 
     public void searchSource(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params,

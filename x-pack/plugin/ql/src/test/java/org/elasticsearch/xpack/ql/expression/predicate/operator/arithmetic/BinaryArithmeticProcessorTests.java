@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
-import org.elasticsearch.xpack.ql.util.Check;
+import org.elasticsearch.xpack.ql.util.UnsignedLongUtils;
 
 import java.math.BigInteger;
 
@@ -48,9 +48,12 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         assertEquals(10, ba.process(null));
     }
 
-    public void testUnsignedLongAdd() {
+    public void testAddUnsignedLong() {
         Processor ba = new Add(EMPTY, l(BigInteger.valueOf(7)), l(3)).makePipe().asProcessor();
         assertEquals(BigInteger.valueOf(10), ba.process(null));
+
+        ba = new Add(EMPTY, l(BigInteger.ONE), l(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE))).makePipe().asProcessor();
+        assertEquals(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.TWO), ba.process(null));
 
         ba = new Add(EMPTY, l(BigInteger.valueOf(7)), l((short) -3)).makePipe().asProcessor();
         assertEquals(BigInteger.valueOf(4), ba.process(null));
@@ -61,7 +64,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         Processor pn = new Add(EMPTY, l(BigInteger.valueOf(7)), l(-8)).makePipe().asProcessor();
         expectThrows(ArithmeticException.class, () -> pn.process(null));
 
-        Processor pm = new Add(EMPTY, l(Check.UNSIGNED_LONG_MAX), l(1)).makePipe().asProcessor();
+        Processor pm = new Add(EMPTY, l(UnsignedLongUtils.UNSIGNED_LONG_MAX), l(1)).makePipe().asProcessor();
         expectThrows(ArithmeticException.class, () -> pm.process(null));
     }
 
@@ -70,7 +73,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         assertEquals(4, ba.process(null));
     }
 
-    public void testUnsignedLongSub() {
+    public void testSubUnsignedLong() {
         Processor bs = new Sub(EMPTY, l(BigInteger.valueOf(7)), l(3)).makePipe().asProcessor();
         assertEquals(BigInteger.valueOf(4), bs.process(null));
 
@@ -89,7 +92,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         assertEquals(21, ba.process(null));
     }
 
-    public void testUnsignedLongMul() {
+    public void testMulUnsignedLong() {
         Processor bm = new Mul(EMPTY, l(BigInteger.valueOf(7)), l(3)).makePipe().asProcessor();
         assertEquals(BigInteger.valueOf(21), bm.process(null));
 
@@ -107,7 +110,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         assertEquals(2.33, ((Number) ba.process(null)).doubleValue(), 0.01d);
     }
 
-    public void testUnsignedLongDiv() {
+    public void testDivUnsignedLong() {
         Processor bd = new Div(EMPTY, l(BigInteger.valueOf(7)), l(3)).makePipe().asProcessor();
         assertEquals(BigInteger.TWO, bd.process(null));
 
@@ -126,7 +129,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         assertEquals(1, ba.process(null));
     }
 
-    public void testUnsignedLongMod() {
+    public void testModUnsignedLong() {
         Processor bm = new Mod(EMPTY, l(BigInteger.valueOf(7)), l(3)).makePipe().asProcessor();
         assertEquals(BigInteger.valueOf(1), bm.process(null));
 
@@ -139,7 +142,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         assertEquals(-7, ba.process(null));
     }
 
-    public void testUnsignedLongNegate() {
+    public void testNegateUnsignedLong() {
         Processor nm = new Neg(EMPTY, l(BigInteger.valueOf(0))).makePipe().asProcessor();
         assertEquals(BigInteger.ZERO, nm.process(null));
 
@@ -160,7 +163,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
     }
 
     // ((3*2+4)/2-2)%2
-    public void testUnsignedLongTree() {
+    public void testTreeUnsignedLong() {
         Expression mul = new Mul(EMPTY, l(3), l(BigInteger.TWO));
         Expression add = new Add(EMPTY, mul, l(4));
         Expression div = new Div(EMPTY, add, l(2));

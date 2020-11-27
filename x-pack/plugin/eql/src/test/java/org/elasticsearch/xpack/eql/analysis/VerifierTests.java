@@ -176,7 +176,6 @@ public class VerifierTests extends ESTestCase {
     // Test all elasticsearch numeric field types
     public void testNumeric() {
         final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
-        accept(idxr, "foo where unsigned_long_field == 0");
         accept(idxr, "foo where long_field == 0");
         accept(idxr, "foo where integer_field == 0");
         accept(idxr, "foo where short_field == 0");
@@ -185,6 +184,7 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where float_field == 0");
         accept(idxr, "foo where half_float_field == 0");
         accept(idxr, "foo where scaled_float_field == 0");
+        accept(idxr, "foo where unsigned_long_field == 0");
 
         // Test query against unsupported field type int
         assertEquals("1:11: Cannot use field [wrong_int_type_field] with unsupported type [int]",

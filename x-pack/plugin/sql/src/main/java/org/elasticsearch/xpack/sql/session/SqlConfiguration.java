@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -21,7 +22,6 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final TimeValue pageTimeout;
     private final Mode mode;
     private final String clientId;
-    @Nullable
     private final SqlVersion version;
     private final boolean multiValueFieldLeniency;
     private final boolean includeFrozenIndices;
@@ -43,7 +43,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.filter = filter;
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.clientId = clientId;
-        this.version = version;
+        this.version = version != null ? version : SqlVersion.fromId(Version.CURRENT.id);
         this.multiValueFieldLeniency = multiValueFieldLeniency;
         this.includeFrozenIndices = includeFrozen;
     }

@@ -684,7 +684,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         Number value;
         try {
-            value = StringUtils.parseInteger(tuple.v2());
+            value = StringUtils.parseIntegral(tuple.v2());
         } catch (QlIllegalArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }

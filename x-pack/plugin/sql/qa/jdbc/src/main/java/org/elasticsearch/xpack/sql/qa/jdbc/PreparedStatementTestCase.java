@@ -37,14 +37,13 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.INTEGER;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_TYPE_NAME;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isUnsignedLongSupported;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase {
-
-    static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
-    EsType UNSIGNED_LONG = isUnsignedLongSupported() ? EsType.valueOf("UNSIGNED_LONG") : null;
 
     public void testSupportedTypes() throws SQLException {
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
@@ -56,7 +55,6 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         byte byteVal = randomByte();
         short shortVal = randomShort();
         BigDecimal bigDecimalVal = BigDecimal.valueOf(randomDouble());
-        BigInteger bigIntegerVal = bigDecimalVal.abs().remainder(new BigDecimal(UNSIGNED_LONG_MAX)).toBigInteger();
         long millis = randomNonNegativeLong();
         Calendar calendarVal = Calendar.getInstance(randomTimeZone(), Locale.ROOT);
         Timestamp timestampVal = new Timestamp(millis);
@@ -76,33 +74,30 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
 
         try (Connection connection = esJdbc()) {
             StringJoiner sql = new StringJoiner(",", "SELECT ", "");
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 19; i++) {
                 sql.add("?");
             }
             try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
                 int index = 1;
-                statement.setString(index ++, stringVal);
-                statement.setInt(index ++, intVal);
-                statement.setLong(index ++, longVal);
-                statement.setFloat(index ++, floatVal);
-                statement.setDouble(index ++, doubleVal);
-                statement.setNull(index ++, JDBCType.DOUBLE.getVendorTypeNumber());
-                statement.setBoolean(index ++, booleanVal);
-                statement.setByte(index ++, byteVal);
-                statement.setShort(index ++, shortVal);
-                statement.setBigDecimal(index ++, bigDecimalVal);
-                statement.setTimestamp(index ++, timestampVal);
-                statement.setTimestamp(index ++, timestampVal, calendarVal);
-                statement.setDate(index ++, dateVal);
-                statement.setDate(index ++, dateVal, calendarVal);
-                statement.setTime(index ++, timeVal);
-                statement.setTime(index ++, timeVal, calendarVal);
-                statement.setObject(index ++, calendarVal);
-                statement.setObject(index ++, utilDateVal);
-                statement.setObject(index ++, localDateTimeVal);
-                if (isUnsignedLongSupported()) {
-                    statement.setObject(index++, bigIntegerVal);
-                }
+                statement.setString(index++, stringVal);
+                statement.setInt(index++, intVal);
+                statement.setLong(index++, longVal);
+                statement.setFloat(index++, floatVal);
+                statement.setDouble(index++, doubleVal);
+                statement.setNull(index++, JDBCType.DOUBLE.getVendorTypeNumber());
+                statement.setBoolean(index++, booleanVal);
+                statement.setByte(index++, byteVal);
+                statement.setShort(index++, shortVal);
+                statement.setBigDecimal(index++, bigDecimalVal);
+                statement.setTimestamp(index++, timestampVal);
+                statement.setTimestamp(index++, timestampVal, calendarVal);
+                statement.setDate(index++, dateVal);
+                statement.setDate(index++, dateVal, calendarVal);
+                statement.setTime(index++, timeVal);
+                statement.setTime(index++, timeVal, calendarVal);
+                statement.setObject(index++, calendarVal);
+                statement.setObject(index++, utilDateVal);
+                statement.setObject(index++, localDateTimeVal);
 
                 try (ResultSet results = statement.executeQuery()) {
                     ResultSetMetaData resultSetMetaData = results.getMetaData();
@@ -114,28 +109,25 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                     }
                     assertTrue(results.next());
                     index = 1;
-                    assertEquals(stringVal, results.getString(index ++));
-                    assertEquals(intVal, results.getInt(index ++));
-                    assertEquals(longVal, results.getLong(index ++));
-                    assertEquals(floatVal, results.getFloat(index ++), 0.00001f);
-                    assertEquals(doubleVal, results.getDouble(index ++), 0.00001f);
-                    assertNull(results.getObject(index ++));
-                    assertEquals(booleanVal, results.getBoolean(index ++));
-                    assertEquals(byteVal, results.getByte(index ++));
-                    assertEquals(shortVal, results.getShort(index ++));
-                    assertEquals(bigDecimalVal, results.getBigDecimal(index ++));
-                    assertEquals(timestampVal, results.getTimestamp(index ++));
-                    assertEquals(timestampValWithCal, results.getTimestamp(index ++));
-                    assertEquals(dateVal, results.getDate(index ++));
-                    assertEquals(dateValWithCal, results.getDate(index ++));
-                    assertEquals(timeVal, results.getTime(index ++));
-                    assertEquals(timeValWithCal, results.getTime(index ++));
-                    assertEquals(new Timestamp(calendarVal.getTimeInMillis()), results.getObject(index ++));
-                    assertEquals(timestampVal, results.getObject(index ++));
-                    assertEquals(timestampVal, results.getObject(index ++));
-                    if (isUnsignedLongSupported()) {
-                        assertEquals(bigIntegerVal, results.getObject(index++));
-                    }
+                    assertEquals(stringVal, results.getString(index++));
+                    assertEquals(intVal, results.getInt(index++));
+                    assertEquals(longVal, results.getLong(index++));
+                    assertEquals(floatVal, results.getFloat(index++), 0.00001f);
+                    assertEquals(doubleVal, results.getDouble(index++), 0.00001f);
+                    assertNull(results.getObject(index++));
+                    assertEquals(booleanVal, results.getBoolean(index++));
+                    assertEquals(byteVal, results.getByte(index++));
+                    assertEquals(shortVal, results.getShort(index++));
+                    assertEquals(bigDecimalVal, results.getBigDecimal(index++));
+                    assertEquals(timestampVal, results.getTimestamp(index++));
+                    assertEquals(timestampValWithCal, results.getTimestamp(index++));
+                    assertEquals(dateVal, results.getDate(index++));
+                    assertEquals(dateValWithCal, results.getDate(index++));
+                    assertEquals(timeVal, results.getTime(index++));
+                    assertEquals(timeValWithCal, results.getTime(index++));
+                    assertEquals(new Timestamp(calendarVal.getTimeInMillis()), results.getObject(index++));
+                    assertEquals(timestampVal, results.getObject(index++));
+                    assertEquals(timestampVal, results.getObject(index++));
                     assertFalse(results.next());
                 }
             }
@@ -382,16 +374,26 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 assertEquals(new Tuple<>(BYTE.getName(), byteVal), execute(statement));
                 statement.setShort(1, shortVal);
                 assertEquals(new Tuple<>(SHORT.getName(), shortVal), execute(statement));
+            }
+        }
+    }
 
-                if (isUnsignedLongSupported()) {
-                    statement.setObject(1, bigIntegerVal);
-                    assertEquals(new Tuple<>(UNSIGNED_LONG.getName(), bigIntegerVal), execute(statement));
+    public void testSingleParameterUnsignedLong() throws SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-                    statement.setObject(1, longVal, JDBCType.BIGINT, 19);
-                    assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
-                    statement.setObject(1, Math.abs(longVal), JDBCType.BIGINT, 20);
-                    assertEquals(new Tuple<>(UNSIGNED_LONG.getName(), BigInteger.valueOf(Math.abs(longVal))), execute(statement));
-                }
+        BigInteger bigIntegerVal = randomBigInteger();
+        long longVal = randomLong();
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT ?")) {
+
+                statement.setObject(1, bigIntegerVal);
+                assertEquals(new Tuple<>(UNSIGNED_LONG_TYPE_NAME, bigIntegerVal), execute(statement));
+
+                statement.setObject(1, longVal, JDBCType.BIGINT, 19);
+                assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
+                statement.setObject(1, Math.abs(longVal), JDBCType.BIGINT, 20);
+                assertEquals(new Tuple<>(UNSIGNED_LONG_TYPE_NAME, BigInteger.valueOf(Math.abs(longVal))), execute(statement));
             }
         }
     }

@@ -38,6 +38,18 @@ final class JdbcTestUtils {
     private static final String DRIVER_VERSION_PROPERTY_NAME = "jdbc.driver.version";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
+    static final String UNSIGNED_LONG_TYPE_NAME = "UNSIGNED_LONG";
+    public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+
+    /*
+     * The version of the driver that the QA (bwc-)tests run against.
+     * Note: when adding a version-gated feature (i.e. new feature that would not be supported by old drivers) and add code in these QA
+     * tests to check the feature, you'll want to compare the target release version of the feature against this variable, to selectively
+     * run the new tests only for drivers that will support the feature (i.e. of the target release version and newer). The check would
+     * look like <code>if (TARGET_VERSION.compareTo(JDBC_DRIVER_VERSION) <= 0) {run_tests();}</code> (see {@code isUnsignedLongSupported}.
+     * However, until the feature + QA tests are actually ported to the target branch, the comparison will hold true only for the master
+     * branch. So you'll need to remove the equality, port the feature and subsequently add the equality; i.e. a two-step commit.
+     */
     static final Version JDBC_DRIVER_VERSION;
 
     static {
@@ -45,6 +57,7 @@ final class JdbcTestUtils {
         String jdbcDriverVersion = System.getProperty(DRIVER_VERSION_PROPERTY_NAME, "").replace("-SNAPSHOT", "");
         JDBC_DRIVER_VERSION = Version.fromString(jdbcDriverVersion); // takes empty and null strings, resolves them to CURRENT
 
+        // Note: keep in sync with org.elasticsearch.xpack.sql.jdbc.TypeUtils#CLASS_TO_TYPE
         Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
         aMap.put(Boolean.class, EsType.BOOLEAN);
         aMap.put(Byte.class, EsType.BYTE);

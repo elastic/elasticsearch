@@ -35,8 +35,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
-import static org.elasticsearch.xpack.ql.util.Check.UNSIGNED_LONG_MAX;
-import static org.elasticsearch.xpack.ql.util.Check.isUnsignedLong;
+import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.inUnsignedLongRange;
+import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.isUnsignedLong;
 
 /**
  * Conversion utility from one Elasticsearch data type to another Elasticsearch data types.
@@ -385,15 +385,8 @@ public final class DataTypeConverter {
         }
     }
 
-    // 18446744073709551615.0
-    private static final double UNSIGNED_LONG_MAX_AS_DOUBLE = UNSIGNED_LONG_MAX.doubleValue();
-
     public static BigInteger safeToUnsignedLong(Double x) {
-        // UNSIGNED_LONG_MAX can't be represented precisely enough on a double, being converted as a rounded up value.
-        // Converting it to a double and back will yield a larger unsigned long, so the double comparison is still preferred, but
-        // it'll require the equality check. (BigDecimal comparisons only make sense for string-recovered floating point numbers.)
-        // This also means that 18446744073709551615.0 is actually a double too high to be converted as an unsigned long.
-        if (x < 0 || x >= UNSIGNED_LONG_MAX_AS_DOUBLE) {
+        if (inUnsignedLongRange(x) == false) {
             throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range");
         }
         return BigDecimal.valueOf(x).toBigInteger();
@@ -408,10 +401,8 @@ public final class DataTypeConverter {
 
     public static BigInteger safeToUnsignedLong(String x) {
         BigInteger bi = new BigDecimal(x).toBigInteger();
-        try {
-            isUnsignedLong(bi);
-        } catch (ArithmeticException ae) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range", ae);
+        if (isUnsignedLong(bi) == false) {
+            throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range");
         }
         return bi;
     }

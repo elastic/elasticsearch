@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.session.Compatibility.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
@@ -58,7 +58,7 @@ public class FieldAttributeTests extends ESTestCase {
     public FieldAttributeTests() {
         parser = new SqlParser();
         functionRegistry = new SqlFunctionRegistry();
-        verifier = new Verifier(new Metrics(), SqlTestUtils.TEST_CFG);
+        verifier = new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version());
 
         Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json");
 
@@ -301,11 +301,11 @@ public class FieldAttributeTests extends ESTestCase {
 
         for (String sql : List.of(query, queryWithLiteral, queryWithAlias, queryWithArithmetic, queryWithCast)) {
             SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preUnsignedLong);
-            analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig));
+            analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig.version()));
             VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
             assertEquals(
                 "Found 1 problem\nline 1:8: Cannot use field [unsigned_long] with type [UNSIGNED_LONG] unsupported in version [" +
-                    preUnsignedLong + "]",
+                    preUnsignedLong + "], upgrade required (to version [" + INTRODUCING_UNSIGNED_LONG + "] or higher)",
                 ex.getMessage());
 
             for (SqlVersion v : List.of(introducingUnsignedLong, postUnsignedLong)) {
@@ -329,7 +329,7 @@ public class FieldAttributeTests extends ESTestCase {
         getIndexResult = IndexResolution.valid(index);
         SqlVersion preIntroducingVersion = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
         SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preIntroducingVersion);
-        analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig));
+        analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig.version()));
 
         String query = "SELECT unsigned_long = 1, unsigned_long::double FROM test";
         String queryWithSubquery = "SELECT l = 1, SQRT(ul) FROM " +

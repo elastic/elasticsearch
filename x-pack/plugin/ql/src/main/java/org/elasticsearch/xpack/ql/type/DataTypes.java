@@ -106,7 +106,6 @@ public final class DataTypes {
             return LONG;
         }
         if (value instanceof BigInteger) {
-            // TODO: range check needed at all? (((BigInteger) value).signum() < 0
             return UNSIGNED_LONG;
         }
         if (value instanceof Boolean) {

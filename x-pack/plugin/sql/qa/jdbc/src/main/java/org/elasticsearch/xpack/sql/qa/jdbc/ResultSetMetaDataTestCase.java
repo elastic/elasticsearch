@@ -14,34 +14,31 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_TYPE_NAME;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isUnsignedLongSupported;
 
 public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
 
-    private static final List<String> fieldsNames = new ArrayList<>();
+    private static final List<String> FIELDS_NAMES = List.of(
+        "test_byte",
+        "test_integer",
+        "test_long",
+        "test_short",
+        "test_double",
+        "test_float",
+        "test_keyword",
+        "test_boolean",
+        "test_date"
+    );
+    private static final String UNSIGNED_LONG_FIELD = "test_" + UNSIGNED_LONG_TYPE_NAME.toLowerCase(Locale.ROOT);
 
-    static {
-        fieldsNames.addAll(List.of(
-            "test_byte",
-            "test_integer",
-            "test_long",
-            "test_short",
-            "test_double",
-            "test_float",
-            "test_keyword",
-            "test_boolean",
-            "test_date"
-        ));
-        if (isUnsignedLongSupported()) {
-            fieldsNames.add("test_unsigned_long");
-        }
-    }
-
-    public void testValidGetObjectCalls() throws IOException, SQLException {
+    public void doTestValidGetObjectCalls(List<String> fieldsNames) throws IOException, SQLException {
         ResultSetTestCase.createIndex("test");
         ResultSetTestCase.updateMapping("test", builder -> {
             for (String field : fieldsNames) {
@@ -53,16 +50,26 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
         doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames));
 
 
-        q = "SELECT " + fieldsNames.stream().map(x -> x + " AS " + x.replace("_", "")).collect(Collectors.joining(", ")) + " FROM test";
+        String selectedFields = fieldsNames.stream().map(x -> x + " AS " + x.replace("_", "")).collect(Collectors.joining(", "));
+        q = "SELECT " + selectedFields + " FROM test";
         doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames.stream()
             .map(x -> x.replace("_", "")).collect(Collectors.toList())));
+    }
+
+    public void testValidGetObjectCalls() throws IOException, SQLException {
+        doTestValidGetObjectCalls(FIELDS_NAMES);
+    }
+
+    public void testValidGetObjectCallsWithUnsignedLong() throws IOException, SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
+
+        doTestValidGetObjectCalls(singletonList(UNSIGNED_LONG_FIELD));
     }
 
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
                 try (ResultSet results = statement.executeQuery()) {
-                    assertEquals(fieldsNames.size(), results.getMetaData().getColumnCount());
                     consumer.accept(results);
                 }
             }
@@ -70,7 +77,8 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
     }
 
     private void assertColumnNamesAndLabels(ResultSetMetaData metaData, List<String> names) throws SQLException {
-        for (int i = 0; i < fieldsNames.size(); i++) {
+        assertEquals(names.size(), metaData.getColumnCount());
+        for (int i = 0; i < names.size(); i++) {
             assertEquals(names.get(i), metaData.getColumnName(i + 1));
             assertEquals(names.get(i), metaData.getColumnLabel(i + 1));
         }

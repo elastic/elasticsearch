@@ -43,7 +43,7 @@ public final class SqlTestUtils {
 
     public static SqlConfiguration randomConfiguration() {
         return new SqlConfiguration(randomZone(),
-                randomIntBetween(0,  1000),
+                randomIntBetween(0, 1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
                 null,
@@ -58,7 +58,7 @@ public final class SqlTestUtils {
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
         return new SqlConfiguration(providedZoneId,
-            randomIntBetween(0,  1000),
+            randomIntBetween(0, 1000),
             new TimeValue(randomNonNegativeLong()),
             new TimeValue(randomNonNegativeLong()),
             null,
@@ -73,7 +73,7 @@ public final class SqlTestUtils {
 
     public static SqlConfiguration randomConfiguration(SqlVersion version) {
         return new SqlConfiguration(randomZone(),
-                randomIntBetween(0,  1000),
+                randomIntBetween(0, 1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
                 null,

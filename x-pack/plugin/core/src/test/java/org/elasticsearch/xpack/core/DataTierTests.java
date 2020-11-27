@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -25,6 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class DataTierTests extends ESTestCase {
 
@@ -78,6 +82,55 @@ public class DataTierTests extends ESTestCase {
         allTiers.addAll(Arrays.asList(warmNodes));
         allTiers.addAll(Arrays.asList(coldNodes));
         assertThat(discoveryNodes.resolveNodes("data:true"), arrayContainingInAnyOrder(allTiers.toArray(Strings.EMPTY_ARRAY)));
+    }
+
+    public void testDefaultRolesImpliesTieredDataRoles() {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_CONTENT_NODE_ROLE, DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE)
+        );
+        final DiscoveryNode node = DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
+        assertThat(node.getRoles(), hasItem(DataTier.DATA_CONTENT_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DataTier.DATA_HOT_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DataTier.DATA_WARM_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DataTier.DATA_COLD_NODE_ROLE));
+    }
+
+    public void testDataRoleDoesNotImplyTieredDataRoles() {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_CONTENT_NODE_ROLE, DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE)
+        );
+        final Settings settings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "data").build();
+        final DiscoveryNode node = DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
+        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_CONTENT_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_HOT_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_WARM_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_COLD_NODE_ROLE)));
+    }
+
+    public void testLegacyDataRoleImpliesTieredDataRoles() {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_CONTENT_NODE_ROLE, DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE)
+        );
+        final Settings settings = Settings.builder().put(DiscoveryNodeRole.DATA_ROLE.legacySetting().getKey(), true).build();
+        final DiscoveryNode node = DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
+        assertThat(node.getRoles(), hasItem(DataTier.DATA_CONTENT_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DataTier.DATA_HOT_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DataTier.DATA_WARM_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DataTier.DATA_COLD_NODE_ROLE));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{DiscoveryNodeRole.DATA_ROLE.legacySetting()});
+    }
+
+    public void testDisablingLegacyDataRoleDisablesTieredDataRoles() {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_CONTENT_NODE_ROLE, DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE)
+        );
+        final Settings settings = Settings.builder().put(DiscoveryNodeRole.DATA_ROLE.legacySetting().getKey(), false).build();
+        final DiscoveryNode node = DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
+        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_CONTENT_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_HOT_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_WARM_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_COLD_NODE_ROLE)));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{DiscoveryNodeRole.DATA_ROLE.legacySetting()});
     }
 
     private static DiscoveryNodes buildDiscoveryNodes() {

@@ -66,7 +66,7 @@ ext.expansions = [
   'project.version': version
 ]
 
-processResources {
+tasks.named("processResources").configure {
   from(sourceSets.main.resources.srcDirs) {
     // we need to have duplicate strategy here as
     // we cannot apply the filter on root level due
@@ -92,7 +92,7 @@ processResources {
   }
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
   exclude '**/*.p12'
   exclude '**/*.der'
@@ -103,15 +103,16 @@ tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/hasher-signatures.txt')
 }
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+}
 
 // make LicenseSigner available for testing signed licenses
 sourceSets.test.resources {
   srcDir 'src/main/config'
 }
 
-test {
+tasks.named("test").configure {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -132,7 +133,7 @@ def testJar = tasks.register("testJar", Jar) {
 
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives jar
+  archives tasks.named("jar")
   testArtifacts testJar
 }
 

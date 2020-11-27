@@ -42,11 +42,12 @@ public class NGramTests extends PreProcessingTests<NGram> {
     }
 
     public static NGram createRandom(Boolean isCustom) {
+        int possibleLength = randomIntBetween(1, 10);
         return new NGram(
             randomAlphaOfLength(10),
-            IntStream.generate(() -> randomIntBetween(1, 5)).limit(5).boxed().collect(Collectors.toList()),
+            IntStream.generate(() -> randomIntBetween(1, Math.min(possibleLength, 5))).limit(5).boxed().collect(Collectors.toList()),
             randomBoolean() ? null : randomIntBetween(0, 10),
-            randomBoolean() ? null : randomIntBetween(1, 10),
+            randomBoolean() ? null : possibleLength,
             isCustom,
             randomBoolean() ? null : randomAlphaOfLength(10));
     }

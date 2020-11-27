@@ -27,10 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 
@@ -39,19 +36,19 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public static final String NAME_PRE_V8 = "_type";
     public static final String NAME = "_nested_path";
 
-    public static String name(Settings settings) {
-        if (Version.indexCreated(settings).before(Version.V_8_0_0)) {
+    public static String name(Version version) {
+        if (version.before(Version.V_8_0_0)) {
             return NAME_PRE_V8;
         }
         return NAME;
     }
 
-    public static Query filter(Settings settings, String path) {
-        return new TermQuery(new Term(name(settings), new BytesRef(path)));
+    public static Query filter(Version version, String path) {
+        return new TermQuery(new Term(name(version), new BytesRef(path)));
     }
 
-    public static Field field(Settings settings, String path) {
-        return new Field(name(settings), path, Defaults.FIELD_TYPE);
+    public static Field field(Version version, String path) {
+        return new Field(name(version), path, Defaults.FIELD_TYPE);
     }
 
     public static class Defaults {
@@ -67,15 +64,12 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> {
-        final IndexSettings indexSettings = c.getIndexSettings();
-        return new NestedPathFieldMapper(indexSettings.getSettings());
-    });
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new NestedPathFieldMapper(c.indexVersionCreated()));
 
     public static final class NestedPathFieldType extends StringFieldType {
 
-        private NestedPathFieldType(Settings settings) {
-            super(NestedPathFieldMapper.name(settings), true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private NestedPathFieldType(Version version) {
+            super(NestedPathFieldMapper.name(version), true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -89,13 +83,13 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }
 
-    private NestedPathFieldMapper(Settings settings) {
-        super(new NestedPathFieldType(settings));
+    private NestedPathFieldMapper(Version version) {
+        super(new NestedPathFieldType(version));
     }
 
     @Override

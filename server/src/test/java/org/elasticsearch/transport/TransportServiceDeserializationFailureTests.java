@@ -92,11 +92,6 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                         }
 
                         @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
-
-                        @Override
                         public TransportResponse.Empty read(StreamInput in) {
                             throw new AssertionError("should not be called");
                         }
@@ -139,11 +134,6 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                         @Override
                         public void handleException(TransportException exp) {
                             fail("should not be called");
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override

@@ -28,11 +28,11 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -94,7 +94,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         return ((FlattenedFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> depthLimit
             = Parameter.intParam("depth_limit", true, m -> builder(m).depthLimit.get(), Defaults.DEPTH_LIMIT)
@@ -135,8 +135,8 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public FlattenedFieldMapper build(BuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+        public FlattenedFieldMapper build(ContentPath contentPath) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
             if (multiFields.iterator().hasNext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
             }
@@ -145,7 +145,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                buildFullName(context), indexed.get(), hasDocValues.get(), meta.get(), splitQueriesOnWhitespace.get());
+                buildFullName(contentPath), indexed.get(), hasDocValues.get(), meta.get(), splitQueriesOnWhitespace.get());
             if (eagerGlobalOrdinals.get()) {
                 ft.setEagerGlobalOrdinals(true);
             }
@@ -167,7 +167,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
         }
 
@@ -257,8 +256,9 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+            // This is an internal field but it can match a field pattern so we return an empty list.
+            return lookup -> List.of();
         }
     }
 
@@ -379,7 +379,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -403,8 +402,8 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
     }
 
@@ -414,7 +413,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     private FlattenedFieldMapper(String simpleName,
                                  MappedFieldType mappedFieldType,
                                  Builder builder) {
-        super(simpleName, mappedFieldType, CopyTo.empty());
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(mappedFieldType.name(), keyedFieldName(),
             mappedFieldType, builder.depthLimit.get(), builder.ignoreAbove.get(), builder.nullValue.get());
@@ -423,11 +422,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected FlattenedFieldMapper clone() {
-        return (FlattenedFieldMapper) super.clone();
     }
 
     int depthLimit() {
@@ -472,7 +466,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

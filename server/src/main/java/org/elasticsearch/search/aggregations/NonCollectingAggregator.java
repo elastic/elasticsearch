@@ -38,14 +38,6 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
         super(name, subFactories, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
-    /**
-     * Build a {@linkplain NonCollectingAggregator} for an aggregator without sub-aggregators.
-     */
-    protected NonCollectingAggregator(String name, SearchContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
-        this(name, context, parent, AggregatorFactories.EMPTY, metadata);
-    }
-
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext reader, LeafBucketCollector sub) {
         // the framework will automatically eliminate it

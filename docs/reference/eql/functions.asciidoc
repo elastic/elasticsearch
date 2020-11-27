@@ -137,7 +137,7 @@ field data types:
 --
 
 `<greedy_matching>`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, match the longest possible substring, similar to `.*` in regular
 expressions. If `false`, match the shortest possible substring, similar to `.*?`
 in regular expressions. Defaults to `false`.

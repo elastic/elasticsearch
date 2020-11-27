@@ -166,14 +166,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }
         assert round > 0;
         assertThat(state, sameInstance(lastState));
-        assertThat(
-            new ReactiveStorageDeciderService.AllocationState(
-                createContext(),
-                new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-                createAllocationDeciders(mockCanAllocateDiskDecider)
-            ).state(),
-            sameInstance(state)
-        );
     }
 
     public void testStoragePreventsMove() {

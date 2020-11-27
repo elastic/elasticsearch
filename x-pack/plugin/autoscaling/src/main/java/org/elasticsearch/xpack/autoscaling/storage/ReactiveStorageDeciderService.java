@@ -277,12 +277,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        public ClusterState state() {
-            return state;
-        }
-
         private long maxShardSize() {
-            return nodesInTier(state().getRoutingNodes(), nodeTierPredicate).flatMap(rn -> rn.copyShards().stream())
+            return nodesInTier(state.getRoutingNodes(), nodeTierPredicate).flatMap(rn -> rn.copyShards().stream())
                 .mapToLong(this::sizeOf)
                 .max()
                 .orElse(0L);

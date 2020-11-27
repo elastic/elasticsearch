@@ -100,7 +100,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         return StreamSupport.stream(routingNodes.spliterator(), false).filter(routingNodePredicate);
     }
 
-    public static class AllocationState {
+    static class AllocationState {
         private final ClusterState state;
         private final AllocationDeciders allocationDeciders;
         private final DiskThresholdSettings diskThresholdSettings;
@@ -277,7 +277,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        private long maxShardSize() {
+        public long maxShardSize() {
             return nodesInTier(state.getRoutingNodes(), nodeTierPredicate).flatMap(rn -> rn.copyShards().stream())
                 .mapToLong(this::sizeOf)
                 .max()

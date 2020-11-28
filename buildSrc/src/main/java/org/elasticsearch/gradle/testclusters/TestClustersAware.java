@@ -44,5 +44,4 @@ public interface TestClustersAware extends Task {
     }
 
     default void beforeStart() {}
-
 }

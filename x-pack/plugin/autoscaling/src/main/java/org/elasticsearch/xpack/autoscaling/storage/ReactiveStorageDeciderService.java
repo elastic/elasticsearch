@@ -102,7 +102,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final Predicate<DiscoveryNode> nodeTierPredicate;
         private final Set<DiscoveryNode> nodes;
 
-        public AllocationState(
+        AllocationState(
             AutoscalingDeciderContext context,
             DiskThresholdSettings diskThresholdSettings,
             AllocationDeciders allocationDeciders
@@ -117,7 +117,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        public AllocationState(
+        AllocationState(
             ClusterState state,
             AllocationDeciders allocationDeciders,
             DiskThresholdSettings diskThresholdSettings,

@@ -310,3 +310,18 @@ tasks.named("thirdPartyAudit").configure {
           'javax.activation.DataHandler'
   )
 }
+
+// test jar is exported by the testArtifacts configuration to be used in the encrypted Azure repository test
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+def testJar = tasks.register("testJar", Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  archives tasks.named("jar")
+  testArtifacts testJar
+}

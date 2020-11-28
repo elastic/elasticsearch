@@ -142,7 +142,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         int round = 0;
         while (lastState != state && round < maxRounds) {
             long numPrevents = numAllocatableSubjectShards();
-            assert round != 0 || numPrevents > 0;
+            assert round != 0 || numPrevents > 0 : "must have shards that can be allocated on first round";
 
             verify(ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation, numPrevents, mockCanAllocateDiskDecider);
             verify(

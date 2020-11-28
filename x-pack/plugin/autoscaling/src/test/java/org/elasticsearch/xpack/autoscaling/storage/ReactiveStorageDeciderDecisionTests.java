@@ -395,10 +395,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.
             shards.stream()
                 .filter(Predicate.not(ShardRouting::primary))
-                .forEach(s -> { allocation.routingNodes().startShard(logger, s, allocation.changes()); });
+                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes()));
             shards.stream()
                 .filter(ShardRouting::primary)
-                .forEach(s -> { allocation.routingNodes().startShard(logger, s, allocation.changes()); });
+                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes()));
             SHARDS_ALLOCATOR.allocate(allocation);
 
             // ensure progress by only relocating a shard if we started more than one shard.
@@ -442,7 +442,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         private final ClusterState state;
         private final AutoscalingCapacity currentCapacity;
         private final Set<DiscoveryNode> nodes;
-        private ClusterInfo info;
+        private final ClusterInfo info;
 
         private TestAutoscalingDeciderContext(ClusterState state, Set<DiscoveryNodeRole> roles, AutoscalingCapacity currentCapacity) {
             this.state = state;
@@ -450,6 +450,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             this.nodes = StreamSupport.stream(state.nodes().spliterator(), false)
                 .filter(n -> roles.stream().anyMatch(n.getRoles()::contains))
                 .collect(Collectors.toSet());
+            this.info = createClusterInfo(state);
         }
 
         @Override
@@ -469,9 +470,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         @Override
         public ClusterInfo info() {
-            if (info == null) {
-                info = createClusterInfo(state);
-            }
             return info;
         }
 

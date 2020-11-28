@@ -571,8 +571,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private static String randomNodeId(RoutingNodes routingNodes, DiscoveryNodeRole role) {
         return randomFrom(
-            ReactiveStorageDeciderService.nodesInTier(routingNodes, n -> n.getRoles().contains(role)).collect(Collectors.toSet())
-        ).nodeId();
+            StreamSupport.stream(routingNodes.spliterator(), false).map(RoutingNode::node).filter(n -> n.getRoles().contains(role)).collect(Collectors.toSet())).getId();
     }
 
     private static Set<ShardId> shardIds(Iterable<ShardRouting> candidateShards) {

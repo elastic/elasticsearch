@@ -112,20 +112,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         assertThat(ReactiveStorageDeciderService.isDiskOnlyNoDecision(decision), is(false));
     }
 
-    public void testNodesInTier() {
-        int hotNodes = randomIntBetween(0, 8);
-        int warmNodes = randomIntBetween(0, 8);
-        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
-        state = addDataNodes("hot", "hot", state, hotNodes);
-        Set<DiscoveryNode> expectedHotNodes = StreamSupport.stream(state.nodes().spliterator(), false).collect(Collectors.toSet());
-        state = addDataNodes("warm", "warm", state, warmNodes);
-
-        Set<DiscoveryNode> hotTier = ReactiveStorageDeciderService.nodesInTier(state.getRoutingNodes(), n -> n.getName().startsWith("hot"))
-            .map(RoutingNode::node)
-            .collect(Collectors.toSet());
-        assertThat(hotTier, equalTo(expectedHotNodes));
-    }
-
     public void testSizeOf() {
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         Metadata.Builder metaBuilder = Metadata.builder();
@@ -197,7 +183,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             info,
             null,
-            null
+            Set.of()
         );
 
         assertThat(allocationState.sizeOf(subjectShard), equalTo(expected));
@@ -274,7 +260,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             shardSizeInfo,
-            null
+            Set.of()
         );
 
         assertThat(allocationState.sizeOf(primaryShard), equalTo(expected));
@@ -360,7 +346,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             thresholdSettings,
             info,
             null,
-            null
+            Set.of()
         );
 
         long result = allocationState.unmovableSize(nodeId, shards);
@@ -374,23 +360,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         } else {
             assertThat(result, equalTo(ByteSizeUnit.KB.toBytes(minShardSize)));
         }
-    }
-
-    private static ClusterState addDataNodes(String tier, String prefix, ClusterState state, int nodes) {
-        DiscoveryNodes.Builder builder = DiscoveryNodes.builder(state.nodes());
-        IntStream.range(0, nodes).mapToObj(i -> newDataNode(tier, prefix + "_" + i)).forEach(builder::add);
-        return ClusterState.builder(state).nodes(builder).build();
-    }
-
-    private static DiscoveryNode newDataNode(String tier, String nodeName) {
-        return new DiscoveryNode(
-            nodeName,
-            UUIDs.randomBase64UUID(),
-            buildNewFakeTransportAddress(),
-            Map.of("tier", tier),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
     }
 
     private String shardIdentifier(ShardRouting s) {

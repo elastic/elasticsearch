@@ -93,11 +93,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         return nos.size() == 1 && DiskThresholdDecider.NAME.equals(nos.get(0).label());
     }
 
-    static Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes, Predicate<DiscoveryNode> nodeTierPredicate) {
-        Predicate<RoutingNode> routingNodePredicate = rn -> nodeTierPredicate.test(rn.node());
-        return StreamSupport.stream(routingNodes.spliterator(), false).filter(routingNodePredicate);
-    }
-
     static class AllocationState {
         private final ClusterState state;
         private final AllocationDeciders allocationDeciders;
@@ -105,6 +100,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final ClusterInfo info;
         private final SnapshotShardSizeInfo shardSizeInfo;
         private final Predicate<DiscoveryNode> nodeTierPredicate;
+        private final Set<DiscoveryNode> nodes;
 
         public AllocationState(
             AutoscalingDeciderContext context,
@@ -117,7 +113,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 diskThresholdSettings,
                 context.info(),
                 context.snapshotShardSizeInfo(),
-                context.nodes()::contains
+                context.nodes()
             );
         }
 
@@ -127,14 +123,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DiskThresholdSettings diskThresholdSettings,
             ClusterInfo info,
             SnapshotShardSizeInfo shardSizeInfo,
-            Predicate<DiscoveryNode> nodeTierPredicate
+            Set<DiscoveryNode> nodes
         ) {
             this.state = state;
             this.allocationDeciders = allocationDeciders;
             this.diskThresholdSettings = diskThresholdSettings;
             this.info = info;
             this.shardSizeInfo = shardSizeInfo;
-            this.nodeTierPredicate = nodeTierPredicate;
+            this.nodes = nodes;
+            this.nodeTierPredicate = nodes::contains;
         }
 
         public long storagePreventsAllocation() {
@@ -245,7 +242,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             assert allocation.debugDecision() == false;
             allocation.debugDecision(true);
             try {
-                return nodesInTier(allocation.routingNodes(), nodeTierPredicate).map(
+                return nodesInTier(allocation.routingNodes()).map(
                     node -> allocationDeciders.canAllocate(shard, node, allocation)
                 ).anyMatch(ReactiveStorageDeciderService::isDiskOnlyNoDecision);
             } finally {
@@ -270,16 +267,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private boolean canAllocate(ShardRouting shard, RoutingAllocation allocation) {
-            return nodesInTier(allocation.routingNodes(), nodeTierPredicate).anyMatch(
+            return nodesInTier(allocation.routingNodes()).anyMatch(
                 node -> allocationDeciders.canAllocate(shard, node, allocation) != Decision.NO
             );
         }
 
         public long maxShardSize() {
-            return nodesInTier(state.getRoutingNodes(), nodeTierPredicate).flatMap(rn -> StreamSupport.stream(rn.spliterator(), false))
+            return nodesInTier(state.getRoutingNodes()).flatMap(rn -> StreamSupport.stream(rn.spliterator(), false))
                 .mapToLong(this::sizeOf)
                 .max()
                 .orElse(0L);
+        }
+
+        Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes) {
+            return nodes.stream().map(n -> routingNodes.node(n.getId()));
         }
     }
 

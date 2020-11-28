@@ -193,47 +193,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return nodeTierPredicate.test(allocation.routingNodes().node(s.currentNodeId()).node());
         }
 
-        long sizeOf(ShardRouting shard) {
-            long expectedShardSize = getExpectedShardSize(shard);
-            if (expectedShardSize == 0L && shard.primary() == false) {
-                ShardRouting primary = state.getRoutingNodes().activePrimary(shard.shardId());
-                if (primary != null) {
-                    expectedShardSize = getExpectedShardSize(primary);
-                }
-            }
-            assert expectedShardSize >= 0;
-            // todo: we should ideally not have the level of uncertainty we have here.
-            return expectedShardSize == 0L ? ByteSizeUnit.KB.toBytes(1) : expectedShardSize;
-        }
-
-        private long getExpectedShardSize(ShardRouting shard) {
-            return DiskThresholdDecider.getExpectedShardSize(shard, 0L, info, shardSizeInfo, state.metadata(), state.routingTable());
-        }
-
-        long unmovableSize(String nodeId, Collection<ShardRouting> shards) {
-            ClusterInfo info = this.info;
-            DiskUsage diskUsage = info.getNodeMostAvailableDiskUsages().get(nodeId);
-            if (diskUsage == null) {
-                // do not want to scale up then, since this should only happen when node has just joined (clearly edge case).
-                return 0;
-            }
-
-            long threshold = Math.max(
-                diskThresholdSettings.getFreeBytesThresholdHigh().getBytes(),
-                thresholdFromPercentage(diskThresholdSettings.getFreeDiskThresholdHigh(), diskUsage)
-            );
-            long missing = threshold - diskUsage.getFreeBytes();
-            return Math.max(missing, shards.stream().mapToLong(this::sizeOf).min().orElseThrow());
-        }
-
-        private long thresholdFromPercentage(Double percentage, DiskUsage diskUsage) {
-            if (percentage == null) {
-                return 0L;
-            }
-
-            return (long) Math.ceil(diskUsage.getTotalBytes() * percentage / 100);
-        }
-
         /**
          * Check that disk decider is only decider for a node preventing allocation of the shard.
          * @return true if and only if a node exists in the tier where only disk decider prevents allocation
@@ -276,6 +235,47 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .mapToLong(this::sizeOf)
                 .max()
                 .orElse(0L);
+        }
+
+        long sizeOf(ShardRouting shard) {
+            long expectedShardSize = getExpectedShardSize(shard);
+            if (expectedShardSize == 0L && shard.primary() == false) {
+                ShardRouting primary = state.getRoutingNodes().activePrimary(shard.shardId());
+                if (primary != null) {
+                    expectedShardSize = getExpectedShardSize(primary);
+                }
+            }
+            assert expectedShardSize >= 0;
+            // todo: we should ideally not have the level of uncertainty we have here.
+            return expectedShardSize == 0L ? ByteSizeUnit.KB.toBytes(1) : expectedShardSize;
+        }
+
+        private long getExpectedShardSize(ShardRouting shard) {
+            return DiskThresholdDecider.getExpectedShardSize(shard, 0L, info, shardSizeInfo, state.metadata(), state.routingTable());
+        }
+
+        long unmovableSize(String nodeId, Collection<ShardRouting> shards) {
+            ClusterInfo info = this.info;
+            DiskUsage diskUsage = info.getNodeMostAvailableDiskUsages().get(nodeId);
+            if (diskUsage == null) {
+                // do not want to scale up then, since this should only happen when node has just joined (clearly edge case).
+                return 0;
+            }
+
+            long threshold = Math.max(
+                diskThresholdSettings.getFreeBytesThresholdHigh().getBytes(),
+                thresholdFromPercentage(diskThresholdSettings.getFreeDiskThresholdHigh(), diskUsage)
+            );
+            long missing = threshold - diskUsage.getFreeBytes();
+            return Math.max(missing, shards.stream().mapToLong(this::sizeOf).min().orElseThrow());
+        }
+
+        private long thresholdFromPercentage(Double percentage, DiskUsage diskUsage) {
+            if (percentage == null) {
+                return 0L;
+            }
+
+            return (long) Math.ceil(diskUsage.getTotalBytes() * percentage / 100);
         }
 
         Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes) {

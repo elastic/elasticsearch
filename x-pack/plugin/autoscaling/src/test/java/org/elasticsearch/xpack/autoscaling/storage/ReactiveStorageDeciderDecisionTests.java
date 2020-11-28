@@ -322,7 +322,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private long numAllocatableSubjectShards() {
         AllocationDeciders deciders = createAllocationDeciders();
-        RoutingAllocation allocation = createRoutingAllocation(state, createAllocationDeciders());
+        RoutingAllocation allocation = createRoutingAllocation(state, deciders);
         return StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
             .filter(shard -> subjectShards.contains(shard.shardId()))
             .filter(

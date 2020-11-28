@@ -283,11 +283,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(0, "storage ok");
     }
 
-    public interface VerificationSubject {
+    private interface VerificationSubject {
         long invoke(ReactiveStorageDeciderService.AllocationState state);
     }
 
-    public void verify(VerificationSubject subject, long expected, AllocationDecider... allocationDeciders) {
+    private void verify(VerificationSubject subject, long expected, AllocationDecider... allocationDeciders) {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             createContext(DataTier.DATA_HOT_NODE_ROLE),
             DISK_THRESHOLD_SETTINGS,
@@ -296,11 +296,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         assertThat(subject.invoke(allocationState), equalTo(expected));
     }
 
-    public void verifyScale(long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
+    private void verifyScale(long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
         verifyScale(state, expectedDifference, reason, allocationDeciders);
     }
 
-    public static void verifyScale(ClusterState state, long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
+    private static void verifyScale(ClusterState state, long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -415,10 +415,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 }
             }
         });
-    }
-
-    private TestAutoscalingDeciderContext createContext() {
-        return createContext(state, Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE));
     }
 
     private TestAutoscalingDeciderContext createContext(DiscoveryNodeRole role) {

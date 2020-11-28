@@ -566,5 +566,4 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private static Set<ShardId> shardIds(Iterable<ShardRouting> candidateShards) {
         return StreamSupport.stream(candidateShards.spliterator(), false).map(ShardRouting::shardId).collect(Collectors.toSet());
     }
-
 }

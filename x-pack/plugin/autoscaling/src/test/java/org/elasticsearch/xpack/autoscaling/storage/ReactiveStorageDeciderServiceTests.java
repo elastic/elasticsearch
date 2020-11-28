@@ -126,7 +126,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         addNode(stateBuilder);
         ClusterState initialClusterState = stateBuilder.build();
 
-        // we test against shard 0.
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
         IndexShardRoutingTable subjectRoutings = initialClusterState.routingTable()
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);

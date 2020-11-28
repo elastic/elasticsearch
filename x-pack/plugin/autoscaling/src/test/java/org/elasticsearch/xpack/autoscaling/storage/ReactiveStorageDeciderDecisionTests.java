@@ -88,7 +88,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }
     };
     private static final BalancedShardsAllocator SHARDS_ALLOCATOR = new BalancedShardsAllocator(Settings.EMPTY);
-    public static final DiskThresholdSettings DISK_THRESHOLD_SETTINGS = new DiskThresholdSettings(
+    private static final DiskThresholdSettings DISK_THRESHOLD_SETTINGS = new DiskThresholdSettings(
         Settings.EMPTY,
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
     );
@@ -283,11 +283,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(0, "storage ok");
     }
 
-    public interface MissingEstimator {
+    public interface VerificationSubject {
         long invoke(ReactiveStorageDeciderService.AllocationState state);
     }
 
-    public void verify(MissingEstimator subject, long expected, AllocationDecider... allocationDeciders) {
+    public void verify(VerificationSubject subject, long expected, AllocationDecider... allocationDeciders) {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             createContext(DataTier.DATA_HOT_NODE_ROLE),
             DISK_THRESHOLD_SETTINGS,

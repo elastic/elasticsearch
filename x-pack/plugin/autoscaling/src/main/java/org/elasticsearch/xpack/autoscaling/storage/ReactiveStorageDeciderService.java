@@ -242,9 +242,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             assert allocation.debugDecision() == false;
             allocation.debugDecision(true);
             try {
-                return nodesInTier(allocation.routingNodes()).map(
-                    node -> allocationDeciders.canAllocate(shard, node, allocation)
-                ).anyMatch(ReactiveStorageDeciderService::isDiskOnlyNoDecision);
+                return nodesInTier(allocation.routingNodes()).map(node -> allocationDeciders.canAllocate(shard, node, allocation))
+                    .anyMatch(ReactiveStorageDeciderService::isDiskOnlyNoDecision);
             } finally {
                 allocation.debugDecision(false);
             }

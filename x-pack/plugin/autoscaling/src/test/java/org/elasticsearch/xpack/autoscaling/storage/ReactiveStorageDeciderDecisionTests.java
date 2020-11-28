@@ -169,13 +169,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     public void testStoragePreventsMove() {
-        // this test does things backwards to avoid adding too much additional setup. It moves shards to warm nodes and then checks that
-        // the reactive decider can calculate the storage necessary to move them back to hot nodes.
+        // this test moves shards to warm nodes and then checks that the reactive decider can calculate the storage necessary to move them
+        // back to hot nodes.
 
         // allocate all primary shards
         allocate();
 
-        // pick set of shards to force on to warm nodes.
+        // set of shards to force on to warm nodes.
         Set<ShardId> warmShards = Sets.union(new HashSet<>(randomSubsetOf(shardIds(state.getRoutingNodes().unassigned()))), subjectShards);
 
         // start (to be) warm shards. Only use primary shards for simplicity.
@@ -386,44 +386,35 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         withRoutingAllocation(SHARDS_ALLOCATOR::allocate);
     }
 
-    private int startRandomShards() {
-        return startRandomShards(createAllocationDeciders());
-    }
+    private void startRandomShards() {
+        withRoutingAllocation(allocation -> {
+            List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
+            initializingShards.sort(Comparator.comparing(ShardRouting::shardId).thenComparing(ShardRouting::primary, Boolean::compare));
+            List<ShardRouting> shards = randomSubsetOf(Math.min(randomIntBetween(1, 100), initializingShards.size()), initializingShards);
 
-    private int startRandomShards(AllocationDeciders allocationDeciders) {
-        RoutingAllocation allocation = createRoutingAllocation(state, allocationDeciders);
+            // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.
+            shards.stream()
+                .filter(Predicate.not(ShardRouting::primary))
+                .forEach(s -> { allocation.routingNodes().startShard(logger, s, allocation.changes()); });
+            shards.stream()
+                .filter(ShardRouting::primary)
+                .forEach(s -> { allocation.routingNodes().startShard(logger, s, allocation.changes()); });
+            SHARDS_ALLOCATOR.allocate(allocation);
 
-        List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
-        initializingShards.sort(Comparator.comparing(ShardRouting::shardId).thenComparing(ShardRouting::primary, Boolean::compare));
-        List<ShardRouting> shards = randomSubsetOf(Math.min(randomIntBetween(1, 100), initializingShards.size()), initializingShards);
-
-        // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.
-        shards.stream()
-            .filter(Predicate.not(ShardRouting::primary))
-            .forEach(s -> { allocation.routingNodes().startShard(logger, s, allocation.changes()); });
-        shards.stream()
-            .filter(ShardRouting::primary)
-            .forEach(s -> { allocation.routingNodes().startShard(logger, s, allocation.changes()); });
-        SHARDS_ALLOCATOR.allocate(allocation);
-
-        // ensure progress by only relocating a shard if we started more than one shard.
-        if (shards.size() > 1 && randomBoolean()) {
-            List<ShardRouting> started = allocation.routingNodes().shardsWithState(ShardRoutingState.STARTED);
-            if (started.isEmpty() == false) {
-                ShardRouting toMove = randomFrom(started);
-                Set<RoutingNode> candidates = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
-                    .filter(n -> allocation.deciders().canAllocate(toMove, n, allocation) == Decision.YES)
-                    .collect(Collectors.toSet());
-                if (candidates.isEmpty() == false) {
-                    allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, allocation.changes());
+            // ensure progress by only relocating a shard if we started more than one shard.
+            if (shards.size() > 1 && randomBoolean()) {
+                List<ShardRouting> started = allocation.routingNodes().shardsWithState(ShardRoutingState.STARTED);
+                if (started.isEmpty() == false) {
+                    ShardRouting toMove = randomFrom(started);
+                    Set<RoutingNode> candidates = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                        .filter(n -> allocation.deciders().canAllocate(toMove, n, allocation) == Decision.YES)
+                        .collect(Collectors.toSet());
+                    if (candidates.isEmpty() == false) {
+                        allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, allocation.changes());
+                    }
                 }
             }
-        }
-
-        state = ReactiveStorageDeciderServiceTests.updateClusterState(state, allocation);
-
-        return shards.size();
-
+        });
     }
 
     private TestAutoscalingDeciderContext createContext() {

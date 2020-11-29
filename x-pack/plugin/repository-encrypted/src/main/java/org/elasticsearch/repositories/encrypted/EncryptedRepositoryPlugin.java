@@ -60,8 +60,13 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry registry, ClusterService clusterService,
-                                                           BigArrays bigArrays, RecoverySettings recoverySettings) {
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry registry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings
+    ) {
         // load all the passwords from the keystore in memory because the keystore is not readable when the repository is created
         final Map<String, SecureString> repositoryPasswordsMapBuilder = new HashMap<>();
         for (String passwordName : ENCRYPTION_PASSWORD_SETTING.getNamespaces(env.settings())) {
@@ -154,7 +159,15 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         Supplier<XPackLicenseState> licenseStateSupplier,
         SecureString repoPassword
     ) throws GeneralSecurityException {
-        return new EncryptedRepository(metadata, registry, clusterService, bigArrays, recoverySettings, delegatedRepository,
-                licenseStateSupplier, repoPassword);
+        return new EncryptedRepository(
+            metadata,
+            registry,
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            delegatedRepository,
+            licenseStateSupplier,
+            repoPassword
+        );
     }
 }

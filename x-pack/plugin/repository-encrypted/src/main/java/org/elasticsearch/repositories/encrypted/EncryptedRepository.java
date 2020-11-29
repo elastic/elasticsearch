@@ -209,10 +209,15 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
-                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                 Function<ClusterState, ClusterState> stateTransformer,
-                                 ActionListener<RepositoryData> listener) {
+    public void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        ActionListener<RepositoryData> listener
+    ) {
         try {
             validateLocalRepositorySecret(snapshotInfo.userMetadata());
         } catch (RepositoryException passwordValidationException) {
@@ -224,8 +229,15 @@ public class EncryptedRepository extends BlobStoreRepository {
             snapshotInfo.userMetadata().remove(PASSWORD_HASH_USER_METADATA_KEY);
             snapshotInfo.userMetadata().remove(PASSWORD_SALT_USER_METADATA_KEY);
         }
-        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion,
-                stateTransformer, listener);
+        super.finalizeSnapshot(
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            listener
+        );
     }
 
     @Override

@@ -1049,7 +1049,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (int i = 0; i < workers; ++i) {
                 executeOneStaeIndexDelete( staleIndicesToDelete, executor, groupedListener);
             }
-
         } catch (Exception e) {
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
             //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations

@@ -335,17 +335,16 @@ tasks.named("check").configure {
   dependsOn(largeBlobYamlRestTest, gcsThirdPartyTest)
 }
 
-// test jar is exported by the testArtifacts configuration to be used in the encrypted Azure repository test
+// test jar is exported by the integTestArtifacts configuration to be used in the encrypted GCS repository test
 configurations {
-  testArtifacts.extendsFrom testRuntime
+  integTestArtifacts.extendsFrom testRuntime
 }
 
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
+def integTestJar = tasks.register("integTestJar", Jar) {
+  appendix 'integTest'
+  from sourceSets.internalClusterTest.output
 }
 
 artifacts {
-  archives tasks.named("jar")
-  testArtifacts testJar
+  integTestArtifacts integTestJar
 }

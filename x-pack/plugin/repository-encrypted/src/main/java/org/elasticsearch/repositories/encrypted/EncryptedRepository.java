@@ -32,10 +32,12 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
@@ -46,7 +48,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -124,6 +125,8 @@ public class EncryptedRepository extends BlobStoreRepository {
         RepositoryMetadata metadata,
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
         BlobStoreRepository delegatedRepository,
         Supplier<XPackLicenseState> licenseStateSupplier,
         SecureString repositoryPassword
@@ -132,6 +135,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             metadata,
             namedXContentRegistry,
             clusterService,
+            bigArrays,
+            recoverySettings,
             BlobPath.cleanPath() /* the encrypted repository uses a hardcoded empty
                                  base blob path but the base path setting is honored for the delegated repository */
         );
@@ -199,52 +204,28 @@ public class EncryptedRepository extends BlobStoreRepository {
             localRepositoryPasswordSalt,
             localRepositoryPasswordHash
         );
-        return Map.copyOf(snapshotUserMetadata);
+        // do not wrap in Map.of; we have to be able to modify the map (remove the added entries) when finalizing the snapshot
+        return snapshotUserMetadata;
     }
 
     @Override
-    public void finalizeSnapshot(
-        SnapshotId snapshotId,
-        ShardGenerations shardGenerations,
-        long startTime,
-        String failure,
-        int totalShards,
-        List<SnapshotShardFailure> shardFailures,
-        long repositoryStateId,
-        boolean includeGlobalState,
-        Metadata clusterMetadata,
-        Map<String, Object> userMetadata,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener
-    ) {
+    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                 Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<RepositoryData> listener) {
         try {
-            validateLocalRepositorySecret(userMetadata);
+            validateLocalRepositorySecret(snapshotInfo.userMetadata());
         } catch (RepositoryException passwordValidationException) {
             listener.onFailure(passwordValidationException);
             return;
         } finally {
             // remove the repository password hash (and salt) from the snapshot metadata so that it is not displayed in the API response
             // to the user
-            userMetadata = new HashMap<>(userMetadata);
-            userMetadata.remove(PASSWORD_HASH_USER_METADATA_KEY);
-            userMetadata.remove(PASSWORD_SALT_USER_METADATA_KEY);
+            snapshotInfo.userMetadata().remove(PASSWORD_HASH_USER_METADATA_KEY);
+            snapshotInfo.userMetadata().remove(PASSWORD_SALT_USER_METADATA_KEY);
         }
-        super.finalizeSnapshot(
-            snapshotId,
-            shardGenerations,
-            startTime,
-            failure,
-            totalShards,
-            shardFailures,
-            repositoryStateId,
-            includeGlobalState,
-            clusterMetadata,
-            userMetadata,
-            repositoryMetaVersion,
-            stateTransformer,
-            listener
-        );
+        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion,
+                stateTransformer, listener);
     }
 
     @Override
@@ -554,6 +535,11 @@ public class EncryptedRepository extends BlobStoreRepository {
             this.getDEKById = getDEKById;
         }
 
+        @Override
+        public boolean blobExists(String blobName) throws IOException {
+            return delegatedBlobContainer.blobExists(blobName);
+        }
+
         /**
          * Returns a new {@link InputStream} for the given {@code blobName} that can be used to read the contents of the blob.
          * The returned {@code InputStream} transparently handles the decryption of the blob contents, by first working out
@@ -594,6 +580,11 @@ public class EncryptedRepository extends BlobStoreRepository {
                 }
                 throw e;
             }
+        }
+
+        @Override
+        public InputStream readBlob(String blobName, long position, long length) throws IOException {
+            throw new UnsupportedOperationException("Not yet implemented");
         }
 
         /**

@@ -17,7 +17,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -81,6 +83,8 @@ public class EncryptedRepositoryTests extends ESTestCase {
             repositoryMetadata,
             mock(NamedXContentRegistry.class),
             clusterService,
+            mock(BigArrays.class),
+            mock(RecoverySettings.class),
             delegatedRepository,
             () -> mock(XPackLicenseState.class),
             repoPassword

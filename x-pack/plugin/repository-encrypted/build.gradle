@@ -14,9 +14,9 @@ dependencies {
     testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
     testImplementation project(":test:framework")
     // required for tests of encrypted cloud repositories
-    testImplementation project(path: ':plugins:repository-gcs', configuration: 'testArtifacts')
-    testImplementation project(path: ':plugins:repository-azure', configuration: 'testArtifacts')
-    testImplementation project(path: ':plugins:repository-s3', configuration: 'testArtifacts')
+    testImplementation project(path: ':plugins:repository-gcs', configuration: 'integTestArtifacts')
+    testImplementation project(path: ':plugins:repository-azure', configuration: 'integTestArtifacts')
+    testImplementation project(path: ':plugins:repository-s3', configuration: 'integTestArtifacts')
     // for encrypted GCS repository tests
     testRuntimeOnly 'com.google.guava:guava:26.0-jre'
 }

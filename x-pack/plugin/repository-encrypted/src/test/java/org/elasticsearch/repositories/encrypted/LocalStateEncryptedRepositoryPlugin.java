@@ -12,10 +12,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -35,7 +37,7 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
 
     final EncryptedRepositoryPlugin encryptedRepositoryPlugin;
 
-    public LocalStateEncryptedRepositoryPlugin(final Settings settings, final Path configPath) throws Exception {
+    public LocalStateEncryptedRepositoryPlugin(final Settings settings, final Path configPath) {
         super(settings, configPath);
         final LocalStateEncryptedRepositoryPlugin thisVar = this;
 
@@ -51,6 +53,8 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
                 RepositoryMetadata metadata,
                 NamedXContentRegistry registry,
                 ClusterService clusterService,
+                BigArrays bigArrays,
+                RecoverySettings recoverySettings,
                 BlobStoreRepository delegatedRepository,
                 Supplier<XPackLicenseState> licenseStateSupplier,
                 SecureString repoPassword
@@ -59,6 +63,8 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
                     metadata,
                     registry,
                     clusterService,
+                    bigArrays,
+                    recoverySettings,
                     delegatedRepository,
                     licenseStateSupplier,
                     repoPassword
@@ -77,11 +83,13 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
             RepositoryMetadata metadata,
             NamedXContentRegistry registry,
             ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
             BlobStoreRepository delegatedRepository,
             Supplier<XPackLicenseState> licenseStateSupplier,
             SecureString repoPassword
         ) throws GeneralSecurityException {
-            super(metadata, registry, clusterService, delegatedRepository, licenseStateSupplier, repoPassword);
+            super(metadata, registry, clusterService, bigArrays, recoverySettings, delegatedRepository, licenseStateSupplier, repoPassword);
         }
 
         @Override

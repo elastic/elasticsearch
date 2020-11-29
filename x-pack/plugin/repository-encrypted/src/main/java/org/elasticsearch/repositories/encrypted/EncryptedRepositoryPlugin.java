@@ -15,8 +15,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -58,7 +60,8 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry registry, ClusterService clusterService) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry registry, ClusterService clusterService,
+                                                           BigArrays bigArrays, RecoverySettings recoverySettings) {
         // load all the passwords from the keystore in memory because the keystore is not readable when the repository is created
         final Map<String, SecureString> repositoryPasswordsMapBuilder = new HashMap<>();
         for (String passwordName : ENCRYPTION_PASSWORD_SETTING.getNamespaces(env.settings())) {
@@ -130,6 +133,8 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                     metadata,
                     registry,
                     clusterService,
+                    bigArrays,
+                    recoverySettings,
                     (BlobStoreRepository) delegatedRepository,
                     () -> getLicenseState(),
                     repositoryPassword
@@ -143,10 +148,13 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         RepositoryMetadata metadata,
         NamedXContentRegistry registry,
         ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
         BlobStoreRepository delegatedRepository,
         Supplier<XPackLicenseState> licenseStateSupplier,
         SecureString repoPassword
     ) throws GeneralSecurityException {
-        return new EncryptedRepository(metadata, registry, clusterService, delegatedRepository, licenseStateSupplier, repoPassword);
+        return new EncryptedRepository(metadata, registry, clusterService, bigArrays, recoverySettings, delegatedRepository,
+                licenseStateSupplier, repoPassword);
     }
 }

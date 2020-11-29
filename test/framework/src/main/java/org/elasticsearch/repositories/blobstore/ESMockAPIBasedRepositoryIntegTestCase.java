@@ -124,12 +124,15 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                     h = ((DelegatingHttpHandler) h).getDelegate();
                 }
                 if (h instanceof BlobStoreHttpHandler) {
-                    List<String> blobs = ((BlobStoreHttpHandler) h).blobs().keySet().stream()
-                        .filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
-                    assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
+                    assertEmptyRepo(((BlobStoreHttpHandler) h).blobs());
                 }
             }
         }
+    }
+
+    protected void assertEmptyRepo(Map<String, BytesReference> blobsMap) {
+        List<String> blobs = blobsMap.keySet().stream().filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
+        assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
     }
 
     protected abstract Map<String, HttpHandler> createHttpHandlers();
@@ -140,7 +143,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      * Test the snapshot and restore of an index which has large segments files.
      */
     public final void testSnapshotWithLargeSegmentFiles() throws Exception {
-        final String repository = createRepository(randomName());
+        final String repository = createRepository(randomRepositoryName());
         final String index = "index-no-merges";
         createIndex(index, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -171,7 +174,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     }
 
     public void testRequestStats() throws Exception {
-        final String repository = createRepository(randomName());
+        final String repository = createRepository(randomRepositoryName());
         final String index = "index-no-merges";
         createIndex(index, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

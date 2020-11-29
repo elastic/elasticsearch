@@ -30,7 +30,7 @@ public class OperatorPrivileges {
 
         /**
          * Check whether the user is an operator and whether the request is an operator-only.
-         * @return An exception if user is an non-operator and the request is operotor-only. Otherwise return null.
+         * @return An exception if user is an non-operator and the request is operator-only. Otherwise returns null.
          */
         ElasticsearchSecurityException check(String action, TransportRequest request, ThreadContext threadContext);
     }

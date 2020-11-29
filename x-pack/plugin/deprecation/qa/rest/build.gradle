@@ -14,7 +14,7 @@ dependencies {
 }
 
 // let the javaRestTest see the classpath of main
-GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
 
 restResources {
   restApi {

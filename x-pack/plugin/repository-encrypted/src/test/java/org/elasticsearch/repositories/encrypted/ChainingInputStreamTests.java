@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -31,6 +32,95 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ChainingInputStreamTests extends ESTestCase {
+
+    public void testChainComponentsWhenUsingFactoryMethod() throws Exception {
+        InputStream input1 = mock(InputStream.class);
+        when(input1.markSupported()).thenReturn(true);
+        when(input1.read()).thenReturn(randomIntBetween(0, 255));
+        InputStream input2 = mock(InputStream.class);
+        when(input2.markSupported()).thenReturn(true);
+        when(input2.read()).thenReturn(randomIntBetween(0, 255));
+
+        ChainingInputStream chain = ChainingInputStream.chain(input1, input2);
+
+        chain.read();
+        verify(input1).read();
+        verify(input2, times(0)).read();
+
+        when(input1.read()).thenReturn(-1);
+        chain.read();
+        verify(input1, times(2)).read();
+        verify(input1, times(0)).close();
+        verify(input2).read();
+
+        when(input2.read()).thenReturn(-1);
+        chain.read();
+        verify(input1, times(2)).read();
+        verify(input2, times(2)).read();
+        verify(input1, times(0)).close();
+        verify(input2, times(0)).close();
+
+        chain.close();
+        verify(input1).close();
+        verify(input2).close();
+    }
+
+    public void testMarkAndResetWhenUsingFactoryMethod() throws Exception {
+        InputStream input1 = mock(InputStream.class);
+        when(input1.markSupported()).thenReturn(true);
+        when(input1.read()).thenReturn(randomIntBetween(0, 255));
+        InputStream input2 = mock(InputStream.class);
+        when(input2.markSupported()).thenReturn(true);
+        when(input2.read()).thenReturn(randomIntBetween(0, 255));
+
+        ChainingInputStream chain = ChainingInputStream.chain(input1, input2);
+        verify(input1, times(1)).mark(anyInt());
+        verify(input2, times(1)).mark(anyInt());
+
+        // mark at the beginning
+        chain.mark(randomIntBetween(1, 32));
+        verify(input1, times(1)).mark(anyInt());
+        verify(input2, times(1)).mark(anyInt());
+
+        verify(input1, times(0)).reset();
+        chain.read();
+        verify(input1, times(1)).reset();
+        chain.reset();
+        verify(input1, times(0)).close();
+        verify(input1, times(1)).reset();
+        chain.read();
+        verify(input1, times(2)).reset();
+
+        // mark at the first component
+        chain.mark(randomIntBetween(1, 32));
+        verify(input1, times(2)).mark(anyInt());
+        verify(input2, times(1)).mark(anyInt());
+
+        when(input1.read()).thenReturn(-1);
+        chain.read();
+        verify(input1, times(0)).close();
+        chain.reset();
+        verify(input1, times(3)).reset();
+
+        chain.read();
+        verify(input2, times(2)).reset();
+
+        // mark at the second component
+        chain.mark(randomIntBetween(1, 32));
+        verify(input1, times(2)).mark(anyInt());
+        verify(input2, times(2)).mark(anyInt());
+
+        when(input2.read()).thenReturn(-1);
+        chain.read();
+        verify(input1, times(0)).close();
+        verify(input2, times(0)).close();
+        chain.reset();
+        verify(input2, times(3)).reset();
+
+        chain.close();
+        verify(input1, times(1)).close();
+        verify(input2, times(1)).close();
+    }
 
     public void testSkipWithinComponent() throws Exception {
         byte[] b1 = randomByteArrayOfLength(randomIntBetween(2, 16));

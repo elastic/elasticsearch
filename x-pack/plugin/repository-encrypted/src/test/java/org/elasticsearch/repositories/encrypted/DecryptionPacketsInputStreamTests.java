@@ -54,37 +54,6 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
         }
     }
 
-    public void testFailureEncryptAndDecryptWrongNonce() throws Exception {
-        int len = 256 + Randomness.get().nextInt(256);
-        // 2-3 packets
-        int packetLen = 1 + Randomness.get().nextInt(len / 2);
-        byte[] plainBytes = new byte[len];
-        Randomness.get().nextBytes(plainBytes);
-        SecretKey secretKey = generateSecretKey();
-        int encryptNonce = Randomness.get().nextInt();
-        int decryptNonce = Randomness.get().nextInt();
-        while (decryptNonce == encryptNonce) {
-            decryptNonce = Randomness.get().nextInt();
-        }
-        byte[] encryptedBytes;
-        try (
-            InputStream in = new EncryptionPacketsInputStream(
-                new ByteArrayInputStream(plainBytes, 0, len),
-                secretKey,
-                encryptNonce,
-                packetLen
-            )
-        ) {
-            encryptedBytes = in.readAllBytes();
-        }
-        try (
-            InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, decryptNonce, packetLen)
-        ) {
-            IOException e = expectThrows(IOException.class, () -> { in.readAllBytes(); });
-            assertThat(e.getMessage(), Matchers.startsWith("Packet nonce mismatch."));
-        }
-    }
-
     public void testFailureEncryptAndDecryptWrongKey() throws Exception {
         int len = 256 + Randomness.get().nextInt(256);
         // 2-3 packets
@@ -105,9 +74,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
         ) {
             encryptedBytes = in.readAllBytes();
         }
-        try (
-            InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), decryptSecretKey, nonce, packetLen)
-        ) {
+        try (InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), decryptSecretKey, packetLen)) {
             IOException e = expectThrows(IOException.class, () -> { in.readAllBytes(); });
             assertThat(e.getMessage(), Matchers.is("Exception during packet decryption"));
         }
@@ -131,9 +98,7 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                 // flip bit
                 encryptedBytes[i] ^= (1 << j);
                 // fail decryption
-                try (
-                    InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, nonce, packetLen)
-                ) {
+                try (InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, packetLen)) {
                     IOException e = expectThrows(IOException.class, () -> { in.readAllBytes(); });
                     assertThat(e.getMessage(), Matchers.is("Exception during packet decryption"));
                 }
@@ -162,16 +127,11 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                     // flip bit
                     encryptedBytes[i + j] ^= (1 << k);
                     try (
-                        InputStream in = new DecryptionPacketsInputStream(
-                            new ByteArrayInputStream(encryptedBytes),
-                            secretKey,
-                            nonce,
-                            packetLen
-                        )
+                        InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, packetLen)
                     ) {
                         IOException e = expectThrows(IOException.class, () -> { in.readAllBytes(); });
                         if (j < Integer.BYTES) {
-                            assertThat(e.getMessage(), Matchers.startsWith("Packet nonce mismatch"));
+                            assertThat(e.getMessage(), Matchers.startsWith("Exception during packet decryption"));
                         } else {
                             assertThat(e.getMessage(), Matchers.startsWith("Packet counter mismatch"));
                         }
@@ -197,7 +157,6 @@ public class DecryptionPacketsInputStreamTests extends ESTestCase {
                 InputStream in = new DecryptionPacketsInputStream(
                     new ReadLessFilterInputStream(new ByteArrayInputStream(encryptedBytes)),
                     secretKey,
-                    nonce,
                     packetLen
                 )
             ) {

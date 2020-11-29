@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -15,8 +18,6 @@ import javax.crypto.spec.GCMParameterSpec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -31,9 +32,9 @@ import static org.elasticsearch.repositories.encrypted.EncryptedRepository.GCM_T
  * {@link EncryptionPacketsInputStream} generates. No decrypted bytes are returned before
  * they are authenticated.
  * <p>
- * The same parameters, namely {@code secretKey}, {@code nonce} and {@code packetLength},
- * that have been used during encryption must also be used for decryption, otherwise
- * decryption will fail.
+ * The same parameters, namely {@code secretKey} and {@code packetLength},
+ * which have been used during encryption, must also be used for decryption,
+ * otherwise decryption will fail.
  * <p>
  * This implementation buffers the encrypted packet in memory. The maximum packet size it can
  * accommodate is {@link EncryptedRepository#MAX_PACKET_LENGTH_IN_BYTES}.
@@ -51,7 +52,6 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
 
     private final InputStream source;
     private final SecretKey secretKey;
-    private final int nonce;
     private final int packetLength;
     private final byte[] packetBuffer;
 
@@ -77,10 +77,9 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         return decryptedSize;
     }
 
-    public DecryptionPacketsInputStream(InputStream source, SecretKey secretKey, int nonce, int packetLength) {
+    public DecryptionPacketsInputStream(InputStream source, SecretKey secretKey, int packetLength) {
         this.source = Objects.requireNonNull(source);
         this.secretKey = Objects.requireNonNull(secretKey);
-        this.nonce = nonce;
         if (packetLength <= 0 || packetLength >= EncryptedRepository.MAX_PACKET_LENGTH_IN_BYTES) {
             throw new IllegalArgumentException("Invalid packet length [" + packetLength + "]");
         }
@@ -124,19 +123,22 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         throw new IOException("Mark/reset not supported");
     }
 
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(super::close, source);
+    }
+
     private int decrypt(PrefixInputStream packetInputStream) throws IOException {
         // read only the IV prefix into the packet buffer
         int ivLength = packetInputStream.readNBytes(packetBuffer, 0, GCM_IV_LENGTH_IN_BYTES);
         if (ivLength != GCM_IV_LENGTH_IN_BYTES) {
             throw new IOException("Packet heading IV error. Unexpected length [" + ivLength + "].");
         }
-        // extract the nonce and the counter from the packet IV
-        ByteBuffer ivBuffer = ByteBuffer.wrap(packetBuffer, 0, GCM_IV_LENGTH_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        int packetIvNonce = ivBuffer.getInt(0);
-        long packetIvCounter = ivBuffer.getLong(Integer.BYTES);
-        if (packetIvNonce != nonce) {
-            throw new IOException("Packet nonce mismatch. Expecting [" + nonce + "], but got [" + packetIvNonce + "].");
-        }
+        // extract the counter from the packet IV and validate it (that the packet is in order)
+        // skips the first 4 bytes in the packet IV, which contain the encryption nonce, which cannot be explicitly validated
+        // because the nonce is not passed in during decryption, but it is implicitly because it is part of the IV,
+        // when GCM validates the packet authn tag
+        long packetIvCounter = ByteUtils.readLongLE(packetBuffer, Integer.BYTES);
         if (packetIvCounter != counter) {
             throw new IOException("Packet counter mismatch. Expecting [" + counter + "], but got [" + packetIvCounter + "].");
         }

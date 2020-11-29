@@ -1038,27 +1038,47 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, listener::onFailure), foundIndices.size() - survivingIndexIds.size());
 
         try {
+            final BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete = new LinkedBlockingQueue<>();
             for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
-                final String indexSnId = indexEntry.getKey();
-                executor.execute(ActionRunnable.supply(groupedListener, () -> {
-                    try {
-                        DeleteResult staleIndexDeleteResult = indexEntry.getValue().delete();
-                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
-                        return staleIndexDeleteResult;
-                    } catch (IOException e) {
-                        logger.warn(() -> new ParameterizedMessage(
-                            "[{}] index {} is no longer part of any snapshots in the repository, " +
-                                "but failed to clean up their index folders", metadata.name(), indexSnId), e);
-                        return DeleteResult.ZERO;
-                    }
-                }));
+                staleIndicesToDelete.put(indexEntry);
             }
+
+            // Start as many workers as fit into the snapshot pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+                foundIndices.size() - survivingIndexIds.size());
+            for (int i = 0; i < workers; ++i) {
+                executeOneStaeIndexDelete( staleIndicesToDelete, executor, groupedListener);
+            }
+
         } catch (Exception e) {
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
             //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
             //       bubbling up and breaking the snapshot functionality.
             assert false : e;
             logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
+        }
+    }
+
+    private void executeOneStaeIndexDelete(BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete, Executor executor,
+                                           GroupedActionListener<DeleteResult> listener) throws InterruptedException {
+        Map.Entry<String, BlobContainer> indexEntry  = staleIndicesToDelete.poll(0L, TimeUnit.MILLISECONDS);
+        if (indexEntry == null) {
+            listener.onResponse(DeleteResult.ZERO);
+        } else {
+            final String indexSnId = indexEntry.getKey();
+            executor.execute(ActionRunnable.supply(listener, () -> {
+                try {
+                    DeleteResult staleIndexDeleteResult = indexEntry.getValue().delete();
+                    logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
+                    executeOneStaeIndexDelete( staleIndicesToDelete, executor, listener);
+                    return staleIndexDeleteResult;
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage(
+                        "[{}] index {} is no longer part of any snapshots in the repository, " +
+                            "but failed to clean up their index folders", metadata.name(), indexSnId), e);
+                    return DeleteResult.ZERO;
+                }
+            }));
         }
     }
 

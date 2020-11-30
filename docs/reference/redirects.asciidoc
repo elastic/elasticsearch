@@ -1262,9 +1262,9 @@ See <<wildcard-field-type>>.
 [role="exclude",id="searchable-snapshots-api-clear-cache"]
 === Clear cache API
 
-We have removed documentation for this API. This a low-level API used to get
-information about snapshot-backed indices. We plan to remove or drastically
-change this API as part of a future release.
+We have removed documentation for this API. This a low-level API used to clear
+the searchable snapshot cache. We plan to remove or drastically change this API
+as part of a future release.
 
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 
@@ -1272,7 +1272,7 @@ For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 === Searchable snapshot statistics API
 
 We have removed documentation for this API. This a low-level API used to get
-information about snapshot-backed indices. We plan to remove or drastically
+information about searchable snapshot indices. We plan to remove or drastically
 change this API as part of a future release.
 
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
@@ -1281,7 +1281,7 @@ For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 === Searchable snapshot repository statistics API
 
 We have removed documentation for this API. This a low-level API used to get
-information about snapshot-backed indices. We plan to remove or drastically
+information about searchable snapshot indices. We plan to remove or drastically
 change this API as part of a future release.
 
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.

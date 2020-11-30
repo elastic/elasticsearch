@@ -130,7 +130,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.lookup().source(),
             context.bigArrays(),
             fieldType,
-            context.indexAnalyzer(),
+            context.getIndexAnalyzer(f -> {
+                throw new IllegalArgumentException("No analyzer configured for field " + f);
+            }),
             sourceFieldNames,
             filterDuplicateText
         );

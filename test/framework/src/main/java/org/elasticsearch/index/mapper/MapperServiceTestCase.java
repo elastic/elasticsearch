@@ -54,6 +54,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -83,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -216,9 +218,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<IndexReader, IOException> test
     ) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
         try (
             Directory dir = newDirectory();
-            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, new IndexWriterConfig(mapperService.indexAnalyzer()))
+            RandomIndexWriter iw = new RandomIndexWriter(random(), dir,iwc)
         ) {
             builder.accept(iw);
             try (IndexReader reader = iw.getReader()) {
@@ -451,7 +454,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Analyzer indexAnalyzer() {
+            public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
                 throw new UnsupportedOperationException();
             }
         };

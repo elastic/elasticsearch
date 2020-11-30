@@ -99,6 +99,20 @@ public final class TestUtils {
         return numberOfRanges;
     }
 
+    /**
+     * Generates a sorted set of non-empty and non-contiguous random ranges that could fit into a file of a given maximum length.
+     */
+    public static SortedSet<Tuple<Long, Long>> randomRanges(long length) {
+        final SortedSet<Tuple<Long, Long>> randomRanges = new TreeSet<>(Comparator.comparingLong(Tuple::v1));
+        for (long i = 0L; i < length;) {
+            long start = randomLongBetween(i, Math.max(0L, length - 1L));
+            long end = randomLongBetween(start + 1L, length); // +1 for non empty ranges
+            randomRanges.add(Tuple.tuple(start, end));
+            i = end + 1L + randomLongBetween(0L, Math.max(0L, length - end)); // +1 for non contiguous ranges
+        }
+        return randomRanges;
+    }
+
     public static SortedSet<Tuple<Long, Long>> mergeContiguousRanges(final SortedSet<Tuple<Long, Long>> ranges) {
         // Eclipse needs the TreeSet type to be explicit (see https://bugs.eclipse.org/bugs/show_bug.cgi?id=568600)
         return ranges.stream().collect(() -> new TreeSet<Tuple<Long, Long>>(Comparator.comparingLong(Tuple::v1)), (gaps, gap) -> {

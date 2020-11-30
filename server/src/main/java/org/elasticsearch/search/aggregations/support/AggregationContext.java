@@ -27,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -52,6 +53,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -222,7 +224,11 @@ public abstract class AggregationContext {
      */
     public abstract CircuitBreaker breaker();
 
-    public abstract Analyzer indexAnalyzer();
+    /**
+     * Return the index-time analyzer for the current index
+     * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
+     */
+    public abstract Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer);
 
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
@@ -416,8 +422,8 @@ public abstract class AggregationContext {
         }
 
         @Override
-        public Analyzer indexAnalyzer() {
-            return context.getIndexAnalyzer();
+        public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+            return context.getIndexAnalyzer(unindexedFieldAnalyzer);
         }
     }
 }

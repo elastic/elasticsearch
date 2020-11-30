@@ -582,8 +582,9 @@ end::memory[]
 
 tag::require-alias[]
 `require_alias`::
-(Optional, Boolean) When true, this requires the destination to be an alias.
-Defaults to false.
+(Optional, Boolean)
+If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults to
+`false`.
 end::require-alias[]
 
 tag::node-filter[]

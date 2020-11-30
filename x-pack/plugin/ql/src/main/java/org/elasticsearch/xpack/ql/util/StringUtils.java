@@ -92,7 +92,7 @@ public final class StringUtils {
 
     // % -> .*
     // _ -> .
-    // escape character - can be 0 (in which case every regex gets escaped) or
+    // escape character - can be 0 (in which case no regex gets escaped) or
     // should be followed by % or _ (otherwise an exception is thrown)
     public static String likeToJavaPattern(String pattern, char escape) {
         StringBuilder regex = new StringBuilder(pattern.length() + 4);
@@ -155,7 +155,7 @@ public final class StringUtils {
      * <pre>
      * % -&gt; *
      * _ -&gt; ?
-     * escape character - can be 0 (in which case every regex gets escaped) or should be followed by
+     * escape character - can be 0 (in which case no regex gets escaped) or should be followed by
      * % or _ (otherwise an exception is thrown)
      * </pre>
      */

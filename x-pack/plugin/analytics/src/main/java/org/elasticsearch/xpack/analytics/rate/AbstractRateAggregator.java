@@ -80,7 +80,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         if (sizedBucketAggregator == null || valuesSource == null || owningBucketOrd >= sums.size()) {
             return 0.0;
         }
-        return sums.get(owningBucketOrd) / sizedBucketAggregator.bucketSize(owningBucketOrd, rateUnit);
+        return sums.get(owningBucketOrd) / divisor(owningBucketOrd);
     }
 
     @Override
@@ -88,7 +88,15 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalRate(name, sums.get(bucket), sizedBucketAggregator.bucketSize(bucket, rateUnit), format, metadata());
+        return new InternalRate(name, sums.get(bucket), divisor(bucket), format, metadata());
+    }
+
+    private double divisor(long owningBucketOrd) {
+        if (sizedBucketAggregator == parent) {
+            return sizedBucketAggregator.bucketSize(owningBucketOrd, rateUnit);
+        } else {
+            return sizedBucketAggregator.bucketSize(rateUnit);
+        }
     }
 
     @Override

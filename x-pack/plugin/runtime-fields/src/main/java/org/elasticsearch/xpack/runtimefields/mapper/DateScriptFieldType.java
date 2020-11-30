@@ -79,10 +79,13 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
         @Override
         protected AbstractScriptFieldType<?> buildFieldType() {
-            DateFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), DateFieldScript.CONTEXT);
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
+            if (script.get() == null) {
+                return new DateScriptFieldType(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, this);
+            }
+            DateFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), DateFieldScript.CONTEXT);
             return new DateScriptFieldType(name, factory, dateTimeFormatter, this);
         }
     });

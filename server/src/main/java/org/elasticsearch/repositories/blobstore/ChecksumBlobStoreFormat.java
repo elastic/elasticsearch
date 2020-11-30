@@ -63,7 +63,7 @@ import java.util.Map;
 public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     // Serialization parameters to specify correct context for metadata serialization
-    private static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
+    public static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
 
     static {
         Map<String, String> snapshotOnlyParams = new HashMap<>();

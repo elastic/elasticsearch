@@ -18,15 +18,18 @@
  */
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
@@ -58,25 +61,7 @@ public class IndicesOptions implements ToXContentFragment {
             // TODO why do we let patterns like "none,all" or "open,none,closed" get used. The location of 'none' in the array changes the
             // meaning of the resulting value
             for (String wildcard : wildcards) {
-                switch (wildcard) {
-                    case "open":
-                        states.add(OPEN);
-                        break;
-                    case "closed":
-                        states.add(CLOSED);
-                        break;
-                    case "hidden":
-                        states.add(HIDDEN);
-                        break;
-                    case "none":
-                        states.clear();
-                        break;
-                    case "all":
-                        states = EnumSet.allOf(WildcardStates.class);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
-                }
+                updateSetForValue(states, wildcard);
             }
 
             return states;
@@ -92,6 +77,28 @@ public class IndicesOptions implements ToXContentFragment {
                     states.stream().map(state -> state.toString().toLowerCase(Locale.ROOT)).collect(Collectors.joining(",")));
             }
             return builder;
+        }
+
+        private static void updateSetForValue(EnumSet<WildcardStates> states, String wildcard) {
+            switch (wildcard) {
+                case "open":
+                    states.add(OPEN);
+                    break;
+                case "closed":
+                    states.add(CLOSED);
+                    break;
+                case "hidden":
+                    states.add(HIDDEN);
+                    break;
+                case "none":
+                    states.clear();
+                    break;
+                case "all":
+                    states.addAll(EnumSet.allOf(WildcardStates.class));
+                    break;
+                default:
+                    throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+            }
         }
     }
 
@@ -143,11 +150,6 @@ public class IndicesOptions implements ToXContentFragment {
     public IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> expandWildcards) {
         this.options = options;
         this.expandWildcards = expandWildcards;
-    }
-
-    private IndicesOptions(Collection<Option> options, Collection<WildcardStates> expandWildcards) {
-        this(options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-            expandWildcards.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(expandWildcards));
     }
 
     /**
@@ -367,6 +369,84 @@ public class IndicesOptions implements ToXContentFragment {
         builder.field("allow_no_indices", allowNoIndices());
         builder.field("ignore_throttled", ignoreThrottled());
         return builder;
+    }
+
+    private static final ParseField EXPAND_WILDCARDS_FIELD = new ParseField("expand_wildcards");
+    private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField("ignore_unavailable");
+    private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField("ignore_throttled");
+    private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField("allow_no_indices");
+
+    public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
+        EnumSet<WildcardStates> wildcardStates = null;
+        Boolean allowNoIndices = null;
+        Boolean ignoreUnavailable = null;
+        boolean ignoreThrottled = false;
+        Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
+        String currentFieldName = null;
+        if (token != Token.START_OBJECT) {
+            throw new ElasticsearchParseException("expected START_OBJECT as the token but was " + token);
+        }
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == Token.START_ARRAY) {
+                if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (wildcardStates == null) {
+                        wildcardStates = EnumSet.noneOf(WildcardStates.class);
+                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                            if (token.isValue()) {
+                                WildcardStates.updateSetForValue(wildcardStates, parser.text());
+                            } else {
+                                throw new ElasticsearchParseException("expected values within array for " +
+                                    EXPAND_WILDCARDS_FIELD.getPreferredName());
+                            }
+                        }
+                    } else {
+                        throw new ElasticsearchParseException("already parsed expand_wildcards");
+                    }
+                } else {
+                    throw new ElasticsearchParseException(EXPAND_WILDCARDS_FIELD.getPreferredName() +
+                        " is the only field that is an array in IndicesOptions");
+                }
+            } else if (token.isValue()) {
+                if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (wildcardStates == null) {
+                        wildcardStates = EnumSet.noneOf(WildcardStates.class);
+                        WildcardStates.updateSetForValue(wildcardStates, parser.text());
+                    } else {
+                        throw new ElasticsearchParseException("already parsed expand_wildcards");
+                    }
+                } else if (IGNORE_UNAVAILABLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    ignoreUnavailable = parser.booleanValue();
+                } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    allowNoIndices = parser.booleanValue();
+                } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    ignoreThrottled = parser.booleanValue();
+                } else {
+                    throw new ElasticsearchParseException("could not read indices options. unexpected index option [" +
+                        currentFieldName + "]");
+                }
+            } else {
+                throw new ElasticsearchParseException("could not read indices options. unexpected object field [" +
+                    currentFieldName + "]");
+            }
+        }
+
+        if (wildcardStates == null) {
+            throw new ElasticsearchParseException("indices options xcontent did not contain " + EXPAND_WILDCARDS_FIELD.getPreferredName());
+        }
+        if (ignoreUnavailable == null) {
+            throw new ElasticsearchParseException("indices options xcontent did not contain " +
+                IGNORE_UNAVAILABLE_FIELD.getPreferredName());
+        }
+        if (allowNoIndices == null) {
+            throw new ElasticsearchParseException("indices options xcontent did not contain " +
+                ALLOW_NO_INDICES_FIELD.getPreferredName());
+        }
+
+        return IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, wildcardStates.contains(WildcardStates.OPEN),
+            wildcardStates.contains(WildcardStates.CLOSED), wildcardStates.contains(WildcardStates.HIDDEN), true, false, false,
+            ignoreThrottled);
     }
 
     /**

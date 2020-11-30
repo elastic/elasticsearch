@@ -281,13 +281,13 @@ public class IndicesOptionsTests extends ESTestCase {
                 options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
                 wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates));
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        indicesOptions.toXContent(builder, new MapParams(Collections.emptyMap()));
-        builder.endObject();
-        XContentParser parser = XContentType.JSON.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        Map<String, Object> map = parser.mapOrdered();
+        XContentType type = randomFrom(XContentType.values());
+        BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
+        Map<String, Object> map;
+        try (XContentParser parser = type.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+            map = parser.mapOrdered();
+        }
 
         boolean open = wildcardStates.contains(WildcardStates.OPEN);
         if (open) {
@@ -305,5 +305,84 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(map.get("ignore_unavailable"), options.contains(Option.IGNORE_UNAVAILABLE));
         assertEquals(map.get("allow_no_indices"), options.contains(Option.ALLOW_NO_INDICES));
         assertEquals(map.get("ignore_throttled"), options.contains(Option.IGNORE_THROTTLED));
+    }
+
+    public void testFromXContent() throws IOException {
+        Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
+        Collection<Option> options = randomSubsetOf(Arrays.asList(Option.values()));
+
+        IndicesOptions indicesOptions = new IndicesOptions(
+            options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
+            wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates));
+
+        XContentType type = randomFrom(XContentType.values());
+        BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
+        IndicesOptions fromXContentOptions;
+        try (XContentParser parser = type.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+            fromXContentOptions = IndicesOptions.fromXContent(parser);
+        }
+
+        assertEquals(indicesOptions.expandWildcardsClosed(), fromXContentOptions.expandWildcardsClosed());
+        assertEquals(indicesOptions.expandWildcardsHidden(), fromXContentOptions.expandWildcardsHidden());
+        assertEquals(indicesOptions.expandWildcardsOpen(), fromXContentOptions.expandWildcardsOpen());
+        assertEquals(indicesOptions.ignoreUnavailable(), fromXContentOptions.ignoreUnavailable());
+        assertEquals(indicesOptions.allowNoIndices(), fromXContentOptions.allowNoIndices());
+        assertEquals(indicesOptions.ignoreThrottled(), fromXContentOptions.ignoreThrottled());
+    }
+
+    public void testFromXContentWithWildcardSpecialValues() throws IOException {
+        XContentType type = randomFrom(XContentType.values());
+        final boolean ignoreUnavailable = randomBoolean();
+        final boolean allowNoIndices = randomBoolean();
+
+        BytesReference xContentBytes;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+            builder.startObject();
+            builder.field("expand_wildcards", "all");
+            builder.field("ignore_unavailable", ignoreUnavailable);
+            builder.field("allow_no_indices", allowNoIndices);
+            builder.endObject();
+            xContentBytes = BytesReference.bytes(builder);
+        }
+
+        IndicesOptions fromXContentOptions;
+        try (XContentParser parser = type.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+            fromXContentOptions = IndicesOptions.fromXContent(parser);
+        }
+        assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
+        assertEquals(allowNoIndices, fromXContentOptions.allowNoIndices());
+        assertTrue(fromXContentOptions.expandWildcardsClosed());
+        assertTrue(fromXContentOptions.expandWildcardsHidden());
+        assertTrue(fromXContentOptions.expandWildcardsOpen());
+
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+            builder.startObject();
+            builder.field("expand_wildcards", "none");
+            builder.field("ignore_unavailable", ignoreUnavailable);
+            builder.field("allow_no_indices", allowNoIndices);
+            builder.endObject();
+            xContentBytes = BytesReference.bytes(builder);
+        }
+
+        try (XContentParser parser = type.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+            fromXContentOptions = IndicesOptions.fromXContent(parser);
+        }
+        assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
+        assertEquals(allowNoIndices, fromXContentOptions.allowNoIndices());
+        assertFalse(fromXContentOptions.expandWildcardsClosed());
+        assertFalse(fromXContentOptions.expandWildcardsHidden());
+        assertFalse(fromXContentOptions.expandWildcardsOpen());
+    }
+
+    private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+            builder.startObject();
+            indicesOptions.toXContent(builder, new MapParams(Collections.emptyMap()));
+            builder.endObject();
+            return BytesReference.bytes(builder);
+        }
     }
 }

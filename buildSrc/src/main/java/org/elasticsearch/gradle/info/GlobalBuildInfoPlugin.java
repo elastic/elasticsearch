@@ -187,15 +187,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private InstallationLocation getJavaInstallation(File javaHome) {
-        return javaInstallationRegistry.listInstallations()
-            .stream()
-            .filter(installationLocation -> isSameFile(javaHome, installationLocation))
+        System.out.println("javaHome = " + javaHome);
+        return filteredInstallationLocationStream().filter(installationLocation -> isSameFile(javaHome, installationLocation))
             .findFirst()
             .get();
     }
 
     private boolean isSameFile(File javaHome, InstallationLocation installationLocation) {
         try {
+            System.out.println("installationLocation = " + installationLocation.getLocation());
             return Files.isSameFile(installationLocation.getLocation().toPath(), javaHome.toPath());
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
@@ -207,12 +207,22 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
      * To make transition more reliable we only take env var provided installations into account for now
      */
     private List<JavaHome> getAvailableJavaVersions() {
-        return javaInstallationRegistry.listInstallations().stream().filter(javaInstallationFilter).map(installationLocation -> {
+        return filteredInstallationLocationStream().map(installationLocation -> {
             File installationDir = installationLocation.getLocation();
             JvmInstallationMetadata metadata = metadataDetector.getMetadata(installationDir);
             int actualVersion = Integer.parseInt(metadata.getLanguageVersion().getMajorVersion());
             return JavaHome.of(actualVersion, providers.provider(() -> installationDir));
         }).collect(Collectors.toList());
+    }
+
+    private Stream<InstallationLocation> filteredInstallationLocationStream() {
+        return javaInstallationRegistry.listInstallations()
+            .stream()
+            .filter(
+                installation -> installation.getSource().contains("Current JVM")
+                    || installation.getSource().contains("java_home")
+                    || installation.getSource().contains("environment variable")
+            );
     }
 
     private static String getTestSeed() {

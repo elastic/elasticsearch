@@ -207,39 +207,46 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
                                                         IndexSearcher searcher,
                                                         MappedFieldType... fieldTypes) throws IOException {
-        SearchContext searchContext = createSearchContext(searcher, null, fieldTypes);
-        return createAggregator(aggregationBuilder, searchContext);
+        return createAggregator(aggregationBuilder, createSearchContext(searcher, null, fieldTypes));
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, SearchContext searchContext)
         throws IOException {
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            DEFAULT_MAX_BUCKETS,
+            searchContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        return createAggregator(aggregationBuilder, searchContext, bucketConsumer);
+    }
+
+    protected <A extends Aggregator> A createAggregator(
+        AggregationBuilder aggregationBuilder,
+        SearchContext searchContext,
+        MultiBucketConsumer multiBucketConsumer
+    ) throws IOException {
+        AggregationContext context = new ProductionAggregationContext(searchContext, multiBucketConsumer);
         @SuppressWarnings("unchecked")
         A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
-            .build(new ProductionAggregationContext(searchContext.getQueryShardContext(), searchContext.query()), null)
-            .create(searchContext, null, CardinalityUpperBound.ONE);
+            .build(context, null)
+            .create(null, CardinalityUpperBound.ONE);
         return aggregator;
     }
 
     /**
      * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
      */
-    protected SearchContext createSearchContext(
+    protected SearchContext createSearchContext(  // TODO replace me with AggregationContext
         IndexSearcher indexSearcher,
         Query query,
         MappedFieldType... fieldTypes
     ) throws IOException {
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
-            DEFAULT_MAX_BUCKETS,
-            breakerService.getBreaker(CircuitBreaker.REQUEST)
-        );
-        return createSearchContext(indexSearcher, createIndexSettings(), query, bucketConsumer, breakerService, fieldTypes);
+        return createSearchContext(indexSearcher, createIndexSettings(), query, breakerService, fieldTypes);
     }
 
-    protected SearchContext createSearchContext(IndexSearcher indexSearcher,
+    protected SearchContext createSearchContext(IndexSearcher indexSearcher, // TODO replace me with AggregationContext
                                                 IndexSettings indexSettings,
                                                 Query query,
-                                                MultiBucketConsumer bucketConsumer,
                                                 CircuitBreakerService circuitBreakerService,
                                                 MappedFieldType... fieldTypes) throws IOException {
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
@@ -266,8 +273,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(searchContext.indexShard()).thenReturn(indexShard);
-        when(searchContext.aggregations())
-            .thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
         when(searchContext.query()).thenReturn(query);
         /*
          * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
@@ -407,8 +412,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Query rewritten = searcher.rewrite(query);
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
-        SearchContext searchContext = createSearchContext(searcher, indexSettings, query, bucketConsumer, breakerService, fieldTypes);
-        C root = createAggregator(builder, searchContext);
+        SearchContext searchContext = createSearchContext(searcher, indexSettings, query, breakerService, fieldTypes);
+        C root = createAggregator(builder, searchContext, bucketConsumer);
 
         if (randomBoolean() && searcher.getIndexReader().leaves().size() > 0) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
@@ -420,9 +425,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
             }
             for (ShardSearcher subSearcher : subSearchers) {
-                MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(maxBucket,
-                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-                C a = createAggregator(builder, searchContext);
+                C a = createAggregator(builder, searchContext, bucketConsumer);
                 a.preCollection();
                 Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                 subSearcher.search(weight, a);
@@ -908,12 +911,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return new AggregatorFactory(name, context, parent, subfactoriesBuilder, metadata) {
                 @Override
                 protected Aggregator createInternal(
-                    SearchContext searchContext,
                     Aggregator parent,
                     CardinalityUpperBound cardinality,
                     Map<String, Object> metadata
                 ) throws IOException {
-                    return new MetricsAggregator(name, searchContext, parent, metadata) {
+                    return new MetricsAggregator(name, context, parent, metadata) {
                         @Override
                         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
                             return LeafBucketCollector.NO_OP_COLLECTOR;

@@ -19,26 +19,43 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
+import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
+import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * Everything used to build and execute aggregations and the
@@ -53,6 +70,16 @@ public abstract class AggregationContext {
      * The query at the top level of the search in which these aggregations are running.
      */
     public abstract Query query();
+
+    /**
+     * Wrap the aggregator for profiling if profiling is enabled.
+     */
+    public abstract Aggregator profileIfEnabled(Aggregator agg) throws IOException;
+
+    /**
+     * Are we profiling the aggregation?
+     */
+    public abstract boolean profiling();
 
     /**
      * The time in milliseconds that is shared across all resources involved. Even across shards and nodes.
@@ -152,23 +179,131 @@ public abstract class AggregationContext {
     public abstract NestedScope nestedScope();
 
     /**
+     * Build a {@linkplain SubSearchContext} to power an aggregation fetching top hits.
+     * Try to avoid using this because it pulls in a ton of dependencies.
+     */
+    public abstract SubSearchContext subSearchContext();
+
+    /**
+     * Cause this aggregation to be released when the search is finished. 
+     */
+    public abstract void addReleasable(Aggregator aggregator);
+
+    public abstract MultiBucketConsumer multiBucketConsumer();
+
+    /**
+     * Get the filter cache.
+     */
+    public abstract BitsetFilterCache bitsetFilterCache();
+    // TODO it is unclear why we can't just use the IndexSearcher which already caches
+
+    /**
+     * Build a collector for sorted values specialized for aggregations.
+     */
+    public abstract BucketedSort buildBucketedSort(SortBuilder<?> sort, int size, BucketedSort.ExtraData values) throws IOException;
+
+    /**
+     * Get a deterministic random seed based for this particular shard.
+     */
+    public abstract int shardRandomSeed();
+
+    /**
+     * How many millis have passed since we started the search?
+     */
+    public abstract long getRelativeTimeInMillis();
+
+    /**
+     * Has the search been cancelled?
+     * <p>
+     * This'll require a {@code volatile} read.
+     */
+    public abstract boolean isCancelled();
+
+    /**
+     * The circuit breaker used to account for aggs.
+     */
+    public abstract CircuitBreaker breaker();
+
+    /**
+     * Return the index-time analyzer for the current index
+     * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
+     */
+    public abstract Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer);
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
-     * that wraps our ubiquitous {@link QueryShardContext} and the top level
-     * {@link Query}. Unit tests should avoid using this because it requires
-     * a <strong>huge</strong> portion of a real Elasticsearch node.
+     * that wraps our ubiquitous {@link QueryShardContext} and anything else
+     * specific to aggregations. Unit tests should generally avoid using this
+     * because it requires a <strong>huge</strong> portion of a real
+     * Elasticsearch node.
      */
     public static class ProductionAggregationContext extends AggregationContext {
         private final QueryShardContext context;
-        private final Query query;
+        private final Query topLevelQuery;
+        private final AggregationProfiler profiler;
+        private final MultiBucketConsumer multiBucketConsumer;
+        private final Supplier<SubSearchContext> subSearchContextBuilder;
+        private final Consumer<Aggregator> addReleasable;
+        private final BitsetFilterCache bitsetFilterCache;
+        private final int randomSeed;
+        private final LongSupplier relativeTimeInMillis;
+        private final Supplier<Boolean> isCancelled;
 
-        public ProductionAggregationContext(QueryShardContext context, Query query) {
+        public ProductionAggregationContext(SearchContext context, MultiBucketConsumer multiBucketConsumer) {
+            this( // TODO we'd prefer to not use SearchContext everywhere but we have a bunch of tests that use this now
+                context.getQueryShardContext(),
+                context.query() == null ? new MatchAllDocsQuery() : context.query(),
+                context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
+                multiBucketConsumer,
+                () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
+                context::addReleasable,
+                context.bitsetFilterCache(),
+                context.indexShard().shardId().hashCode(),
+                context::getRelativeTimeInMillis,
+                context::isCancelled
+            );
+        }
+
+        public ProductionAggregationContext(
+            QueryShardContext context,
+            Query topLevelQuery,
+            @Nullable AggregationProfiler profiler,
+            MultiBucketConsumer multiBucketConsumer,
+            Supplier<SubSearchContext> subSearchContextBuilder,
+            Consumer<Aggregator> addReleasable,
+            BitsetFilterCache bitsetFilterCache,
+            int randomSeed,
+            LongSupplier relativeTimeInMillis,
+            Supplier<Boolean> isCancelled
+        ) {
             this.context = context;
-            this.query = query;
+            this.topLevelQuery = topLevelQuery;
+            this.profiler = profiler;
+            this.multiBucketConsumer = multiBucketConsumer;
+            this.subSearchContextBuilder = subSearchContextBuilder;
+            this.addReleasable = addReleasable;
+            this.bitsetFilterCache = bitsetFilterCache;
+            this.randomSeed = randomSeed;
+            this.relativeTimeInMillis = relativeTimeInMillis;
+            this.isCancelled = isCancelled;
         }
 
         @Override
         public Query query() {
-            return query;
+            return topLevelQuery;
+        }
+
+        @Override
+        public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+            if (profiler == null) {
+                return agg;
+            }
+            return new ProfilingAggregator(agg, profiler);
+        }
+
+        @Override
+        public boolean profiling() {
+            return profiler != null;
         }
 
         @Override
@@ -218,7 +353,7 @@ public abstract class AggregationContext {
 
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
-            return builder.toQuery(context);
+            return Rewriteable.rewrite(builder, context, true).toQuery(context);
         }
 
         @Override
@@ -239,6 +374,56 @@ public abstract class AggregationContext {
         @Override
         public NestedScope nestedScope() {
             return context.nestedScope();
+        }
+
+        @Override
+        public SubSearchContext subSearchContext() {
+            return subSearchContextBuilder.get();
+        }
+
+        @Override
+        public void addReleasable(Aggregator aggregator) {
+            addReleasable.accept(aggregator);
+        }
+
+        @Override
+        public MultiBucketConsumer multiBucketConsumer() {
+            return multiBucketConsumer;
+        }
+
+        @Override
+        public BitsetFilterCache bitsetFilterCache() {
+            return bitsetFilterCache;
+        }
+
+        @Override
+        public BucketedSort buildBucketedSort(SortBuilder<?> sort, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+            return sort.buildBucketedSort(context, bucketSize, extra);
+        }
+
+        @Override
+        public int shardRandomSeed() {
+            return randomSeed;
+        }
+
+        @Override
+        public long getRelativeTimeInMillis() {
+            return relativeTimeInMillis.getAsLong();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return isCancelled.get();
+        }
+
+        @Override
+        public CircuitBreaker breaker() {
+            return context.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+        }
+
+        @Override
+        public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+            return context.getIndexAnalyzer(unindexedFieldAnalyzer);
         }
     }
 }

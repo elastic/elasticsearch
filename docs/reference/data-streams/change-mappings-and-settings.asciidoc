@@ -547,7 +547,8 @@ GET /_data_stream/my-data-stream
 ----
 
 The response's `indices` property contains an array of the stream's current
-backing indices.
+backing indices. The first item in the array contains information about the
+stream's oldest backing index.
 
 [source,console-result]
 ----
@@ -560,7 +561,7 @@ backing indices.
       },
       "indices": [
         {
-          "index_name": ".ds-my-data-stream-2099-03-07-000001",
+          "index_name": ".ds-my-data-stream-2099-03-07-000001", <1>
           "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
         },
         {
@@ -581,6 +582,10 @@ backing indices.
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099-03-07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099-03-08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+
+<1> First item in the `indices` array for `my-data-stream`. This item contains
+information about the stream's oldest backing index,
+`.ds-my-data-stream-2099-03-07-000001`.
 
 The following <<docs-reindex,reindex API>> request copies documents from
 `.ds-my-data-stream-2099-03-07-000001` to `new-data-stream`. The request's

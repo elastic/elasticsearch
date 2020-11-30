@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.DefaultOperatorPrivilegesService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.junit.Before;
@@ -65,6 +66,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(true);
         final Authentication operatorAuth = mock(Authentication.class);
         final Authentication nonOperatorAuth = mock(Authentication.class);
+        when(operatorAuth.getUser()).thenReturn(new User("operator_user"));
         when(fileOperatorUsersStore.isOperatorUser(operatorAuth)).thenReturn(true);
         when(fileOperatorUsersStore.isOperatorUser(nonOperatorAuth)).thenReturn(false);
 

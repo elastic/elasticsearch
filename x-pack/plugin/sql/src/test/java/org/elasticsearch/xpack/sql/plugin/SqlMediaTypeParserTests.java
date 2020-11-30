@@ -43,7 +43,8 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     }
 
     public void testTsvDetection() {
-        MediaType text = parser.getResponseMediaType(reqWithAccept("text/tab-separated-values"), createTestInstance(false, Mode.PLAIN, false));
+        MediaType text = parser.getResponseMediaType(reqWithAccept("text/tab-separated-values"),
+            createTestInstance(false, Mode.PLAIN, false));
         assertThat(text, is(TSV));
     }
 

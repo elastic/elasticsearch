@@ -130,7 +130,7 @@ public class LatestDocIT extends TransformIntegTestCase {
             // Verify destination index contents
             SearchResponse searchResponse =
                 restClient.search(new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)), RequestOptions.DEFAULT);
-            assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo((long) NUM_USERS)));
+            assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo(Long.valueOf(NUM_USERS))));
             assertThat(
                 Stream.of(searchResponse.getHits().getHits())
                     .map(SearchHit::getSourceAsMap)

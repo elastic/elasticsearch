@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -39,13 +38,16 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
 import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
+import org.elasticsearch.xpack.transform.utils.DocumentConversionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -124,17 +126,25 @@ public class LatestDoc implements Function {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
-        throw new UnsupportedOperationException();
+        return new LatestDocChangeCollector(synchronizationField);
     }
 
     private Stream<Map<String, Object>> extractResults(CompositeAggregation compositeAgg, TransformIndexerStats transformIndexerStats) {
         return compositeAgg.getBuckets().stream()
             .map(bucket -> {
                 transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
-                Aggregation aggResult = bucket.getAggregations().get(LATEST_AGGREGATION_NAME);
-                TopHits aggregation = (TopHits) aggResult;
-                assert aggregation.getHits().getHits().length == 1;
-                return aggregation.getHits().getHits()[0].getSourceAsMap();
+                TopHits topHits = bucket.getAggregations().get(LATEST_AGGREGATION_NAME);
+                assert topHits.getHits().getHits().length == 1;
+                Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
+
+                // generator to create unique but deterministic document ids, so we
+                // - do not create duplicates if we re-run after failure
+                // - update documents
+                IDGenerator idGen = new IDGenerator();
+                config.getUniqueKey().forEach(field -> idGen.add(field, bucket.getKey().get(field)));
+
+                document.put(TransformField.DOCUMENT_ID_FIELD, idGen.getID());
+                return document;
             });
     }
 
@@ -161,13 +171,7 @@ public class LatestDoc implements Function {
 
         Stream<IndexRequest> indexRequestStream =
             extractResults(compositeAgg, stats)
-                .map(document -> {
-                    IndexRequest request = new IndexRequest(destinationIndex).source(document);
-                    if (destinationPipeline != null) {
-                        request.setPipeline(destinationPipeline);
-                    }
-                    return request;
-                });
+                .map(document -> DocumentConversionUtils.convertDocumentToIndexRequest(document, destinationIndex, destinationPipeline));
         return Tuple.tuple(indexRequestStream, compositeAgg.afterKey());
     }
 
@@ -244,8 +248,7 @@ public class LatestDoc implements Function {
                 Aggregations aggregations = r.getAggregations();
                 if (aggregations == null) {
                     listener.onFailure(
-                        new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
-                    );
+                        new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST));
                     return;
                 }
                 CompositeAggregation compositeAgg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
@@ -265,7 +268,7 @@ public class LatestDoc implements Function {
     @Override
     public SearchSourceBuilder buildSearchQueryForInitialProgress(SearchSourceBuilder searchSourceBuilder) {
         BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
-        config.getUniqueKey().forEach(group -> existsClauses.must(QueryBuilders.existsQuery(group)));
+        config.getUniqueKey().forEach(field -> existsClauses.must(QueryBuilders.existsQuery(field)));
         return searchSourceBuilder.query(existsClauses).size(0).trackTotalHits(true);
     }
 

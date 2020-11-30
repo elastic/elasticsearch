@@ -44,7 +44,7 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
     public static final String CONTINUOUS_EVENTS_SOURCE_INDEX = "test-transform-continuous-events";
     public static final String INGEST_PIPELINE = "transform-ingest";
     public static final String MAX_RUN_FIELD = "run.max";
-    public static final String INGEST_RUN_FIELD = "run.ingest";
+    public static final String INGEST_RUN_FIELD = "run_ingest";
     public static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
         .append(ISO_LOCAL_DATE)
         .appendLiteral('T')

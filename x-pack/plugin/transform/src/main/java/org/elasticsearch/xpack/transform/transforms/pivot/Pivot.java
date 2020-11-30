@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -44,9 +43,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.utils.DocumentConversionUtils;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -145,17 +144,17 @@ public class Pivot implements Function {
                     final Aggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
                         listener.onFailure(
-                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
-                        );
+                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST));
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     TransformIndexerStats stats = new TransformIndexerStats();
-                    // remove all internal fields
 
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats).peek(
-                        doc -> doc.keySet().removeIf(k -> k.startsWith("_"))
-                    ).collect(Collectors.toList());
+                    List<Map<String, Object>> docs =
+                        extractResults(agg, fieldTypeMap, stats)
+                            // remove all internal fields
+                            .peek(doc -> doc.keySet().removeIf(k -> k.startsWith("_")))
+                            .collect(Collectors.toList());
 
                     listener.onResponse(docs);
                 } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
@@ -295,34 +294,8 @@ public class Pivot implements Function {
         Map<String, String> fieldMappings,
         TransformIndexerStats stats
     ) {
-        return extractResults(agg, fieldMappings, stats).map(document -> {
-            String id = (String) document.get(TransformField.DOCUMENT_ID_FIELD);
-
-            if (id == null) {
-                throw new RuntimeException("Expected a document id but got null.");
-            }
-
-            XContentBuilder builder;
-            try {
-                builder = jsonBuilder();
-                builder.startObject();
-                for (Map.Entry<String, ?> value : document.entrySet()) {
-                    // skip all internal fields
-                    if (value.getKey().startsWith("_") == false) {
-                        builder.field(value.getKey(), value.getValue());
-                    }
-                }
-                builder.endObject();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-
-            IndexRequest request = new IndexRequest(destinationIndex).source(builder).id(id);
-            if (destinationPipeline != null) {
-                request.setPipeline(destinationPipeline);
-            }
-            return request;
-        });
+        return extractResults(agg, fieldMappings, stats)
+            .map(document -> DocumentConversionUtils.convertDocumentToIndexRequest(document, destinationIndex, destinationPipeline));
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {

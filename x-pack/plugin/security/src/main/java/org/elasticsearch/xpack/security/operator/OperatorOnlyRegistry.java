@@ -26,10 +26,11 @@ public class OperatorOnlyRegistry {
         "cluster:admin/autoscaling/get_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_capacity");
 
-    // The return type is a bit weird, but it is a shortcut to avoid having to use either
-    // a Tuple or a new class to hold true/false and a message/null.
-    // Since the combination is either true+message or false+null, it is possible to just
-    // use the existence of the message to also indicate whether the result is true or false.
+    /**
+     * Check whether the given action and request qualify as operator-only. The method returns
+     * null if the action+request is NOT operator-only. Other it returns a violation object
+     * that contains the message for details.
+     */
     public OperatorPrivilegesViolation check(String action, TransportRequest request) {
         if (SIMPLE_ACTIONS.contains(action)) {
             return () -> "action [" + action + "]";
@@ -42,4 +43,3 @@ public class OperatorOnlyRegistry {
         String message();
     }
 }
-

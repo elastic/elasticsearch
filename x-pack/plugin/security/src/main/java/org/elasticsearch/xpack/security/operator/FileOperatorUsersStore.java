@@ -116,6 +116,11 @@ public class FileOperatorUsersStore {
         public int hashCode() {
             return Objects.hash(groups);
         }
+
+        @Override
+        public String toString() {
+            return "OperatorUsersDescriptor{" + "groups=" + groups + '}';
+        }
     }
 
     private static final OperatorUsersDescriptor EMPTY_OPERATOR_USERS_DESCRIPTOR = new OperatorUsersDescriptor(List.of());
@@ -221,7 +226,9 @@ public class FileOperatorUsersStore {
 
     public static OperatorUsersDescriptor parseConfig(InputStream in) throws IOException {
         try (XContentParser parser = yamlParser(in)) {
-            return OPERATOR_USER_PARSER.parse(parser, null);
+            final OperatorUsersDescriptor operatorUsersDescriptor = OPERATOR_USER_PARSER.parse(parser, null);
+            logger.trace("Parsed: [{}]", operatorUsersDescriptor);
+            return operatorUsersDescriptor;
         }
     }
 

@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -15,6 +17,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
 public class OperatorPrivileges {
+
+    private static final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
 
     public static final Setting<Boolean> OPERATOR_PRIVILEGES_ENABLED =
         Setting.boolSetting("xpack.security.operator_privileges.enabled", false, Setting.Property.NodeScope);
@@ -53,6 +57,7 @@ public class OperatorPrivileges {
                 return;
             }
             if (fileOperatorUsersStore.isOperatorUser(authentication)) {
+                logger.trace("User [{}] is an operator", authentication.getUser().principal());
                 threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
             }
         }
@@ -63,7 +68,8 @@ public class OperatorPrivileges {
             }
             if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
                 threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY))) {
-                // Only check whether request is operator only if user is not an operator
+                // Only check whether request is operator-only when user is NOT an operator
+                logger.trace("Checking operator-only violation for: action [{}]", action);
                 final OperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
                 if (violation != null) {
                     return new ElasticsearchSecurityException("Operator privileges are required for " + violation.message());

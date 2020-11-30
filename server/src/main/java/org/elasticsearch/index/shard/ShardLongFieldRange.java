@@ -32,7 +32,7 @@ import java.util.Objects;
  */
 public class ShardLongFieldRange implements Writeable {
 
-    static final Version LONG_FIELD_RANGE_VERSION_INTRODUCED = Version.V_8_0_0;
+    public static final Version LONG_FIELD_RANGE_VERSION_INTRODUCED = Version.V_8_0_0;
 
     /**
      * Sentinel value indicating an empty range, for instance because the field is missing or has no values.

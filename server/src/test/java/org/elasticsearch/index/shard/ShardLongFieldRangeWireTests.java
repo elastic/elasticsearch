@@ -35,7 +35,7 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
         return randomRange();
     }
 
-    static ShardLongFieldRange randomRange() {
+    public static ShardLongFieldRange randomRange() {
         switch (between(1, 3)) {
             case 1:
                 return ShardLongFieldRange.MUTABLE;

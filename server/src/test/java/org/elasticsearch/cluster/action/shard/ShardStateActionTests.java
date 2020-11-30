@@ -44,6 +44,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRangeWireTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -517,7 +518,7 @@ public class ShardStateActionTests extends ESTestCase {
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
 
         final Version version = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
-        final ShardLongFieldRange timestampMillisRange = randomBoolean() ? ShardLongFieldRange.MUTABLE : ShardLongFieldRange.EMPTY;
+        final ShardLongFieldRange timestampMillisRange = ShardLongFieldRangeWireTests.randomRange();
         final StartedShardEntry startedShardEntry = new StartedShardEntry(
                 shardId,
                 allocationId,
@@ -531,7 +532,8 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.allocationId, equalTo(allocationId));
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
-            assertThat(deserialized.timestampMillisRange, sameInstance(timestampMillisRange));
+            assertThat(deserialized.timestampMillisRange, version.onOrAfter(ShardLongFieldRange.LONG_FIELD_RANGE_VERSION_INTRODUCED) ?
+                    equalTo(timestampMillisRange) : sameInstance(ShardLongFieldRange.MUTABLE));
         }
     }
 

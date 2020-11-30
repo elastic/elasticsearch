@@ -41,12 +41,9 @@ abstract class AbstractGradleFuncTest extends Specification {
         settingsFile = testProjectDir.newFile('settings.gradle')
         settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
-        buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
-        propertiesFile << """
-        # java homes resolved by environment variables
-        org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME""
-        """.stripIndent()
+        propertiesFile << "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME," +
+                "JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n";
     }
 
     GradleRunner gradleRunner(String... arguments) {

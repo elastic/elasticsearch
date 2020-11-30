@@ -17,8 +17,10 @@ import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -82,7 +84,9 @@ public final class SSLConfigurationReloader {
                                       ResourceWatcherService resourceWatcherService, Collection<SSLConfiguration> sslConfigurations) {
         Map<Path, List<SSLConfiguration>> pathToConfigurationsMap = new HashMap<>();
         for (SSLConfiguration sslConfiguration : sslConfigurations) {
-            for (Path directory : directoriesToMonitor(sslConfiguration.filesToMonitor(environment))) {
+            List<Path> filePaths = sslConfiguration.filesToMonitor(environment);
+            checkFilesAccess(filesToMonitor);
+            for (Path directory : directoriesToMonitor(filePaths)) {
                 pathToConfigurationsMap.compute(directory, (path, list) -> {
                     if (list == null) {
                         list = new ArrayList<>();
@@ -108,6 +112,29 @@ public final class SSLConfigurationReloader {
     /**
      * Returns a unique set of directories that need to be monitored based on the provided file paths
      */
+
+    /**
+     * Check files access before read operations
+     */
+    private static void checkFilesAccess(List<Path> filePaths) {
+        for (Path path : filePaths) {
+            try {
+                if (Files.notExists(path)) {
+                    throw new ElasticsearchException(
+                        "File does not exist");
+                } else if (!Files.isReadable(path)) {
+                    throw new ElasticsearchException(
+                        "File is not readable");
+                }
+            } catch (AccessControlException e) {
+                throw new ElasticsearchException(
+                    "Access to this file is blocked, error: ", e);
+            } catch (SecurityException e) {
+                throw new ElasticsearchException("Security error: ", e);
+            }
+        }
+    }
+
     private static Set<Path> directoriesToMonitor(List<Path> filePaths) {
         Set<Path> paths = new HashSet<>();
         for (Path path : filePaths) {

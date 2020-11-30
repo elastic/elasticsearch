@@ -445,8 +445,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzer;
     }
 
+    /**
+     * Return the index-time analyzer associated with a particular field
+     * @param field                     the field name
+     * @param unindexedFieldAnalyzer    a function to return an Analyzer for a field with no
+     *                                  directly associated index-time analyzer
+     */
+    public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+        if (this.mapper == null) {
+            return unindexedFieldAnalyzer.apply(field);
+        }
+        return this.mapper.mappers().indexAnalyzer(field, unindexedFieldAnalyzer);
+    }
+
     public boolean containsBrokenAnalysis(String field) {
-        return this.indexAnalyzer.containsBrokenAnalysis(field);
+        NamedAnalyzer a = indexAnalyzer(field, f -> null);
+        if (a == null) {
+            return false;
+        }
+        return a.containsBrokenAnalysis();
     }
 
     @Override
@@ -490,9 +507,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return mapper.mappers().indexAnalyzer();
         }
 
-        boolean containsBrokenAnalysis(String field) {
-            return mapper.mappers().indexAnalyzer().containsBrokenAnalysis(field);
-        }
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {

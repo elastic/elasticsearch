@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -230,6 +231,8 @@ public abstract class AggregationContext {
      */
     public abstract Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer);
 
+    public abstract Version indexVersionCreated();
+
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link QueryShardContext} and anything else
@@ -424,6 +427,11 @@ public abstract class AggregationContext {
         @Override
         public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
             return context.getIndexAnalyzer(unindexedFieldAnalyzer);
+        }
+
+        @Override
+        public Version indexVersionCreated() {
+            return context.indexVersionCreated();
         }
     }
 }

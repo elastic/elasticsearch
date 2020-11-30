@@ -466,6 +466,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public Version indexVersionCreated() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 

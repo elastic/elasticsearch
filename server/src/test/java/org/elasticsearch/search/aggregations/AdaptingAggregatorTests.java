@@ -60,8 +60,8 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(), context -> {
             AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, AggregatorFactories.builder(), null);
             Aggregator adapting = factory.create(null, CardinalityUpperBound.ONE);
-            assertThat(adapting.buildEmptyAggregation().getMetadata(), equalTo(Map.of("dog", "woof")));
-            assertThat(adapting.buildTopLevel().getMetadata(), equalTo(Map.of("dog", "woof")));
+            assertThat(adapting.buildEmptyAggregation().getMetadata(), equalTo(org.elasticsearch.common.collect.Map.of("dog", "woof")));
+            assertThat(adapting.buildTopLevel().getMetadata(), equalTo(org.elasticsearch.common.collect.Map.of("dog", "woof")));
         });
     }
 

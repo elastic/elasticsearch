@@ -53,7 +53,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
             throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         if (objectMapper == null) {
-            parentFilter = Queries.newNonNestedFilter(context.getQueryShardContext().indexVersionCreated());
+            parentFilter = Queries.newNonNestedFilter(context.indexVersionCreated());
         } else {
             parentFilter = objectMapper.nestedTypeFilter();
         }

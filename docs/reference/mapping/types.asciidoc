@@ -126,31 +126,6 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 This is the purpose of _multi-fields_. Most field types support multi-fields
 via the <<multi-fields>> parameter.
 
-[discrete]
-[[types-runtime]]
-=== Runtime
-{es} indexes most field types by default to promote faster search. However,
-indexing all of your data can be slow and requires more disk space. If you're
-experimenting with your data or are unsure which fields you need for search,
-use _runtime fields_ beta[].
-
-{es} treats runtime fields like any other field, except that their values are
-only extracted or computed at search time. When mapping a runtime field, you
-define a script that determines how to extract or compute values from existing
-fields.
-
-Runtime fields use less disk space and provide flexibility in how you access
-your data, but impact search performance based on the computation defined in
-the runtime script. See <<runtime>>.
-
-// Runtime fields optimize disk space by evaluating each runtime script at search
-// time, instead of indexing fields and using disk space.
-//
-// Runtime fields use less disk space and provide flexibility in how you want to
-// access your data. Use runtime fields to quickly get data into the Elastic Stack
-//
-// Runtime fields make searches slower, as computing their values for each document that might match the query is costly, depending on how they are calculated.
-
 include::types/alias.asciidoc[]
 
 include::types/array.asciidoc[]
@@ -194,8 +169,6 @@ include::types/range.asciidoc[]
 include::types/rank-feature.asciidoc[]
 
 include::types/rank-features.asciidoc[]
-
-include::types/runtime.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
 

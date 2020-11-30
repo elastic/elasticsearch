@@ -1,23 +1,36 @@
 [[runtime]]
-=== Runtime
-Typically, you must index fields to {es} before they can be retrieved,
-aggregated, or searched. With _runtime fields_ beta[], you can explicitly
-define a field in the mapping and access it at search time without indexing
-your data during ingest time.
+== Runtime fields
+Typically, you index data into {es} to promote faster search. However, indexing
+can be slow and requires more disk space, and you have to reindex your data to
+add fields to existing documents. With _runtime fields_ beta[], you can add
+fields to documents already indexed to {es} without reindexing your data.
 
+[discrete]
+[[runtime-benefits]]
+=== Benefits
 Because runtime fields aren't indexed, you can more quickly ingest raw data
-into the Elastic Stack and access it immediately. Runtime fields are accessible
-from the search API like any other field. The <<search-field-caps,field capabilities API>> returns runtime fields as both searchable and aggregatable.
+into the Elastic Stack and access it immediately. By dynamically evaluating
+runtime fields at search time, you can optimize disk space by choosing which
+fields to index. If you later decide that a runtime field is increasingly used
+for filtering or aggregation, you can add the field to `_source` to gain faster
+search speed.
 
-By dynamically evaluating runtime fields at search time, you can optimize disk
-space by choosing which fields to index. If you later decide that a runtime
-field is increasingly used for filtering or aggregation, you can add the field
-to `_source` to gain faster search speed.
+Instead of reindexing your data to add fields, add runtime fields to the
+mapping definition. You can access runtime fields from the search API like any
+other field, and {es} sees runtime fields no differently.
 
 Alternatively, you can specify a `runtime_mappings` section in a search request
 to use runtime fields that exist only as part of the query. This
 flexibility allows you to create or override field values in `_source` for the
 duration of the query without modifying the field itself.
+
+[discrete]
+[[runtime-use-cases]]
+=== Use cases
+Runtime fields are useful when working with log data, especially when you're
+unsure about the data structure. Your search speed decreases, but your index
+size is much smaller and you can more quickly process logs without having to
+index them.
 
 Runtime fields help to alleviate several common issues when using {es}:
 
@@ -33,34 +46,51 @@ include any new fields in the index template is slow
 difficult for scripted fields because they have different needs based on where
 they are implemented
 
-Runtime fields incur performance costs at search time, depending
-on the <<runtime-params-runtime-type,`runtime_type`>>. For example, let's say
-you created an anomaly detection job that operates on the `@timestamp` field.
-If the `@timestamp` field is a runtime field, the search cost would be extremely
-high because the data isn't indexed and {es} must compute the value for each
-document that matches the query.
+[discrete]
+[[runtime-compromises]]
+=== Compromises
+Runtime fields use less disk space and provide flexibility in how you access
+your data, but can impact search performance based on the computation defined in
+the runtime script.
 
-NOTE: Computing values for runtime fields in each document that might match a
-query impacts search speed. Use the <<async-search,asynchronous search API>>
-to run searches that include runtime fields.
+To balance search performance and flexibility, index fields that you'll
+commonly search for and filter on, such as a timestamp. {es} automatically uses
+these indexed fields first when running a query, which produces a fast response
+time. You can then use runtime fields to limit the number of fields that {es}
+needs to calculate values for. Using indexed fields in tandem with runtime
+fields provides flexibility in the data that you index and how you define
+queries for other fields.
 
-Runtime fields are useful when working with log data, especially when you're
-unsure about the data structure. Your search speed decreases, but your index
-size is much smaller and you can more quickly process logs without having to
-index them.
+Use the <<async-search,asynchronous search API>> to run searches that include
+runtime fields. This method of search helps to offset the performance impacts
+of computing values for runtime fields in each document containing that field.
 
+IMPORTANT: Queries against runtime fields are considered expensive. If
+<<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>> is set
+to `false`, expensive queries are not allowed and {es} will reject any queries
+against runtime fields.
+
+[discrete]
 [[runtime-mapping-fields]]
-==== Mapping a runtime field
+=== Mapping a runtime field
 You map runtime fields by adding a `"runtime"` section under the mapping
 definition. Within that section, you
 <<modules-scripting-using,define a Painless script>>, which has access to the
-entire context of a document, the original `_source`, and the mapped field plus
-its values (`doc_values`). At search time, the script runs and generates values
-for each scripted field.
+original `_source` and the mapped field plus its values (`doc_values`). At
+search time, the script runs and generates values for each scripted field.
+
+The `"runtime"` section supports `boolean`, `date`, `double`, `ip`, `keyword`,
+and `long` data types. Runtime fields with a `type` of `date` can accept the
+<<mapping-date-format,`format`>> parameter exactly as the `date` field type.
 
 Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
 of the `_search` request. You can retrieve the results of running a script, but
 also make the script results available for queries and aggregations.
+
+IMPORTANT: Objects are not supported in the `"runtime"` section under the
+mapping definition. If you want to map a runtime field under an object, you
+can
+<<runtime-overriding-fields,override the field value in the search request>>.
 
 [[runtime-updating-scripts]]
 .Updating runtime scripts
@@ -71,8 +101,8 @@ inconsistent results. Each shard might have access to different versions of the
 script, depending on when the mapping change takes effect.
 
 Existing queries or visualizations in {kib} that rely on runtime fields can
-fail if you change the `runtime_type`. For example, a bar chart visualization
-that uses a runtime field of `ip` will fail if the `runtime_type` is changed
+fail if you change the field type. For example, a bar chart visualization
+that uses a runtime field of type `ip` will fail if the type is changed
 to `boolean`.
 
 ****
@@ -105,8 +135,9 @@ definition.
 <2> Each runtime has its own field type, just like any other field.
 <3> The script defines the evaluation to calculate at search time.
 
+[discrete]
 [[runtime-search-request]]
-==== Defining runtime fields in a search request
+=== Defining runtime fields in a search request
 You can specify a `runtime_mappings` section in a search request to create
 runtime fields that exist only as part of the query. You must specify a script
 as part of the `runtime_mappings` section, just as you would if adding a
@@ -138,8 +169,9 @@ GET my-index/_search
 ----
 // TEST[continued]
 
+[discrete]
 [[runtime-overriding-fields]]
-===== Overriding fields in the search request
+==== Overriding fields in the search request
 You can use the `runtime_mappings` section of the `_search` request to override
 field values inside objects by naming the runtime fields with dot notation. For
 example, index the following documents into `my-index`.
@@ -181,39 +213,13 @@ POST my-index/_search
 }
 ----
 
-[[runtime-params]]
-==== Parameters for runtime fields
-Runtime fields accept the following parameters:
-
-[[runtime-params-type]]
-`type`::
-The type of runtime computation to perform at query time. Currently, runtime
-fields only support the `runtime` data type.
-
-[[runtime-params-runtime-type]]
-`runtime_type`::
-The <<mapping-types,field type>> for each scripted field. {es}
-supports `boolean`, `date`, `double`, `ip`, `keyword`, and `long`.
-+
-Runtime fields with a `runtime_type` of `date` can accept the
-<<mapping-date-format,`format`>> parameter exactly as the `date` field type.
-
-[[runtime-params-script]]
-`script`::
-The <<modules-scripting-using,painless script>> that is evaluated at search
-time to produce the value of the runtime field.
-
+[discrete]
 [[runtime-retrieving-fields]]
 ==== Retrieving a runtime field
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
 the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of
 the original `_source`.
-
-IMPORTANT: Queries against runtime fields are considered expensive. If
-<<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>> is set
-to `false`, expensive queries are not allowed and {es} will reject any queries
-against runtime fields.
 
 The following request uses the search API to retrieve the `day_of_week` field
 that the <<runtime-mapping-fields,previous request>> defined as a runtime field
@@ -238,8 +244,9 @@ GET my-index/_search
 ----
 // TEST[continued]
 
+[discrete]
 [[runtime-examples]]
-==== Examples
+=== Examples
 Consider a large set of log data that you want to extract fields from.
 Indexing the data is time consuming and uses a lot of disk space, and you just
 want to explore the data structure without committing to a schema up front.

@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -186,11 +187,24 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private InstallationLocation getJavaInstallation(File javaHome) {
+        System.out.println("javaHome = " + javaHome);
+        javaInstallationRegistry.listInstallations()
+            .stream()
+            .filter(javaInstallationFilter)
+            .forEach(loc -> System.out.println("jvm = " + loc.getDisplayName() + " -- " + loc.getLocation()));
         return javaInstallationRegistry.listInstallations()
             .stream()
-            .filter(installationLocation -> installationLocation.getLocation().equals(javaHome))
+            .filter(installationLocation -> isSameFile(javaHome, installationLocation))
             .findFirst()
             .get();
+    }
+
+    private boolean isSameFile(File javaHome, InstallationLocation installationLocation) {
+        try {
+            return Files.isSameFile(installationLocation.getLocation().toPath(), javaHome.toPath());
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
     }
 
     /**
@@ -198,20 +212,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
      * To make transition more reliable we only take env var provided installations into account for now
      */
     private List<JavaHome> getAvailableJavaVersions() {
-        return javaInstallationRegistry.listInstallations()
-            .stream()
-            .filter(
-                installation -> installation.getSource().contains("Current JVM")
-                    || installation.getSource().contains("java_home")
-                    || installation.getSource().contains("environment variable")
-            )
-            .map(installationLocation -> {
-                File installationDir = installationLocation.getLocation();
-                JvmInstallationMetadata metadata = metadataDetector.getMetadata(installationDir);
-                int actualVersion = Integer.parseInt(metadata.getLanguageVersion().getMajorVersion());
-                return JavaHome.of(actualVersion, providers.provider(() -> installationDir));
-            })
-            .collect(Collectors.toList());
+        return javaInstallationRegistry.listInstallations().stream().filter(javaInstallationFilter).map(installationLocation -> {
+            File installationDir = installationLocation.getLocation();
+            JvmInstallationMetadata metadata = metadataDetector.getMetadata(installationDir);
+            int actualVersion = Integer.parseInt(metadata.getLanguageVersion().getMajorVersion());
+            return JavaHome.of(actualVersion, providers.provider(() -> installationDir));
+        }).collect(Collectors.toList());
     }
 
     private static String getTestSeed() {
@@ -439,6 +445,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
         return firstLine;
     }
+
+    private static Predicate<InstallationLocation> javaInstallationFilter = installation -> installation.getSource().contains("Current JVM")
+        || installation.getSource().contains("java_home")
+        || installation.getSource().contains("environment variable");
 
     public static class GitInfo {
         private final String revision;

@@ -235,9 +235,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_date").field("type", "date").endObject();
         });
 
-        Integer intNotByte = randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
+        int intNotByte = randomIntBetween(Byte.MAX_VALUE + 1, Integer.MAX_VALUE);
         long longNotByte = randomLongBetween(Byte.MAX_VALUE + 1, Long.MAX_VALUE);
-        Short shortNotByte = (short) randomIntBetween(Byte.MAX_VALUE + 1, Short.MAX_VALUE);
+        short shortNotByte = (short) randomIntBetween(Byte.MAX_VALUE + 1, Short.MAX_VALUE);
         double doubleNotByte = randomDoubleBetween(Byte.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotByte = randomFloatBetween(Byte.MAX_VALUE + 1, Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);

@@ -187,7 +187,6 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             if (dataType.isNumeric() && isFromDocValuesOnly(dataType) == false) {
                 Number result = null;
                 try {
-                    // TODO: don't mapper modules expose _source parsing methods? should the _source be (re)validated?
                     result = createNumeric(dataType, values);
                 } catch(IllegalArgumentException iae) {
                     return null;

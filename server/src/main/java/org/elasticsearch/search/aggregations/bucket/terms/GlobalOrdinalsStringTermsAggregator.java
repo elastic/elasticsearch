@@ -46,8 +46,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -87,7 +87,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         DocValueFormat format,
         BucketCountThresholds bucketCountThresholds,
         IncludeExclude.OrdinalsFilter includeExclude,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         boolean remapGlobalOrds,
         SubAggCollectionMode collectionMode,
@@ -281,7 +281,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             BucketOrder order,
             DocValueFormat format,
             BucketCountThresholds bucketCountThresholds,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             boolean remapGlobalOrds,
             SubAggCollectionMode collectionMode,

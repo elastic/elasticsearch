@@ -16,8 +16,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.Si
     public HistoBackedValueCountAggregator(
             String name,
             ValuesSourceConfig valuesSourceConfig,
-            SearchContext aggregationContext,
+            AggregationContext aggregationContext,
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, aggregationContext, parent, metadata);

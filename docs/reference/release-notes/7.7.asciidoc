@@ -3,6 +3,19 @@
 
 Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
 
+[[known-issues-7.7.1]]
+[discrete]
+=== Known issues
+
+* SQL: If a `WHERE` clause contains at least two relational operators joined by
+`AND`, of which one is a comparison (`<=`, `<`, `>=`, `>`) and another one is
+an inequality (`!=`, `<>`), both against literals or foldable expressions, the
+inequality will be ignored. The workaround is to substitute the inequality
+with a `NOT IN` operator.
++
+We have fixed this issue in {es} 7.10.1 and later versions. For more details,
+see {es-issue}65488[#65488].
+
 [[enhancement-7.7.1]]
 [discrete]
 === Enhancements
@@ -134,6 +147,19 @@ SQL::
 == {es} version 7.7.0
 
 Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
+
+[[known-issues-7.7.0]]
+[discrete]
+=== Known issues
+
+* SQL: If a `WHERE` clause contains at least two relational operators joined by
+`AND`, of which one is a comparison (`<=`, `<`, `>=`, `>`) and another one is
+an inequality (`!=`, `<>`), both against literals or foldable expressions, the
+inequality will be ignored. The workaround is to substitute the inequality
+with a `NOT IN` operator.
++
+We have fixed this issue in {es} 7.10.1 and later versions. For more details,
+see {es-issue}65488[#65488].
 
 [[breaking-7.7.0]]
 [discrete]

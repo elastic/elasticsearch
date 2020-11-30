@@ -210,7 +210,7 @@ public class FileOperatorUsersStore {
             try (InputStream in = Files.newInputStream(file, StandardOpenOption.READ)) {
                 return parseConfig(in);
             } catch (IOException | RuntimeException e) {
-                logger.error("Failed to parse operator users file [" + file + "].", e);
+                logger.error(new ParameterizedMessage("Failed to parse operator users file [{}].", file), e);
                 throw new ElasticsearchParseException("Error parsing operator users file [{}]", e, file.toAbsolutePath());
             }
         }

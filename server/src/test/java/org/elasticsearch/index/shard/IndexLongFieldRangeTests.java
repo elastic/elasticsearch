@@ -27,8 +27,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.shard.IndexLongFieldRangeTestUtils.randomSpecificRange;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexLongFieldRangeTests extends ESTestCase {

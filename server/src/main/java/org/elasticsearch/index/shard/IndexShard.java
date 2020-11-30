@@ -378,7 +378,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         if (shardRouting.isRelocationTarget()) {
-            relocationCondition = new RelocationCondition(shardRouting);
+            cleanFilesCondition = new CleanFilesCondition(shardRouting);
         }
     }
 
@@ -462,13 +462,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * A ref counter that can be used to delay primary relocation handoff via {@link #createRelocationDependency()}.
+     * A ref counter that can be used to delay responding to a {@link org.elasticsearch.indices.recovery.RecoveryCleanFilesRequest} until
+     * it is released.
      */
-    private final class RelocationCondition extends AbstractRefCounted {
+    private final class CleanFilesCondition extends AbstractRefCounted {
 
         private Runnable asyncActivation;
 
-        RelocationCondition(ShardRouting routing) {
+        CleanFilesCondition(ShardRouting routing) {
             super("relocation condition for [" + routing.shardId() + "][" + routing.allocationId() + "]");
         }
 
@@ -642,11 +643,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             if (newRouting.isRelocationTarget()) {
                 if (currentRouting.isRelocationTarget() == false) {
-                    assert relocationCondition == null : "Found relocation condition even though there shouldn't be one";
-                    relocationCondition = new RelocationCondition(newRouting);
+                    assert cleanFilesCondition == null : "Found relocation condition even though there shouldn't be one";
+                    cleanFilesCondition = new CleanFilesCondition(newRouting);
                 }
             } else {
-                relocationCondition = null;
+                cleanFilesCondition = null;
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
@@ -2453,7 +2454,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
-    private RelocationCondition relocationCondition;
+    private CleanFilesCondition cleanFilesCondition;
 
     /**
      * Creates a {@link Runnable} that must be executed before primary relocation to this shard can complete by a call to
@@ -2464,9 +2465,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Runnable createRelocationDependency() {
         assert assertRelocationTarget();
         logger.trace("adding relocation condition for [{}]", shardRouting);
-        final RelocationCondition condition;
+        final CleanFilesCondition condition;
         synchronized (mutex) {
-            condition = this.relocationCondition;
+            condition = this.cleanFilesCondition;
         }
         condition.incRef();
         return condition::decRef;
@@ -2484,9 +2485,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
             .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC :
             "local checkpoint [" + getLocalCheckpoint() + "] does not match checkpoint from primary context [" + primaryContext + "]";
-        final RelocationCondition condition;
+        final CleanFilesCondition condition;
         synchronized (mutex) {
-            condition = relocationCondition;
+            condition = cleanFilesCondition;
         }
         condition.receivePrimaryContext(primaryContext, listener);
     }

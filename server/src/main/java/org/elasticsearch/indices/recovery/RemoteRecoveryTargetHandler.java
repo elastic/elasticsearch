@@ -180,7 +180,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             new RecoveryCleanFilesRequest(recoveryId, requestSeqNo, shardId, sourceMetadata, totalTranslogOps, globalCheckpoint);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        executeRetryableAction(action, request, standardTimeoutRequestOptions, responseListener, reader);
+        executeRetryableAction(action, request, TransportRequestOptions.EMPTY, responseListener, reader);
     }
 
     @Override

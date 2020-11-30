@@ -21,6 +21,7 @@ package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,30 +35,42 @@ public class SettingsConfig implements ToXContentObject {
 
     private static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
     private static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
+    private static final ParseField WRITE_DATE_AS_EPOCH_MILLIS = new ParseField("write_date_as_epoch_millis");
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
 
+    // use an integer as we need to code 4 states: true, false, null (unchanged), default (defined server side)
+    private static final int DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS = -1;
+
     private final Integer maxPageSearchSize;
     private final Float docsPerSecond;
+    private final Integer writeDateAsEpochMillis;
 
     private static final ConstructingObjectParser<SettingsConfig, Void> PARSER = new ConstructingObjectParser<>(
         "settings_config",
         true,
-        args -> new SettingsConfig((Integer) args[0], (Float) args[1])
+        args -> new SettingsConfig((Integer) args[0], (Float) args[1], (Integer) args[2])
     );
 
     static {
         PARSER.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, MAX_PAGE_SEARCH_SIZE);
         PARSER.declareFloatOrNull(optionalConstructorArg(), DEFAULT_DOCS_PER_SECOND, DOCS_PER_SECOND);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS : p.booleanValue() ? 1 : 0,
+            WRITE_DATE_AS_EPOCH_MILLIS,
+            ValueType.BOOLEAN_OR_NULL
+        );
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond) {
+    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer writeDateAsEpochMillis) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
+        this.writeDateAsEpochMillis = writeDateAsEpochMillis;
     }
 
     @Override
@@ -77,6 +90,13 @@ public class SettingsConfig implements ToXContentObject {
                 builder.field(DOCS_PER_SECOND.getPreferredName(), docsPerSecond);
             }
         }
+        if (writeDateAsEpochMillis != null) {
+            if (writeDateAsEpochMillis.equals(DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS)) {
+                builder.field(WRITE_DATE_AS_EPOCH_MILLIS.getPreferredName(), (Boolean) null);
+            } else {
+                builder.field(WRITE_DATE_AS_EPOCH_MILLIS.getPreferredName(), writeDateAsEpochMillis > 0 ? true : false);
+            }
+        }
         builder.endObject();
         return builder;
     }
@@ -89,6 +109,10 @@ public class SettingsConfig implements ToXContentObject {
         return docsPerSecond;
     }
 
+    public Boolean getWriteDateAsEpochMillis() {
+        return writeDateAsEpochMillis != null ? writeDateAsEpochMillis > 0 : null;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (other == this) {
@@ -99,12 +123,14 @@ public class SettingsConfig implements ToXContentObject {
         }
 
         SettingsConfig that = (SettingsConfig) other;
-        return Objects.equals(maxPageSearchSize, that.maxPageSearchSize) && Objects.equals(docsPerSecond, that.docsPerSecond);
+        return Objects.equals(maxPageSearchSize, that.maxPageSearchSize)
+            && Objects.equals(docsPerSecond, that.docsPerSecond)
+            && Objects.equals(writeDateAsEpochMillis, that.writeDateAsEpochMillis);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, docsPerSecond);
+        return Objects.hash(maxPageSearchSize, docsPerSecond, writeDateAsEpochMillis);
     }
 
     public static Builder builder() {
@@ -114,6 +140,7 @@ public class SettingsConfig implements ToXContentObject {
     public static class Builder {
         private Integer maxPageSearchSize;
         private Float docsPerSecond;
+        private Integer writeDateAsEpochMilli;
 
         /**
          * Sets the paging maximum paging maxPageSearchSize that transform can use when
@@ -143,8 +170,22 @@ public class SettingsConfig implements ToXContentObject {
             return this;
         }
 
+        /**
+         * Sets whether to write the output of a date aggregation as millis since epoch or as formatted string (ISO format).
+         *
+         * This setting ensures backwards compatibility for transforms created before 7.11, which wrote dates as epoch_millis.
+         * The new default is ISO string.
+         *
+         * @param writeDateAsEpochMilli true if dates should be written as epoch_millis.
+         * @return the {@link Builder} with writeDateAsEpochMilli set.
+         */
+        public Builder setWriteDateAsEpochMilli(Boolean writeDateAsEpochMilli) {
+            this.writeDateAsEpochMilli = writeDateAsEpochMilli == null ? DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS : writeDateAsEpochMilli ? 1 : 0;
+            return this;
+        }
+
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, writeDateAsEpochMilli);
         }
     }
 }

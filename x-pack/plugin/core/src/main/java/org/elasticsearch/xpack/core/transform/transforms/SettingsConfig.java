@@ -6,11 +6,14 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,33 +31,53 @@ public class SettingsConfig implements Writeable, ToXContentObject {
 
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
+    private static final int DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS = -1;
 
     private static ConstructingObjectParser<SettingsConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SettingsConfig, Void> parser = new ConstructingObjectParser<>(
             "transform_config_settings",
             lenient,
-            args -> new SettingsConfig((Integer) args[0], (Float) args[1])
+            args -> new SettingsConfig((Integer) args[0], (Float) args[1], (Integer) args[2])
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, TransformField.MAX_PAGE_SEARCH_SIZE);
         parser.declareFloatOrNull(optionalConstructorArg(), DEFAULT_DOCS_PER_SECOND, TransformField.DOCS_PER_SECOND);
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS : p.booleanValue() ? 1 : 0,
+            TransformField.WRITE_DATE_AS_EPOCH_MILLIS,
+            ValueType.BOOLEAN_OR_NULL
+        );
         return parser;
     }
 
     private final Integer maxPageSearchSize;
     private final Float docsPerSecond;
+    private final Integer writeDateAsEpochMillis;
 
     public SettingsConfig() {
-        this(null, null);
+        this(null, null, (Integer) null);
     }
 
-    public SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond) {
+    public SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Boolean writeDateAsEpochMillis) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
+        this.writeDateAsEpochMillis = writeDateAsEpochMillis == null ? null : writeDateAsEpochMillis ? 1 : 0;
+    }
+
+    public SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer writeDateAsEpochMillis) {
+        this.maxPageSearchSize = maxPageSearchSize;
+        this.docsPerSecond = docsPerSecond;
+        this.writeDateAsEpochMillis = writeDateAsEpochMillis;
     }
 
     public SettingsConfig(final StreamInput in) throws IOException {
         this.maxPageSearchSize = in.readOptionalInt();
         this.docsPerSecond = in.readOptionalFloat();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: change to V_7_11
+            this.writeDateAsEpochMillis = in.readOptionalInt();
+        } else {
+            this.writeDateAsEpochMillis = DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS;
+        }
     }
 
     public Integer getMaxPageSearchSize() {
@@ -63,6 +86,14 @@ public class SettingsConfig implements Writeable, ToXContentObject {
 
     public Float getDocsPerSecond() {
         return docsPerSecond;
+    }
+
+    public Boolean getWriteDateAsEpochMillis() {
+        return writeDateAsEpochMillis != null ? writeDateAsEpochMillis > 0 : null;
+    }
+
+    public Integer getWriteDateAsEpochMillisForUpdate() {
+        return writeDateAsEpochMillis;
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -85,6 +116,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(maxPageSearchSize);
         out.writeOptionalFloat(docsPerSecond);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo: change to V_7_11_0
+            out.writeOptionalInt(writeDateAsEpochMillis);
+        }
     }
 
     @Override
@@ -96,6 +130,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
         if (docsPerSecond != null && (docsPerSecond.equals(DEFAULT_DOCS_PER_SECOND) == false)) {
             builder.field(TransformField.DOCS_PER_SECOND.getPreferredName(), docsPerSecond);
+        }
+        if (writeDateAsEpochMillis != null && (writeDateAsEpochMillis.equals(DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS) == false)) {
+            builder.field(TransformField.WRITE_DATE_AS_EPOCH_MILLIS.getPreferredName(), writeDateAsEpochMillis > 0 ? true : false);
         }
         builder.endObject();
         return builder;
@@ -111,12 +148,19 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         SettingsConfig that = (SettingsConfig) other;
-        return Objects.equals(maxPageSearchSize, that.maxPageSearchSize) && Objects.equals(docsPerSecond, that.docsPerSecond);
+        return Objects.equals(maxPageSearchSize, that.maxPageSearchSize)
+            && Objects.equals(docsPerSecond, that.docsPerSecond)
+            && Objects.equals(writeDateAsEpochMillis, that.writeDateAsEpochMillis);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, docsPerSecond);
+        return Objects.hash(maxPageSearchSize, docsPerSecond, writeDateAsEpochMillis);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true) + " wdaem: " + this.writeDateAsEpochMillis;
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
@@ -126,13 +170,12 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public static class Builder {
         private Integer maxPageSearchSize;
         private Float docsPerSecond;
+        private Integer writeDateAsEpochMilli;
 
         /**
          * Default builder
          */
-        public Builder() {
-
-        }
+        public Builder() {}
 
         /**
          * Builder starting from existing settings as base, for the purpose of partially updating settings.
@@ -142,6 +185,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         public Builder(SettingsConfig base) {
             this.maxPageSearchSize = base.maxPageSearchSize;
             this.docsPerSecond = base.docsPerSecond;
+            this.writeDateAsEpochMilli = base.writeDateAsEpochMillis;
         }
 
         /**
@@ -173,6 +217,20 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         /**
+         * Sets whether to write the output of a date aggregation as millis since epoch or as formatted string (ISO format).
+         *
+         * This setting ensures backwards compatibility for transforms created before 7.11, which wrote dates as epoch_millis.
+         * The new default is ISO string.
+         *
+         * @param writeDateAsEpochMilli true if dates should be written as epoch_millis.
+         * @return the {@link Builder} with writeDateAsEpochMilli set.
+         */
+        public Builder setWriteDateAsEpochMilli(Boolean writeDateAsEpochMilli) {
+            this.writeDateAsEpochMilli = writeDateAsEpochMilli == null ? DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS : writeDateAsEpochMilli ? 1 : 0;
+            return this;
+        }
+
+        /**
          * Update settings according to given settings config.
          *
          * @param update update settings
@@ -189,12 +247,17 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     ? null
                     : update.getMaxPageSearchSize();
             }
+            if (update.getWriteDateAsEpochMillisForUpdate() != null) {
+                this.writeDateAsEpochMilli = update.getWriteDateAsEpochMillisForUpdate().equals(DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS)
+                    ? null
+                    : update.getWriteDateAsEpochMillisForUpdate();
+            }
 
             return this;
         }
 
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, writeDateAsEpochMilli);
         }
     }
 }

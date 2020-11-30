@@ -389,6 +389,44 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 
+    public void testRewriteForBWCofDateNormalization() throws IOException {
+        String pivotTransform = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } }"
+            + "},"
+            + " \"version\" : \""
+            + Version.V_7_6_0.toString()
+            + "\""
+            + "}";
+
+        TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
+        TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
+
+        assertTrue(transformConfigRewritten.getSettings().getWriteDateAsEpochMillis());
+        assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
+
+        TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig).setSettings(
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setWriteDateAsEpochMilli(true).build()
+        ).setVersion(Version.V_8_0_0).build(); // todo: V_7_11_0
+
+        transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter711);
+
+        assertTrue(transformConfigRewritten.getSettings().getWriteDateAsEpochMillis());
+        assertEquals(Version.V_8_0_0, transformConfigRewritten.getVersion()); // todo: V_7_11_0
+    }
+
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
         return createTransformConfigFromString(json, id, false);
     }

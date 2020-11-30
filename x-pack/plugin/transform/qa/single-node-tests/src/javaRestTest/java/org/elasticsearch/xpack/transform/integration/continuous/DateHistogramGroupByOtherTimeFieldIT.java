@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -121,20 +120,19 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
 
-            Long transformBucketKey = (Long) XContentMapValues.extractValue("second", source);
+            String transformBucketKey = (String) XContentMapValues.extractValue("second", source);
 
             // aggs return buckets with 0 doc_count while composite aggs skip over them
             while (bucket.getDocCount() == 0L) {
                 assertTrue(sourceIterator.hasNext());
                 bucket = sourceIterator.next();
             }
-            long bucketKey = ((ZonedDateTime) bucket.getKey()).toEpochSecond() * 1000;
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
-                "Buckets did not match, source: " + source + ", expected: " + bucketKey + ", iteration: " + iteration,
+                "Buckets did not match, source: " + source + ", expected: " + bucket.getKeyAsString() + ", iteration: " + iteration,
                 transformBucketKey,
-                equalTo(bucketKey)
+                equalTo(bucket.getKeyAsString())
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
@@ -172,10 +170,9 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             if (b.getDocCount() == 0) {
                 continue;
             }
-            long second = ((ZonedDateTime) b.getKey()).toEpochSecond() * 1000;
             List<? extends Terms.Bucket> terms = ((Terms) b.getAggregations().get("event")).getBuckets();
             for (Terms.Bucket t : terms) {
-                flattenedBuckets.add(flattenedResult(second, t.getKeyAsString(), t.getDocCount()));
+                flattenedBuckets.add(flattenedResult(b.getKeyAsString(), t.getKeyAsString(), t.getDocCount()));
             }
         }
 
@@ -188,7 +185,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
 
-            Long transformBucketKey = (Long) XContentMapValues.extractValue("second", source);
+            String transformBucketKey = (String) XContentMapValues.extractValue("second", source);
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
@@ -228,7 +225,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         assertFalse(destIterator.hasNext());
     }
 
-    private static Map<String, Object> flattenedResult(long second, String event, long count) {
+    private static Map<String, Object> flattenedResult(String second, String event, long count) {
         Map<String, Object> doc = new HashMap<>();
         doc.put("second", second);
         doc.put("event", event);

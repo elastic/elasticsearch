@@ -344,8 +344,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         final boolean excludeGenerated = params.paramAsBoolean(TransformField.EXCLUDE_GENERATED, false);
         final boolean forInternalStorage = params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false);
-        assert (forInternalStorage && excludeGenerated) == false:
-            "unsupported behavior, exclude_generated is true and for_internal_storage is true";
+        assert (forInternalStorage
+            && excludeGenerated) == false : "unsupported behavior, exclude_generated is true and for_internal_storage is true";
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
         if (excludeGenerated == false) {
@@ -449,12 +449,17 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     public static TransformConfig rewriteForUpdate(final TransformConfig transformConfig) {
 
         // quick checks for deprecated features, if none found just return the original
-        if (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null) {
+        if (transformConfig.getVersion() != null
+            && transformConfig.getVersion().onOrAfter(Version.V_8_0_0) // todo: V_7_11_0
+            && (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null)) {
             return transformConfig;
         }
 
         Builder builder = new Builder(transformConfig);
 
+        /*
+         * Move pivot.max_page_size_search to settings.max_page_size_search
+         */
         if (transformConfig.getPivotConfig() != null && transformConfig.getPivotConfig().getMaxPageSearchSize() != null) {
             // create a new pivot config but set maxPageSearchSize to null
             PivotConfig newPivotConfig = new PivotConfig(
@@ -468,9 +473,28 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             Integer maxPageSearchSize = transformConfig.getSettings().getMaxPageSearchSize() != null
                 ? transformConfig.getSettings().getMaxPageSearchSize()
                 : maxPageSearchSizeDeprecated;
+            Boolean writeDateAsEpochMillis = transformConfig.getSettings().getWriteDateAsEpochMillis();
 
-            builder.setSettings(new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond()));
+            builder.setSettings(
+                new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond(), writeDateAsEpochMillis)
+            );
         }
+
+        /*
+         * Keep date normalization backwards compatible for transforms created before 7.11
+         */
+        if (transformConfig.getVersion() != null && transformConfig.getVersion().before(Version.V_8_0_0)) { // todo: V_7_11_0
+            Integer maxPageSearchSizeDeprecated = transformConfig.getPivotConfig().getMaxPageSearchSize();
+            Integer maxPageSearchSize = transformConfig.getSettings().getMaxPageSearchSize() != null
+                ? transformConfig.getSettings().getMaxPageSearchSize()
+                : maxPageSearchSizeDeprecated;
+            Boolean writeDateAsEpochMillis = true;
+
+            builder.setSettings(
+                new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond(), writeDateAsEpochMillis)
+            );
+        }
+
         return builder.setVersion(Version.CURRENT).build();
     }
 

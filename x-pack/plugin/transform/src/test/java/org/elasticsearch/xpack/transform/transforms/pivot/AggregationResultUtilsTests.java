@@ -923,7 +923,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 aggregationBuilders,
                 pipelineAggregationBuilders,
                 fieldTypeMap,
-                stats
+                stats,
+                true
             ).collect(Collectors.toList());
         }
     }

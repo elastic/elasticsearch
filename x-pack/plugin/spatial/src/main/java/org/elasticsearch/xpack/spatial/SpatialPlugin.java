@@ -131,10 +131,10 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlug
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
-            (name, valuesSourceConfig, aggregationContext, parent, metadata)
+            (name, valuesSourceConfig, context, parent, metadata)
                 -> {
                 if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
-                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, valuesSourceConfig, metadata);
+                    return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
             },

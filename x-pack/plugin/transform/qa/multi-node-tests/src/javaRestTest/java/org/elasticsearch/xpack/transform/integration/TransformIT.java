@@ -56,6 +56,7 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testTransformCrud() throws Exception {
         String indexName = "basic-crud-reviews";
+        String transformId = "transform-crud";
         createReviewsIndex(indexName, 100);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
@@ -67,7 +68,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfig("transform-crud", groups, aggs, "reviews-by-user-business-day", indexName);
+        TransformConfig config = createTransformConfig(transformId, groups, aggs, "reviews-by-user-business-day", indexName);
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -75,6 +76,9 @@ public class TransformIT extends TransformIntegTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
 
         stopTransform(config.getId());
+        assertBusy(() -> {
+            assertEquals(TransformStats.State.STOPPED, getTransformStats(config.getId()).getTransformsStats().get(0).getState());
+        });
 
         TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
@@ -85,6 +89,7 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testContinuousTransformCrud() throws Exception {
         String indexName = "continuous-crud-reviews";
+        String transformId = "transform-continuous-crud";
         createReviewsIndex(indexName, 100);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
@@ -97,7 +102,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
         TransformConfig config = createTransformConfigBuilder(
-            "transform-crud",
+            transformId,
             groups,
             aggs,
             "reviews-by-user-business-day",
@@ -289,6 +294,8 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testContinuousTransformRethrottle() throws Exception {
         String indexName = "continuous-crud-reviews-throttled";
+        String transformId = "transform-continuous-crud-throttled";
+
         createReviewsIndex(indexName, 1000);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
@@ -301,7 +308,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
         TransformConfig config = createTransformConfigBuilder(
-            "transform-crud",
+            transformId,
             groups,
             aggs,
             "reviews-by-user-business-day",

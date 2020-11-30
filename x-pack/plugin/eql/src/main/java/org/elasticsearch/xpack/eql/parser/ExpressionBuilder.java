@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
@@ -50,6 +51,7 @@ import java.time.ZoneId;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
@@ -131,8 +133,6 @@ public class ExpressionBuilder extends IdentifierBuilder {
         ZoneId zoneId = params.zoneId();
 
         switch (op.getSymbol().getType()) {
-            case EqlBaseParser.SEQ:
-                return new InsensitiveEquals(source, left, right, zoneId);
             case EqlBaseParser.EQ:
                 return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:
@@ -151,7 +151,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx) {
+    public Expression visitOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx) {
         Expression expr = expression(ctx.primaryExpression());
         Source source = source(ctx);
         ZoneId zoneId = params.zoneId();
@@ -162,10 +162,18 @@ public class ExpressionBuilder extends IdentifierBuilder {
             return expr;
         }
 
-        List<Expression> container = expressions(predicate.expression());
-        Expression checkInSet = new In(source, expr, container, zoneId);
-
-        return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
+        switch (predicate.kind.getType()) {
+            case EqlBaseParser.SEQ:
+                return Predicates.combineOr(expressions(predicate.constant()).stream()
+                    .map(c -> new InsensitiveEquals(source, expr, c, zoneId))
+                    .collect(toList()));
+            case EqlBaseParser.IN:
+                List<Expression> container = expressions(predicate.expression());
+                Expression checkInSet = new In(source, expr, container, zoneId);
+                return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
+            default:
+                throw new ParsingException(source, "Unknown predicate {}", source.text());
+        }
     }
 
     @Override

@@ -27,7 +27,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -72,7 +71,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -119,11 +118,15 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             Arrays.asList(fieldMapper1, fieldMapper2),
             Collections.emptyList(),
             Collections.emptyList(),
+            Collections.emptyList(),
             0);
 
-        assertAnalyzes(mappingLookup.indexAnalyzer(), "field1", "index1");
-        assertAnalyzes(mappingLookup.indexAnalyzer(), "field2", "index2");
-        expectThrows(IllegalArgumentException.class, () -> mappingLookup.indexAnalyzer().tokenStream("field3", "blah"));
+        assertAnalyzes(mappingLookup.indexAnalyzer("field1", f -> null), "field1", "index1");
+        assertAnalyzes(mappingLookup.indexAnalyzer("field2", f -> null), "field2", "index2");
+        expectThrows(IllegalArgumentException.class,
+            () -> mappingLookup.indexAnalyzer("field3", f -> {
+                throw new IllegalArgumentException();
+            }).tokenStream("field3", "blah"));
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -77,6 +76,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
@@ -90,7 +90,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         settings = createIndexSettings();
         queryShardContext = new QueryShardContext(0, settings,
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                null, null, null, null, () -> 0L, null, null, () -> true, null);
+                null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
     }
 
     public void testSimpleDateHisto() throws Exception {
@@ -536,7 +536,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
                 MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberFieldMapper.NumberType.LONG, false, false)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -545,7 +545,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
                 MappedFieldType ft = new KeywordFieldMapper.Builder(field)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -554,7 +554,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
                 MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberFieldMapper.NumberType.LONG, false, false)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }

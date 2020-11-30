@@ -20,7 +20,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -52,7 +51,7 @@ public class FetchContext {
      */
     public FetchContext(SearchContext searchContext) {
         this.searchContext = searchContext;
-        this.searchLookup = searchContext.getQueryShardContext().newFetchLookup();
+        this.searchLookup = searchContext.getQueryShardContext().lookup();
     }
 
     /**
@@ -67,13 +66,6 @@ public class FetchContext {
      */
     public ContextIndexSearcher searcher() {
         return searchContext.searcher();
-    }
-
-    /**
-     * The mapper service for the index we are fetching documents from
-     */
-    public MapperService mapperService() {
-        return searchContext.mapperService();
     }
 
     /**

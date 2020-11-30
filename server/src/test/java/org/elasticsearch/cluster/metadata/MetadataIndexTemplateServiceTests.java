@@ -43,7 +43,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -56,7 +55,6 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -1575,7 +1573,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public MetadataFieldMapper build(Mapper.BuilderContext context) {
+        public MetadataFieldMapper build() {
             return new MetadataTimestampFieldMapper(enabled.getValue());
         }
     }
@@ -1586,7 +1584,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         public MetadataTimestampFieldMapper(boolean enabled) {
             super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
                 @Override
-                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(QueryShardContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 

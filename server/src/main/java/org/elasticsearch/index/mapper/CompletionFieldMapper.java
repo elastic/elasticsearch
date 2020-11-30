@@ -30,7 +30,6 @@ import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -42,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -69,7 +67,7 @@ import java.util.Set;
  *  <li>"min_input_length": 50 (default)</li>
  *  <li>"contexts" : CONTEXTS</li>
  * </ul>
- * see {@link ContextMappings#load(Object, Version)} for CONTEXTS<br>
+ * see {@link ContextMappings#load(Object)} for CONTEXTS<br>
  * see {@link #parse(ParseContext)} for acceptable inputs for indexing<br>
  * <p>
  *  This field type constructs completion queries that are run
@@ -130,7 +128,7 @@ public class CompletionFieldMapper extends FieldMapper {
             m -> builder(m).preservePosInc.get(), Defaults.DEFAULT_POSITION_INCREMENTS)
             .alwaysSerialize();
         private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, () -> null,
-            (n, c, o) -> ContextMappings.load(o, c.indexVersionCreated()), m -> builder(m).contexts.get())
+            (n, c, o) -> ContextMappings.load(o), m -> builder(m).contexts.get())
             .setSerializer((b, n, c) -> {
                 if (c == null) {
                     return;
@@ -181,27 +179,27 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public CompletionFieldMapper build(BuilderContext context) {
-            checkCompletionContextsLimit(context);
+        public CompletionFieldMapper build(ContentPath contentPath) {
+            checkCompletionContextsLimit();
             NamedAnalyzer completionAnalyzer = new NamedAnalyzer(this.searchAnalyzer.getValue().name(), AnalyzerScope.INDEX,
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue()));
 
             CompletionFieldType ft
-                = new CompletionFieldType(buildFullName(context), completionAnalyzer, meta.getValue());
+                = new CompletionFieldType(buildFullName(contentPath), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
             return new CompletionFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
 
-        private void checkCompletionContextsLimit(BuilderContext context) {
+        private void checkCompletionContextsLimit() {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                if (context.indexCreatedVersion().onOrAfter(Version.V_8_0_0)) {
+                if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
                 } else {
                     deprecationLogger.deprecate("excessive_completion_contexts",
                         "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
-                            " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
+                            " in the mapping for field [" + name() + "]. " +
                             "The maximum allowed number of completion contexts in a mapping will be limited to " +
                             "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
                 }
@@ -288,7 +286,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }

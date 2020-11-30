@@ -24,7 +24,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,11 +53,11 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FakeStringFieldMapper build(BuilderContext context) {
+        public FakeStringFieldMapper build(ContentPath contentPath) {
             return new FakeStringFieldMapper(
                 new FakeStringFieldType(name, true,
                     new TextSearchInfo(FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
-                multiFieldsBuilder.build(this, context), copyTo.build());
+                multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 
@@ -76,7 +75,7 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
         }
     }

@@ -23,12 +23,12 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
   exclude '**/*.jks'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // Used in org.bouncycastle.pqc.crypto.qtesla.QTeslaKeyEncodingTests
     'junit.framework.Assert',
@@ -37,9 +37,15 @@ thirdPartyAudit {
 }
 
 if (BuildParams.inFipsJvm) {
-  test.enabled = false
-  jarHell.enabled = false
-  testingConventions.enabled = false
+  tasks.named("test").configure {
+    enabled = false
+  }
+  tasks.named("jarHell").configure {
+    enabled = false
+  }
+  tasks.named("testingConventions").configure {
+    enabled = false
+  }
   // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
   // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
   tasks.withType(CheckForbiddenApis).configureEach {

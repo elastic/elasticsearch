@@ -26,11 +26,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 
 /** Mapper for the doc_count field. */
 public class DocCountFieldMapper extends MetadataFieldMapper {
@@ -38,26 +36,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_doc_count";
     public static final String CONTENT_TYPE = "_doc_count";
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new DocCountFieldMapper(),
-        c -> new DocCountFieldMapper.Builder());
-
-    static class Builder extends MetadataFieldMapper.Builder {
-
-        Builder() {
-            super(NAME);
-        }
-
-        @Override
-        protected List<Parameter<?>> getParameters() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public DocCountFieldMapper build(BuilderContext context) {
-            return new DocCountFieldMapper();
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new DocCountFieldMapper());
 
     public static final class DocCountFieldType extends MappedFieldType {
 
@@ -90,7 +69,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }

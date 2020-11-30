@@ -55,10 +55,10 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public RankFeaturesFieldMapper build(BuilderContext context) {
+        public RankFeaturesFieldMapper build(ContentPath contentPath) {
             return new RankFeaturesFieldMapper(
-                    name, new RankFeaturesFieldType(buildFullName(context), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build());
+                    name, new RankFeaturesFieldType(buildFullName(contentPath), meta.getValue()),
+                    multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 
@@ -86,7 +86,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -87,9 +88,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ConstantKeywordFieldMapper build(BuilderContext context) {
+        public ConstantKeywordFieldMapper build(ContentPath contentPath) {
             return new ConstantKeywordFieldMapper(
-                    name, new ConstantKeywordFieldType(buildFullName(context), value.getValue(), meta.getValue()));
+                    name, new ConstantKeywordFieldType(buildFullName(contentPath), value.getValue(), meta.getValue()));
         }
     }
 
@@ -129,7 +130,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }

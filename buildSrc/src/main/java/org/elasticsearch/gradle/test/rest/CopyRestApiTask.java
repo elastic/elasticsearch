@@ -23,7 +23,6 @@ import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
@@ -65,12 +64,12 @@ public class CopyRestApiTask extends DefaultTask {
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
     String sourceSetName;
     boolean skipHasRestTestCheck;
-    Configuration coreConfig;
-    Configuration xpackConfig;
-    Configuration additionalConfig;
-    Function<Configuration, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
-    Function<Configuration, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
-    Function<Configuration, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
+    FileCollection coreConfig;
+    FileCollection xpackConfig;
+    FileCollection additionalConfig;
+    Function<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
+    Function<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
+    Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;

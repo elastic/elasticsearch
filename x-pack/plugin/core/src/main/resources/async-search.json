@@ -4,6 +4,7 @@
   ],
   "template": {
     "settings": {
+      "index.codec": "best_compression",
       "index.number_of_shards": 1,
       "index.number_of_replicas": 0,
       "index.auto_expand_replicas": "0-1"

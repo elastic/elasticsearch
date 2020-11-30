@@ -53,7 +53,7 @@ public class AsyncTaskTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected String getOrigin() {
-        return ClientHelper.ASYNC_SEARCH_ORIGIN;
+        return ClientHelper.INDEX_LIFECYCLE_ORIGIN;
     }
 
     public boolean validate(ClusterState state) {

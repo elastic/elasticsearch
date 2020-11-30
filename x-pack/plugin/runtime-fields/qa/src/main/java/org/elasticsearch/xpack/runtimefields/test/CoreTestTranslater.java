@@ -90,10 +90,7 @@ public abstract class CoreTestTranslater {
 
     // TODO there isn't yet a way to create fields in the runtime section from a dynamic template
     protected static Map<String, Object> dynamicTemplateToAddRuntimeFields(String type) {
-        return Map.ofEntries(
-            Map.entry("type", "runtime"),
-            Map.entry("runtime_type", type)
-        );
+        return Map.ofEntries(Map.entry("type", "runtime"), Map.entry("runtime_type", type));
     }
 
     protected static Map<String, Object> runtimeFieldLoadingFromSource(String type) {

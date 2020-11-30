@@ -874,6 +874,13 @@ public class Strings {
         return s.substring(0, length);
     }
 
+    public static String requireNonEmpty(String str, String message) {
+        if (isNullOrEmpty(str)) {
+            throw new IllegalArgumentException(message);
+        }
+        return str;
+    }
+
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
     }

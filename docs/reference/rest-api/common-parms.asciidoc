@@ -965,6 +965,13 @@ adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
 
+tag::transform-settings-write-date-as-epoch-milli[]
+Defines if dates in the ouput should be written as ISO formated string (default)
+or as millis since epoch. `epoch_millis` has been the default for transforms created
+before version `7.11`. For compatible output set this to true.
+The default value is `false`.
+end::transform-settings-write-date-as-epoch-milli[]
+
 tag::target-index[]
 `<target-index>`::
 +

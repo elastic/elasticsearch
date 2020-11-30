@@ -6,7 +6,7 @@
 <titleabbrev>Rollup</titleabbrev>
 ++++
 
-Aggregates an index's time-series data and stores the results in another index.
+Aggregates an index's time series data and stores the results in another index.
 For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]

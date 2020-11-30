@@ -11,15 +11,14 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
-import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.hamcrest.Matcher;
 import org.junit.After;
+import org.junit.Before;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -189,7 +189,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Map<String, Object> properties = new HashMap<>();
         properties.put("type", "long");
-        properties.put("script", "emit(doc['date_of_birth'].value.getDayOfWeekEnum().value)");
+        properties.put("script", "emit(doc['time'].value.getDayOfWeekEnum().value)");
         Map<String, Object> fields = new HashMap<>();
         fields.put("day_of_week", properties);
         dfBuilder.setRuntimeMappings(fields);
@@ -199,16 +199,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 
-
-
-        GetDatafeedsAction.Request request = new GetDatafeedsAction.Request(datafeedConfig.getId());
-        GetDatafeedsAction.Response response = client().execute(GetDatafeedsAction.INSTANCE, request).actionGet();
-        System.out.println(response.getResponse().results().get(0));
-        fail(response.getResponse().results().get(0).toString());
-
-
-
-        /*
         startDatafeed(datafeedConfig.getId(), 0L, now);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(jobBuilder.getId());
@@ -222,8 +212,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 60, TimeUnit.SECONDS);
 
         waitUntilJobIsClosed(jobBuilder.getId());
-
-         */
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63973")

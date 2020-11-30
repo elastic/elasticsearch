@@ -214,7 +214,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
         this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
-        this.runtimeMappings = runtimeMappings;
+        this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -244,9 +244,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            runtimeMappings = in.readBoolean() ?  in.readMap() : null;
+            runtimeMappings = in.readMap();
         } else {
-            runtimeMappings = null;
+            runtimeMappings = Collections.emptyMap();
         }
     }
 
@@ -467,11 +467,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            boolean hasRuntimeMappings = runtimeMappings != null;
-            out.writeBoolean(hasRuntimeMappings);
-            if (hasRuntimeMappings) {
-                out.writeMap(runtimeMappings);
-            }
+            out.writeMap(runtimeMappings);
         }
     }
 
@@ -531,7 +527,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
+        if (runtimeMappings.isEmpty() == false) {
             builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
         builder.endObject();
@@ -664,7 +660,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
-        private Map<String, Object> runtimeMappings;
+        private Map<String, Object> runtimeMappings = Collections.emptyMap();
 
         public Builder() { }
 
@@ -689,7 +685,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
             this.maxEmptySearches = config.getMaxEmptySearches();
             this.indicesOptions = config.indicesOptions;
-            this.runtimeMappings = config.runtimeMappings == null ? null : new HashMap<>(config.runtimeMappings);
+            this.runtimeMappings = new HashMap<>(config.runtimeMappings);
         }
 
         public Builder setId(String datafeedId) {
@@ -818,7 +814,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         public void setRuntimeMappings(Map<String, Object> runtimeMappings) {
-            this.runtimeMappings = runtimeMappings;
+            this.runtimeMappings = ExceptionsHelper.requireNonNull(runtimeMappings,
+                SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName());
         }
 
         public DatafeedConfig build() {

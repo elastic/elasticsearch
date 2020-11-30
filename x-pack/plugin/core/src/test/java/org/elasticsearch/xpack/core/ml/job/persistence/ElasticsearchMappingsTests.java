@@ -75,7 +75,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.NESTED,
             ElasticsearchMappings.PROPERTIES,
             ElasticsearchMappings.TYPE,
-            ElasticsearchMappings.WHITESPACE
+            ElasticsearchMappings.WHITESPACE,
+            "runtime_mappings"
     );
 
     private static List<String> INTERNAL_FIELDS = Arrays.asList(

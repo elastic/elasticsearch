@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -43,8 +44,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -80,6 +81,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -273,11 +275,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return documentMapper == null ? null : mapperService.documentMapper().parse(source);
     }
 
-    public FieldNameAnalyzer getFieldNameIndexAnalyzer() {
-        DocumentMapper documentMapper = mapperService.documentMapper();
-        return documentMapper == null ? null : documentMapper.mappers().indexAnalyzer();
-    }
-
     public boolean hasNested() {
         return mapperService.hasNested();
     }
@@ -385,6 +382,19 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public IndexAnalyzers getIndexAnalyzers() {
         return mapperService.getIndexAnalyzers();
+    }
+
+    /**
+     * Return the index-time analyzer for the current index
+     * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
+     */
+    public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapperService.indexAnalyzer(fieldName, unindexedFieldAnalyzer);
+            }
+        };
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {

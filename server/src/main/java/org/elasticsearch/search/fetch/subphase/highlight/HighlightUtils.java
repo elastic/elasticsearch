@@ -60,6 +60,7 @@ public final class HighlightUtils {
             return textsToHighlight;
         }
         ValueFetcher fetcher = fieldType.valueFetcher(qsc, null);
+        fetcher.setNextReader(hitContext.readerContext());
         return fetcher.fetchValues(hitContext.sourceLookup());
     }
 

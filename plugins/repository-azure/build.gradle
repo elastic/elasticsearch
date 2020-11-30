@@ -156,6 +156,7 @@ tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
 // test jar is exported by the integTestArtifacts configuration to be used in the encrypted Azure repository test
 configurations {
   integTestArtifacts.extendsFrom testRuntime
+  integTestArtifacts.extendsFrom testImplementation
 }
 
 def integTestJar = tasks.register("integTestJar", Jar) {

@@ -47,9 +47,9 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);
         final String secondDataNode = internalCluster().startDataOnlyNode();
+
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, secondDataNode);
         final int preWarmThreads = threadPool.info(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME).getMax();
-
         final Executor executor = threadPool.executor(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
         final CyclicBarrier barrier = new CyclicBarrier(preWarmThreads + 1);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -65,6 +65,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         }
         logger.info("--> waiting for prewarm threads to all become blocked");
         barrier.await();
+
         logger.info("--> force index [{}] to relocate to [{}]", index, secondDataNode);
         assertAcked(
             client().admin()
@@ -85,6 +86,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             assertEquals(firstDataNode, shardRecoveryState.getSourceNode().getName());
             assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
         });
+
         logger.info("--> sleep for 5s to ensure we are actually stuck at the FINALIZE stage and that the primary has not yet relocated");
         TimeUnit.SECONDS.sleep(5L);
         final RecoveryState recoveryState = getActiveRestores(restoredIndex).get(0);
@@ -93,8 +95,10 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         final String primaryNodeId = state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId();
         final DiscoveryNode primaryNode = state.nodes().resolveNode(primaryNodeId);
         assertEquals(firstDataNode, primaryNode.getName());
+
         logger.info("--> unblocking prewarm threads");
         latch.countDown();
+
         assertFalse(
             client().admin()
                 .cluster()

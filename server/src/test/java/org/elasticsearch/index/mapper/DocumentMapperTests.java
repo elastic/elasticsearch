@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -153,7 +154,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         final DocumentMapper documentMapper = mapperService.documentMapper();
 
         expectThrows(IllegalArgumentException.class,
-            () -> documentMapper.mappers().indexAnalyzer().tokenStream("non_existing_field", "foo"));
+            () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> {
+                throw new IllegalArgumentException();
+            }));
 
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -189,7 +192,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                     // not in the mapping yet, try again
                     continue;
                 }
-                assertNotNull(mapperService.indexAnalyzer().tokenStream(fieldName, "foo"));
+                Analyzer a = mapperService.indexAnalyzer(fieldName, f -> null);
+                assertNotNull(a);
+                assertNotNull(a.tokenStream(fieldName, "foo"));
             }
         } finally {
             stopped.set(true);

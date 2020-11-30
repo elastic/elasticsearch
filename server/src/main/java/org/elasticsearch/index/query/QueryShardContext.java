@@ -353,10 +353,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.documentMapper(type);
     }
 
-    public Analyzer getIndexAnalyzer() {
-        return mapperService.indexAnalyzer();
-    }
-
     /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.

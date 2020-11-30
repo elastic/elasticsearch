@@ -760,6 +760,7 @@ public class MetadataIndexStateService {
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
                 metadata.put(updatedMetadata
+                        .timestampMillisRange(IndexLongFieldRange.UNKNOWN)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder()
                                 .put(indexMetadata.getSettings())

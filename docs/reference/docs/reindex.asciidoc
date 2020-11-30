@@ -444,6 +444,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]

@@ -303,7 +303,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
         Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
-
+    public static final String INDEX_BULK_ROUTING_ENABLED = "index.bulk_routing.enabled";
+    public static final Setting<Boolean> INDEX_BULK_ROUTING_ENABLED_SETTING =
+        Setting.boolSetting(INDEX_BULK_ROUTING_ENABLED, false, Property.Dynamic, Property.IndexScope);
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
      */
@@ -390,6 +392,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
+
+    private final boolean bulkRoutingEnabled;
 
     private IndexMetadata(
             final Index index,
@@ -549,6 +553,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public ActiveShardCount getWaitForActiveShards() {
         return waitForActiveShards;
+    }
+
+    public boolean isBulkRoutingEnabled() {
+        return bulkRoutingEnabled;
     }
 
     public Settings getSettings() {
@@ -1262,6 +1270,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
+            final boolean bulkRoutingEnabled = settings.getAsBoolean(INDEX_BULK_ROUTING_ENABLED, false);
 
             return new IndexMetadata(
                     new Index(index, uuid),
@@ -1288,7 +1297,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     routingPartitionSize,
                     waitForActiveShards,
                     rolloverInfos.build(),
-                    isSystem);
+                    isSystem,
+                    bulkRoutingEnabled);
         }
 
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {

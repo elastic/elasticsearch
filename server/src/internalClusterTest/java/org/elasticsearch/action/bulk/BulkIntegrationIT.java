@@ -25,18 +25,23 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -44,7 +49,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -147,6 +155,100 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             BulkResponse bulkItemResponses = bulkBuilder.get();
             assertFalse(bulkItemResponses.hasFailures());
         }
+    }
+
+    public void testBulkRoutingToSingleShard() {
+        // create two indices, index1 disable bulk routing, index2 enable it
+        client().admin().indices().prepareCreate("index1").setSettings(Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        client().admin().indices().prepareCreate("index2").setSettings(Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.INDEX_BULK_ROUTING_ENABLED, true)).get();
+
+        // bulk write into two indices
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        for (int i=0; i<100; i++) {
+            bulkRequestBuilder.add(client().prepareIndex("index1").setSource("field", "value" + i));
+            bulkRequestBuilder.add(client().prepareIndex("index2").setSource("field", "value" + i));
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+
+        // check responses that index1 has 5 shards, index2 only has 1 shard
+        Map<String, Set<Integer>> shardsToIndex = new HashMap<>(2);
+        for (BulkItemResponse shardResponse : bulkResponse) {
+            shardsToIndex.computeIfAbsent(shardResponse.getIndex(), k -> new HashSet<>())
+                .add(shardResponse.getResponse().getShardId().getId());
+        }
+        assertEquals(shardsToIndex.get("index1").size(), 5);
+        assertEquals(shardsToIndex.get("index2").size(), 1);
+
+
+        // now dynamically enable index1 and disable index2's bulk routing
+        UpdateSettingsRequest updateSettingsRequest1 = new UpdateSettingsRequest("index1")
+            .settings(Settings.builder().put(IndexMetadata.INDEX_BULK_ROUTING_ENABLED, true));
+        client().admin().indices().updateSettings(updateSettingsRequest1).actionGet();
+        UpdateSettingsRequest updateSettingsRequest2 = new UpdateSettingsRequest("index2")
+            .settings(Settings.builder().put(IndexMetadata.INDEX_BULK_ROUTING_ENABLED, false));
+        client().admin().indices().updateSettings(updateSettingsRequest2).actionGet();
+
+        // continue bulk writing into two indices
+        BulkRequestBuilder bulkRequestBuilder1 = client().prepareBulk();
+        for (int i=0; i<100; i++) {
+            bulkRequestBuilder1.add(client().prepareIndex("index1").setSource("field", "value" + i));
+            bulkRequestBuilder1.add(client().prepareIndex("index2").setSource("field", "value" + i));
+        }
+        BulkResponse bulkResponse1 = bulkRequestBuilder1.get();
+        assertFalse(bulkResponse1.buildFailureMessage(), bulkResponse1.hasFailures());
+
+        // check responses that index1 has 1 shards, index2 has 5 shards
+        Map<String, Set<Integer>> shardsToIndex1 = new HashMap<>(2);
+        for (BulkItemResponse shardResponse : bulkResponse1) {
+            shardsToIndex1.computeIfAbsent(shardResponse.getIndex(), k -> new HashSet<>())
+                .add(shardResponse.getResponse().getShardId().getId());
+        }
+        assertEquals(shardsToIndex1.get("index1").size(), 1);
+        assertEquals(shardsToIndex1.get("index2").size(), 5);
+
+        // also enable index2's bulk routing
+        UpdateSettingsRequest updateSettingsRequest3 = new UpdateSettingsRequest("index2")
+            .settings(Settings.builder().put(IndexMetadata.INDEX_BULK_ROUTING_ENABLED, true));
+        client().admin().indices().updateSettings(updateSettingsRequest3).actionGet();
+
+        // continue bulk writing into two indices, this time with _id or _routing, cannot use the optimization
+        BulkRequestBuilder bulkRequestBuilder2 = client().prepareBulk();
+        for (int i=0; i<100; i++) {
+            bulkRequestBuilder2.add(client().prepareIndex("index1").setId("id" + i).setSource("field", "value" + i));
+            bulkRequestBuilder2.add(client().prepareIndex("index2").setRouting("routing" + i).setSource("field", "value" + i));
+        }
+        BulkResponse bulkResponse2 = bulkRequestBuilder2.get();
+        assertFalse(bulkResponse2.buildFailureMessage(), bulkResponse2.hasFailures());
+
+        // check responses that both index1 and index2 have 5 shards
+        Map<String, Set<Integer>> shardsToIndex2 = new HashMap<>(2);
+        for (BulkItemResponse shardResponse : bulkResponse2) {
+            shardsToIndex2.computeIfAbsent(shardResponse.getIndex(), k -> new HashSet<>())
+                .add(shardResponse.getResponse().getShardId().getId());
+        }
+        assertEquals(shardsToIndex2.get("index1").size(), 5);
+        assertEquals(shardsToIndex2.get("index2").size(), 5);
+
+        // make sure we could search it, we totally indexed three docs per term
+        client().admin().indices().prepareRefresh("index1").get();
+        SearchResponse searchResponse = client().prepareSearch("index1")
+            .setQuery(QueryBuilders.termQuery("field", "value1")).get();
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        // one of the hit has _routing, length is 10
+        String routing = null;
+        for (SearchHit hit : searchResponse.getHits()) {
+            if (hit.field("_routing") != null) {
+                routing = hit.field("_routing").getValue();
+            }
+        }
+        assertEquals(routing.length(), 10);
     }
 
     private void createSamplePipeline(String pipelineId) throws IOException, ExecutionException, InterruptedException {

@@ -164,7 +164,7 @@ Collects and stores metrics for <<number,numeric>> fields.
 object, this property is required.
 
 `metrics`::
-(Required*, array)
+(Required*, array of strings)
 Array of metrics to collect. Each value corresponds to a
 <<search-aggregations-metrics,metric aggregation>>. Valid values are
 <<search-aggregations-metrics-min-aggregation,`min`>>,

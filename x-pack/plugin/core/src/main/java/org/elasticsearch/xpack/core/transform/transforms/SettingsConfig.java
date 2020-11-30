@@ -41,6 +41,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, TransformField.MAX_PAGE_SEARCH_SIZE);
         parser.declareFloatOrNull(optionalConstructorArg(), DEFAULT_DOCS_PER_SECOND, TransformField.DOCS_PER_SECOND);
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
         parser.declareField(
             optionalConstructorArg(),
             p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS : p.booleanValue() ? 1 : 0,
@@ -217,10 +218,12 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         /**
-         * Sets whether to write the output of a date aggregation as millis since epoch or as formatted string (ISO format).
+         * Whether to write the output of a date aggregation as millis since epoch or as formatted string (ISO format).
          *
-         * This setting ensures backwards compatibility for transforms created before 7.11, which wrote dates as epoch_millis.
-         * The new default is ISO string.
+         * Transforms created before 7.11 write dates as epoch_millis. The new default is ISO string.
+         * You can use this setter to configure the old style writing as epoch millis.
+         *
+         * An explicit `null` resets to default.
          *
          * @param writeDateAsEpochMilli true if dates should be written as epoch_millis.
          * @return the {@link Builder} with writeDateAsEpochMilli set.

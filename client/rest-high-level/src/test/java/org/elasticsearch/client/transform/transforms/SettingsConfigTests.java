@@ -119,7 +119,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("write_date_as_epoch_millis", "not_set"), equalTo("not_set"));
 
         config = new SettingsConfig.Builder().setWriteDateAsEpochMilli(null).build();
-        // returns null, however it's a different `null` only visible after writing xContent
+        // returns null, however it's `null` as in "use default"
         assertNull(emptyConfig.getWriteDateAsEpochMillis());
 
         settingsAsMap = xContentToMap(config);

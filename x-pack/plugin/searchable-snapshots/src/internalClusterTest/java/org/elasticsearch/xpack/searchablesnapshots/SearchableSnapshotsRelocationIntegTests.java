@@ -5,17 +5,22 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -41,52 +46,67 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);
         final String secondDataNode = internalCluster().startDataOnlyNode();
-        blockDataNode(repoName, secondDataNode);
+        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, secondDataNode);
+        final Executor executor = threadPool.executor(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
+        final CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < 100; i++) {
+            executor.execute(() -> {
+                try {
+                    latch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
         logger.info("--> force index [{}] to relocate to [{}]", index, secondDataNode);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndex)
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
-                            secondDataNode
+                client().admin()
+                        .indices()
+                        .prepareUpdateSettings(restoredIndex)
+                        .setSettings(
+                                Settings.builder()
+                                        .put(
+                                                IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
+                                                secondDataNode
+                                        )
                         )
-                )
         );
-        waitForBlock(secondDataNode, repoName);
-        final List<RecoveryState> recoveryStates = getActiveRestores(restoredIndex);
-        assertThat(recoveryStates, Matchers.hasSize(1));
-        final RecoveryState shardRecoveryState = recoveryStates.get(0);
-        assertEquals(firstDataNode, shardRecoveryState.getSourceNode().getName());
-        assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
-        assertBusy(() -> assertSame(getActiveRestores(restoredIndex).get(0).getStage(), RecoveryState.Stage.INDEX), 30L, TimeUnit.SECONDS);
-        logger.info("--> sleep for 5s to make sure we are actually stuck at the INDEX stage");
+        assertBusy(() -> {
+            final List<RecoveryState> recoveryStates = getActiveRestores(restoredIndex);
+            assertThat(recoveryStates, Matchers.hasSize(1));
+            final RecoveryState shardRecoveryState = recoveryStates.get(0);
+            assertEquals(firstDataNode, shardRecoveryState.getSourceNode().getName());
+            assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
+        });
+        logger.info("--> sleep for 5s to make sure we are actually stuck at the TRANSLOG stage and that the primary has not relocated");
         TimeUnit.SECONDS.sleep(5L);
         final RecoveryState recoveryState = getActiveRestores(restoredIndex).get(0);
-        assertSame(recoveryState.getStage(), RecoveryState.Stage.INDEX);
-        unblockAllDataNodes(repoName);
+        assertSame(RecoveryState.Stage.FINALIZE, recoveryState.getStage());
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final String primaryNodeId = state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId();
+        final DiscoveryNode primaryNode = state.nodes().resolveNode(primaryNodeId);
+        assertEquals(firstDataNode, primaryNode.getName());
+        latch.countDown();
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth(restoredIndex)
-                .setWaitForNoRelocatingShards(true)
-                .setWaitForEvents(Priority.LANGUID)
-                .get()
-                .isTimedOut()
+                client().admin()
+                        .cluster()
+                        .prepareHealth(restoredIndex)
+                        .setWaitForNoRelocatingShards(true)
+                        .setWaitForEvents(Priority.LANGUID)
+                        .get()
+                        .isTimedOut()
         );
         assertThat(getActiveRestores(restoredIndex), Matchers.empty());
     }
 
     private static List<RecoveryState> getActiveRestores(String restoredIndex) {
         return client().admin()
-            .indices()
-            .prepareRecoveries(restoredIndex)
-            .setDetailed(true)
-            .setActiveOnly(true)
-            .get()
-            .shardRecoveryStates()
-            .get(restoredIndex);
+                .indices()
+                .prepareRecoveries(restoredIndex)
+                .setDetailed(true)
+                .setActiveOnly(true)
+                .get()
+                .shardRecoveryStates()
+                .get(restoredIndex);
     }
 }

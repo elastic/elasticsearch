@@ -18,7 +18,6 @@
  */
 
 import org.gradle.internal.jvm.Jvm
-import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -242,7 +241,7 @@ if (project != rootProject) {
   tasks.withType(Test).configureEach {
     onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
     it.executable = Jvm.current().getJavaExecutable()
-    maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
+    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
 
   /*

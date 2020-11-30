@@ -58,7 +58,7 @@ applications or files on the node.
 Free disk space available to {es}.
 
 `disk.total`::
-Total disk space for the node.
+Total disk space for the node, including in-use and available space.
 
 `disk.percent`::
 Total percentage of disk space in use. Includes {es}, the node's OS, and any

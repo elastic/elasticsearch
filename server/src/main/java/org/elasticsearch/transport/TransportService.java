@@ -81,8 +81,7 @@ public class TransportService extends AbstractLifecycleComponent
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
     private static final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
-    private static final boolean PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS
-            = Boolean.parseBoolean(System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY, "false"));
+    private static final boolean PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS = getPermitHandshakesFromIncompatibleBuilds();
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
@@ -1440,4 +1439,17 @@ public class TransportService extends AbstractLifecycleComponent
             }
         }
     }
+
+    private static boolean getPermitHandshakesFromIncompatibleBuilds() {
+        final String value = System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
+        if (value == null) {
+            return false;
+        }
+        if (Boolean.parseBoolean(value)) {
+            return true;
+        }
+        throw new IllegalArgumentException("invalid value [" + value + "] for system property ["
+                + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "]");
+    }
+
 }

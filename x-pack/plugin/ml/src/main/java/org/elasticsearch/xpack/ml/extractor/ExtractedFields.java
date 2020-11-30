@@ -89,10 +89,26 @@ public class ExtractedFields {
 
     public static ExtractedFields build(Set<String> allFields,
                                         Set<String> scriptFields,
+                                        Set<String> searchRuntimeFields,
                                         FieldCapabilitiesResponse fieldsCapabilities,
                                         Map<String, Long> cardinalitiesForFieldsWithConstraints,
                                         List<ProcessedField> processedFields) {
-        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
+        ExtractionMethodDetector extractionMethodDetector =
+            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, searchRuntimeFields);
+        return new ExtractedFields(
+            allFields.stream().map(extractionMethodDetector::detect).collect(Collectors.toList()),
+            processedFields,
+            cardinalitiesForFieldsWithConstraints);
+    }
+
+    // without search runtime fields
+    public static ExtractedFields build(Set<String> allFields,
+                                        Set<String> scriptFields,
+                                        FieldCapabilitiesResponse fieldsCapabilities,
+                                        Map<String, Long> cardinalitiesForFieldsWithConstraints,
+                                        List<ProcessedField> processedFields) {
+        ExtractionMethodDetector extractionMethodDetector =
+            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, Collections.emptySet());
         return new ExtractedFields(
             allFields.stream().map(extractionMethodDetector::detect).collect(Collectors.toList()),
             processedFields,
@@ -110,31 +126,37 @@ public class ExtractedFields {
     public static class ExtractionMethodDetector {
 
         private final Set<String> scriptFields;
+        private final Set<String> searchRuntimeFields;
         private final FieldCapabilitiesResponse fieldsCapabilities;
 
-        public ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities) {
+        public ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities,
+                                        Set<String> searchRuntimeFields) {
             this.scriptFields = scriptFields;
             this.fieldsCapabilities = fieldsCapabilities;
+            this.searchRuntimeFields = searchRuntimeFields;
         }
 
         public ExtractedField detect(String field) {
             if (scriptFields.contains(field)) {
                 return new ScriptField(field);
             }
-            ExtractedField extractedField = detectNonScriptField(field);
+            if (searchRuntimeFields.contains(field)) {
+                return new DocValueField(field, Collections.emptySet());
+            }
+            ExtractedField extractedField = detectFieldFromFieldCaps(field);
             String parentField = MlStrings.getParentField(field);
             if (isMultiField(field, parentField)) {
                 if (isAggregatable(field)) {
                     return new MultiField(parentField, extractedField);
                 } else {
-                    ExtractedField parentExtractionField = detectNonScriptField(parentField);
+                    ExtractedField parentExtractionField = detectFieldFromFieldCaps(parentField);
                     return new MultiField(field, parentField, parentField, parentExtractionField);
                 }
             }
             return extractedField;
         }
 
-        private ExtractedField detectNonScriptField(String field) {
+        private ExtractedField detectFieldFromFieldCaps(String field) {
             if (isFieldOfTypes(field, TimeField.TYPES) && isAggregatable(field)) {
                 return new TimeField(field, ExtractedField.Method.DOC_VALUE);
             }

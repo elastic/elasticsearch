@@ -60,6 +60,10 @@ abstract class AbstractGradleFuncTest extends Specification {
         true
     }
 
+    def assertOutputContainsNot(String givenOutput, String expected) {
+        assert normalized(givenOutput).contains(normalized(expected)) == false
+        true
+    }
     String normalized(String input) {
         String normalizedPathPrefix = testProjectDir.root.canonicalPath.replace('\\', '/')
         return input.readLines()

@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.matchesPattern;
 
 public class SystemIndexDescriptorTests extends ESTestCase {
 

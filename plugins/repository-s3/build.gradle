@@ -320,6 +320,8 @@ configurations {
 def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
   appendix 'internalClusterTest'
   from sourceSets.internalClusterTest.output
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
 }
 
 artifacts {

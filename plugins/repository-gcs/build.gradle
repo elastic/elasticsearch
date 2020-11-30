@@ -344,6 +344,7 @@ configurations {
 def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
   appendix 'internalClusterTest'
   from sourceSets.internalClusterTest.output
+  // for the repositories.gcs.TestUtils class
   from sourceSets.test.output
 }
 

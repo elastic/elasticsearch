@@ -643,12 +643,14 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         );
         logger.info("--> start 4 nodes");
         internalCluster().setBootstrapMasterNodeIndex(0);
-        final String masterNode = internalCluster().startMasterOnlyNode(
+        final String masterNode = internalCluster().startMasterOnlyNodes(
+            1,
             Settings.builder().setSecureSettings(secureSettingsWithPassword).build()
-        );
-        final String otherNode = internalCluster().startDataOnlyNode(
+        ).get(0);
+        final String otherNode = internalCluster().startDataOnlyNodes(
+            1,
             Settings.builder().setSecureSettings(secureSettingsWithPassword).build()
-        );
+        ).get(0);
         ensureStableCluster(2);
         secureSettingsWithPassword.setString(
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repoName).getKey(),

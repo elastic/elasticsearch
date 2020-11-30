@@ -64,7 +64,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
     private IndexLongFieldRange(int[] shards, long min, long max) {
         assert (min == Long.MAX_VALUE && max == Long.MIN_VALUE) || min <= max : min + " vs " + max;
-        assert shards == null || shards.length > 0 || (min == Long.MAX_VALUE && max == Long.MIN_VALUE);
+        assert shards == null || shards.length > 0 || (min == Long.MAX_VALUE && max == Long.MIN_VALUE) : Arrays.toString(shards);
         assert shards == null || Arrays.equals(shards, Arrays.stream(shards).sorted().distinct().toArray()) : Arrays.toString(shards);
         this.shards = shards;
         this.min = min;

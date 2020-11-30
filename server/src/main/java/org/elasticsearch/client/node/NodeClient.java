@@ -152,7 +152,7 @@ public class NodeClient extends AbstractClient {
         }
         TransportAction<Request, Response> transportAction = actions.get(action);
         if (transportAction == null) {
-            throw new IllegalStateException("failed to find action [" + action + "] to execute");
+            throw new IllegalArgumentException("failed to find action [" + action + "] to execute");
         }
         return transportAction;
     }

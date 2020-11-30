@@ -38,7 +38,8 @@ import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
 
-public class LeafFieldsLookup implements Map {
+@SuppressWarnings({"unchecked", "rawtypes"})
+public class LeafStoredFieldsLookup implements Map<Object, Object> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
 
@@ -51,7 +52,7 @@ public class LeafFieldsLookup implements Map {
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    LeafFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, @Nullable String[] types, LeafReader reader) {
+    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, @Nullable String[] types, LeafReader reader) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.types = types;
         this.reader = reader;

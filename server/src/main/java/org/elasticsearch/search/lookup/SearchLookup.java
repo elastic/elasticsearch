@@ -53,7 +53,7 @@ public class SearchLookup {
     private final Set<String> fieldChain;
     private final DocLookup docMap;
     private final SourceLookup sourceLookup;
-    private final FieldsLookup fieldsLookup;
+    private final StoredFieldsLookup storedFieldsLookup;
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
 
@@ -70,7 +70,7 @@ public class SearchLookup {
             fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())),
             types);
         sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(fieldTypeLookup, types);
+        storedFieldsLookup = new StoredFieldsLookup(fieldTypeLookup, types);
         this.fieldDataLookup = fieldDataLookup;
     }
 
@@ -87,7 +87,7 @@ public class SearchLookup {
             fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())),
             searchLookup.docMap.getTypes());
         this.sourceLookup = searchLookup.sourceLookup;
-        this.fieldsLookup = searchLookup.fieldsLookup;
+        this.storedFieldsLookup = searchLookup.storedFieldsLookup;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
     }
@@ -117,7 +117,7 @@ public class SearchLookup {
         return new LeafSearchLookup(context,
                 docMap.getLeafDocLookup(context),
                 sourceLookup,
-                fieldsLookup.getLeafFieldsLookup(context));
+                storedFieldsLookup.getLeafFieldsLookup(context));
     }
 
     public DocLookup doc() {

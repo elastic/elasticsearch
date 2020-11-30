@@ -63,9 +63,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     private static final String MEMORY_STALE = "unable to make scaling decision as job memory requirements are stale";
     private static final long NO_SCALE_DOWN_POSSIBLE = -1L;
 
+    public static final String NAME = "ml";
     public static final Setting<Integer> NUM_ANOMALY_JOBS_IN_QUEUE = Setting.intSetting("num_anomaly_jobs_in_queue", 0, 0);
     public static final Setting<Integer> NUM_ANALYTICS_JOBS_IN_QUEUE = Setting.intSetting("num_analytics_jobs_in_queue", 0, 0);
-    public static final Setting<TimeValue> DOWN_SCALE_DELAY = Setting.timeSetting("num_analytics_jobs_in_queue", TimeValue.ZERO);
+    public static final Setting<TimeValue> DOWN_SCALE_DELAY = Setting.timeSetting("down_scale_delay", TimeValue.ZERO);
 
     private final NodeLoadDetector nodeLoadDetector;
     private final MlMemoryTracker mlMemoryTracker;
@@ -588,7 +589,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
     @Override
     public String name() {
-        return "ml";
+        return NAME;
     }
 
     @Override

@@ -187,11 +187,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private InstallationLocation getJavaInstallation(File javaHome) {
-        System.out.println("javaHome = " + javaHome);
-        javaInstallationRegistry.listInstallations()
-            .stream()
-            .filter(javaInstallationFilter)
-            .forEach(loc -> System.out.println("jvm = " + loc.getDisplayName() + " -- " + loc.getLocation()));
         return javaInstallationRegistry.listInstallations()
             .stream()
             .filter(installationLocation -> isSameFile(javaHome, installationLocation))

@@ -46,14 +46,11 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction AGGREGATE_METRIC = new XPackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
     public static final XPackUsageFeatureAction RUNTIME_FIELDS = new XPackUsageFeatureAction(XPackField.RUNTIME_FIELDS);
 
-    public static final List<XPackUsageFeatureAction> ALL;
-    static {
-        ALL = List.of(
-            SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-            TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
-            AGGREGATE_METRIC, RUNTIME_FIELDS
-        );
-    }
+    static final List<XPackUsageFeatureAction> ALL = List.of(
+        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
+        TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
+        AGGREGATE_METRIC, RUNTIME_FIELDS
+    );
 
     private XPackUsageFeatureAction(String name) {
         super(BASE_NAME + name, XPackUsageFeatureResponse::new);

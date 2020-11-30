@@ -151,7 +151,7 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("percentiles", outputTypes.get("percentiles.10"));
 
         // note: using the constructor, omits validation, in reality this test might fail
-        percentialAggregationBuilder = new PercentilesAggregationBuilder("percentiles").percentiles(1.0, 5.0, 5.0, 10.0);
+        percentialAggregationBuilder = new PercentilesAggregationBuilder("percentiles", new double[] { 1, 5, 5, 10 }, null);
 
         inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(percentialAggregationBuilder);
         assertTrue(inputAndOutputTypes.v1().isEmpty());

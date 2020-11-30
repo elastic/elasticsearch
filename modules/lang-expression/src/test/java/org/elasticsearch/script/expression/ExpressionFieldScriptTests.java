@@ -60,7 +60,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData, null);
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData);
     }
 
     private FieldScript.LeafFactory compile(String expression) {

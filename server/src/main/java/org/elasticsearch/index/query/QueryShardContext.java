@@ -450,8 +450,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 this::getFieldType,
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
-                types
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
             );
         }
         return this.lookup;

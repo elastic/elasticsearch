@@ -61,9 +61,7 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
             return null;
         }).when(leafReader).document(anyInt(), any(StoredFieldVisitor.class));
 
-        fieldsLookup = new LeafStoredFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
-            new String[] { "type" },
-            leafReader);
+        fieldsLookup = new LeafStoredFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null, leafReader);
     }
 
     public void testBasicLookup() {

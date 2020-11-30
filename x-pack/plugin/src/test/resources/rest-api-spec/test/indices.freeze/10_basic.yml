@@ -152,7 +152,7 @@
   - do:
       catch: bad_request
       indices.freeze:
-        index: ".ds-simple-data-stream1-000001"
+        index: ".ds-simple-data-stream1-*000001"
 
   - do:
       indices.delete_data_stream:

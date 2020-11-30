@@ -436,7 +436,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
         when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
-        }, null));
+        }));
         return queryShardContext;
     }
 }

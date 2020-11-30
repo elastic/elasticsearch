@@ -119,8 +119,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
                 SearchLookup lookup = new SearchLookup(
                     queryShardContext::getFieldType,
-                    (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
-                    new String[] { "_doc" }
+                    (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
                 );
                 when(queryShardContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);

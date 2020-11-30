@@ -20,7 +20,6 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,18 +45,14 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
 
-    @Nullable
-    private final String[] types;
-
     private final LeafReaderContext reader;
 
     private int docId = -1;
 
     LeafDocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-                  @Nullable String[] types, LeafReaderContext reader) {
+                  LeafReaderContext reader) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
-        this.types = types;
         this.reader = reader;
     }
 
@@ -78,8 +72,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         if (scriptValues == null) {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " +
-                        Arrays.toString(types));
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc

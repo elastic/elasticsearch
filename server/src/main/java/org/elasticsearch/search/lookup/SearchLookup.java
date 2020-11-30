@@ -20,7 +20,6 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -62,15 +61,13 @@ public class SearchLookup {
      * stored fields, or _source.
      */
     public SearchLookup(Function<String, MappedFieldType> fieldTypeLookup,
-                        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
-                        @Nullable String[] types) {
+                        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         docMap = new DocLookup(fieldTypeLookup,
-            fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())),
-            types);
+            fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())));
         sourceLookup = new SourceLookup();
-        storedFieldsLookup = new StoredFieldsLookup(fieldTypeLookup, types);
+        storedFieldsLookup = new StoredFieldsLookup(fieldTypeLookup);
         this.fieldDataLookup = fieldDataLookup;
     }
 
@@ -84,8 +81,7 @@ public class SearchLookup {
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
         this.docMap = new DocLookup(searchLookup.fieldTypeLookup,
-            fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())),
-            searchLookup.docMap.getTypes());
+            fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())));
         this.sourceLookup = searchLookup.sourceLookup;
         this.storedFieldsLookup = searchLookup.storedFieldsLookup;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;

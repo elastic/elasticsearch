@@ -90,7 +90,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
     // exposed for testing
     long getMaxUnsafe() {
-        return min;
+        return max;
     }
 
     /**

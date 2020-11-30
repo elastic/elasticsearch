@@ -29,7 +29,7 @@ rm -rf checkout/6.8
 git clone --reference $(dirname "${SCRIPT}")/../.git https://github.com/elastic/elasticsearch.git --branch 6.8 --single-branch checkout/6.8
 export JAVA_HOME="${JAVA11_HOME}"
 ./checkout/6.8/gradlew --project-dir ./checkout/6.8 --parallel clean --scan -Porg.elasticsearch.acceptScanTOS=true --stacktrace resolveAllDependencies
-
+rm -rf ./checkout/6.8
 ## Gradle is able to resolve dependencies resolved with earlier gradle versions
 ## therefore we run master _AFTER_ we run 6.8 which uses an earlier gradle version
 export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}

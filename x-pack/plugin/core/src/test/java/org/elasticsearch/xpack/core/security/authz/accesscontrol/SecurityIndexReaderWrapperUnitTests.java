@@ -117,7 +117,14 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
+            new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
+                @Override
+                protected IndicesAccessControl getIndicesAccessControl() {
+                    IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
+                        new FieldPermissions(fieldPermissionDef(new String[]{}, null)), DocumentPermissions.allowAll());
+                    return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                }
+            };
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }

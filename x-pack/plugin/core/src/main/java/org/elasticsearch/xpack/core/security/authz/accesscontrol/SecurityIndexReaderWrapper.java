@@ -62,8 +62,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     @Override
     public DirectoryReader apply(final DirectoryReader reader) {
-        if (licenseState.isSecurityEnabled() == false ||
-            licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+        if (licenseState.isSecurityEnabled() == false) {
             return reader;
         }
 
@@ -78,6 +77,11 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
             // No permissions have been defined for an index, so don't intercept the index reader for access control
             if (permissions == null) {
+                return reader;
+            }
+
+            // permissions are defined, so check if the license actually allows DLS/FLS
+            if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
                 return reader;
             }
 

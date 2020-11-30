@@ -51,8 +51,8 @@ Disk space used by the node's shards. Does not include disk space for the
 <<index-modules-translog,translog>> or unassigned shards.
 
 `disk.used`::
-Total disk space in use. Includes {es}, the node's OS, and any other files
-stored on the node.
+Total disk space in use. Includes {es}, the node's OS, and any other
+applications or files on the node.
 
 `disk.avail`::
 Free disk space available to {es}.
@@ -62,7 +62,7 @@ Total disk space for the node.
 
 `disk.percent`::
 Total percentage of disk space in use. Includes {es}, the node's OS, and any
-other files stored on the node.
+applications or files on the node.
 
 `host`::
 Network host for the node. Set using <<network.host,`network.host`>>.

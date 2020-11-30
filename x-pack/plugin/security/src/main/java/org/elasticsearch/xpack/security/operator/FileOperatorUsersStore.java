@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -156,7 +157,8 @@ public class FileOperatorUsersStore {
             if (realmName == null) {
                 if (false == SINGLETON_REALM_TYPES.contains(realmType)) {
                     validationException.addValidationError(
-                        "[realm_name] must be specified for realm types other than [reserved], [file] and [native]");
+                        "[realm_name] must be specified for realm types other than ["
+                            + Strings.collectionToCommaDelimitedString(SINGLETON_REALM_TYPES) + "]");
                 }
             }
             if (false == validationException.validationErrors().isEmpty()) {

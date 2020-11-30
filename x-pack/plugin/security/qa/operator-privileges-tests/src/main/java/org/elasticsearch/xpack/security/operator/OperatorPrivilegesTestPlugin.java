@@ -21,7 +21,7 @@ import org.elasticsearch.rest.RestHandler;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class OpTestPlugin extends Plugin implements ActionPlugin {
+public class OperatorPrivilegesTestPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(

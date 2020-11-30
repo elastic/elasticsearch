@@ -1,12 +1,10 @@
-import org.elasticsearch.gradle.info.BuildParams
-
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
-  name 'op-test'
+  name 'operator-privileges-test'
   description 'An test plugin for testing hard to get internals'
-  classname 'org.elasticsearch.xpack.security.operator.OpTestPlugin'
+  classname 'org.elasticsearch.xpack.security.operator.OperatorPrivilegesTestPlugin'
 }
 
 dependencies {
@@ -18,8 +16,6 @@ dependencies {
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 
-boolean enableOperatorPrivileges = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
-
 testClusters.all {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
@@ -30,7 +26,7 @@ testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
-  setting 'xpack.security.operator_privileges.enabled', enableOperatorPrivileges.toString()
+  setting 'xpack.security.operator_privileges.enabled', "true"
 
   user username: "test_admin", password: 'x-pack-test-password', role: "superuser"
   user username: "test_operator", password: 'x-pack-test-password', role: "limited_operator"

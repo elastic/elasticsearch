@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
-import org.junit.BeforeClass;
 
 import java.util.Map;
 
@@ -27,13 +26,6 @@ import static org.hamcrest.Matchers.containsString;
 public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCase {
 
     private static final String OPERATOR_USER_NAME = "test_operator";
-
-    private static boolean OPERATOR_PRIVILEGES_ENABLED;
-
-    @BeforeClass
-    public static void randomOperatorPrivilegesEnabled() {
-        OPERATOR_PRIVILEGES_ENABLED = randomBoolean();
-    }
 
     @Override
     protected String configUsers() {
@@ -67,20 +59,16 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
         // Ensure the new settings can be configured
-        builder.put("xpack.security.operator_privileges.enabled", OPERATOR_PRIVILEGES_ENABLED);
+        builder.put("xpack.security.operator_privileges.enabled", "true");
         return builder.build();
     }
 
     public void testOutcomeOfSuperuserPerformingOperatorOnlyActionWillDependOnWhetherFeatureIsEnabled() {
         final Client client = client();
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
-        if (OPERATOR_PRIVILEGES_ENABLED) {
-            final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client.execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet());
-            assertThat(e.getCause().getMessage(), containsString("Operator privileges are required for action"));
-        } else {
-            client.execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet();
-        }
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            () -> client.execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet());
+        assertThat(e.getCause().getMessage(), containsString("Operator privileges are required for action"));
     }
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyAction() {

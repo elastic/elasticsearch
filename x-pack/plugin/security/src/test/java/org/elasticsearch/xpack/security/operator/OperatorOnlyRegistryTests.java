@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.security.operator;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.function.Supplier;
-
 import static org.hamcrest.Matchers.containsString;
 
 public class OperatorOnlyRegistryTests extends ESTestCase {
@@ -24,9 +22,9 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
 
     public void testSimpleOperatorOnlyApi() {
         for (final String actionName : OperatorOnlyRegistry.SIMPLE_ACTIONS) {
-            final Supplier<String> messageSupplier = operatorOnlyRegistry.check(actionName, null);
-            assertNotNull(messageSupplier);
-            assertThat(messageSupplier.get(), containsString("action [" + actionName + "]"));
+            final OperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(actionName, null);
+            assertNotNull(violation);
+            assertThat(violation.message(), containsString("action [" + actionName + "]"));
         }
     }
 

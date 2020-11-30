@@ -36,16 +36,12 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
     public void testNonOperatorSuperuserWillFailToCallOperatorOnlyApiWhenOperatorPrivilegesIsEnabled() throws IOException {
         final Request postVotingConfigExclusionsRequest = new Request("POST", "_cluster/voting_config_exclusions?node_names=foo");
-        if (isOperatorPrivilegesEnabled()) {
-            final ResponseException responseException = expectThrows(
-                ResponseException.class,
-                () -> client().performRequest(postVotingConfigExclusionsRequest)
-            );
-            assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(responseException.getMessage(), containsString("Operator privileges are required for action"));
-        } else {
-            client().performRequest(postVotingConfigExclusionsRequest);
-        }
+        final ResponseException responseException = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(postVotingConfigExclusionsRequest)
+        );
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(responseException.getMessage(), containsString("Operator privileges are required for action"));
     }
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyApi() throws IOException {
@@ -102,21 +98,6 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         final Map<String, Object> features = (Map<String, Object>) response.get("features");
         final Map<String, Object> operatorPrivileges = (Map<String, Object>) features.get("operator_privileges");
         assertTrue((boolean) operatorPrivileges.get("available"));
-        if (isOperatorPrivilegesEnabled()) {
-            assertTrue((boolean) operatorPrivileges.get("enabled"));
-        } else {
-            assertFalse((boolean) operatorPrivileges.get("enabled"));
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private boolean isOperatorPrivilegesEnabled() throws IOException {
-        final Request getClusterSettingsRequest = new Request(
-            "GET",
-            "_cluster/settings?flat_settings&include_defaults&filter_path=defaults.*operator_privileges*"
-        );
-        final Map<String, Object> settingsMap = entityAsMap(client().performRequest(getClusterSettingsRequest));
-        final Map<String, Object> defaults = (Map<String, Object>) settingsMap.get("defaults");
-        return Boolean.parseBoolean((String) defaults.get("xpack.security.operator_privileges.enabled"));
+        assertTrue((boolean) operatorPrivileges.get("enabled"));
     }
 }

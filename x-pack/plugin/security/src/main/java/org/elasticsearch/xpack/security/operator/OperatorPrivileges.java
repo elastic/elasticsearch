@@ -14,8 +14,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
-import java.util.function.Supplier;
-
 public class OperatorPrivileges {
 
     public static final Setting<Boolean> OPERATOR_PRIVILEGES_ENABLED =
@@ -66,9 +64,9 @@ public class OperatorPrivileges {
             if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
                 threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY))) {
                 // Only check whether request is operator only if user is not an operator
-                final Supplier<String> messageSupplier = operatorOnlyRegistry.check(action, request);
-                if (messageSupplier != null) {
-                    return new ElasticsearchSecurityException("Operator privileges are required for " + messageSupplier.get());
+                final OperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
+                if (violation != null) {
+                    return new ElasticsearchSecurityException("Operator privileges are required for " + violation.message());
                 }
             }
             return null;

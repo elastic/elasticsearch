@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.security.operator;
 import org.elasticsearch.test.ESTestCase;
 
 // This test class is really to pass the testingConventions test
-public class OpTestPluginTests extends ESTestCase {
+public class OperatorPrivilegesTestPluginTests extends ESTestCase {
 
     public void testPluginWillInstantiate() {
-        final OpTestPlugin opTestPlugin = new OpTestPlugin();
+        final OperatorPrivilegesTestPlugin operatorPrivilegesTestPlugin = new OperatorPrivilegesTestPlugin();
     }
 
 }

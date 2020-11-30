@@ -26,7 +26,7 @@ export JAVA14_HOME="${HOME}"/.java/openjdk14
 ## 6.8 branch is not referenced from any bwc project in master so we need to
 ## resolve its dependencies explicitly
 rm -rf checkout/6.8
-git clone https://github.com/elastic/elasticsearch.git --branch 6.8 --single-branch checkout/6.8
+git clone --reference $(dirname "${SCRIPT}")/../.git https://github.com/elastic/elasticsearch.git --branch 6.8 --single-branch checkout/6.8
 export JAVA_HOME="${JAVA11_HOME}"
 ./checkout/6.8/gradlew --project-dir ./checkout/6.8 --parallel clean --scan -Porg.elasticsearch.acceptScanTOS=true --stacktrace resolveAllDependencies
 

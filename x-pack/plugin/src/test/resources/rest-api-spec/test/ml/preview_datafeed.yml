@@ -418,8 +418,10 @@ setup:
             "job_id":"runtime-field-aggregation-job",
             "indexes":"airline-data",
             "runtime_mappings" : {
-              "type": "double",
-              "script": "emit(doc['responsetime'].value * 2.0)"
+              "responsetime_x_2": {
+                "type": "double",
+                "script": "emit(doc['responsetime'].value * 2.0)"
+              }
             },
             "aggregations": {
               "buckets": {
@@ -450,7 +452,11 @@ setup:
               }
             }
           }
-  - length: { $body: 30 }
+
+  - do:
+      ml.preview_datafeed:
+        datafeed_id: aggregation-doc-count-feed
+  - length: { $body: 3 }
   - match: { 0.time: 1487377800000 }
   - match: { 0.airline: foo }
   - match: { 0.responsetime_x_2: 4.0 }

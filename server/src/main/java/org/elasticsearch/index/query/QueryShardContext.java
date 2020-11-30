@@ -374,7 +374,7 @@ public class QueryShardContext extends QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder
-                = new TextFieldMapper.Builder(name, () -> mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer());
+                = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
             return builder.build(new ContentPath(1)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);

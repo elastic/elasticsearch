@@ -40,6 +40,40 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
+[[cat-allocation-api-response-body]]
+==== {api-response-body-title}
+
+`shards`::
+Number of primary and replica shards assigned to the node.
+
+`disk.indices`::
+Disk space used by the node's shards. Does not include disk space for the
+<<index-modules-translog,translog>> or unassigned shards.
+
+`disk.used`::
+Total disk space in use. Includes {es}, the node's OS, and any other files
+stored on the node.
+
+`disk.avail`::
+Free disk space available to {es}.
+
+`disk.total`::
+Total disk space for the node.
+
+`disk.percent`::
+Total percentage of disk space in use. Includes {es}, the node's OS, and any
+other files stored on the node.
+
+`host`::
+Network host for the node. Set using <<network.host,`network.host`>>.
+
+`ip`::
+IP address and port for the node.
+
+`node`::
+Name for the node. Set using <<node-name,`node.name`>>.
+
+
 [[cat-allocation-api-example]]
 ==== {api-examples-title}
 

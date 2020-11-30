@@ -168,13 +168,14 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
-     *    "unsigned_long/long/integer/short/byte_field": {
+     *    "long/integer/short/byte_field": {
      *       "type": "long/integer/short/byte"
      *    }
+     *    Note: no unsigned_long tested -- the mapper for it won't accept float formats.
      */
     public void testFractionsForNonFloatingPointTypes() throws IOException {
         String floatingPointNumber = "123.456";
-        String fieldType = randomFrom("unsigned_long", "long", "integer", "short", "byte");
+        String fieldType = randomFrom("long", "integer", "short", "byte");
 
         createIndexWithFieldTypeAndProperties(fieldType, null, null);
         index("{\"" + fieldType + "_field\":\"" + floatingPointNumber + "\"}");

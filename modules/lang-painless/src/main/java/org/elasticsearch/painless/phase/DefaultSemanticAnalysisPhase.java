@@ -935,6 +935,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
 
             Class<?> compoundType;
+            boolean isConcatenation = false;
             Class<?> shiftType = null;
             boolean isShift = false;
 
@@ -946,6 +947,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 compoundType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.ADD) {
                 compoundType = AnalyzerCaster.promoteAdd(leftValueType, rightValueType);
+                isConcatenation = compoundType == String.class;
             } else if (operation == Operation.SUB) {
                 compoundType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.LSH) {
@@ -975,7 +977,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "cannot apply [" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]"));
             }
 
-            if (isShift) {
+            if (isConcatenation) {
+                semanticScope.putDecoration(userRightNode, new TargetType(rightValueType));
+            } else if (isShift) {
                 if (compoundType == def.class) {
                     // shifts are promoted independently, but for the def type, we need object.
                     semanticScope.putDecoration(userRightNode, new TargetType(def.class));

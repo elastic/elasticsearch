@@ -254,7 +254,7 @@ node.roles: [ data_warm ]
 [[data-cold-node]]
 ==== [x-pack]#Cold data node#
 
-Cold data nodes store read-only indices that are accessed less frequently. This tier uses less performant hardware and may leverage snapshot-backed indices to minimize the resources required.
+Cold data nodes store read-only indices that are accessed less frequently. This tier uses less performant hardware and may leverage searchable snapshot indices to minimize the resources required.
 
 To create a dedicated cold node, set:
 [source,yaml]

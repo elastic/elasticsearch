@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -422,15 +421,15 @@ final class DocumentParser {
     private static void nested(ParseContext context, ObjectMapper.Nested nested) {
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
-        Settings settings = context.indexSettings().getSettings();
+        Version indexVersion = context.indexSettings().getIndexVersionCreated();
         if (nested.isIncludeInParent()) {
-            addFields(Version.indexCreated(settings), nestedDoc, parentDoc);
+            addFields(indexVersion, nestedDoc, parentDoc);
         }
         if (nested.isIncludeInRoot()) {
             ParseContext.Document rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
-                addFields(Version.indexCreated(settings), nestedDoc, rootDoc);
+                addFields(indexVersion, nestedDoc, rootDoc);
             }
         }
     }
@@ -464,7 +463,7 @@ final class DocumentParser {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
 
-        Version version = Version.indexCreated(context.indexSettings().getSettings());
+        Version version = context.indexSettings().getIndexVersionCreated();
         nestedDoc.add(NestedPathFieldMapper.field(version, mapper.nestedTypePath()));
         return context;
     }
@@ -503,7 +502,7 @@ final class DocumentParser {
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.OBJECT);
                 if (builder == null) {
-                    Version version = Version.indexCreated(context.indexSettings().getSettings());
+                    Version version = context.indexSettings().getIndexVersionCreated();
                     builder = new ObjectMapper.Builder(currentFieldName, version).enabled(true);
                 }
                 objectMapper = builder.build(context.path());
@@ -685,7 +684,7 @@ final class DocumentParser {
                     if (builder == null) {
                         boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
                         builder = new DateFieldMapper.Builder(currentFieldName, DateFieldMapper.Resolution.MILLISECONDS,
-                            dateTimeFormatter, ignoreMalformed, Version.indexCreated(context.indexSettings().getSettings()));
+                            dateTimeFormatter, ignoreMalformed, context.indexSettings().getIndexVersionCreated());
                     }
                     return builder;
 
@@ -694,8 +693,7 @@ final class DocumentParser {
 
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);
             if (builder == null) {
-                builder = new TextFieldMapper.Builder(currentFieldName,
-                    () -> context.indexAnalyzers().getDefaultIndexAnalyzer())
+                builder = new TextFieldMapper.Builder(currentFieldName, context.indexAnalyzers())
                         .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
             }
             return builder;
@@ -837,7 +835,7 @@ final class DocumentParser {
                     case TRUE:
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT);
                         if (builder == null) {
-                            Version version = Version.indexCreated(context.indexSettings().getSettings());
+                            Version version = context.indexSettings().getIndexVersionCreated();
                             builder = new ObjectMapper.Builder(paths[i], version).enabled(true);
                         }
                         mapper = (ObjectMapper) builder.build(context.path());
@@ -923,7 +921,7 @@ final class DocumentParser {
         NoOpFieldMapper(String simpleName, RuntimeFieldType runtimeField) {
             super(simpleName, new MappedFieldType(runtimeField.name(), false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
-                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(QueryShardContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 

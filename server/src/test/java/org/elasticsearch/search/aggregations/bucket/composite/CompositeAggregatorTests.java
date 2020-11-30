@@ -2133,7 +2133,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             )
         );
 
-        executeTestCase(true, new TermQuery(new Term("foo", "bar")),
+        executeTestCase(true, true, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -2153,7 +2153,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
 
         // source field and index sorting config have different order
-        executeTestCase(true, new TermQuery(new Term("foo", "bar")),
+        executeTestCase(true, true, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -2190,7 +2190,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
 
         for (SortOrder order : SortOrder.values()) {
-            executeTestCase(true, new MatchAllDocsQuery(),
+            executeTestCase(false, true, new MatchAllDocsQuery(),
                 dataset,
                 () ->
                     new CompositeAggregationBuilder("name",
@@ -2213,7 +2213,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 }
             );
 
-            executeTestCase(true, new MatchAllDocsQuery(),
+            executeTestCase(false, true, new MatchAllDocsQuery(),
                 dataset,
                 () ->
                     new CompositeAggregationBuilder("name",
@@ -2243,12 +2243,13 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                                 Supplier<CompositeAggregationBuilder> create,
                                 Consumer<InternalComposite> verify) throws IOException {
         for (Query query : queries) {
-            executeTestCase(false, query, dataset, create, verify);
-            executeTestCase(true, query, dataset, create, verify);
+            executeTestCase(false, false, query, dataset, create, verify);
+            executeTestCase(false, true, query, dataset, create, verify);
         }
     }
 
-    private void executeTestCase(boolean useIndexSort,
+    private void executeTestCase(boolean forceMerge,
+                                 boolean useIndexSort,
                                  Query query,
                                  List<Map<String, List<Object>>> dataset,
                                  Supplier<CompositeAggregationBuilder> create,
@@ -2273,18 +2274,21 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     indexWriter.addDocument(document);
                     id++;
                 }
-                if (rarely()) {
+                if (forceMerge || rarely()) {
+                    // forceMerge randomly or if the collector-per-leaf testing stuff would break the tests.
                     indexWriter.forceMerge(1);
-                }
-                if (dataset.size() > 0) {
-                    int numDeletes = randomIntBetween(1, 25);
-                    for (int i = 0; i < numDeletes; i++) {
-                        id = randomIntBetween(0, dataset.size() - 1);
-                        indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
-                        document.clear();
-                        addToDocument(id, document, dataset.get(id));
-                        indexWriter.addDocument(document);
+                } else {
+                    if (dataset.size() > 0) {
+                        int numDeletes = randomIntBetween(1, 25);
+                        for (int i = 0; i < numDeletes; i++) {
+                            id = randomIntBetween(0, dataset.size() - 1);
+                            indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
+                            document.clear();
+                            addToDocument(id, document, dataset.get(id));
+                            indexWriter.addDocument(document);
+                        }
                     }
+
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {

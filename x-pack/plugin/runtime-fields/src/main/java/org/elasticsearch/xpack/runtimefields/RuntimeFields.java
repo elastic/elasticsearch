@@ -72,6 +72,7 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.RUNTIME_FIELDS, RuntimeFieldsUsageTransportAction.class),
-            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.RUNTIME_FIELDS, RuntimeFieldsInfoTransportAction.class));
+            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.RUNTIME_FIELDS, RuntimeFieldsInfoTransportAction.class)
+        );
     }
 }

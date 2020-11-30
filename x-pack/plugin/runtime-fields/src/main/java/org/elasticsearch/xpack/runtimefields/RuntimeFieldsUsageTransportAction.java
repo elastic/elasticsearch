@@ -24,16 +24,30 @@ import org.elasticsearch.xpack.core.runtimefields.RuntimeFieldsFeatureSetUsage;
 public final class RuntimeFieldsUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     @Inject
-    public RuntimeFieldsUsageTransportAction(TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(XPackUsageFeatureAction.RUNTIME_FIELDS.name(), transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver);
+    public RuntimeFieldsUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            XPackUsageFeatureAction.RUNTIME_FIELDS.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         RuntimeFieldsFeatureSetUsage runtimeFieldsFeatureSetUsage = RuntimeFieldsFeatureSetUsage.fromMetadata(state.metadata());
         listener.onResponse(new XPackUsageFeatureResponse(runtimeFieldsFeatureSetUsage));
     }

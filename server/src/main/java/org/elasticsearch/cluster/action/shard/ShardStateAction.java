@@ -636,7 +636,7 @@ public class ShardStateAction {
             for (ObjectObjectCursor<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting()) {
                 assert cursor.value.allPrimaryShardsActive() == false
                         || clusterState.metadata().index(cursor.key).getTimestampMillisRange().isComplete()
-                        : cursor.key + " should have complete timestamp range, but got "
+                        : "index [" + cursor.key + "] should have complete timestamp range, but got "
                         + clusterState.metadata().index(cursor.key).getTimestampMillisRange() + " for " + cursor.value.prettyPrint();
             }
             return true;

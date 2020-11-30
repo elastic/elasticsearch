@@ -54,7 +54,7 @@ public class InstallLicensedPluginTests extends ESTestCase {
         );
 
         assertThat(userException.exitCode, equalTo(ExitCodes.NOPERM));
-        assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));
+        assertThat(terminal.getOutput(), containsString("ERROR: This is a licensed plugin"));
     }
 
     /**
@@ -67,7 +67,7 @@ public class InstallLicensedPluginTests extends ESTestCase {
             UserException.class,
             () -> InstallPluginCommand.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo)
         );
-        assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));
+        assertThat(terminal.getOutput(), containsString("ERROR: This is a licensed plugin"));
     }
 
     /**
@@ -89,8 +89,6 @@ public class InstallLicensedPluginTests extends ESTestCase {
             "classname",
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
             isLicensed
         );
     }

@@ -113,17 +113,22 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         return max;
     }
 
+    private static final byte WIRE_TYPE_OTHER = (byte)0;
+    private static final byte WIRE_TYPE_UNKNOWN = (byte)1;
+    private static final byte WIRE_TYPE_MUTABLE = (byte)2;
+    private static final byte WIRE_TYPE_EMPTY = (byte)3;
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
             if (this == UNKNOWN) {
-                out.writeByte((byte) 1);
+                out.writeByte(WIRE_TYPE_UNKNOWN);
             } else if (this == MUTABLE) {
-                out.writeByte((byte) 2);
+                out.writeByte(WIRE_TYPE_MUTABLE);
             } else if (this == EMPTY) {
-                out.writeByte((byte) 3);
+                out.writeByte(WIRE_TYPE_EMPTY);
             } else {
-                out.writeByte((byte) 0);
+                out.writeByte(WIRE_TYPE_OTHER);
                 if (shards == null) {
                     out.writeBoolean(false);
                 } else {
@@ -144,13 +149,13 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
         final byte type = in.readByte();
         switch (type) {
-            case 1:
+            case WIRE_TYPE_UNKNOWN:
                 return UNKNOWN;
-            case 2:
+            case WIRE_TYPE_MUTABLE:
                 return MUTABLE;
-            case 3:
+            case WIRE_TYPE_EMPTY:
                 return EMPTY;
-            case 0:
+            case WIRE_TYPE_OTHER:
                 return new IndexLongFieldRange(in.readBoolean() ? in.readVIntArray() : null, in.readZLong(), in.readZLong());
             default:
                 throw new IllegalStateException("type [" + type + "] not known");

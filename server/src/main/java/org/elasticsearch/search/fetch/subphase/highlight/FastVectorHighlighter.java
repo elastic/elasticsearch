@@ -99,7 +99,7 @@ public class FastVectorHighlighter implements Highlighter {
                     fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, fixBrokenAnalysis, field.fieldOptions().preTags(),
                         field.fieldOptions().postTags(), boundaryScanner);
                 } else {
-                    fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.sourceLookup(),
+                    fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, fixBrokenAnalysis,
                         field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                 }
             } else {
@@ -110,7 +110,7 @@ public class FastVectorHighlighter implements Highlighter {
                         fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),
                             field.fieldOptions().postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.sourceLookup(),
+                        fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, fixBrokenAnalysis,
                             field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
@@ -119,7 +119,7 @@ public class FastVectorHighlighter implements Highlighter {
                             field.fieldOptions().postTags(), boundaryScanner);
                     } else {
                         fragmentsBuilder =
-                            new SourceSimpleFragmentsBuilder(fieldType, fixBrokenAnalysis, hitContext.sourceLookup(),
+                            new SourceSimpleFragmentsBuilder(fieldType, fixBrokenAnalysis,
                                 field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 }
@@ -160,8 +160,13 @@ public class FastVectorHighlighter implements Highlighter {
         }
         cache.fvh.setPhraseLimit(field.fieldOptions().phraseLimit());
 
-        String[] fragments;
+        // If the fragments builder requires document _source, pass it the source lookup from the hit context.
+        if (entry.fragmentsBuilder instanceof SourceBasedFragmentsBuilder) {
+            SourceBasedFragmentsBuilder fragmentsBuilder = ((SourceBasedFragmentsBuilder) entry.fragmentsBuilder);
+            fragmentsBuilder.setSource(hitContext.sourceLookup());
+        }
 
+        String[] fragments;
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ?
             Integer.MAX_VALUE : field.fieldOptions().numberOfFragments();

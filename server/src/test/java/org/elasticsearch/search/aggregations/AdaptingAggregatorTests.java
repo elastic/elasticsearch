@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggrega
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -48,12 +47,10 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         ValuesSourceRegistry.Builder registry = new ValuesSourceRegistry.Builder();
         MaxAggregationBuilder.registerAggregators(registry);
         withAggregationContext(registry.build(), mapperService, org.elasticsearch.common.collect.List.of(), null, context -> {
-            SearchContext searchContext = mock(SearchContext.class);
-            when(searchContext.bigArrays()).thenReturn(context.bigArrays());
             AggregatorFactories.Builder sub = AggregatorFactories.builder();
             sub.addAggregator(new MaxAggregationBuilder("test").field("foo"));
             AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, sub, null);
-            Aggregator adapting = factory.create(searchContext, null, CardinalityUpperBound.ONE);
+            Aggregator adapting = factory.create(null, CardinalityUpperBound.ONE);
             assertThat(adapting.subAggregators()[0].parent(), sameInstance(adapting));
         });
     }
@@ -61,10 +58,8 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
     public void testBuildCallsAdapt() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(), context -> {
-            SearchContext searchContext = mock(SearchContext.class);
-            when(searchContext.bigArrays()).thenReturn(context.bigArrays());
             AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, AggregatorFactories.builder(), null);
-            Aggregator adapting = factory.create(searchContext, null, CardinalityUpperBound.ONE);
+            Aggregator adapting = factory.create(null, CardinalityUpperBound.ONE);
             assertThat(adapting.buildEmptyAggregation().getMetadata(), equalTo(org.elasticsearch.common.collect.Map.of("dog", "woof")));
             assertThat(adapting.buildTopLevel().getMetadata(), equalTo(org.elasticsearch.common.collect.Map.of("dog", "woof")));
         });
@@ -83,7 +78,6 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
 
         @Override
         protected Aggregator createInternal(
-            SearchContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
@@ -117,7 +111,7 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         protected DummyAggregator(
             String name,
             AggregatorFactories factories,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound subAggregatorCardinality,
             Map<String, Object> metadata

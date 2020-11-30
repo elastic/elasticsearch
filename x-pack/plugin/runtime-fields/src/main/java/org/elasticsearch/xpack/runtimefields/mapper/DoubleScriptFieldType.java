@@ -36,6 +36,9 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
         @Override
         protected AbstractScriptFieldType<?> buildFieldType() {
+            if (script.get() == null) {
+                return new DoubleScriptFieldType(name, DoubleFieldScript.PARSE_FROM_SOURCE, this);
+            }
             DoubleFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), DoubleFieldScript.CONTEXT);
             return new DoubleScriptFieldType(name, factory, this);
         }

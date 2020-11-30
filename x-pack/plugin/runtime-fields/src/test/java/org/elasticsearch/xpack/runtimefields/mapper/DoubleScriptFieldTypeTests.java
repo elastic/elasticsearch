@@ -297,7 +297,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                                 return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(((Number) foo).doubleValue());
                                         }
                                     }
@@ -306,7 +306,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                                 return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                                         }
                                     }

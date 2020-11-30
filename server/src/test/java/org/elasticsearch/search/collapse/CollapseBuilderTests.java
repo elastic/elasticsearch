@@ -39,7 +39,6 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -208,7 +207,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 }
 
                 @Override
-                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(QueryShardContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 

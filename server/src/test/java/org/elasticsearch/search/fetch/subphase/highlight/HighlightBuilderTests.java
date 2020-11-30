@@ -26,7 +26,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -284,7 +283,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 null, null, System::currentTimeMillis, null, null, () -> true, null, emptyMap()) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER);
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
                 return builder.build(new ContentPath(1)).fieldType();
             }
         };

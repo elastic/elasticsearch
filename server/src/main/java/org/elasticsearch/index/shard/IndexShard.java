@@ -22,6 +22,8 @@ package org.elasticsearch.index.shard;
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -656,49 +658,96 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
-     * {@link Runnable} is executed after all operations are successfully blocked.
+     * {@link BiConsumer} is executed after all operations are successfully blocked.
      *
-     * @param consumer a {@link Runnable} that is executed after operations are blocked
+     * @param consumer a {@link BiConsumer} that is executed after operations are blocked and that consumes the primary context as well as
+     *                 a listener to resolve once it finished
+     * @param listener listener to resolve once this method actions including executing {@code consumer} in the non-failure case complete
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
-     * @throws InterruptedException            if blocking operations is interrupted
      */
-    public void relocated(final String targetAllocationId, final Consumer<ReplicationTracker.PrimaryContext> consumer)
-        throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
+    public void relocated(final String targetAllocationId,
+                          final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
+                          final ActionListener<Void> listener)
+            throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
-            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
-                forceRefreshes.close();
-                // no shard operation permits are being held here, move state from started to relocated
-                assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED :
-                        "in-flight operations in progress while moving shard state to relocated";
-                /*
-                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
-                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
-                 */
-                verifyRelocatingState();
-                final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(targetAllocationId);
-                try {
-                    consumer.accept(primaryContext);
-                    synchronized (mutex) {
-                        verifyRelocatingState();
-                        replicationTracker.completeRelocationHandoff(); // make changes to primaryMode and relocated flag only under mutex
-                    }
-                } catch (final Exception e) {
+            indexShardOperationPermits.blockOperations(new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    boolean success = false;
                     try {
-                        replicationTracker.abortRelocationHandoff();
-                    } catch (final Exception inner) {
-                        e.addSuppressed(inner);
+                        forceRefreshes.close();
+                        // no shard operation permits are being held here, move state from started to relocated
+                        assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED :
+                                "in-flight operations in progress while moving shard state to relocated";
+                        /*
+                         * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary
+                         * context via a network operation. Doing this under the mutex can implicitly block the cluster state update thread
+                         * on network operations.
+                         */
+                        verifyRelocatingState();
+                        final ReplicationTracker.PrimaryContext primaryContext =
+                                replicationTracker.startRelocationHandoff(targetAllocationId);
+                        // make sure we release all permits before we resolve the final listener
+                        final ActionListener<Void> wrappedInnerListener =
+                                ActionListener.runBefore(listener, Releasables.releaseOnce(releasable)::close);
+                        final ActionListener<Void> wrappedListener = new ActionListener<Void>() {
+                            @Override
+                            public void onResponse(Void unused) {
+                                try {
+                                    // make changes to primaryMode and relocated flag only under mutex
+                                    synchronized (mutex) {
+                                        verifyRelocatingState();
+                                        replicationTracker.completeRelocationHandoff();
+                                    }
+                                    wrappedInnerListener.onResponse(null);
+                                } catch (Exception e) {
+                                    onFailure(e);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                try {
+                                    replicationTracker.abortRelocationHandoff();
+                                } catch (final Exception inner) {
+                                    e.addSuppressed(inner);
+                                }
+                                wrappedInnerListener.onFailure(e);
+                            }
+                        };
+                        try {
+                            consumer.accept(primaryContext, wrappedListener);
+                        } catch (final Exception e) {
+                            wrappedListener.onFailure(e);
+                        }
+                        success = true;
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    } finally {
+                        if (success == false) {
+                            releasable.close();
+                        }
                     }
-                    throw e;
                 }
-            });
-        } catch (TimeoutException e) {
-            logger.warn("timed out waiting for relocation hand-off to complete");
-            // This is really bad as ongoing replication operations are preventing this shard from completing relocation hand-off.
-            // Fail primary relocation source and target shards.
-            failShard("timed out waiting for relocation hand-off to complete", null);
-            throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof TimeoutException) {
+                        logger.warn("timed out waiting for relocation hand-off to complete");
+                        // This is really bad as ongoing replication operations are preventing this shard from completing relocation
+                        // hand-off.
+                        // Fail primary relocation source and target shards.
+                        failShard("timed out waiting for relocation hand-off to complete", null);
+                        listener.onFailure(
+                                new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete"));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            }, 30L, TimeUnit.MINUTES, ThreadPool.Names.SAME); // Wait on SAME (current thread) because this execution is wrapped by
+                                                              // CancellableThreads and we want to be able to safely interrupt it
         }
     }
 
@@ -2767,6 +2816,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
+        if (mapperService == null) {
+            return null;
+        }
+        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapperService.indexAnalyzer(fieldName, f -> {
+                    throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer");
+                });
+            }
+        };
+    }
 
     private DocumentMapperForType docMapper(String type) {
         return mapperService.documentMapperWithAutoCreate(
@@ -2784,7 +2846,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
         return new EngineConfig(shardId,
                 threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
-                mapperService != null ? mapperService.indexAnalyzer() : null,
+                buildIndexAnalyzer(mapperService),
                 similarityService.similarity(mapperService == null ? null : mapperService::fieldType), codecService, shardEventListener,
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
@@ -2857,7 +2919,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
-            indexShardOperationPermits.asyncBlockOperations(wrappedListener, timeout, timeUnit);
+            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, ThreadPool.Names.GENERIC);
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;

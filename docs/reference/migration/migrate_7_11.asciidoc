@@ -1,0 +1,34 @@
+[[breaking-changes-7.11]]
+== Breaking changes in 7.11
+++++
+<titleabbrev>7.11</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.11.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+// * <<breaking_711_blah_changes>>
+// * <<breaking_711_blah_changes>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_711_search_changes]]
+=== Search changes
+
+[[highlight-normalization]]
+.Keyword fields with a custom normalizer will use the normalized form when highlighting
+[%collapsible]
+====
+*Details* +
+Highlighters now use the same framework to load their values as the
+`fields` section of a search response.  This means that normalization
+will be applied to the values of a keyword field; for example, a
+field configured with a lowercase normalizer will return highlighted
+snippets in lower case.
+====

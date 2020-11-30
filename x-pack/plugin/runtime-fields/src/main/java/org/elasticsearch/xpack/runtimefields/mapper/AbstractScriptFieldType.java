@@ -50,7 +50,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     private final CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent;
 
     AbstractScriptFieldType(String name, TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory, Builder builder) {
-        this(name, factory, builder.script.getValue(), builder.meta.getValue(), builder::toXContent);
+        this(name, factory, builder.getScript(), builder.meta.getValue(), builder::toXContent);
     }
 
     AbstractScriptFieldType(
@@ -197,14 +197,18 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), lookup.doc().getForField(this));
+    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
     }
 
     @Override
     protected final void doXContentBody(XContentBuilder builder, boolean includeDefaults) throws IOException {
         toXContent.accept(builder, includeDefaults);
     }
+
+    // Placeholder Script for source-only fields
+    // TODO rework things so that we don't need this
+    private static final Script DEFAULT_SCRIPT = new Script("");
 
     /**
      *  For runtime fields the {@link RuntimeFieldType.Parser} returns directly the {@link MappedFieldType}.
@@ -222,11 +226,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
             () -> null,
             Builder::parseScript,
             initializerNotSupported()
-        ).setValidator(script -> {
-            if (script == null) {
-                throw new IllegalArgumentException("script must be specified for runtime field [" + name + "]");
-            }
-        });
+        ).setSerializerCheck((id, ic, v) -> ic);
 
         Builder(String name) {
             super(name);
@@ -238,6 +238,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         }
 
         protected abstract AbstractScriptFieldType<?> buildFieldType();
+
+        protected final Script getScript() {
+            if (script.get() == null) {
+                return DEFAULT_SCRIPT;
+            }
+            return script.get();
+        }
 
         @Override
         public FieldMapper.Builder init(FieldMapper initializer) {

@@ -116,7 +116,7 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     @BeforeClass
-    public static void chechFipsJvm() {
+    public static void checkFipsJvm() {
         assumeFalse("Can't run in a FIPS JVM, depends on Non FIPS BouncyCastle", inFipsJvm());
     }
 
@@ -305,19 +305,21 @@ public class CertificateToolTests extends ESTestCase {
         KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
         X509Certificate caCert = CertGenUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
 
+        final boolean selfSigned = randomBoolean();
         final boolean generatedCa = randomBoolean();
         final boolean keepCaKey = generatedCa && randomBoolean();
         final String keyPassword = randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD : null;
 
         assertFalse(Files.exists(outputFile));
-        CAInfo caInfo = new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword == null ? null : keyPassword.toCharArray());
+        CAInfo caInfo = selfSigned ? null :
+            new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword == null ? null : keyPassword.toCharArray());
         final GenerateCertificateCommand command = new GenerateCertificateCommand();
         List<String> args = CollectionUtils.arrayAsArrayList("-keysize", String.valueOf(keySize), "-days", String.valueOf(days), "-pem");
         if (keyPassword != null) {
             args.add("-pass");
             args.add(keyPassword);
         }
-        if (keepCaKey) {
+        if (selfSigned == false && keepCaKey) {
             args.add("-keep-ca-key");
         }
         final OptionSet options = command.getParser().parse(Strings.toStringArray(args));
@@ -333,7 +335,7 @@ public class CertificateToolTests extends ESTestCase {
         FileSystem fileSystem = FileSystems.newFileSystem(new URI("jar:" + outputFile.toUri()), Collections.emptyMap());
         Path zipRoot = fileSystem.getPath("/");
 
-        if (generatedCa) {
+        if (selfSigned == false && generatedCa) {
             assertTrue(Files.exists(zipRoot.resolve("ca")));
             assertTrue(Files.exists(zipRoot.resolve("ca").resolve("ca.crt")));
             // check the CA cert
@@ -393,6 +395,10 @@ public class CertificateToolTests extends ESTestCase {
             try (InputStream input = Files.newInputStream(cert)) {
                 X509Certificate certificate = readX509Certificate(input);
                 assertEquals(certInfo.name.x500Principal.toString(), certificate.getSubjectX500Principal().getName());
+                if (selfSigned) {
+                    assertEquals(certificate.getSubjectX500Principal(), certificate.getIssuerX500Principal());
+                    assertEquals(-1, certificate.getBasicConstraints());
+                }
                 final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.commonNames.size();
                 if (sanCount == 0) {
                     assertNull(certificate.getSubjectAlternativeNames());
@@ -467,14 +473,19 @@ public class CertificateToolTests extends ESTestCase {
         options = command.getParser().parse(Strings.toStringArray(args));
         caInfo = command.getCAInfo(terminal, options, env);
         caCK = caInfo.certAndKey;
-
-        assertTrue(terminal.getOutput().isEmpty());
+        assertThat(terminal.getOutput(),
+            containsString("Generating certificates without providing a CA certificate is deprecated."));
         assertThat(caCK.cert, instanceOf(X509Certificate.class));
         assertEquals(caCK.cert.getSubjectX500Principal().getName(), "CN=foo bar");
         assertThat(caCK.key.getAlgorithm(), containsString("RSA"));
         assertTrue(caInfo.generated);
         assertEquals(keySize, getKeySize(caCK.key));
         assertEquals(days, getDurationInDays(caCK.cert));
+
+        // test self-signed
+        args = CollectionUtils.arrayAsArrayList("-self-signed");
+        options = command.getParser().parse(Strings.toStringArray(args));
+        assertNull(command.getCAInfo(terminal, options, env));
     }
 
     public void testNameValues() throws Exception {
@@ -540,7 +551,7 @@ public class CertificateToolTests extends ESTestCase {
      * A multi-stage test that:
      * - Create a new CA
      * - Uses that CA to create 2 node certificates
-     * - Creates a 3rd node certificate using an auto-generated CA
+     * - Creates a 3rd node certificate using an auto-generated CA or a self-signed cert
      * - Checks that the first 2 node certificates trust one another
      * - Checks that the 3rd node certificate is _not_ trusted
      * - Checks that all 3 certificates have the right values based on the command line options provided during generation
@@ -620,16 +631,25 @@ public class CertificateToolTests extends ESTestCase {
 
         assertThat(node2File, pathExists());
 
-        // Node 3 uses an auto generated CA, and therefore should not be trusted by the other nodes.
+        // Node 3 uses an auto generated CA or a self-signed cert, and therefore should not be trusted by the other nodes.
+        final List<String> gen3Args = CollectionUtils.arrayAsArrayList(
+            "-pass", node3Password,
+            "-out", "<node3>",
+            "-keysize", String.valueOf(node3KeySize),
+            "-days", String.valueOf(days),
+            "-dns", "node03.cluster2.es.internal.corp.net",
+            "-ip", node3Ip
+        );
+        final boolean selfSigned = randomBoolean();
+        if (selfSigned) {
+            gen3Args.add("-self-signed");
+        } else {
+            gen3Args.add("-ca-dn");
+            gen3Args.add("CN=My ElasticSearch Cluster 2");
+        }
         final GenerateCertificateCommand gen3Command = new PathAwareGenerateCertificateCommand(null, node3File);
         final OptionSet gen3Options = gen3Command.getParser().parse(
-                "-ca-dn", "CN=My ElasticSearch Cluster 2",
-                "-pass", node3Password,
-                "-out", "<node3>",
-                "-keysize", String.valueOf(node3KeySize),
-                "-days", String.valueOf(days),
-                "-dns", "node03.cluster2.es.internal.corp.net",
-                "-ip", node3Ip);
+                Strings.toStringArray(gen3Args));
         gen3Command.execute(terminal, gen3Options, env);
 
         assertThat(node3File, pathExists());
@@ -666,6 +686,16 @@ public class CertificateToolTests extends ESTestCase {
         assertThat(getDurationInDays((X509Certificate) node3Cert), equalTo(days));
         final Key node3Key = node3KeyStore.getKey(CertificateTool.DEFAULT_CERT_NAME, node3Password.toCharArray());
         assertThat(getKeySize(node3Key), equalTo(node3KeySize));
+        final Certificate[] certificateChain = node3KeyStore.getCertificateChain(CertificateTool.DEFAULT_CERT_NAME);
+        final X509Certificate node3x509Certificate = (X509Certificate) certificateChain[0];
+        if (selfSigned) {
+            assertEquals(1, certificateChain.length);
+            assertEquals(node3x509Certificate.getSubjectX500Principal(), node3x509Certificate.getIssuerX500Principal());
+        } else {
+            assertEquals(2, certificateChain.length);
+            assertEquals(node3x509Certificate.getIssuerX500Principal(),
+                ((X509Certificate) certificateChain[1]).getSubjectX500Principal());
+        }
     }
 
 

@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.xpack.spatial;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -24,12 +28,15 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
+import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
+import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
@@ -39,6 +46,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoSha
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -51,7 +59,8 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 
-public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlugin, IngestPlugin {
+public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlugin, SearchPlugin, IngestPlugin {
+    private final SpatialUsage usage = new SpatialUsage();
 
     public Collection<Module> createGuiceModules() {
         return Collections.singletonList(b -> {
@@ -62,6 +71,11 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
     // to be overriden by tests
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
+    }
+
+    @Override
+    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return singletonList(new ActionPlugin.ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class));
     }
 
     @Override
@@ -90,6 +104,18 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
     }
 
     @Override
+    public List<AggregationSpec> getAggregations() {
+        return singletonList(
+            new AggregationSpec(
+                    GeoLineAggregationBuilder.NAME,
+                    GeoLineAggregationBuilder::new,
+                    usage.track(SpatialStatsAction.Item.GEOLINE,
+                        checkLicense(GeoLineAggregationBuilder.PARSER, XPackLicenseState.Feature.SPATIAL_GEO_LINE)))
+                .addResultReader(InternalGeoLine::new)
+                .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage));
+    }
+
+    @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Collections.singletonMap(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
@@ -105,10 +131,10 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
-            (name, valuesSourceConfig, aggregationContext, parent, metadata)
+            (name, valuesSourceConfig, context, parent, metadata)
                 -> {
                 if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
-                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, valuesSourceConfig, metadata);
+                    return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
             },
@@ -168,5 +194,14 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
 
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
+    }
+
+    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser, XPackLicenseState.Feature feature) {
+        return (parser, name) -> {
+            if (getLicenseState().checkFeature(feature) == false) {
+                throw LicenseUtils.newComplianceException(feature.name());
+            }
+            return realParser.parse(parser, name);
+        };
     }
 }

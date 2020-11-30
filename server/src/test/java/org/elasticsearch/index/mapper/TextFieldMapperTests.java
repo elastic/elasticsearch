@@ -754,7 +754,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
         assertEquals(1, fields.length);
 
-        try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(), null)) {
+        try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(fields[0].name(), f -> null), null)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             assertTrue(ts.incrementToken());
@@ -836,7 +836,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertEquals(1, fields.length);
             withLuceneIndex(ms, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check we can index
 
-            assertAnalyzesTo(ms.indexAnalyzer(), "field._index_prefix", "tweedledum",
+            assertAnalyzesTo(ms.indexAnalyzer("field._index_prefix", f -> null), "field._index_prefix", "tweedledum",
                 new String[]{ "tw", "twe", "twee", "tweed", "tweedl" });
         }
 
@@ -844,7 +844,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             MapperService ms = createMapperService(
                 fieldMapping(b -> b.field("type", "text").field("analyzer", "standard").startObject("index_prefixes").endObject())
             );
-            assertAnalyzesTo(ms.indexAnalyzer(), "field._index_prefix", "tweedledum",
+            assertAnalyzesTo(ms.indexAnalyzer("field._index_prefix", f -> null), "field._index_prefix", "tweedledum",
                 new String[]{ "tw", "twe", "twee", "tweed" });
         }
 
@@ -852,7 +852,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             MapperService ms = createMapperService(
                 fieldMapping(b -> b.field("type", "text").nullField("index_prefixes"))
             );
-            expectThrows(Exception.class, () -> ms.indexAnalyzer().tokenStream("field._index_prefixes", "test"));
+            expectThrows(Exception.class,
+                () -> ms.indexAnalyzer("field._index_prefixes", f -> null).tokenStream("field._index_prefixes", "test"));
         }
 
         {

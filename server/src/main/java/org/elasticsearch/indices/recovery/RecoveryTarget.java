@@ -331,8 +331,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
-        indexShard.activateWithPrimaryContext(primaryContext);
+    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            indexShard.activateWithPrimaryContext(primaryContext);
+            return null;
+        });
     }
 
     @Override

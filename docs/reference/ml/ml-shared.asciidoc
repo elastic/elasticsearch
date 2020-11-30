@@ -1030,7 +1030,8 @@ values:
 --
 * `ok`: The models stayed below the configured value.
 * `soft_limit`: The models used more than 60% of the configured memory limit
-and older unused models will be pruned to free up space.
+and older unused models will be pruned to free up space. Additionally, in
+categorization jobs no further category examples will be stored.
 * `hard_limit`: The models used more space than the configured memory limit.
 As a result, not all incoming data was processed.
 --

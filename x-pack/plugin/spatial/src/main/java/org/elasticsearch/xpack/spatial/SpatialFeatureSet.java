@@ -6,22 +6,26 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
+import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 
 import java.util.Map;
 
 public class SpatialFeatureSet implements XPackFeatureSet {
+
     private final XPackLicenseState licenseState;
+    private Client client;
 
     @Inject
-    public SpatialFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
+    public SpatialFeatureSet(@Nullable XPackLicenseState licenseState, Client client) {
         this.licenseState = licenseState;
+        this.client = client;
     }
 
     @Override
@@ -46,6 +50,9 @@ public class SpatialFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        listener.onResponse(new SpatialFeatureSetUsage(available(), enabled()));
+        SpatialStatsAction.Request request = new SpatialStatsAction.Request();
+        client.execute(SpatialStatsAction.INSTANCE, request,
+            ActionListener.wrap(r -> listener.onResponse(new SpatialFeatureSetUsage(available(), enabled(), r)),
+                listener::onFailure));
     }
 }

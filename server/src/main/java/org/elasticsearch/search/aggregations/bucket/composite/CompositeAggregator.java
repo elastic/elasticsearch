@@ -56,7 +56,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 
@@ -89,7 +89,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
-    CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
+    CompositeAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
                         Map<String, Object> metadata,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
@@ -99,7 +99,7 @@ final class CompositeAggregator extends BucketsAggregator {
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
         this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
-        int bucketLimit = context.aggregations().multiBucketConsumer().getLimit();
+        int bucketLimit = context.multiBucketConsumer().getLimit();
         if (size > bucketLimit) {
             throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
                 " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +

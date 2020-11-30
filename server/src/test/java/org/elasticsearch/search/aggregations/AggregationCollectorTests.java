@@ -19,15 +19,16 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+
+import static org.mockito.Mockito.mock;
 
 public class AggregationCollectorTests extends ESSingleNodeTestCase {
 
@@ -60,10 +61,9 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
     private boolean needsScores(IndexService index, String agg) throws IOException {
         try (XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg)) {
             aggParser.nextToken();
-            SearchContext context = createSearchContext(index);
             final AggregatorFactories factories = AggregatorFactories.parseAggregators(aggParser)
-                .build(new ProductionAggregationContext(context.getQueryShardContext(), new MatchAllDocsQuery()), null);
-            final Aggregator[] aggregators = factories.createTopLevelAggregators(context);
+                .build(new ProductionAggregationContext(createSearchContext(index), mock(MultiBucketConsumer.class)), null);
+            final Aggregator[] aggregators = factories.createTopLevelAggregators();
             assertEquals(1, aggregators.length);
             return aggregators[0].scoreMode().needsScores();
         }

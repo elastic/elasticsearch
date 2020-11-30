@@ -86,6 +86,10 @@ public interface TestClusterConfiguration {
 
     void jvmArgs(String... values);
 
+    boolean isPreserveDataDir();
+
+    void setPreserveDataDir(boolean preserveDataDir);
+
     void freeze();
 
     void start();

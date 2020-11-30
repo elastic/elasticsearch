@@ -44,7 +44,6 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -125,13 +124,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
-        transportService.submitRequest(
-                targetNode,
-                PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
-                new RecoveryHandoffPrimaryContextRequest(recoveryId, shardId, primaryContext),
-                standardTimeoutRequestOptions,
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
+        transportService.sendRequest(
+            targetNode, PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
+            new RecoveryHandoffPrimaryContextRequest(recoveryId, shardId, primaryContext),
+            standardTimeoutRequestOptions,
+            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE,
+                    ThreadPool.Names.GENERIC));
     }
 
     @Override

@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,7 +31,7 @@ public interface GeoBoundsAggregatorSupplier {
 
     MetricsAggregator build(
         String name,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         ValuesSourceConfig valuesSourceConfig,
         boolean wrapLongitude,

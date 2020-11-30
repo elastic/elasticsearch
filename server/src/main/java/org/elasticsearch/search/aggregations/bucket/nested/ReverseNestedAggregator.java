@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,7 +49,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     private final BitSetProducer parentBitsetProducer;
 
     public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper,
-            SearchContext context, Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+            AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
             throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         if (objectMapper == null) {

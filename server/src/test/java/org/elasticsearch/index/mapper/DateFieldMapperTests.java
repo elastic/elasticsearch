@@ -354,7 +354,13 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
 
         final long up = DateFieldMapper.Resolution.NANOSECONDS.roundUpToMillis(nanos);
-        assertThat(DateUtils.toNanoSeconds(up), greaterThanOrEqualTo(nanos));
+        try {
+            assertThat(DateUtils.toNanoSeconds(up), greaterThanOrEqualTo(nanos));
+        } catch (IllegalArgumentException e) {
+            // ok, up may be out of range by 1; we check that up-1 is in range below (as long as it's >0)
+            assertThat(up, greaterThan(0L));
+        }
+
         if (up > 0) {
             assertThat(DateUtils.toNanoSeconds(up - 1), lessThan(nanos));
         } else {

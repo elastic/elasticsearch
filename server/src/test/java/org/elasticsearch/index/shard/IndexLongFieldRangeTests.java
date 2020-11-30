@@ -21,11 +21,14 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.shard.IndexLongFieldRangeTestUtils.randomSpecificRange;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexLongFieldRangeTests extends ESTestCase {
@@ -112,4 +115,20 @@ public class IndexLongFieldRangeTests extends ESTestCase {
         }
     }
 
+    public void testCanRemoveShardRange() {
+        assertThat(IndexLongFieldRange.MUTABLE.removeShard(between(0, 4), 5), sameInstance(IndexLongFieldRange.MUTABLE));
+
+        final IndexLongFieldRange initialRange = randomSpecificRange();
+        final int shardCount = initialRange.isComplete()
+                ? between(1, 5) : Arrays.stream(initialRange.getShards()).max().orElse(0) + between(1, 3);
+
+        final int shard = between(0, shardCount - 1);
+        final IndexLongFieldRange rangeWithoutShard = initialRange.removeShard(shard, shardCount);
+        assertFalse(rangeWithoutShard.isComplete());
+        assertTrue(Arrays.stream(rangeWithoutShard.getShards()).noneMatch(i -> i == shard));
+        if (rangeWithoutShard != IndexLongFieldRange.UNKNOWN) {
+            assertThat(rangeWithoutShard.getMinUnsafe(), equalTo(initialRange.getMinUnsafe()));
+            assertThat(rangeWithoutShard.getMaxUnsafe(), equalTo(initialRange.getMaxUnsafe()));
+        }
+    }
 }

@@ -337,4 +337,30 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         result = 31 * result + Arrays.hashCode(shards);
         return result;
     }
+
+    /**
+     * Remove the given shard from the set of known shards, possibly without adjusting the min and max. Used when allocating a stale primary
+     * which may have a different range from the original, so we must allow the range to grow. Note that this doesn't usually allow the
+     * range to shrink, so we may in theory hit this shard more than needed after allocating a stale primary.
+     */
+    public IndexLongFieldRange removeShard(int shardId, int numberOfShards) {
+        assert 0 <= shardId && shardId < numberOfShards : shardId + " vs " + numberOfShards;
+
+        if (shards != null && Arrays.stream(shards).noneMatch(i -> i == shardId)) {
+            return this;
+        }
+        if (this == MUTABLE) {
+            return this;
+        }
+
+        if (shards == null && numberOfShards == 1) {
+            return UNKNOWN;
+        }
+        if (shards != null && shards.length == 1 && shards[0] == shardId) {
+            return UNKNOWN;
+        }
+
+        final IntStream currentShards = shards == null ? IntStream.range(0, numberOfShards) : Arrays.stream(shards);
+        return new IndexLongFieldRange(currentShards.filter(i -> i != shardId).toArray(), min, max);
+    }
 }

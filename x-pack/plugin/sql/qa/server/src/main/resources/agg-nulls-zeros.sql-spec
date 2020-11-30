@@ -1,0 +1,73 @@
+
+aggregatingAllZerosWithFirst-Ignore
+SELECT FIRST(bytes_in) as "FIRST_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithFirst-Ignore
+SELECT FIRST(bytes_out) as "FIRST_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithLast-Ignore
+SELECT LAST(bytes_in) as "LAST_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithLast-Ignore
+SELECT LAST(bytes_out) as "LAST_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithCount
+SELECT COUNT(bytes_in) as "COUNT_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithCount
+SELECT COUNT(bytes_out) as "COUNT_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithCountStar
+SELECT COUNT(*) as "COUNT_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithCountStar
+SELECT COUNT(*) as "COUNT_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithAvg
+SELECT AVG(bytes_in)::double as "AVG_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithAvg
+SELECT AVG(bytes_out)::double as "AVG_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithMin
+SELECT MIN(bytes_in) as "MIN_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithMin
+SELECT MIN(bytes_out) as "MIN_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithMax
+SELECT MAX(bytes_in)::double as "MAX_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithMax
+SELECT MAX(bytes_out)::double as "MAX_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithSum
+SELECT SUM(bytes_in)::long as "SUM_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithSum
+SELECT SUM(bytes_out)::long as "SUM_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithPercentile-Ignore
+SELECT PERCENTILE(bytes_in, 0) as "PERCENTILE_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithPercentile-Ignore
+SELECT PERCENTILE(bytes_out, 0) as "PERCENTILE_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithPercentileRank-Ignore
+SELECT PERCENTILE_RANK(bytes_in, 0) as "PERCENTILE_RANK_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithPercentileRank-Ignore
+SELECT PERCENTILE_RANK(bytes_out, 0) as "PERCENTILE_RANK_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithSumOfSquares-Ignore
+SELECT SUM_OF_SQUARES(bytes_in) as "SUM_OF_SQUARES_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithSumOfSquares-Ignore
+SELECT SUM_OF_SQUARES(bytes_out) as "SUM_OF_SQUARES_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithStddevPop
+SELECT STDDEV_POP(bytes_in) as "STDDEV_POP_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithStddevPop
+SELECT STDDEV_POP(bytes_out) as "STDDEV_POP_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithStddevSamp
+SELECT STDDEV_SAMP(bytes_in) as "STDDEV_SAMP_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithStddevSamp
+SELECT STDDEV_SAMP(bytes_out) as "STDDEV_SAMP_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithVarSamp
+SELECT VAR_SAMP(bytes_in) as "VAR_SAMP_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithVarSamp
+SELECT VAR_SAMP(bytes_out) as "VAR_SAMP_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithVarPop
+SELECT VAR_POP(bytes_in) as "VAR_POP_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithVarPop
+SELECT VAR_POP(bytes_out) as "VAR_POP_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithSkewness-Ignore
+SELECT SKEWNESS(bytes_in) as "SKEWNESS_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithSkewness-Ignore
+SELECT SKEWNESS(bytes_out) as "SKEWNESS_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithMad-Ignore
+SELECT MAD(bytes_in) as "MAD_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithMad-Ignore
+SELECT MAD(bytes_out) as "MAD_AllNulls" FROM logs WHERE bytes_out IS NULL;
+aggregatingAllZerosWithKurtosis-Ignore
+SELECT KURTOSIS(bytes_in) as "KURTOSIS_AllZeros" FROM logs WHERE bytes_in = 0;
+aggregatingAllNullsWithKurtosis-Ignore
+SELECT KURTOSIS(bytes_out) as "KURTOSIS_AllNulls" FROM logs WHERE bytes_out IS NULL;

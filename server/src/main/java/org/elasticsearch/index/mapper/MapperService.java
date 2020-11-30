@@ -20,8 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -42,7 +40,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
@@ -114,7 +111,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentMapperParser documentMapperParser;
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
-    private final Analyzer indexAnalyzer;
     private final MapperRegistry mapperRegistry;
     private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
 
@@ -129,12 +125,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                          ScriptService scriptService) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
-        indexAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
-            @Override
-            protected Analyzer getWrappedAnalyzer(String fieldName) {
-                return snapshot.indexAnalyzer();
-            }
-        };
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
@@ -450,12 +440,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * An analyzer that performs a volatile read on the mapping find correct {@link FieldNameAnalyzer}.
+     * An analyzer that performs a volatile read on the mapping find correct {@link NamedAnalyzer} for the field.
+     * @param field                     the field name
+     * @param unindexedFieldAnalyzer    a function to return an Analyzer for a field with no
+     *                                  directly associated index-time analyzer
      * @deprecated Prefer {@link #snapshot()} and then {@link Snapshot#indexAnalyzer()}.
      */
     @Deprecated
-    public Analyzer indexAnalyzer() {
-        return indexAnalyzer;
+    public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+        return snapshot.indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
     @Override
@@ -546,7 +539,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          */
         Iterable<MappedFieldType> getEagerGlobalOrdinalsFields();
 
-        FieldNameAnalyzer indexAnalyzer();
+        /**
+         * The index-time analyzer associated with a particular field.
+         * @param field                     the field name
+         * @param unindexedFieldAnalyzer    a function to return an Analyzer for a field with no
+         *                                  directly associated index-time analyzer
+         */
+        NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer);
 
         /**
          * Does the index analyzer for this field have token filters that may produce
@@ -688,8 +687,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         @Override
-        public FieldNameAnalyzer indexAnalyzer() {
-            return null;
+        public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+            return unindexedFieldAnalyzer.apply(field);
         }
 
         @Override
@@ -799,13 +798,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         @Override
-        public FieldNameAnalyzer indexAnalyzer() {
-            return mapper.mappers().indexAnalyzer();
+        public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+            return this.mapper.mappers().indexAnalyzer(field, unindexedFieldAnalyzer);
         }
 
         @Override
         public boolean containsBrokenAnalysis(String field) {
-            return mapper.mappers().indexAnalyzer().containsBrokenAnalysis(field);
+            NamedAnalyzer analyzer = indexAnalyzer(field, u -> null);
+            if (analyzer == null) {
+                return false;
+            }
+            return analyzer.containsBrokenAnalysis();
         }
 
         @Override
@@ -899,7 +902,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         @Override
-        public FieldNameAnalyzer indexAnalyzer() {
+        public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
             throw new UnsupportedOperationException();
         }
 

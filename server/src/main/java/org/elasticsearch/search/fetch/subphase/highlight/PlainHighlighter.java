@@ -34,6 +34,7 @@ import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -99,7 +100,7 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.getQueryShardContext().getFieldNameIndexAnalyzer();
+        Analyzer analyzer = context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER);
         final int maxAnalyzedOffset = context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         textsToHighlight

@@ -209,7 +209,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract IndexShard indexShard();
 
-    public abstract BigArrays bigArrays();
+    public abstract BigArrays bigArrays();  // TODO this is only used in aggs land and should be contained
 
     public abstract BitsetFilterCache bitsetFilterCache();
 
@@ -326,7 +326,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Adds a releasable that will be freed when this context is closed.
      */
-    public void addReleasable(Releasable releasable) {
+    public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
         releasables.add(releasable);
     }
 

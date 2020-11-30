@@ -35,6 +35,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -90,6 +91,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -986,6 +988,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
         assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
         logger.info("--> done");
+    }
+
+    public void testGetReposWithWildcard() {
+        internalCluster().startMasterOnlyNode();
+        List<RepositoryMetadata> repositoryMetadata = client().admin().cluster().prepareGetRepositories("*").get().repositories();
+        assertThat(repositoryMetadata, empty());
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

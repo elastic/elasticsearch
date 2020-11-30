@@ -1511,6 +1511,26 @@ null           |6249.916666666667
 // end::aggPercentileScalars
 ;
 
+aggPercentileWithPercentileConfig
+// tag::aggPercentileWithPercentileConfig
+SELECT
+    languages, 
+    PERCENTILE(salary, 97.3, 'tdigest', 100.0) AS "97.3_TDigest", 
+    PERCENTILE(salary, 97.3, 'hdr', 3) AS "97.3_HDR" 
+FROM emp 
+GROUP BY languages;
+
+   languages   | 97.3_TDigest  |   97.3_HDR    
+---------------+---------------+---------------
+null           |74999.0        |74992.0        
+1              |73717.0        |73712.0        
+2              |73530.238      |69936.0        
+3              |74970.0        |74992.0        
+4              |74572.0        |74608.0        
+5              |66117.118      |56368.0        
+// end::aggPercentileWithPercentileConfig
+;
+
 aggPercentileRank
 // tag::aggPercentileRank
 SELECT languages, PERCENTILE_RANK(salary, 65000) AS rank FROM emp GROUP BY languages;
@@ -1540,6 +1560,26 @@ null           |66.91240875912409
 4              |76.55646443990001
 5              |94.00696864111498
 // end::aggPercentileRankScalars
+;
+
+aggPercentileRankWithPercentileConfig
+// tag::aggPercentileRankWithPercentileConfig
+SELECT
+    languages,
+    ROUND(PERCENTILE_RANK(salary, 65000, 'tdigest', 100.0), 2) AS "rank_TDigest",
+    ROUND(PERCENTILE_RANK(salary, 65000, 'hdr', 3), 2) AS "rank_HDR"
+FROM emp
+GROUP BY languages;
+
+   languages   | rank_TDigest  |   rank_HDR    
+---------------+---------------+---------------
+null           |73.66          |80.0           
+1              |73.73          |73.33          
+2              |88.88          |89.47          
+3              |79.44          |76.47          
+4              |85.7           |83.33          
+5              |100.0          |95.24          
+// end::aggPercentileRankWithPercentileConfig
 ;
 
 aggSkewness

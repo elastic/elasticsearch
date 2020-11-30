@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -42,8 +43,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -77,6 +78,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -260,10 +262,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperSnapshot.parseDocument(source);
     }
 
-    public FieldNameAnalyzer getFieldNameIndexAnalyzer() {
-        return mapperSnapshot.indexAnalyzer();
-    }
-
     public boolean hasNested() {
         return mapperSnapshot.hasNested();
     }
@@ -356,8 +354,17 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperSnapshot.getIndexAnalyzers();
     }
 
-    public Analyzer getIndexAnalyzer() {
-        return mapperSnapshot.indexAnalyzer();
+    /**
+     * Return the index-time analyzer for the current index
+     * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
+     */
+    public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapperSnapshot.indexAnalyzer(fieldName, unindexedFieldAnalyzer);
+            }
+        };
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
@@ -376,8 +383,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder
-                = new TextFieldMapper.Builder(name, () -> mapperSnapshot.getIndexAnalyzers().getDefaultIndexAnalyzer());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperSnapshot.getIndexAnalyzers());
             return builder.build(new ContentPath(1)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -568,7 +574,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * Return the {@link BigArrays} instance for this node.
      */
-    public BigArrays bigArrays() {
+    public BigArrays bigArrays() {  // TODO this is only used in agg land, maybe remove it from here?
         return bigArrays;
     }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -65,23 +64,19 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-
-        return percentilesConfig.createPercentileRanksAggregator(name, null, searchContext, parent, percents, keyed,
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return percentilesConfig.createPercentileRanksAggregator(name, null, context, parent, percents, keyed,
                 config.format(), metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
         return context.getValuesSourceRegistry()
             .getAggregator(PercentileRanksAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config.getValuesSource(), searchContext, parent, percents, percentilesConfig, keyed, config.format(), metadata);
+            .build(name, config.getValuesSource(), context, parent, percents, percentilesConfig, keyed, config.format(), metadata);
     }
 }

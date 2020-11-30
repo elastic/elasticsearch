@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -42,10 +39,10 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         public static final DocCountFieldType INSTANCE = new DocCountFieldType();
 
-        private static final Long defaultValue = 1L;
+        private static final int defaultValue = 1;
 
         public DocCountFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE,  Collections.emptyMap());
+            super(NAME, false, false, false, TextSearchInfo.NONE,  Collections.emptyMap());
         }
 
         @Override
@@ -55,12 +52,12 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         @Override
         public String familyTypeName() {
-            return NumberFieldMapper.NumberType.LONG.typeName();
+            return NumberFieldMapper.NumberType.INTEGER.typeName();
         }
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(NAME);
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
         }
 
         @Override
@@ -80,7 +77,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                     if ("".equals(value)) {
                         return defaultValue;
                     } else {
-                        return NumberFieldMapper.NumberType.objectToLong(value, false);
+                        return NumberFieldMapper.NumberType.INTEGER.parse(value, false);
                     }
                 }
             };
@@ -96,16 +93,13 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         XContentParser parser = context.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.currentToken(), parser);
 
-        long value = parser.longValue(false);
+        int value = parser.intValue(false);
         if (value <= 0) {
-            throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
+            throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer. Value ["
+                + value + "] is not allowed.");
         }
-        final Field docCount = new NumericDocValuesField(NAME, value);
-        context.doc().add(docCount);
+        context.doc().add(new CustomTermFreqField(NAME, value));
     }
-
-    @Override
-    public void preParse(ParseContext context) { }
 
     @Override
     public DocCountFieldType fieldType() {

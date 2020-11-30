@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 
 import java.io.IOException;
@@ -33,17 +33,24 @@ import java.io.IOException;
  */
 public class DocCountProvider {
 
-    private NumericDocValues docCountValues;
+    public static final int DEFAULT_DOC_COUNT = 1;
+    private PostingsEnum docCountPostings;
 
-    public long getDocCount(int doc) throws IOException {
-        if (docCountValues != null && docCountValues.advanceExact(doc)) {
-            return docCountValues.longValue();
+    public int getDocCount(int doc) throws IOException {
+        if (docCountPostings == null) {
+            return DEFAULT_DOC_COUNT;
+        }
+        if (docCountPostings.docID() < doc) {
+            docCountPostings.advance(doc);
+        }
+        if (docCountPostings.docID() == doc) {
+            return docCountPostings.freq();
         } else {
-            return 1L;
+            return DEFAULT_DOC_COUNT;
         }
     }
 
     public void setLeafReaderContext(LeafReaderContext ctx) throws IOException {
-        docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
+        docCountPostings = ctx.reader().postings(new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME));
     }
 }

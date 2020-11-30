@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 
 import static org.hamcrest.Matchers.containsString;
@@ -39,8 +38,7 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
         ));
 
         IndexableField field = doc.rootDoc().getField(DOC_COUNT_FIELD);
-        assertEquals(100L, field.numericValue());
-        assertEquals(DocValuesType.NUMERIC, field.fieldType().docValuesType());
+        assertEquals(DOC_COUNT_FIELD, field.stringValue());
         assertEquals(1, doc.rootDoc().getFields(DOC_COUNT_FIELD).length);
     }
 
@@ -66,6 +64,6 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
     public void testInvalidDocument_FractionalDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 100.23))));
-        assertThat(e.getCause().getMessage(), containsString("100.23 cannot be converted to Long without data loss"));
+        assertThat(e.getCause().getMessage(), containsString("100.23 cannot be converted to Integer without data loss"));
     }
 }

@@ -82,9 +82,10 @@ public class NodeClient extends AbstractClient {
         // Discard the task because the Client interface doesn't use it.
         try {
             executeLocally(action, request, listener);
-        } catch (TaskCancelledException | IllegalArgumentException e) {
+        } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
             // #executeLocally returns the task and throws TaskCancelledException if it fails to register the task because the parent
-            // task has been cancelled or IllegalArgumentException if header validation fails we forward them to listener since this API
+            // task has been cancelled, IllegalStateException if the client was not in a state to execute the request because it was not
+            // yet properly initialized or IllegalArgumentException if header validation fails we forward them to listener since this API
             // does not concern itself with the specifics of the task handling
             listener.onFailure(e);
         }
@@ -152,7 +153,7 @@ public class NodeClient extends AbstractClient {
         }
         TransportAction<Request, Response> transportAction = actions.get(action);
         if (transportAction == null) {
-            throw new IllegalArgumentException("failed to find action [" + action + "] to execute");
+            throw new IllegalStateException("failed to find action [" + action + "] to execute");
         }
         return transportAction;
     }

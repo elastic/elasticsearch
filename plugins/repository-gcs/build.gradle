@@ -337,19 +337,16 @@ tasks.named("check").configure {
 
 // test jar is exported by the integTestArtifacts configuration to be used in the encrypted GCS repository test
 configurations {
-  integTestArtifacts.extendsFrom testRuntime
-  integTestArtifacts.extendsFrom testImplementation
+  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
+  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
 }
 
-def integTestJar = tasks.register("integTestJar", Jar) {
-  appendix 'integTest'
+def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
+  appendix 'internalClusterTest'
   from sourceSets.internalClusterTest.output
+  from sourceSets.test.output
 }
 
 artifacts {
-  integTestArtifacts integTestJar
-}
-
-dependencies {
-  integTestArtifacts sourceSets.test.output
+  internalClusterTestArtifacts internalClusterTestJar
 }

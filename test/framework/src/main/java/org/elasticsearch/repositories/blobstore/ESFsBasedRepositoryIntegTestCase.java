@@ -99,7 +99,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
                 .put(repositorySettings(repoName))
                 .put("readonly", true)
                 .put(FsRepository.LOCATION_SETTING.getKey(), repoPath)
-                .put(BlobStoreRepository.BUFFER_SIZE_SETTING.getKey(), randomIntBetween(1, 8) * 1024)
+                .put(BlobStoreRepository.BUFFER_SIZE_SETTING.getKey(), String.valueOf(randomIntBetween(1, 8) * 1024) + "kb")
                 .build();
         createRepository(repoName, repoSettings, false);
 

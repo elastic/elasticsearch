@@ -313,15 +313,15 @@ tasks.named("thirdPartyAudit").configure {
 
 // test jar is exported by the integTestArtifacts configuration to be used in the encrypted S3 repository test
 configurations {
-  integTestArtifacts.extendsFrom testRuntime
-  integTestArtifacts.extendsFrom testImplementation
+  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
+  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
 }
 
-def integTestJar = tasks.register("integTestJar", Jar) {
-  appendix 'integTest'
-  from sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME).output
+def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
+  appendix 'internalClusterTest'
+  from sourceSets.internalClusterTest.output
 }
 
 artifacts {
-  integTestArtifacts integTestJar
+  internalClusterTestArtifacts internalClusterTestJar
 }

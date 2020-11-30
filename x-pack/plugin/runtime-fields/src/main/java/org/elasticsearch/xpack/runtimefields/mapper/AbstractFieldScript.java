@@ -64,7 +64,7 @@ public abstract class AbstractFieldScript {
 
     protected final String fieldName;
     private final Map<String, Object> params;
-    private final LeafSearchLookup leafSearchLookup;
+    protected final LeafSearchLookup leafSearchLookup;
 
     public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         this.fieldName = fieldName;

@@ -18,7 +18,7 @@ include::install_remove.asciidoc[]
 [[mapper-annotated-text-usage]]
 ==== Using the `annotated-text` field
 
-The `annotated-text` tokenizes text content as per the more common `text` field (see 
+The `annotated-text` tokenizes text content as per the more common {ref}/text.html[`text`] field (see 
 "limitations" below) but also injects any marked-up annotation tokens directly into
 the search index:
 

@@ -40,6 +40,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -53,11 +56,12 @@ import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampFiel
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 public class ResolveIndexTests extends ESTestCase {
 
-    private final Object[][] indices = new Object[][]{
+    private final Object[][] indices = new Object[][] {
         // name, isClosed, isHidden, isFrozen, dataStream, aliases
         {"logs-pgsql-prod-20200101", false, false, true, null, new String[]{"logs-pgsql-prod"}},
         {"logs-pgsql-prod-20200102", false, false, true, null, new String[]{"logs-pgsql-prod", "one-off-alias"}},
@@ -205,6 +209,26 @@ public class ResolveIndexTests extends ESTestCase {
 
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
+    }
+
+    public void testResolveHiddenProperlyWithDateMath() {
+        // set up with today's index and following day's index to avoid test failures due to execution time
+        DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
+        Instant now = Instant.now(Clock.systemUTC());
+        String todaySuffix = dateFormatter.format(now);
+        String tomorrowSuffix = dateFormatter.format(now.plus(Duration.ofDays(1L)));
+        Object[][] indices = new Object[][] {
+            // name, isClosed, isHidden, isFrozen, dataStream, aliases
+            {"logs-pgsql-prod-" + todaySuffix, false, true, false, null, Strings.EMPTY_ARRAY},
+            {"logs-pgsql-prod-" + tomorrowSuffix, false, true, false, null, Strings.EMPTY_ARRAY}
+        };
+        Metadata metadata = buildMetadata(new Object[][] {}, indices);
+
+        String requestedIndex = "<logs-pgsql-prod-{now/d}>";
+        List<String> resolvedIndices = resolver.resolveIndexAbstractions(List.of(requestedIndex), IndicesOptions.LENIENT_EXPAND_OPEN,
+            metadata, List.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix), randomBoolean(), randomBoolean());
+        assertThat(resolvedIndices.size(), is(1));
+        assertThat(resolvedIndices.get(0), oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix));
     }
 
     private void validateIndices(List<ResolvedIndex> resolvedIndices, String... expectedIndices) {

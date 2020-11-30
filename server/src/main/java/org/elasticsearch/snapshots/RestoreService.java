@@ -927,6 +927,12 @@ public class RestoreService implements ClusterStateApplier {
                                                "the snapshot was created with Elasticsearch version [" + snapshotInfo.version() +
                                                    "] which is higher than the version of this node [" + Version.CURRENT + "]");
         }
+        if (snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+            throw new SnapshotRestoreException(new Snapshot(repository, snapshotInfo.snapshotId()),
+                    "the snapshot was created with Elasticsearch version [" + snapshotInfo.version() +
+                            "] which is below the current versions minimum index compatibility version [" +
+                            Version.CURRENT.minimumIndexCompatibilityVersion() + "]");
+        }
     }
 
     public static boolean failed(SnapshotInfo snapshot, String index) {

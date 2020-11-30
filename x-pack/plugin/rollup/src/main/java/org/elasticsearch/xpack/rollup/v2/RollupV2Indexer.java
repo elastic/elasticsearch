@@ -63,7 +63,7 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
-import org.elasticsearch.xpack.core.rollup.v2.RollupV2Config;
+import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -300,7 +300,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
      * @param config The config for the job.
      * @return The composite aggregation that creates the rollup buckets
      */
-    private CompositeAggregationBuilder createCompositeBuilder(RollupV2Config config) {
+    private CompositeAggregationBuilder createCompositeBuilder(RollupActionConfig config) {
         final GroupConfig groupConfig = config.getGroupConfig();
         List<CompositeValuesSourceBuilder<?>> builders = createValueSourceBuilders(groupConfig);
 

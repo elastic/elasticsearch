@@ -21,43 +21,43 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class RollupV2ConfigTests extends AbstractSerializingTestCase<RollupV2Config> {
+public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupActionConfig> {
 
     @Override
-    protected RollupV2Config createTestInstance() {
+    protected RollupActionConfig createTestInstance() {
         return randomConfig(random());
     }
 
-    public static RollupV2Config randomConfig(Random random) {
+    public static RollupActionConfig randomConfig(Random random) {
         final String rollupIndex = randomAlphaOfLength(5);
         final TimeValue timeout = random.nextBoolean() ? null : ConfigTestHelpers.randomTimeout(random);
         final GroupConfig groupConfig = ConfigTestHelpers.randomGroupConfig(random);
         final List<MetricConfig> metricConfigs = ConfigTestHelpers.randomMetricsConfigs(random);
-        return new RollupV2Config(groupConfig, metricConfigs, timeout, rollupIndex);
+        return new RollupActionConfig(groupConfig, metricConfigs, timeout, rollupIndex);
     }
 
     @Override
-    protected Writeable.Reader<RollupV2Config> instanceReader() {
-        return RollupV2Config::new;
+    protected Writeable.Reader<RollupActionConfig> instanceReader() {
+        return RollupActionConfig::new;
     }
 
     @Override
-    protected RollupV2Config doParseInstance(final XContentParser parser) throws IOException {
-        return RollupV2Config.fromXContent(parser);
+    protected RollupActionConfig doParseInstance(final XContentParser parser) throws IOException {
+        return RollupActionConfig.fromXContent(parser);
     }
 
     public void testEmptyRollupIndex() {
-        final RollupV2Config sample = createTestInstance();
+        final RollupActionConfig sample = createTestInstance();
         Exception e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupV2Config(sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout(),
+            new RollupActionConfig(sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout(),
                 randomBoolean() ? null : ""));
         assertThat(e.getMessage(), equalTo("Rollup index must be a non-null, non-empty string"));
     }
 
     public void testEmptyGroupAndMetrics() {
-        final RollupV2Config sample = createTestInstance();
+        final RollupActionConfig sample = createTestInstance();
         Exception e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupV2Config(null, randomBoolean() ? null : emptyList(), sample.getTimeout(),
+            new RollupActionConfig(null, randomBoolean() ? null : emptyList(), sample.getTimeout(),
                 sample.getRollupIndex()));
         assertThat(e.getMessage(), equalTo("At least one grouping or metric must be configured"));
     }

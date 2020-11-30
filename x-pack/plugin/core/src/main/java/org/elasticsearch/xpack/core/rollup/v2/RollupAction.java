@@ -35,9 +35,9 @@ public class RollupAction extends ActionType<RollupAction.Response> {
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private String sourceIndex;
-        private RollupV2Config rollupConfig;
+        private RollupActionConfig rollupConfig;
 
-        public Request(String sourceIndex, RollupV2Config rollupConfig) {
+        public Request(String sourceIndex, RollupActionConfig rollupConfig) {
             this.sourceIndex = sourceIndex;
             this.rollupConfig = rollupConfig;
         }
@@ -47,7 +47,7 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             sourceIndex = in.readString();
-            rollupConfig = new RollupV2Config(in);
+            rollupConfig = new RollupActionConfig(in);
         }
 
         @Override
@@ -66,7 +66,7 @@ public class RollupAction extends ActionType<RollupAction.Response> {
             return sourceIndex;
         }
 
-        public RollupV2Config getRollupConfig() {
+        public RollupActionConfig getRollupConfig() {
             return rollupConfig;
         }
 

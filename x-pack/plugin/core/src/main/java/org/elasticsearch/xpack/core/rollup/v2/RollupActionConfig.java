@@ -35,12 +35,12 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * This class holds the configuration details of a rollup V2 job, such as the groupings, metrics, what
+ * This class holds the configuration details of a {@link RollupAction} job, such as the groupings, metrics, what
  * index to rollup and where to roll them to.
  */
-public class RollupV2Config implements NamedWriteable, ToXContentObject {
+public class RollupActionConfig implements NamedWriteable, ToXContentObject {
 
-    private static final String NAME = "xpack/rollupv2/config";
+    private static final String NAME = "xpack/rollup/action/config";
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(20);
     private static final String TIMEOUT = "timeout";
     private static final String ROLLUP_INDEX = "rollup_index";
@@ -50,7 +50,7 @@ public class RollupV2Config implements NamedWriteable, ToXContentObject {
     private final TimeValue timeout;
     private String rollupIndex;
 
-    private static final ConstructingObjectParser<RollupV2Config, Void> PARSER;
+    private static final ConstructingObjectParser<RollupActionConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, false, (args) -> {
             String rollupIndex = (String) args[0];
@@ -58,7 +58,7 @@ public class RollupV2Config implements NamedWriteable, ToXContentObject {
             @SuppressWarnings("unchecked")
             List<MetricConfig> metricsConfig = (List<MetricConfig>) args[2];
             TimeValue timeout = (TimeValue) args[3];
-            return new RollupV2Config(groupConfig, metricsConfig, timeout, rollupIndex);
+            return new RollupActionConfig(groupConfig, metricsConfig, timeout, rollupIndex);
         });
         PARSER.declareString(constructorArg(), new ParseField(ROLLUP_INDEX));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> GroupConfig.fromXContent(p), new ParseField(GroupConfig.NAME));
@@ -67,8 +67,8 @@ public class RollupV2Config implements NamedWriteable, ToXContentObject {
             new ParseField(TIMEOUT), ObjectParser.ValueType.STRING_OR_NULL);
     }
 
-    public RollupV2Config(final GroupConfig groupConfig, final List<MetricConfig> metricsConfig,
-                          final @Nullable TimeValue timeout, final String rollupIndex) {
+    public RollupActionConfig(final GroupConfig groupConfig, final List<MetricConfig> metricsConfig,
+                              final @Nullable TimeValue timeout, final String rollupIndex) {
         if (rollupIndex == null || rollupIndex.isEmpty()) {
             throw new IllegalArgumentException("Rollup index must be a non-null, non-empty string");
         }
@@ -81,7 +81,7 @@ public class RollupV2Config implements NamedWriteable, ToXContentObject {
         this.timeout = timeout != null ? timeout : DEFAULT_TIMEOUT;
     }
 
-    public RollupV2Config(final StreamInput in) throws IOException {
+    public RollupActionConfig(final StreamInput in) throws IOException {
         rollupIndex = in.readString();
         groupConfig = in.readOptionalWriteable(GroupConfig::new);
         metricsConfig = in.readList(MetricConfig::new);
@@ -178,7 +178,7 @@ public class RollupV2Config implements NamedWriteable, ToXContentObject {
             return false;
         }
 
-        final RollupV2Config that = (RollupV2Config) other;
+        final RollupActionConfig that = (RollupActionConfig) other;
         return Objects.equals(this.rollupIndex, that.rollupIndex)
                 && Objects.equals(this.groupConfig, that.groupConfig)
                 && Objects.equals(this.metricsConfig, that.metricsConfig)
@@ -202,7 +202,7 @@ public class RollupV2Config implements NamedWriteable, ToXContentObject {
         return toString();
     }
 
-    public static RollupV2Config fromXContent(final XContentParser parser) throws IOException {
+    public static RollupActionConfig fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 }

@@ -57,7 +57,7 @@
 
   - do:
       count:
-        index: .ds-simple-data-stream1-000001
+        index: .ds-simple-data-stream1-*000001
 
   - match: {count: 0}
 

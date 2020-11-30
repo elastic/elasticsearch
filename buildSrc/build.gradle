@@ -18,6 +18,7 @@
  */
 
 import org.gradle.internal.jvm.Jvm
+import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'

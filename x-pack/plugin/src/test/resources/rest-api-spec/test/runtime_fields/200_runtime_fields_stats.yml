@@ -1,11 +1,28 @@
 ---
-setup:
+"Usage stats without runtime fields":
+  - do:
+      indices.create:
+        index: sensor
+
+  - do: {xpack.info: {}}
+  - match: { features.runtime_fields.available: true }
+  - match: { features.runtime_fields.enabled: true }
+
+  - do: {xpack.usage: {}}
+  - match: { runtime_fields.available: true }
+  - match: { runtime_fields.enabled: true }
+  - length: { runtime_fields.field_types: 0 }
+
+---
+"Usage stats with runtime fields":
   - do:
       indices.create:
         index: sensor
         body:
           mappings:
             runtime:
+              message_from_source:
+                type: keyword
               day_of_week:
                 type: keyword
                 script: |
@@ -80,8 +97,7 @@ setup:
                 type: double
               location:
                 type: geo_point
----
-"Usage stats on runtime fields":
+
   - do: {xpack.info: {}}
   - match: { features.runtime_fields.available: true }
   - match: { features.runtime_fields.enabled: true }
@@ -94,13 +110,10 @@ setup:
   - match: { runtime_fields.field_types.0.count: 1 }
   - match: { runtime_fields.field_types.0.index_count: 1 }
   - match: { runtime_fields.field_types.0.scriptless_count: 0 }
-  - match: { runtime_fields.field_types.0.source_min: 0 }
   - match: { runtime_fields.field_types.0.source_max: 0 }
   - match: { runtime_fields.field_types.0.source_total: 0 }
-  - match: { runtime_fields.field_types.0.lines_min:  3 }
   - match: { runtime_fields.field_types.0.lines_max:  3 }
   - match: { runtime_fields.field_types.0.lines_total: 3 }
-  - match: { runtime_fields.field_types.0.doc_min: 1 }
   - match: { runtime_fields.field_types.0.doc_max: 1 }
   - match: { runtime_fields.field_types.0.doc_total: 1 }
 
@@ -108,13 +121,10 @@ setup:
   - match: { runtime_fields.field_types.1.count: 2 }
   - match: { runtime_fields.field_types.1.index_count: 1 }
   - match: { runtime_fields.field_types.1.scriptless_count: 0 }
-  - match: { runtime_fields.field_types.1.source_min: 0 }
   - match: { runtime_fields.field_types.1.source_max: 0 }
   - match: { runtime_fields.field_types.1.source_total: 0 }
-  - match: { runtime_fields.field_types.1.lines_min:  3 }
   - match: { runtime_fields.field_types.1.lines_max:  3 }
   - match: { runtime_fields.field_types.1.lines_total: 6 }
-  - match: { runtime_fields.field_types.1.doc_min: 1 }
   - match: { runtime_fields.field_types.1.doc_max: 1 }
   - match: { runtime_fields.field_types.1.doc_total: 2 }
 
@@ -122,13 +132,10 @@ setup:
   - match: { runtime_fields.field_types.2.count: 1 }
   - match: { runtime_fields.field_types.2.index_count: 1 }
   - match: { runtime_fields.field_types.2.scriptless_count: 0 }
-  - match: { runtime_fields.field_types.2.source_min: 1 }
   - match: { runtime_fields.field_types.2.source_max: 1 }
   - match: { runtime_fields.field_types.2.source_total: 1 }
-  - match: { runtime_fields.field_types.2.lines_min:  1 }
   - match: { runtime_fields.field_types.2.lines_max:  1 }
   - match: { runtime_fields.field_types.2.lines_total: 1 }
-  - match: { runtime_fields.field_types.2.doc_min: 0 }
   - match: { runtime_fields.field_types.2.doc_max: 0 }
   - match: { runtime_fields.field_types.2.doc_total: 0 }
 
@@ -136,13 +143,10 @@ setup:
   - match: { runtime_fields.field_types.3.count: 1 }
   - match: { runtime_fields.field_types.3.index_count: 1 }
   - match: { runtime_fields.field_types.3.scriptless_count: 0 }
-  - match: { runtime_fields.field_types.3.source_min: 2 }
   - match: { runtime_fields.field_types.3.source_max: 2 }
   - match: { runtime_fields.field_types.3.source_total: 2 }
-  - match: { runtime_fields.field_types.3.lines_min:  1 }
   - match: { runtime_fields.field_types.3.lines_max:  1 }
   - match: { runtime_fields.field_types.3.lines_total: 1 }
-  - match: { runtime_fields.field_types.3.doc_min: 0 }
   - match: { runtime_fields.field_types.3.doc_max: 0 }
   - match: { runtime_fields.field_types.3.doc_total: 0 }
 
@@ -150,27 +154,21 @@ setup:
   - match: { runtime_fields.field_types.4.count: 1 }
   - match: { runtime_fields.field_types.4.index_count: 1 }
   - match: { runtime_fields.field_types.4.scriptless_count: 0 }
-  - match: { runtime_fields.field_types.4.source_min: 0 }
   - match: { runtime_fields.field_types.4.source_max: 0 }
   - match: { runtime_fields.field_types.4.source_total: 0 }
-  - match: { runtime_fields.field_types.4.lines_min:  4 }
   - match: { runtime_fields.field_types.4.lines_max:  4 }
   - match: { runtime_fields.field_types.4.lines_total: 4 }
-  - match: { runtime_fields.field_types.4.doc_min: 1 }
   - match: { runtime_fields.field_types.4.doc_max: 1 }
   - match: { runtime_fields.field_types.4.doc_total: 1 }
 
   - match: { runtime_fields.field_types.5.name: keyword }
-  - match: { runtime_fields.field_types.5.count: 2 }
+  - match: { runtime_fields.field_types.5.count: 3 }
   - match: { runtime_fields.field_types.5.index_count: 1 }
-  - match: { runtime_fields.field_types.5.scriptless_count: 0 }
-  - match: { runtime_fields.field_types.5.source_min: 0 }
+  - match: { runtime_fields.field_types.5.scriptless_count: 1 }
   - match: { runtime_fields.field_types.5.source_max: 1 }
   - match: { runtime_fields.field_types.5.source_total: 1 }
-  - match: { runtime_fields.field_types.5.lines_min:  1 }
   - match: { runtime_fields.field_types.5.lines_max:  3 }
   - match: { runtime_fields.field_types.5.lines_total: 4 }
-  - match: { runtime_fields.field_types.5.doc_min: 0 }
   - match: { runtime_fields.field_types.5.doc_max: 1 }
   - match: { runtime_fields.field_types.5.doc_total: 1 }
 
@@ -178,12 +176,9 @@ setup:
   - match: { runtime_fields.field_types.6.count: 1 }
   - match: { runtime_fields.field_types.6.index_count: 1 }
   - match: { runtime_fields.field_types.6.scriptless_count: 0 }
-  - match: { runtime_fields.field_types.6.source_min: 0 }
   - match: { runtime_fields.field_types.6.source_max: 0 }
   - match: { runtime_fields.field_types.6.source_total: 0 }
-  - match: { runtime_fields.field_types.6.lines_min:  3 }
   - match: { runtime_fields.field_types.6.lines_max:  3 }
   - match: { runtime_fields.field_types.6.lines_total: 3 }
-  - match: { runtime_fields.field_types.6.doc_min: 1 }
   - match: { runtime_fields.field_types.6.doc_max: 1 }
   - match: { runtime_fields.field_types.6.doc_total: 1 }

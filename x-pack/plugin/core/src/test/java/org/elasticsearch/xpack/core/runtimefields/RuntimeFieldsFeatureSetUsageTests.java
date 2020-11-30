@@ -70,16 +70,12 @@ public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTe
             "      \"lang\" : [\n" +
             "        \"painless\"\n" +
             "      ],\n" +
-            "      \"lines_min\" : 1,\n" +
             "      \"lines_max\" : 1,\n" +
             "      \"lines_total\" : 4,\n" +
-            "      \"chars_min\" : 12,\n" +
             "      \"chars_max\" : 47,\n" +
             "      \"chars_total\" : 118,\n" +
-            "      \"source_min\" : 0,\n" +
             "      \"source_max\" : 1,\n" +
             "      \"source_total\" : 2,\n" +
-            "      \"doc_min\" : 1,\n" +
             "      \"doc_max\" : 2,\n" +
             "      \"doc_total\" : 6\n" +
             "    },\n" +
@@ -91,16 +87,12 @@ public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTe
             "      \"lang\" : [\n" +
             "        \"painless\"\n" +
             "      ],\n" +
-            "      \"lines_min\" : 1,\n" +
             "      \"lines_max\" : 2,\n" +
             "      \"lines_total\" : 6,\n" +
-            "      \"chars_min\" : 20,\n" +
             "      \"chars_max\" : 68,\n" +
             "      \"chars_total\" : 176,\n" +
-            "      \"source_min\" : 1,\n" +
             "      \"source_max\" : 3,\n" +
             "      \"source_total\" : 8,\n" +
-            "      \"doc_min\" : 0,\n" +
             "      \"doc_max\" : 0,\n" +
             "      \"doc_total\" : 0\n" +
             "    }\n" +

@@ -157,16 +157,12 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
         private int indexCount = 0;
         private final Set<String> scriptLangs;
         private long scriptLessCount = 0;
-        private long minLines = Long.MAX_VALUE;
         private long maxLines = 0;
         private long totalLines = 0;
-        private long minChars = Long.MAX_VALUE;
         private long maxChars = 0;
         private long totalChars = 0;
-        private long minSourceUsages = Long.MAX_VALUE;
         private long maxSourceUsages = 0;
         private long totalSourceUsages = 0;
-        private long minDocUsages = Long.MAX_VALUE;
         private long maxDocUsages = 0;
         private long totalDocUsages = 0;
 
@@ -181,16 +177,12 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             this.indexCount = in.readInt();
             this.scriptLangs = in.readSet(StreamInput::readString);
             this.scriptLessCount = in.readLong();
-            this.minLines = in.readLong();
             this.maxLines = in.readLong();
             this.totalLines = in.readLong();
-            this.minChars = in.readLong();
             this.maxChars = in.readLong();
             this.totalChars = in.readLong();
-            this.minSourceUsages = in.readLong();
             this.maxSourceUsages = in.readLong();
             this.totalSourceUsages = in.readLong();
-            this.minDocUsages = in.readLong();
             this.maxDocUsages = in.readLong();
             this.totalDocUsages = in.readLong();
         }
@@ -206,16 +198,12 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeInt(indexCount);
             out.writeCollection(scriptLangs, StreamOutput::writeString);
             out.writeLong(scriptLessCount);
-            out.writeLong(minLines);
             out.writeLong(maxLines);
             out.writeLong(totalLines);
-            out.writeLong(minChars);
             out.writeLong(maxChars);
             out.writeLong(totalChars);
-            out.writeLong(minSourceUsages);
             out.writeLong(maxSourceUsages);
             out.writeLong(totalSourceUsages);
-            out.writeLong(minDocUsages);
             out.writeLong(maxDocUsages);
             out.writeLong(totalDocUsages);
         }
@@ -228,16 +216,12 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field("index_count", indexCount);
             builder.field("scriptless_count", scriptLessCount);
             builder.array("lang", scriptLangs.toArray(new String[0]));
-            builder.field("lines_min", minLines);
             builder.field("lines_max", maxLines);
             builder.field("lines_total", totalLines);
-            builder.field("chars_min", minChars);
             builder.field("chars_max", maxChars);
             builder.field("chars_total", totalChars);
-            builder.field("source_min", minSourceUsages);
             builder.field("source_max", maxSourceUsages);
             builder.field("source_total", totalSourceUsages);
-            builder.field("doc_min", minDocUsages);
             builder.field("doc_max", maxDocUsages);
             builder.field("doc_total", totalDocUsages);
             builder.endObject();
@@ -246,17 +230,13 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
 
         void update(int chars, long lines, int sourceUsages, int docUsages) {
             this.maxChars = Math.max(this.maxChars, chars);
-            this.minChars = Math.min(this.minChars, chars);
             this.totalChars += chars;
             this.maxLines = Math.max(this.maxLines, lines);
-            this.minLines = Math.min(this.minLines, lines);
             this.totalLines += lines;
             this.totalSourceUsages += sourceUsages;
             this.maxSourceUsages = Math.max(this.maxSourceUsages, sourceUsages);
-            this.minSourceUsages = Math.min(this.minSourceUsages, sourceUsages);
             this.totalDocUsages += docUsages;
             this.maxDocUsages = Math.max(this.maxDocUsages, docUsages);
-            this.minDocUsages = Math.min(this.minDocUsages, docUsages);
         }
 
         @Override
@@ -271,16 +251,12 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             return count == that.count &&
                 indexCount == that.indexCount &&
                 scriptLessCount == that.scriptLessCount &&
-                minLines == that.minLines &&
                 maxLines == that.maxLines &&
                 totalLines == that.totalLines &&
-                minChars == that.minChars &&
                 maxChars == that.maxChars &&
                 totalChars == that.totalChars &&
-                minSourceUsages == that.minSourceUsages &&
                 maxSourceUsages == that.maxSourceUsages &&
                 totalSourceUsages == that.totalSourceUsages &&
-                minDocUsages == that.minDocUsages &&
                 maxDocUsages == that.maxDocUsages &&
                 totalDocUsages == that.totalDocUsages &&
                 type.equals(that.type) &&
@@ -289,8 +265,8 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, count, indexCount, scriptLangs, scriptLessCount, minLines, maxLines, totalLines, minChars, maxChars,
-                totalChars, minSourceUsages, maxSourceUsages, totalSourceUsages, minDocUsages, maxDocUsages, totalDocUsages);
+            return Objects.hash(type, count, indexCount, scriptLangs, scriptLessCount, maxLines, totalLines, maxChars, totalChars,
+                maxSourceUsages, totalSourceUsages, maxDocUsages, totalDocUsages);
         }
     }
 }

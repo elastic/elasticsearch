@@ -36,7 +36,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedByClient;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
@@ -104,7 +104,7 @@ public class SysTypesTests extends ESTestCase {
                     SchemaRowSet r = (SchemaRowSet) p.rowSet();
                     List<String> types = new ArrayList<>();
                     r.forEachRow(rv -> types.add((String) rv.column(0)));
-                    assertEquals(isTypeSupportedByClient(mode, UNSIGNED_LONG, cmd.v2().configuration().version()),
+                    assertEquals(isTypeSupportedInVersion(UNSIGNED_LONG, cmd.v2().configuration().version()),
                         types.contains(UNSIGNED_LONG.toString()));
                 }, ex -> fail(ex.getMessage())));
             }

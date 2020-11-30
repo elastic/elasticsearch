@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
@@ -38,6 +39,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
@@ -327,8 +329,8 @@ public class FieldAttributeTests extends ESTestCase {
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-numeric.json");
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
-        SqlVersion preIntroducingVersion = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
-        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preIntroducingVersion);
+        SqlVersion preUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
+        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preUnsignedLong);
         analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig.version()));
 
         String query = "SELECT unsigned_long = 1, unsigned_long::double FROM test";
@@ -344,6 +346,29 @@ public class FieldAttributeTests extends ESTestCase {
             assertEquals(projections.get(0).dataType(), BOOLEAN);
             assertEquals(projections.get(1).dataType(), DOUBLE);
         }
+    }
+
+    public void testUnsignedLongStarExpandedVersionControlled() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-numeric.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+
+        SqlVersion preUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
+        SqlVersion postUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
+        String query = "SELECT * FROM test";
+
+        for (SqlVersion version : List.of(preUnsignedLong, INTRODUCING_UNSIGNED_LONG, postUnsignedLong)) {
+            SqlConfiguration config = SqlTestUtils.randomConfiguration(version);
+            analyzer = new Analyzer(config, functionRegistry, getIndexResult, new Verifier(new Metrics(), config.version()));
+
+            LogicalPlan plan = plan(query);
+            assertThat(plan, instanceOf(Project.class));
+            Project p = (Project) plan;
+
+            List<DataType> projectedDataTypes = p.projections().stream().map(Expression::dataType).collect(Collectors.toList());
+            assertEquals(isTypeSupportedInVersion(UNSIGNED_LONG, config.version()), projectedDataTypes.contains(UNSIGNED_LONG));
+        }
+
     }
 
     public void testFunctionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {

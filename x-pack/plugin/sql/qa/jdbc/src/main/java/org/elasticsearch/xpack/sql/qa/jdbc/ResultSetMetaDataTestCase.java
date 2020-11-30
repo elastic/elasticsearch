@@ -14,6 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -38,13 +39,17 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
     );
     private static final String UNSIGNED_LONG_FIELD = "test_" + UNSIGNED_LONG_TYPE_NAME.toLowerCase(Locale.ROOT);
 
-    public void doTestValidGetObjectCalls(List<String> fieldsNames) throws IOException, SQLException {
+    private static void createMappedIndex(List<String> fieldsNames) throws IOException {
         ResultSetTestCase.createIndex("test");
         ResultSetTestCase.updateMapping("test", builder -> {
             for (String field : fieldsNames) {
                 builder.startObject(field).field("type", field.substring(5)).endObject();
             }
         });
+    }
+
+    public void doTestValidGetObjectCalls(List<String> fieldsNames) throws IOException, SQLException {
+        createMappedIndex(fieldsNames);
 
         String q = "SELECT " + String.join(", ", fieldsNames) + " FROM test";
         doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames));
@@ -64,6 +69,22 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
         doTestValidGetObjectCalls(singletonList(UNSIGNED_LONG_FIELD));
+    }
+
+    public void testUnsignedLongConditionallyReturnedOnStarExpansion() throws IOException, SQLException {
+        List<String> fieldsNames = new ArrayList<>(FIELDS_NAMES);
+        fieldsNames.add(UNSIGNED_LONG_FIELD);
+        createMappedIndex(fieldsNames);
+
+        String query = "SELECT * FROM test";
+        doWithQuery(query, r -> {
+            List<String> columnTypeNames = new ArrayList<>(fieldsNames.size());
+            for (int i = 0; i < r.getMetaData().getColumnCount(); i++) {
+                columnTypeNames.add(r.getMetaData().getColumnTypeName(i + 1).toLowerCase(Locale.ROOT));
+            }
+            // the assert executes only if UL is supported; the failing case would be triggered earlier in the driver already
+            assertEquals(isUnsignedLongSupported(), columnTypeNames.contains(UNSIGNED_LONG_TYPE_NAME.toLowerCase(Locale.ROOT)));
+        });
     }
 
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {

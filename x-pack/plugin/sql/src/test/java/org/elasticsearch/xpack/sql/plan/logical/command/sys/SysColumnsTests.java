@@ -44,7 +44,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedByClient;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -325,7 +325,7 @@ public class SysColumnsTests extends ESTestCase {
                 SysColumns.fillInRows("test", "index", loadMapping("mapping-multi-field-variation.json", true), null, rows, null, mode,
                     version);
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
-                assertEquals(isTypeSupportedByClient(mode, UNSIGNED_LONG, version),
+                assertEquals(isTypeSupportedInVersion(UNSIGNED_LONG, version),
                     types.contains(UNSIGNED_LONG.toString().toLowerCase(Locale.ROOT)));
             }
         }

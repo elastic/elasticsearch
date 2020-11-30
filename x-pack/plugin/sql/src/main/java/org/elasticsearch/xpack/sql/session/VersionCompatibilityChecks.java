@@ -7,12 +7,10 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import static org.elasticsearch.Version.V_7_11_0;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 
 public final class VersionCompatibilityChecks {
 
@@ -20,9 +18,6 @@ public final class VersionCompatibilityChecks {
 
     private VersionCompatibilityChecks() {}
 
-    public static boolean isTypeSupportedByClient(Mode mode, DataType dataType, SqlVersion version) {
-        return isDriver(mode) == false || isTypeSupportedInVersion(dataType, version);
-    }
     /**
      * Is the provided {@code dataType} being supported in the provided {@code version}?
      */
@@ -36,6 +31,7 @@ public final class VersionCompatibilityChecks {
      * Does the provided {@code version} support the unsigned_long type (PR#60050)?
      */
     public static boolean supportsUnsignedLong(SqlVersion version) {
-        return INTRODUCING_UNSIGNED_LONG.compareTo(version) <= 0;
+        // TODO: add equality only once actually ported to 7.11
+        return INTRODUCING_UNSIGNED_LONG.compareTo(version) < 0;
     }
 }

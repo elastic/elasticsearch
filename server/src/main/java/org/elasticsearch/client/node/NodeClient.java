@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,9 +82,10 @@ public class NodeClient extends AbstractClient {
         // Discard the task because the Client interface doesn't use it.
         try {
             executeLocally(action, request, listener);
-        } catch (Exception e) {
-            // #executeLocally returns the task and throws RuntimeException if it fails to register the task so we forward them to listener
-            // since this API does not concern itself with the specifics of the task handling
+        } catch (TaskCancelledException | IllegalArgumentException e) {
+            // #executeLocally returns the task and throws TaskCancelledException if it fails to register the task because the parent
+            // task has been cancelled or IllegalArgumentException if header validation fails we forward them to listener since this API
+            // does not concern itself with the specifics of the task handling
             listener.onFailure(e);
         }
     }
@@ -92,6 +94,8 @@ public class NodeClient extends AbstractClient {
      * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}.
      * Prefer this method if you don't need access to the task when listening for the response. This is the method used to
      * implement the {@link Client} interface.
+     *
+     * @throws TaskCancelledException if the request's parent task has been cancelled already
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
@@ -118,6 +122,8 @@ public class NodeClient extends AbstractClient {
     /**
      * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}.
      * Prefer this method if you need access to the task when listening for the response.
+     *
+     * @throws TaskCancelledException if the request's parent task has been cancelled already
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse

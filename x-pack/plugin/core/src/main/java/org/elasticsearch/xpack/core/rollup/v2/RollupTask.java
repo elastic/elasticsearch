@@ -21,15 +21,15 @@ import java.util.Map;
 public class RollupTask extends CancellableTask {
     private static final Logger logger = LogManager.getLogger(RollupTask.class.getName());
 
-    private RollupV2Config config;
+    private RollupActionConfig config;
     private RollupJobStatus status;
 
-    RollupTask(long id, String type, String action, TaskId parentTask, RollupV2Config config, Map<String, String> headers) {
+    RollupTask(long id, String type, String action, TaskId parentTask, RollupActionConfig config, Map<String, String> headers) {
         super(id, type, action, RollupField.NAME + "_" + config.getRollupIndex(), parentTask, headers);
         this.config = config;
     }
 
-    public RollupV2Config config() {
+    public RollupActionConfig config() {
         return config;
     }
 

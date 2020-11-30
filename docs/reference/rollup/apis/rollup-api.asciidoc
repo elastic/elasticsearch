@@ -38,7 +38,9 @@ POST /my-index-000001/_rollup
   ]
 }
 ----
-// TEST[setup:my_index]
+// CONSOLE
+// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/65544"]
+
 
 [[rollup-api-request]]
 ==== {api-request-title}

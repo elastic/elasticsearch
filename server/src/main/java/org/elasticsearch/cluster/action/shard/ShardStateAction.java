@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateExceptio
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -619,6 +621,8 @@ public class ShardStateAction {
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
                 }
 
+                assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
+
                 builder.successes(tasksToBeApplied);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
@@ -626,6 +630,16 @@ public class ShardStateAction {
             }
 
             return builder.build(maybeUpdatedState);
+        }
+
+        private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
+            for (ObjectObjectCursor<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting()) {
+                assert cursor.value.allPrimaryShardsActive() == false
+                        || clusterState.metadata().index(cursor.key).getTimestampMillisRange().isComplete()
+                        : cursor.key + " should have complete timestamp range, but got "
+                        + clusterState.metadata().index(cursor.key).getTimestampMillisRange() + " for " + cursor.value.prettyPrint();
+            }
+            return true;
         }
 
         @Override

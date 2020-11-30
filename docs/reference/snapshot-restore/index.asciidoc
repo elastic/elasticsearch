@@ -19,9 +19,12 @@ Remote repositories can reside on Amazon S3, HDFS, Microsoft Azure,
 Google Cloud Storage,
 and other platforms supported by a {plugins}/repository.html[repository plugin].
 
-Snapshots are incremental: each snapshot only stores data that
-is not part of an earlier snapshot.
-This enables you to take frequent snapshots with minimal overhead.
+{es} takes snapshots incrementally: the snapshotting process only copies data
+to the repository that was not already copied there by an earlier snapshot,
+avoiding unnecessary duplication of work or storage space. This means you can
+safely take snapshots very frequently with minimal overhead. However, snapshots
+are also logically independent: deleting a snapshot does not affect the
+integrity of any other snapshot.
 // end::snapshot-intro[]
 
 // tag::restore-intro[]

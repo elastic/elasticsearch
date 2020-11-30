@@ -137,7 +137,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
             .size(0)
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
 
-        if (context.runtimeMappings != null && context.runtimeMappings.isEmpty() == false) {
+        if (context.runtimeMappings.isEmpty() == false) {
             searchSourceBuilder.runtimeMappings(context.runtimeMappings);
         }
         context.aggs.getAggregatorFactories().forEach(searchSourceBuilder::aggregation);

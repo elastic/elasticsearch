@@ -43,6 +43,6 @@ class AggregationDataExtractorContext {
         this.includeDocCount = includeDocCount;
         this.headers = headers;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
-        this.runtimeMappings = runtimeMappings;
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
     }
 }

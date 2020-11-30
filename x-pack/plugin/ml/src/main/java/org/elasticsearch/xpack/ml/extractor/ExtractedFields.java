@@ -101,18 +101,13 @@ public class ExtractedFields {
             cardinalitiesForFieldsWithConstraints);
     }
 
-    // without search runtime fields
     public static ExtractedFields build(Set<String> allFields,
                                         Set<String> scriptFields,
                                         FieldCapabilitiesResponse fieldsCapabilities,
                                         Map<String, Long> cardinalitiesForFieldsWithConstraints,
                                         List<ProcessedField> processedFields) {
-        ExtractionMethodDetector extractionMethodDetector =
-            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, Collections.emptySet());
-        return new ExtractedFields(
-            allFields.stream().map(extractionMethodDetector::detect).collect(Collectors.toList()),
-            processedFields,
-            cardinalitiesForFieldsWithConstraints);
+        return build(allFields, scriptFields, Collections.emptySet(), fieldsCapabilities,
+            cardinalitiesForFieldsWithConstraints, processedFields);
     }
 
     public static TimeField newTimeField(String name, ExtractedField.Method method) {

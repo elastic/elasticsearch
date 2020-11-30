@@ -69,7 +69,6 @@ public class DatafeedJobBuilder {
         // Validate remote indices are available and get the job
         try {
             checkRemoteIndicesAreAvailable(datafeedConfig);
-            // TODO validate Runtime fields with cross cluster search
         } catch (Exception e) {
             listener.onFailure(e);
             return;

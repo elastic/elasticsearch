@@ -39,7 +39,7 @@ class ChunkedDataExtractorContext {
     ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, QueryBuilder query, int scrollSize, long start,
                                 long end, @Nullable TimeValue chunkSpan, TimeAligner timeAligner, Map<String, String> headers,
                                 boolean hasAggregations, @Nullable Long histogramInterval, IndicesOptions indicesOptions,
-                                @Nullable Map<String, Object> runtimeMappings) {
+                                Map<String, Object> runtimeMappings) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -53,6 +53,6 @@ class ChunkedDataExtractorContext {
         this.hasAggregations = hasAggregations;
         this.histogramInterval = histogramInterval;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
-        this.runtimeMappings = runtimeMappings;
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
     }
 }

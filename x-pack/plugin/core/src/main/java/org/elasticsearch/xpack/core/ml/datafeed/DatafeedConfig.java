@@ -855,21 +855,19 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
          * The full check cannot happen until search
          */
         void validateRuntimeMappings() {
-            if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
-                for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
-                    // top level objects are fields
-                    String fieldName = entry.getKey();
-                    if (entry.getValue() instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
-                        Object typeNode = propNode.get("type");
-                        if (typeNode == null) {
-                            throw ExceptionsHelper.badRequestException("No type specified for runtime field [" + fieldName + "]");
-                        }
-                    } else {
-                        throw ExceptionsHelper.badRequestException("Expected map for runtime field [" + fieldName + "] " +
-                            "definition but got a " + fieldName.getClass().getSimpleName());
+            for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
+                // top level objects are fields
+                String fieldName = entry.getKey();
+                if (entry.getValue() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
+                    Object typeNode = propNode.get("type");
+                    if (typeNode == null) {
+                        throw ExceptionsHelper.badRequestException("No type specified for runtime field [" + fieldName + "]");
                     }
+                } else {
+                    throw ExceptionsHelper.badRequestException("Expected map for runtime field [" + fieldName + "] " +
+                        "definition but got a " + fieldName.getClass().getSimpleName());
                 }
             }
         }

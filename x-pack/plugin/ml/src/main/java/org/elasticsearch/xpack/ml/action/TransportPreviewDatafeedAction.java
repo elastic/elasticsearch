@@ -69,7 +69,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
                 jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
                     jobBuilder -> {
-                        // TODO should we use DatafeedJobValidator here
                         DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
                         useSecondaryAuthIfAvailable(securityContext, () -> {
                             previewDatafeed.setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()));
@@ -125,7 +124,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         try {
             Optional<InputStream> inputStream = dataExtractor.next();
             // DataExtractor returns single-line JSON but without newline characters between objects.
-            // Instead, it has a space between objects due to how JSON XContenetBuilder works.
+            // Instead, it has a space between objects due to how JSON XContentBuilder works.
             // In order to return a proper JSON array from preview, we surround with square brackets and
             // we stick in a comma between objects.
             // Also, the stream is expected to be a single line but in case it is not, we join lines

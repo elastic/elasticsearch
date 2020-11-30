@@ -88,7 +88,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                               DatafeedTimingStatsReporter timingStatsReporter,
                               ActionListener<DataExtractorFactory> listener) {
 
-        if (datafeed.getRuntimeMappings() != null && datafeed.getRuntimeMappings().isEmpty() == false) {
+        if (datafeed.getRuntimeMappings().isEmpty() == false) {
             // TODO Rollup V2 will support runtime fields
             listener.onFailure(new IllegalArgumentException("The datafeed has runtime_mappings defined, "
                 + "runtime fields are not supported in rollup searches"));

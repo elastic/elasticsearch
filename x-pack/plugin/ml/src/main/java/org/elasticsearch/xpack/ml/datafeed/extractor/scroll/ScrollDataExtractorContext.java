@@ -40,6 +40,6 @@ class ScrollDataExtractorContext {
         this.end = end;
         this.headers = headers;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
-        this.runtimeMappings = runtimeMappings;
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
     }
 }

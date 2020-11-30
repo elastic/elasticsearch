@@ -104,14 +104,12 @@ public final class DatafeedJobValidator {
 
     private static void checkTimeFieldIsNotARuntimeField(DatafeedConfig datafeedConfig, String timeField) {
         Map<String, Object> runtimeMappings = datafeedConfig.getRuntimeMappings();
-        if (runtimeMappings != null) {
-            for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
-                // top level objects are fields
-                String fieldName = entry.getKey();
-                if (timeField.equals(fieldName)) {
-                    throw ExceptionsHelper.badRequestException(Messages.getMessage(
-                        Messages.JOB_CONFIG_TIME_FIELD_CANNOT_BE_RUNTIME, timeField));
-                }
+        for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
+            // top level objects are fields
+            String fieldName = entry.getKey();
+            if (timeField.equals(fieldName)) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(
+                    Messages.JOB_CONFIG_TIME_FIELD_CANNOT_BE_RUNTIME, timeField));
             }
         }
     }

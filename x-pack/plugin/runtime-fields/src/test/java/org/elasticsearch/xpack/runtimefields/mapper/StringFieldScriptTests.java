@@ -48,7 +48,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript script = new StringFieldScript(
                     "test",
                     org.elasticsearch.common.collect.Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null, null),
+                    new SearchLookup(field -> null, (ft, lookup) -> null),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -74,7 +74,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript script = new StringFieldScript(
                     "test",
                     org.elasticsearch.common.collect.Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null, null),
+                    new SearchLookup(field -> null, (ft, lookup) -> null),
                     reader.leaves().get(0)
                 ) {
                     @Override

@@ -98,8 +98,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         IndicesStatsRequestBuilder statsRequestBuilder = client.admin().indices().prepareStats(sourceIndex).clear().setDocs(true);
         IndicesStatsRequest statsRequest = statsRequestBuilder.request();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        // TODO: only fetch indices stats for shrink type resize requests and move request validation (outside of doc counts) to before
-        //  fetching the stats
+        // TODO: only fetch indices stats for shrink type resize requests
         client.execute(IndicesStatsAction.INSTANCE, statsRequest,
             ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
                 final CreateIndexClusterStateUpdateRequest updateRequest;

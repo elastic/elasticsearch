@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -56,6 +57,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
     }
 
     public void testCacheSynchronization() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/65543", Constants.WINDOWS);
         final int numShards = randomIntBetween(1, 3);
         final Index index = new Index(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
         final SnapshotId snapshotId = new SnapshotId("_snapshot_name", UUIDs.randomBase64UUID(random()));

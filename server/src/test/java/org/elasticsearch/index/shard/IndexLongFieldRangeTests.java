@@ -115,6 +115,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
 
     public void testCanRemoveShardRange() {
         assertThat(IndexLongFieldRange.UNKNOWN.removeShard(between(0, 4), 5), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(IndexLongFieldRange.UNKNOWN.removeShard(0, 1), sameInstance(IndexLongFieldRange.NO_SHARDS));
 
         final IndexLongFieldRange initialRange = randomSpecificRange();
         final int shardCount = initialRange.isComplete()

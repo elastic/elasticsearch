@@ -354,12 +354,11 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         if (shards != null && Arrays.stream(shards).noneMatch(i -> i == shardId)) {
             return this;
         }
-        if (this == UNKNOWN) {
-            return this;
-        }
-
         if (shards == null && numberOfShards == 1) {
             return NO_SHARDS;
+        }
+        if (this == UNKNOWN) {
+            return this;
         }
         if (shards != null && shards.length == 1 && shards[0] == shardId) {
             return NO_SHARDS;

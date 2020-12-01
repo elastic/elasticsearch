@@ -243,9 +243,14 @@ final class TransportClientNodesService implements Closeable {
         // the close method
         final List<DiscoveryNode> nodes = this.nodes;
         if (closed) {
-            throw new IllegalStateException("transport client is closed");
+            listener.onFailure(new IllegalStateException("transport client is closed"));
+            return;
         }
-        ensureNodesAreAvailable(nodes);
+        if (nodes.isEmpty()) {
+            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", this.listedNodes);
+            listener.onFailure(new NoNodeAvailableException(message));
+            return;
+        }
         int index = getNodeNumber();
         RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index, hostFailureListener);
         DiscoveryNode node = retryListener.getNode(0);
@@ -344,13 +349,6 @@ final class TransportClientNodesService implements Closeable {
             randomNodeGenerator.set(0);
         }
         return index;
-    }
-
-    private void ensureNodesAreAvailable(List<DiscoveryNode> nodes) {
-        if (nodes.isEmpty()) {
-            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", this.listedNodes);
-            throw new NoNodeAvailableException(message);
-        }
     }
 
     abstract class NodeSampler {

@@ -222,7 +222,6 @@ public class DefaultSearchContextTests extends ESTestCase {
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
             when(queryShardContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
-            when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
             readerContext.close();
             readerContext = new ReaderContext(newContextId(), indexService, indexShard,

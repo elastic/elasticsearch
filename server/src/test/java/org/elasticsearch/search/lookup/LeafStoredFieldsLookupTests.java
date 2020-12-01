@@ -37,8 +37,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LeafFieldsLookupTests extends ESTestCase {
-    private LeafFieldsLookup fieldsLookup;
+public class LeafStoredFieldsLookupTests extends ESTestCase {
+    private LeafStoredFieldsLookup fieldsLookup;
 
     @Before
     public void setUp() throws Exception {
@@ -61,7 +61,7 @@ public class LeafFieldsLookupTests extends ESTestCase {
             return null;
         }).when(leafReader).document(anyInt(), any(StoredFieldVisitor.class));
 
-        fieldsLookup = new LeafFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null, leafReader);
+        fieldsLookup = new LeafStoredFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null, leafReader);
     }
 
     public void testBasicLookup() {

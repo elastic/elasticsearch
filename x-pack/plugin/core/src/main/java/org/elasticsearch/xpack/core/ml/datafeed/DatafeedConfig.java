@@ -742,10 +742,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         public Builder setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
-            List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>();
-            for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
-                sorted.add(scriptField);
-            }
+            List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>(scriptFields);
             sorted.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             this.scriptFields = sorted;
             return this;

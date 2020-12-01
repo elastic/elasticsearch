@@ -6,7 +6,7 @@
 <titleabbrev>Rollup</titleabbrev>
 ++++
 
-Aggregates an index's time-series data and stores the results in another index.
+Aggregates an index's time series data and stores the results in another index.
 For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
@@ -38,7 +38,9 @@ POST /my-index-000001/_rollup
   ]
 }
 ----
-// TEST[setup:my_index]
+// CONSOLE
+// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/65544"]
+
 
 [[rollup-api-request]]
 ==== {api-request-title}
@@ -48,8 +50,8 @@ POST /my-index-000001/_rollup
 [[rollup-api-prereqs]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the `manage` cluster
-privilege to use this API. See <<security-privileges>>.
+If the {es} {security-features} are enabled, you must have the `manage` or
+`manage_rollup` cluster privilege to use this API. See <<security-privileges>>.
 
 [[rollup-api-path-params]]
 ==== {api-path-parms-title}
@@ -162,7 +164,7 @@ Collects and stores metrics for <<number,numeric>> fields.
 object, this property is required.
 
 `metrics`::
-(Required*, array)
+(Required*, array of strings)
 Array of metrics to collect. Each value corresponds to a
 <<search-aggregations-metrics,metric aggregation>>. Valid values are
 <<search-aggregations-metrics-min-aggregation,`min`>>,

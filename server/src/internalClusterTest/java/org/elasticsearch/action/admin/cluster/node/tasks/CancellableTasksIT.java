@@ -40,8 +40,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -65,7 +63,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -76,12 +73,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -172,7 +167,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         assertBusy(() -> {
             for (String node : internalCluster().getNodeNames()) {
                 TaskManager taskManager = internalCluster().getInstance(TransportService.class, node).getTaskManager();
-                assertThat("node " + node, taskManager.getBannedParentMarkers(), anEmptyMap());
+                assertThat("node " + node, taskManager.getBannedTaskIds(), empty());
             }
         }, 30, TimeUnit.SECONDS);
     }
@@ -210,27 +205,9 @@ public class CancellableTasksIT extends ESIntegTestCase {
                         expectedBans.add(childTask.getParentTaskId());
                     }
                 }
-                assertThat(taskManager.getBannedParentMarkers().keySet(), equalTo(expectedBans));
+                assertThat(taskManager.getBannedTaskIds(), equalTo(expectedBans));
             }
         }, 30, TimeUnit.SECONDS);
-
-        Map<DiscoveryNode, Map<TaskId, Long>> bannedParentMarkers = new HashMap<>();
-        for (DiscoveryNode node : nodes) {
-            TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
-            bannedParentMarkers.put(node, taskManager.getBannedParentMarkers());
-        }
-
-        assertBusy(() -> {
-            for (DiscoveryNode node : nodes) {
-                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
-                final Map<TaskId, Long> previousMarkers = bannedParentMarkers.get(node);
-                final Map<TaskId, Long> currentMarkers = taskManager.getBannedParentMarkers();
-                for (TaskId taskId : currentMarkers.keySet()) {
-                    assertThat(currentMarkers.get(taskId), greaterThan(previousMarkers.get(taskId)));
-                }
-            }
-        }, 60, TimeUnit.SECONDS);
-
         allowEntireRequest(rootRequest);
         cancelFuture.actionGet();
         waitForRootTask(rootTaskFuture);
@@ -526,35 +503,10 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
     }
 
-    public static class BanMarkerPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.positiveTimeSetting(
-                    TaskManager.BAN_MARKER_SEND_HEARTBEAT_INTERVAL_SETTING,
-                    TaskManager.BAN_MARKER_SEND_HEARTBEAT_DEFAULT_INTERVAL,
-                    Setting.Property.NodeScope),
-                Setting.positiveTimeSetting(
-                    TaskManager.BAN_MARKER_KEEP_ALIVE_INTERVAL_SETTING,
-                    TaskManager.BAN_MARKER_KEEP_ALIVE_DEFAULT_INTERVAL,
-                    Setting.Property.NodeScope)
-            );
-        }
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TaskManager.BAN_MARKER_SEND_HEARTBEAT_INTERVAL_SETTING, randomIntBetween(500, 1000) + "ms")
-            .put(TaskManager.BAN_MARKER_KEEP_ALIVE_INTERVAL_SETTING, randomIntBetween(5000, 10000) + "ms")
-            .build();
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TaskPlugin.class);
-        plugins.add(BanMarkerPlugin.class);
         return plugins;
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
 import org.elasticsearch.common.lease.Releasable;
@@ -47,13 +46,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -84,7 +81,7 @@ public class TaskManagerTests extends ESTestCase {
     public void testTrackingChannelTask() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
-        taskManager.setTaskCancellationService(new TaskCancellationService(Settings.EMPTY, mock(TransportService.class)) {
+        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
                 assertThat(reason, equalTo("channel was closed"));
@@ -132,7 +129,7 @@ public class TaskManagerTests extends ESTestCase {
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
-        taskManager.setTaskCancellationService(new TaskCancellationService(Settings.EMPTY, mock(TransportService.class)) {
+        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
                 assertTrue("task [" + task + "] was cancelled already", cancelledTasks.add(task));
@@ -205,27 +202,6 @@ public class TaskManagerTests extends ESTestCase {
                 registeredListener = true;
             }
             super.addCloseListener(listener);
-        }
-    }
-
-    public void testPruneOrphanedBanMarker() {
-        AtomicLong timeInMillis = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(timeInMillis.get());
-        long keepAliveInMillis = randomLongBetween(1, 5000);
-        Settings settings = Settings.builder()
-            .put(TaskManager.BAN_MARKER_KEEP_ALIVE_INTERVAL_SETTING, keepAliveInMillis + "ms")
-            .build();
-        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
-        Map<TaskId, Long> expectedBanParents = new HashMap<>();
-        int iters = randomIntBetween(1, 200);
-        for (int i = 0; i < iters; i++) {
-            TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-            taskManager.setBan(taskId, randomAlphaOfLength(10), Version.CURRENT);
-            timeInMillis.addAndGet(randomInt(1000));
-            expectedBanParents.values().removeIf(timestamp -> timestamp - timeInMillis.get() > keepAliveInMillis);
-            expectedBanParents.put(taskId, timeInMillis.get());
-            assertThat(taskManager.getBannedParentMarkers().keySet(), equalTo(expectedBanParents.keySet()));
         }
     }
 }

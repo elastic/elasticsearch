@@ -188,7 +188,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                     }
                 }
             };
-            transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(settings, transportService));
+            transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());

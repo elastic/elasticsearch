@@ -522,18 +522,18 @@ public class XPackLicenseState {
     public boolean checkFeature(Feature feature) {
         boolean allowed = isAllowed(feature);
         LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
-        long now = System.currentTimeMillis();
-        long licenseExpirationDate = getLicenseExpiryDate();
+        final long licenseExpiryDate = getLicenseExpiryDate();
+        final long diff = licenseExpiryDate - System.currentTimeMillis();
         if (maxEpochAccumulator != null) {
             maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
         }
 
         if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
-            now >  licenseExpirationDate - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis()) {
-            final long days = TimeUnit.MILLISECONDS.toDays(licenseExpirationDate - now);
-            final String expiryMessage = days == 0? "expires today":
-                (days > 0? String.format(Locale.ROOT, "will expire in [%d] days", days):
-                    String.format(Locale.ROOT, "has expired [%d] days ago", Math.abs(days)));
+            LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
+            final long days = TimeUnit.MILLISECONDS.toDays(diff);
+            final String expiryMessage = (days == 0 && diff > 0)? "expires today":
+                (diff > 0? String.format(Locale.ROOT, "will expire in [%d] days", days):
+                    String.format(Locale.ROOT, "expired on [%s]", LicenseService.DATE_FORMATTER.formatMillis(licenseExpiryDate)));
             HeaderWarning.addWarning("Your license {}. " +
                 "Contact your administrator or update your license for continued use of features", expiryMessage);
         }

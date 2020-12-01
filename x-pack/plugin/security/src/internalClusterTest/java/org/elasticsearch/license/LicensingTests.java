@@ -19,6 +19,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -227,7 +229,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertTrue(afterWarningHeaders.stream().anyMatch(v ->v.contains("Your license will expire in [6] days. " +
             "Contact your administrator or update your license for continued use of features")));
 
-        newExpirationDate = now;
+        newExpirationDate = now + 300000;
         setLicensingExpirationDate(mode, newExpirationDate);
 
         response = getRestClient().performRequest(request);
@@ -238,7 +240,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertTrue(afterWarningHeaders.stream().anyMatch(v ->v.contains("Your license expires today. " +
             "Contact your administrator or update your license for continued use of features")));
 
-        newExpirationDate = now - TimeUnit.DAYS.toMillis(2);
+        newExpirationDate = now - 300000;
         setLicensingExpirationDate(mode, newExpirationDate);
 
         response = getRestClient().performRequest(request);
@@ -246,8 +248,34 @@ public class LicensingTests extends SecurityIntegTestCase {
         afterWarningHeaders= getWarningHeaders(response.getHeaders());
 
         assertTrue(afterWarningHeaders.size() == 1);
-        assertTrue(afterWarningHeaders.stream().anyMatch(v ->v.contains("Your license has expired [2] days ago. " +
+        long finalNewExpirationDate = newExpirationDate;
+        String expiredMessage = String.format(Locale.ROOT, "Your license expired on [%s]. ",
+            LicenseService.DATE_FORMATTER.formatMillis(finalNewExpirationDate));
+        assertTrue(afterWarningHeaders.stream().anyMatch(v ->v.contains(expiredMessage +
             "Contact your administrator or update your license for continued use of features")));
+    }
+
+    public void testWarningHeaderAuthenticationFailed() throws Exception {
+        Request request = new Request("GET", "/_security/user");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+            new SecureString(SecuritySettingsSourceField.TEST_INVALID_PASSWORD.toCharArray())));
+        request.setOptions(options);
+
+        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
+            License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
+        long now = System.currentTimeMillis();
+        long newExpirationDate = now + LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() - 1;
+        setLicensingExpirationDate(mode, newExpirationDate);
+        Header[] headers = null;
+        try {
+            getRestClient().performRequest(request);
+        } catch (ResponseException e) {
+            headers = e.getResponse().getHeaders();
+            List<String> afterWarningHeaders= getWarningHeaders(e.getResponse().getHeaders());
+            assertTrue(afterWarningHeaders.size() == 0);
+        }
+        assertTrue(headers != null && headers.length == 3);
     }
 
     private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {

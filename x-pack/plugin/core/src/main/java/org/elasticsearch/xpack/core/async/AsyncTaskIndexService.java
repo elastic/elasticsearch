@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -28,7 +31,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -47,6 +52,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
@@ -60,7 +67,47 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
+    private static Settings settings() {
+        return Settings.builder()
+            .put("index.codec", "best_compression")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .build();
+    }
+
+    private static XContentBuilder mappings() throws IOException {
+        XContentBuilder builder = jsonBuilder()
+            .startObject()
+                .startObject(SINGLE_MAPPING_NAME)
+                    .startObject("_meta")
+                        .field("version", Version.CURRENT)
+                    .endObject()
+                    .field("dynamic", "strict")
+                    .startObject("properties")
+                        .startObject(HEADERS_FIELD)
+                            .field("type", "object")
+                            .field("enabled", "false")
+                        .endObject()
+                        .startObject(RESPONSE_HEADERS_FIELD)
+                            .field("type", "object")
+                            .field("enabled", "false")
+                        .endObject()
+                        .startObject(RESULT_FIELD)
+                            .field("type", "object")
+                            .field("enabled", "false")
+                        .endObject()
+                        .startObject(EXPIRATION_TIME_FIELD)
+                            .field("type", "long")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        return builder;
+    }
+
     private final String index;
+    private final ClusterService clusterService;
     private final Client client;
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
@@ -75,6 +122,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                  Writeable.Reader<R> reader,
                                  NamedWriteableRegistry registry) {
         this.index = index;
+        this.clusterService = clusterService;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
         this.client = new OriginSettingClient(client, origin);
         this.registry = registry;
@@ -86,6 +134,34 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public Client getClient() {
         return client;
+    }
+
+    /**
+     * Creates the index with the expected settings and mappings if it doesn't exist.
+     */
+    void createIndexIfNecessary(ActionListener<Void> listener) {
+        if (clusterService.state().routingTable().hasIndex(index) == false) {
+            try {
+                client.admin().indices().prepareCreate(index)
+                    .setSettings(settings())
+                    .setMapping(mappings())
+                    .execute(ActionListener.wrap(
+                        resp -> listener.onResponse(null),
+                        exc -> {
+                            if (ExceptionsHelper.unwrapCause(exc) instanceof ResourceAlreadyExistsException) {
+                                listener.onResponse(null);
+                            } else {
+                                logger.error("failed to create " + index + " index", exc);
+                                listener.onFailure(exc);
+                            }
+                        }));
+            } catch (Exception exc) {
+                logger.error("failed to create " + index + " index", exc);
+                listener.onFailure(exc);
+            }
+        } else {
+            listener.onResponse(null);
+        }
     }
 
     /**
@@ -104,7 +180,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .create(true)
             .id(docId)
             .source(source, XContentType.JSON);
-        client.index(indexRequest, listener);
+        createIndexIfNecessary(ActionListener.wrap(v -> client.index(indexRequest, listener), listener::onFailure));
     }
 
     /**
@@ -123,7 +199,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .id(docId)
                 .doc(source, XContentType.JSON)
                 .retryOnConflict(5);
-            client.update(request, listener);
+            createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
         } catch(Exception e) {
             listener.onFailure(e);
         }
@@ -141,7 +217,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .id(docId)
             .doc(source, XContentType.JSON)
             .retryOnConflict(5);
-        client.update(request, listener);
+        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
     }
 
     /**
@@ -151,7 +227,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                ActionListener<DeleteResponse> listener) {
         try {
             DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
-            client.delete(request, listener);
+            createIndexIfNecessary(ActionListener.wrap(v -> client.delete(request, listener), listener::onFailure));
         } catch(Exception e) {
             listener.onFailure(e);
         }

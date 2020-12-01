@@ -36,15 +36,13 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -83,6 +81,7 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -1529,9 +1528,9 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops a specific node in the cluster. Returns true if the node was found to stop, false otherwise.
      */
-    public synchronized boolean stopNode(DiscoveryNode node) throws IOException {
+    public synchronized boolean stopNode(String nodeName) throws IOException {
         ensureOpen();
-        Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(node.getName())).findFirst();
+        Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(nodeName)).findFirst();
         if (nodeToStop.isPresent()) {
             logger.info("Closing node [{}]", nodeToStop.get().name);
             stopNodesAndClient(nodeToStop.get());

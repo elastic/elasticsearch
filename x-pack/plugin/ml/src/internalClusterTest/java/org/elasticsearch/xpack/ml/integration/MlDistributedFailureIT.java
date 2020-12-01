@@ -468,7 +468,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         waitForJobToHaveProcessedAtLeast(jobId, 1000);
 
-        internalCluster().stopNode(nodeRunningJob);
+        internalCluster().stopNode(nodeRunningJob.getName());
 
         waitForJobClosed(jobId);
 

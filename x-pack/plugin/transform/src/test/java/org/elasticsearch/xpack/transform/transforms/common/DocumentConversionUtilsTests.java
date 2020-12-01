@@ -4,10 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.transform.utils;
+package org.elasticsearch.xpack.transform.transforms.common;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 
 import java.util.Collections;
 import java.util.HashMap;

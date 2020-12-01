@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
-import org.elasticsearch.xpack.transform.utils.DocumentConversionUtils;
+import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 
 import java.io.IOException;
 import java.util.List;

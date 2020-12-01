@@ -26,9 +26,12 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -112,10 +115,9 @@ public class LatestDocContinuousIT extends ContinuousTestCase {
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
 
-            String transformBucketKey = (String) XContentMapValues.extractValue(EVENT_FIELD, source);
-            if (transformBucketKey == null) {
-                transformBucketKey = MISSING_BUCKET_KEY;
-            }
+            String transformBucketKey =
+                Optional.ofNullable((String) XContentMapValues.extractValue(EVENT_FIELD, source))
+                    .orElse(MISSING_BUCKET_KEY);
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
@@ -127,8 +129,8 @@ public class LatestDocContinuousIT extends ContinuousTestCase {
             String timestampValueAsString = (String) XContentMapValues.extractValue(TIMESTAMP_FIELD, source);
             assertThat(
                 "Metric aggregation did not match, source: " + source + ", expected: " + maxAgg.value() + ", iteration: " + iteration,
-                timestampValueAsString.substring(0, timestampValueAsString.lastIndexOf('.')),
-                equalTo(maxAgg.getValueAsString().substring(0, maxAgg.getValueAsString().lastIndexOf('.')))
+                timestampValueAsString.substring(0, timestampValueAsString.lastIndexOf('.') + 3),
+                equalTo(maxAgg.getValueAsString().substring(0, maxAgg.getValueAsString().lastIndexOf('.') + 3))
             );
 
             // test optimization, transform should only rewrite documents that require it

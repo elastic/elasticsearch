@@ -79,21 +79,21 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
     public abstract void testIteration(int iteration) throws IOException;
 
     protected TransformConfig.Builder addCommonBuilderParameters(TransformConfig.Builder builder) {
-        return builder.setSyncConfig(getSyncConfig())
-            .setSettings(addCommonSetings(new SettingsConfig.Builder()).build())
+        return builder
+            .setSyncConfig(getSyncConfig())
+            .setSettings(
+                new SettingsConfig.Builder()
+                    // enforce paging, to see we run through all of the options
+                    .setMaxPageSearchSize(10)
+                    .build())
             .setFrequency(new TimeValue(1, TimeUnit.SECONDS));
     }
 
     protected AggregatorFactories.Builder addCommonAggregations(AggregatorFactories.Builder builder) {
-        builder.addAggregator(AggregationBuilders.max(MAX_RUN_FIELD).field("run"))
+        builder
+            .addAggregator(AggregationBuilders.max(MAX_RUN_FIELD).field("run"))
             .addAggregator(AggregationBuilders.count("count").field("run"))
             .addAggregator(AggregationBuilders.max("time.max").field("timestamp"));
-        return builder;
-    }
-
-    protected SettingsConfig.Builder addCommonSetings(SettingsConfig.Builder builder) {
-        // enforce paging, to see we run through all of the options
-        builder.setMaxPageSearchSize(10);
         return builder;
     }
 

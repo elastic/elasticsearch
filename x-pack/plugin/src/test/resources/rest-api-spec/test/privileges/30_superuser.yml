@@ -54,7 +54,7 @@ setup:
           username: "my_admin"
           body:  >
               {
-                "password": "admin01",
+                "password": "admin01-password",
                 "roles" : [ "superuser" ]
               }
   - do:
@@ -62,7 +62,7 @@ setup:
           username: "eng_write"
           body:  >
               {
-                "password": "p@ssw0rd",
+                "password": "s3cr3t-p@ssw0rd",
                 "roles" : [ "myapp_engineering_write" ]
               }
 
@@ -87,7 +87,7 @@ teardown:
 ---
 "Test superuser has all application-privileges":
   - do:
-      headers: { Authorization: "Basic bXlfYWRtaW46YWRtaW4wMQ==" } # my_admin
+      headers: { Authorization: "Basic bXlfYWRtaW46YWRtaW4wMS1wYXNzd29yZA==" } # my_admin
       security.has_privileges:
         user: null
         body: >

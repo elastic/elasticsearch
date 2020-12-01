@@ -10,7 +10,7 @@ setup:
         username: "joe"
         body:  >
           {
-            "password": "s3krit",
+            "password": "s3krit-password",
             "roles" : [ "superuser" ]
           }
   - do:
@@ -31,7 +31,7 @@ setup:
         username: "unprivileged_user"
         body:  >
           {
-            "password": "s3krit",
+            "password": "s3krit-password",
             "roles" : [ "user" ]
           }
 
@@ -56,7 +56,7 @@ teardown:
       features: catch_unauthorized
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -66,20 +66,20 @@ teardown:
         username: "joe"
         body:  >
             {
-              "password" : "s3krit2"
+              "password" : "s3krit-password2"
             }
 
 # attempt to login with invalid credentials
   - do:
       catch: unauthorized
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
 
 # login with new credentials
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdDI="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZDI="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -101,7 +101,7 @@ teardown:
       security.change_password:
         body:  >
             {
-              "password" : "s3krit2"
+              "password" : "s3krit-password2"
             }
 
 # attempt to login with invalid credentials
@@ -136,5 +136,5 @@ teardown:
         username: "anotheruser"
         body:  >
             {
-              "password" : "s3krit2"
+              "password" : "s3krit-password2"
             }

@@ -10,7 +10,7 @@ setup:
         username: "token_joe"
         body:  >
           {
-            "password": "s3krit",
+            "password": "s3krit-password",
             "roles" : [ "token_admin" ]
           }
   - do:
@@ -42,12 +42,12 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic dG9rZW5fam9lOnMza3JpdA=="
+        Authorization: "Basic dG9rZW5fam9lOnMza3JpdC1wYXNzd29yZA=="
       security.get_token:
         body:
           grant_type: "password"
           username: "token_joe"
-          password: "s3krit"
+          password: "s3krit-password"
 
   - match: { type: "Bearer" }
   - is_true: access_token
@@ -63,5 +63,5 @@ teardown:
         username: "joe"
         body:  >
           {
-            "password" : "s3krit2"
+            "password" : "s3krit-password2"
           }

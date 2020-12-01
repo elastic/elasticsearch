@@ -12,7 +12,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "transform",
+              "password": "transform-password",
               "roles" : [  "transform_admin", "x_cluster_role" ]
             }
   - do:
@@ -42,7 +42,7 @@ teardown:
 ---
 "Search remote cluster":
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
@@ -61,7 +61,7 @@ teardown:
 ---
 "Batch transform from remote cluster":
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.put_transform:
         transform_id: "simple-remote-transform"
         body: >
@@ -76,7 +76,7 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.start_transform:
         transform_id: "simple-remote-transform"
   - match: { acknowledged: true }
@@ -89,7 +89,7 @@ teardown:
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.stop_transform:
         transform_id: "simple-remote-transform"
         wait_for_completion: true
@@ -97,7 +97,7 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.get_transform_stats:
         transform_id: "simple-remote-transform"
   - match: { count: 1 }
@@ -107,12 +107,12 @@ teardown:
 
   # workaround: refresh dest index, to be removed, see gh #51154
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       indices.refresh:
         index: simple-remote-transform
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: simple-remote-transform
@@ -126,7 +126,7 @@ teardown:
   - match: { hits.hits.1._source.user: b }
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.update_transform:
         transform_id: "simple-remote-transform"
         body: >
@@ -134,7 +134,7 @@ teardown:
             "source": { "index": ["my_remote_cluster:test_index", "my_remote_cluster:test_index_2"] }
           }
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.get_transform_stats:
         transform_id: "simple-remote-transform"
   - match: { count: 1 }
@@ -190,7 +190,7 @@ teardown:
             - '{"user": "c", "stars": 4, "date" : "2018-11-29T12:35:12.123456789Z"}'
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.put_transform:
         transform_id: "simple-local-remote-transform"
         body: >
@@ -208,7 +208,7 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.start_transform:
         transform_id: "simple-local-remote-transform"
   - match: { acknowledged: true }
@@ -221,7 +221,7 @@ teardown:
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.stop_transform:
         transform_id: "simple-local-remote-transform"
         wait_for_completion: true
@@ -229,7 +229,7 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       transform.get_transform_stats:
         transform_id: "simple-local-remote-transform"
   - match: { count: 1 }
@@ -239,12 +239,12 @@ teardown:
 
   # workaround: refresh dest index, to be removed, see gh #51154
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       indices.refresh:
         index: simple-local-remote-transform
 
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybQ==" }
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: simple-local-remote-transform

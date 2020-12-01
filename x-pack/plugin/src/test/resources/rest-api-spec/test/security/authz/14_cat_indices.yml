@@ -23,7 +23,7 @@ setup:
         username: "cat_user"
         body:  >
           {
-            "password" : "cat_password",
+            "password" : "cat_secret_password",
             "roles" : [ "cat_some_indices_role" ],
             "full_name" : "Meow"
           }
@@ -77,7 +77,7 @@ teardown:
 "Test empty request while no-authorized index":
 
   - do:
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices: {}
 
   - match:
@@ -96,7 +96,7 @@ teardown:
             number_of_replicas: "0"
 
   - do:
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices: {}
 
   - match:
@@ -152,7 +152,7 @@ teardown:
         index:  index_to_monitor
 
   - do:
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices: {}
 
   - match:
@@ -190,7 +190,7 @@ teardown:
             number_of_replicas: "0"
 
   - do:
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices:
         index: "this_index,index_to_monitor"
         v: false
@@ -203,13 +203,13 @@ teardown:
 
   - do:
       catch: forbidden
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices:
         index: "index1,index_to_monitor"
 
   - do:
       catch: forbidden
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices:
         index: "this_*,index2"
 
@@ -241,7 +241,7 @@ teardown:
             number_of_replicas: "0"
 
   - do:
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices:
         index: "this_index,index_to_monitor,this_index_is_closed"
         v: false
@@ -258,19 +258,19 @@ teardown:
 
   - do:
       catch: forbidden
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices:
         index: "index1,index_to_monitor"
 
   - do:
       catch: forbidden
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices:
         index: "this_*,index2"
 
   - do:
       catch: forbidden
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices:
         index: "this_index_is_closed,index2"
 
@@ -310,7 +310,7 @@ teardown:
             number_of_replicas: "0"
 
   - do:
-      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
       cat.indices:
         index: "t*,i*"
         v: false

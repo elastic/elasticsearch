@@ -89,14 +89,10 @@ public class ILMHistoryStore implements Closeable {
                 public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                     long items = request.numberOfActions();
                     if (logger.isTraceEnabled()) {
-                        logger.trace("indexed [{}] items into ILM history index [{}], items: {}", items,
+                        logger.trace("indexed [{}] items into ILM history index [{}]", items,
                             Arrays.stream(response.getItems())
                                 .map(BulkItemResponse::getIndex)
                                 .distinct()
-                                .collect(Collectors.joining(",")),
-                            request.requests().stream()
-                                .map(dwr -> ((IndexRequest) dwr).sourceAsMap())
-                                .map(Objects::toString)
                                 .collect(Collectors.joining(",")));
                     }
                     if (response.hasFailures()) {

@@ -446,14 +446,14 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     /**
      * Adds a field to load and return as part of the search request.
      */
-    public TopHitsAggregationBuilder fetchField(String field, String format) {
-        if (field == null) {
+    public TopHitsAggregationBuilder fetchField(FieldAndFormat fieldAndFormat) {
+        if (fieldAndFormat == null) {
             throw new IllegalArgumentException("[fields] must not be null: [" + name + "]");
         }
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(field, format));
+        fetchFields.add(fieldAndFormat);
         return this;
     }
 
@@ -461,7 +461,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      * Adds a field to load and return as part of the search request.
      */
     public TopHitsAggregationBuilder fetchField(String field) {
-        return fetchField(field, null);
+        return fetchField(new FieldAndFormat(field, null, null));
     }
 
     /**
@@ -796,7 +796,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                 } else if (SearchSourceBuilder.FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
-                        factory.fetchField(ff.field, ff.format);
+                        factory.fetchField(ff);
                     }
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);

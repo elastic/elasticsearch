@@ -45,7 +45,7 @@ public class FetchDocValuesContext {
             Collection<String> fieldNames = shardContext.simpleMatchToIndexNames(field.field);
             for (String fieldName : fieldNames) {
                 if (shardContext.isFieldMapped(fieldName)) {
-                    fields.add(new FieldAndFormat(fieldName, field.format));
+                    fields.add(new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
                 }
             }
         }

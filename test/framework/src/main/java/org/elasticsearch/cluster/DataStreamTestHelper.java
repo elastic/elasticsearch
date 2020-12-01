@@ -163,4 +163,8 @@ public final class DataStreamTestHelper {
 
         return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(1).build();
     }
+
+    public static String backingIndexPattern(String dataStreamName, long generation) {
+        return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}-\\d{2}-\\d{2}-)?%06d",dataStreamName, generation);
+    }
 }

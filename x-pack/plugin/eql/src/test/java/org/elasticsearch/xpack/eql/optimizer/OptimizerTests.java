@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -94,7 +93,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNull() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where command_line == null",
             "foo where null == command_line"
         );
@@ -113,7 +112,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNotNull() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where command_line != null",
             "foo where null != command_line"
         );
@@ -132,29 +131,44 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testEqualsWildcardOnRight() {
-        List<String> tests = Arrays.asList(
-            "foo where command_line : \"* bar *\""
-        );
+        String q = "foo where command_line : \"* bar *\"";
 
-        for (String q : tests) {
-            LogicalPlan plan = defaultPipes(accept(q));
-            assertTrue(plan instanceof Filter);
+        LogicalPlan plan = defaultPipes(accept(q));
+        assertTrue(plan instanceof Filter);
 
-            Filter filter = (Filter) plan;
-            And condition = (And) filter.condition();
-            assertTrue(condition.right() instanceof Like);
+        Filter filter = (Filter) plan;
+        And condition = (And) filter.condition();
+        assertTrue(condition.right() instanceof Like);
 
-            Like like = (Like) condition.right();
-            assertEquals(((FieldAttribute) like.field()).name(), "command_line");
-            assertEquals(like.pattern().asJavaRegex(), "^.* bar .*$");
-            assertEquals(like.pattern().asLuceneWildcard(), "* bar *");
-            assertEquals(like.pattern().asIndexNameWildcard(), "* bar *");
-        }
+        Like like = (Like) condition.right();
+        assertEquals(((FieldAttribute) like.field()).name(), "command_line");
+        assertEquals(like.pattern().asJavaRegex(), "^.* bar .*$");
+        assertEquals(like.pattern().asLuceneWildcard(), "* bar *");
+        assertEquals(like.pattern().asIndexNameWildcard(), "* bar *");
+    }
+
+    public void testEqualsWildcardQuestionmarkOnRight() {
+        String q = "foo where command_line : \"? bar ?\"";
+
+        LogicalPlan plan = defaultPipes(accept(q));
+        assertTrue(plan instanceof Filter);
+
+        Filter filter = (Filter) plan;
+        And condition = (And) filter.condition();
+        assertTrue(condition.right() instanceof Like);
+
+        Like like = (Like) condition.right();
+        assertEquals("command_line", ((FieldAttribute) like.field()).name());
+        assertEquals( "^. bar .$", like.pattern().asJavaRegex());
+        assertEquals("? bar ?", like.pattern().asLuceneWildcard());
+        assertEquals( "* bar *", like.pattern().asIndexNameWildcard());
     }
 
     public void testEqualsWildcardWithLiteralsOnLeft() {
-        List<String> tests = Arrays.asList(
-            "foo where \"abc\": \"*b*\""
+        List<String> tests = asList(
+            "foo where \"abc\": \"*b*\"",
+            "foo where \"abc\": \"ab*\"",
+            "foo where \"abc\": \"*bc\""
         );
 
         for (String q : tests) {
@@ -169,10 +183,14 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testEqualsWildcardIgnoredOnLeftLiteral() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where \"*b*\" : \"abc\"",
             "foo where \"*b\" : \"abc\"",
-            "foo where \"b*\" : \"abc\""
+            "foo where \"b*\" : \"abc\"",
+            "foo where \"b*?\" : \"abc\"",
+            "foo where \"b?\" : \"abc\"",
+            "foo where \"?b\" : \"abc\"",
+            "foo where \"?b*\" : \"abc\""
         );
 
         // string comparison that evaluates to false
@@ -183,9 +201,11 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testEqualsWildcardWithLiteralsOnLeftAndPatternOnRightNotMatching() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where \"abc\": \"*b\"",
-            "foo where \"abc\": \"b*\""
+            "foo where \"abc\": \"b*\"",
+            "foo where \"abc\": \"b?\"",
+            "foo where \"abc\": \"?b\""
         );
 
         // string comparison that evaluates to false

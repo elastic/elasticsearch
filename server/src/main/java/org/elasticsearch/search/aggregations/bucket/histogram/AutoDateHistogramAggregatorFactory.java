@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,10 +61,8 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         AutoDateHistogramAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry()
             .getAggregator(AutoDateHistogramAggregationBuilder.REGISTRY_KEY, config);
         return aggregatorSupplier.build(
@@ -74,7 +71,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
             numBuckets,
             roundingInfos,
             config,
-            searchContext,
+            context,
             parent,
             cardinality,
             metadata
@@ -82,16 +79,14 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return AutoDateHistogramAggregator.build(
             name,
             factories,
             numBuckets,
             roundingInfos,
             config,
-            searchContext,
+            context,
             parent,
             CardinalityUpperBound.NONE,
             metadata

@@ -26,8 +26,8 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,12 +41,12 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     @Override
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
+        QueryShardContext qsc,
         MappedFieldType fieldType,
-        Field field,
         HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = super.loadFieldValues(highlighter, fieldType, field, hitContext, forceSource);
+        List<Object> fieldValues = super.loadFieldValues(highlighter, qsc, fieldType, hitContext, forceSource);
 
         List<Object> strings = new ArrayList<>(fieldValues.size());
         AnnotatedText[] annotations = new AnnotatedText[fieldValues.size()];

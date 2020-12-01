@@ -9,17 +9,15 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
@@ -32,6 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
@@ -40,16 +39,21 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.hamcrest.Matchers;
+import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,13 +67,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FrozenIndices.class, XPackPlugin.class);
+        return pluginList(FrozenIndices.class, LocalStateCompositeXPackPlugin.class);
     }
 
     String openReaders(TimeValue keepAlive, String... indices) {
@@ -190,10 +196,13 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     }
 
     public void testFreezeAndUnfreeze()  {
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
+        final IndexService originalIndexService = createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
+        assertThat(originalIndexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("index").setId("3").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
         if (randomBoolean()) {
             // sometimes close it
             assertAcked(client().admin().indices().prepareClose("index").get());
@@ -206,6 +215,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
             IndexShard shard = indexService.getShard(0);
             assertEquals(0, shard.refreshStats().getTotal());
+            assertThat(indexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE,
             new FreezeRequest("index").setFreeze(false)).actionGet());
@@ -217,6 +227,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexShard shard = indexService.getShard(0);
             Engine engine = IndexShardTestCase.getEngine(shard);
             assertThat(engine, Matchers.instanceOf(InternalEngine.class));
+            assertThat(indexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         client().prepareIndex("index").setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
     }
@@ -329,7 +340,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
 
             IndicesStatsResponse response = client().admin().indices().prepareStats("index").clear().setRefresh(true).get();
-            assertEquals(0, response.getTotal().refresh.getTotal()); // never opened a reader
+            assertEquals(0, response.getTotal().refresh.getTotal());
         }
     }
 
@@ -477,4 +488,59 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             equalTo(indexService.getIndexSettings().isSoftDeleteEnabled() ? 0 : nbDocs));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
     }
+
+    public void testComputesTimestampRangeFromMilliseconds() {
+        final int shardCount = between(1, 3);
+        createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build());
+        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-05T01:02:03.456Z").get();
+        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567Z").get();
+
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
+
+        final IndexLongFieldRange timestampFieldRange
+                = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampMillisRange();
+        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertTrue(timestampFieldRange.isComplete());
+        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").getMillis()));
+        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").getMillis()));
+
+        for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
+            assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
+                    shardStats.getStats().refresh.getTotal(), greaterThanOrEqualTo(1L));
+        }
+    }
+
+    public void testComputesTimestampRangeFromNanoseconds() throws IOException {
+
+        final XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                .field("type", "date_nanos")
+                .field("format", "strict_date_optional_time_nanos")
+                .endObject()
+                .endObject()
+                .endObject();
+
+        final int shardCount = between(1, 3);
+        createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build(), mapping);
+        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-05T01:02:03.456789012Z").get();
+        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567890123Z").get();
+
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
+
+        final IndexLongFieldRange timestampFieldRange
+                = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampMillisRange();
+        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertTrue(timestampFieldRange.isComplete());
+        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").getMillis()));
+        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.568Z").getMillis()));
+
+        for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
+            assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
+                    shardStats.getStats().refresh.getTotal(), greaterThanOrEqualTo(1L));
+        }
+    }
+
 }

@@ -36,6 +36,9 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
         @Override
         protected AbstractScriptFieldType<?> buildFieldType() {
+            if (script.get() == null) {
+                return new BooleanScriptFieldType(name, BooleanFieldScript.PARSE_FROM_SOURCE, this);
+            }
             BooleanFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), BooleanFieldScript.CONTEXT);
             return new BooleanScriptFieldType(name, factory, this);
         }

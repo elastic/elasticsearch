@@ -223,6 +223,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     /**
      * Check that deprecation messages can be recorded to an index
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65589")
     public void testDeprecationMessagesCanBeIndexed() throws Exception {
         try {
             configureWriteDeprecationLogsToIndex(true);

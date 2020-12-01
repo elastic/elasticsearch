@@ -24,7 +24,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -78,7 +77,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     /**
      * Loads a <code>name</code>d {@link CategoryContextMapping} instance
      * from a map.
-     * see {@link ContextMappings#load(Object, Version)}
+     * see {@link ContextMappings#load(Object)}
      *
      * Acceptable map param: <code>path</code>
      */

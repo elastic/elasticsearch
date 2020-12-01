@@ -214,7 +214,7 @@ public class CacheFileTests extends ESTestCase {
             final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
             final CacheFile cacheFile = new CacheFile(
                 CACHE_KEY,
-                randomLongBetween(100, 1000),
+                randomLongBetween(0L, 1000L),
                 fileSystem.resolve("test"),
                 () -> assertFalse(needsFSyncCalled.getAndSet(true))
             );
@@ -261,7 +261,7 @@ public class CacheFileTests extends ESTestCase {
             final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
             final CacheFile cacheFile = new CacheFile(
                 CACHE_KEY,
-                randomLongBetween(1L, 1000L),
+                randomLongBetween(0L, 1000L),
                 fileSystem.resolve("test"),
                 () -> assertFalse(needsFSyncCalled.getAndSet(true))
             );
@@ -315,7 +315,7 @@ public class CacheFileTests extends ESTestCase {
             final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
             final CacheFile cacheFile = new CacheFile(
                 CACHE_KEY,
-                randomLongBetween(1L, 1000L),
+                randomLongBetween(0L, 1000L),
                 fileSystem.resolve("test"),
                 () -> assertFalse(needsFSyncCalled.getAndSet(true))
             );

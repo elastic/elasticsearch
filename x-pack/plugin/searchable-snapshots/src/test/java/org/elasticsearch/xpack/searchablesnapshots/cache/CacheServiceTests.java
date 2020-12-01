@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // we don't want extra empty dirs in snapshot cache root dirs
 public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
     private static FSyncTrackingFileSystemProvider fileSystemProvider;
@@ -66,7 +68,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         logger.debug("--> creating shard cache directories on disk");
         final Path[] shardsCacheDirs = new Path[numShards];
         for (int i = 0; i < numShards; i++) {
-            final Path shardDataPath = randomFrom(nodeEnvironment.availableShardPaths(new ShardId(index, i)));
+            final Path shardDataPath = randomShardPath(new ShardId(index, i));
             assertFalse(Files.exists(shardDataPath));
 
             logger.debug("--> creating directories [{}] for shard [{}]", shardDataPath.toAbsolutePath(), i);
@@ -107,7 +109,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                     final ShardId shardId = new ShardId(index, randomIntBetween(0, numShards - 1));
                     final String fileName = String.format(Locale.ROOT, "file_%d_%d", iteration, i);
                     final CacheKey cacheKey = new CacheKey(snapshotId, indexId, shardId, fileName);
-                    final CacheFile cacheFile = cacheService.get(cacheKey, randomIntBetween(1, 10_000), shardsCacheDirs[shardId.id()]);
+                    final CacheFile cacheFile = cacheService.get(cacheKey, randomIntBetween(0, 10_000), shardsCacheDirs[shardId.id()]);
 
                     final CacheFile.EvictionListener listener = evictedCacheFile -> {};
                     cacheFile.acquire(listener);
@@ -121,7 +123,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 logger.trace("--> evicting random cache files");
                 final Map<CacheFile, Integer> evictions = new HashMap<>();
                 for (CacheKey evictedCacheKey : randomSubsetOf(Sets.union(previous.keySet(), updates.keySet()))) {
-                    cacheService.removeFromCache(evictedCacheKey::equals);
+                    cacheService.removeFromCache(evictedCacheKey);
                     Tuple<CacheFile, Integer> evicted = previous.remove(evictedCacheKey);
                     if (evicted != null) {
                         evictions.put(evicted.v1(), evicted.v2());
@@ -204,6 +206,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                     FileNotFoundException.class,
                     () -> cacheService.put(cacheKey, fileLength, cacheDir, cacheFileUuid, cacheFileRanges)
                 );
+                cacheService.start();
                 assertThat(exception.getMessage(), containsString(cacheFileUuid));
             }
         }

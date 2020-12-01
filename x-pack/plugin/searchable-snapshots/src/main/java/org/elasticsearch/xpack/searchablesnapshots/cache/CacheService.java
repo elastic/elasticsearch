@@ -40,7 +40,6 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 
@@ -106,9 +105,9 @@ public class CacheService extends AbstractLifecycleComponent {
     private final CacheSynchronizationTask cacheSyncTask;
     private final TimeValue cacheSyncStopTimeout;
     private final ReentrantLock cacheSyncLock;
+    private final PersistentCache persistentCache;
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
-    private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
 
     private volatile int maxCacheFilesToSyncAtOnce;
@@ -117,11 +116,10 @@ public class CacheService extends AbstractLifecycleComponent {
         final Settings settings,
         final ClusterService clusterService,
         final ThreadPool threadPool,
-        final Runnable cacheCleaner
+        final PersistentCache persistentCache
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        this.cacheCleaner = Objects.requireNonNull(cacheCleaner);
         this.rangeSize = SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
@@ -130,6 +128,7 @@ public class CacheService extends AbstractLifecycleComponent {
             // are done with reading/writing the cache file
             .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
             .build();
+        this.persistentCache = Objects.requireNonNull(persistentCache);
         this.numberOfCacheFilesToSync = new AtomicLong();
         this.cacheSyncLock = new ReentrantLock();
         this.cacheFilesToSync = new ConcurrentLinkedQueue<>();
@@ -151,8 +150,8 @@ public class CacheService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
+        persistentCache.loadCacheFiles(this);
         cacheSyncTask.rescheduleIfNecessary();
-        cacheCleaner.run();
     }
 
     @Override
@@ -169,10 +168,15 @@ public class CacheService extends AbstractLifecycleComponent {
                 logger.warn("interrupted while waiting for cache sync lock", e);
             }
             cacheSyncTask.close();
-            cache.invalidateAll();
         } finally {
-            if (acquired) {
-                cacheSyncLock.unlock();
+            try {
+                persistentCache.close();
+            } catch (Exception e) {
+                logger.warn("failed to close persistent cache", e);
+            } finally {
+                if (acquired) {
+                    cacheSyncLock.unlock();
+                }
             }
         }
     }
@@ -270,17 +274,12 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Invalidate cache entries with keys matching the given predicate
+     * Evicts the {@link CacheFile} associated to the given {@link CacheKey}.
      *
-     * @param predicate the predicate to evaluate
+     * @param cacheKey the key of the cache file to evict
      */
-    public void removeFromCache(final Predicate<CacheKey> predicate) {
-        for (CacheKey cacheKey : cache.keys()) {
-            if (predicate.test(cacheKey)) {
-                cache.invalidate(cacheKey);
-            }
-        }
-        cache.refresh();
+    public void removeFromCache(CacheKey cacheKey) {
+        cache.invalidate(cacheKey);
     }
 
     void setCacheSyncInterval(TimeValue interval) {
@@ -307,17 +306,27 @@ public class CacheService extends AbstractLifecycleComponent {
     /**
      * This method is invoked after a {@link CacheFile} is evicted from the cache.
      * <p>
-     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted.
+     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted and removes it from the persistent cache.
      *
      * @param cacheFile the evicted instance
      */
     private void onCacheFileRemoval(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
+        try {
+            persistentCache.removeCacheFile(cacheFile);
+        } catch (Exception e) {
+            logger.warn("failed to remove cache file from persistent cache", e);
+        }
     }
 
     // used in tests
     boolean isCacheFileToSync(CacheFile cacheFile) {
         return cacheFilesToSync.contains(cacheFile);
+    }
+
+    // used in tests
+    PersistentCache getPersistentCache() {
+        return persistentCache;
     }
 
     /**
@@ -362,19 +371,26 @@ public class CacheService extends AbstractLifecycleComponent {
                         final Path cacheDir = cacheFilePath.toAbsolutePath().getParent();
                         if (cacheDirs.add(cacheDir)) {
                             try {
-                                IOUtils.fsync(cacheDir, true, false);
+                                IOUtils.fsync(cacheDir, true, false); // TODO evict cache file if fsync failed
                                 logger.trace("cache directory [{}] synchronized", cacheDir);
                             } catch (Exception e) {
                                 assert e instanceof IOException : e;
                                 logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
                             }
                         }
-                        // TODO Index searchable snapshot shard information + cache file ranges in Lucene
+                        persistentCache.addCacheFile(cacheFile, ranges);
                         count += 1L;
                     }
                 } catch (Exception e) {
                     assert e instanceof IOException : e;
                     logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
+                }
+            }
+            if (count > 0 || persistentCache.hasDeletions()) {
+                try {
+                    persistentCache.commit();
+                } catch (IOException e) {
+                    logger.error("failed to commit persistent cache after synchronization", e);
                 }
             }
             if (logger.isDebugEnabled()) {

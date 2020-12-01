@@ -14,6 +14,7 @@ import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -62,6 +63,10 @@ public final class TestUtils {
     private TestUtils() {}
 
     public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(final CacheFile cacheFile) {
+        return randomPopulateAndReads(cacheFile, (fileChannel, aLong, aLong2) -> {});
+    }
+
+    public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
         final SortedSet<Tuple<Long, Long>> ranges = synchronizedNavigableSet(new TreeSet<>(Comparator.comparingLong(Tuple::v1)));
         final List<Future<Integer>> futures = new ArrayList<>();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
@@ -69,11 +74,12 @@ public final class TestUtils {
             random()
         );
         for (int i = 0; i < between(0, 10); i++) {
-            final long start = randomLongBetween(0L, cacheFile.getLength() - 1L);
-            final long end = randomLongBetween(start + 1L, cacheFile.getLength());
+            final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
+            final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
             final Tuple<Long, Long> range = Tuple.tuple(start, end);
             futures.add(
                 cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
+                    consumer.apply(channel, from, to);
                     ranges.add(Tuple.tuple(from, to));
                     progressUpdater.accept(to);
                 }, deterministicTaskQueue.getThreadPool().generic())

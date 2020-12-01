@@ -131,8 +131,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             registrationListener = ActionListener.delegateFailure(listener, (delegatedListener, clusterStateUpdateResponse) -> {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
                     // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                    verifyRepository(request.name(), ActionListener.delegateFailure(delegatedListener,
-                        (innerDelegatedListener, discoveryNodes) -> innerDelegatedListener.onResponse(clusterStateUpdateResponse)));
+                    verifyRepository(request.name(), delegatedListener.map(discoveryNodes -> clusterStateUpdateResponse));
                 } else {
                     delegatedListener.onResponse(clusterStateUpdateResponse);
                 }

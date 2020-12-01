@@ -22,6 +22,8 @@ package org.elasticsearch.index.shard;
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -69,6 +71,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -319,9 +322,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
-        final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
-        searchListenersList.add(searchStats);
-        this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
+        this.searchOperationListener =
+                new SearchOperationListener.CompositeListener(CollectionUtils.appendToCopy(searchOperationListener, searchStats), logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
@@ -2725,6 +2727,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
+        if (mapperService == null) {
+            return null;
+        }
+        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapperService.indexAnalyzer(fieldName, f -> {
+                    throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer");
+                });
+            }
+        };
+    }
 
     private DocumentMapperForType docMapper() {
         return mapperService.documentMapperWithAutoCreate();
@@ -2741,7 +2756,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
         return new EngineConfig(shardId,
                 threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
-                mapperService != null ? mapperService.indexAnalyzer() : null,
+                buildIndexAnalyzer(mapperService),
                 similarityService.similarity(mapperService == null ? null : mapperService::fieldType), codecService, shardEventListener,
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),

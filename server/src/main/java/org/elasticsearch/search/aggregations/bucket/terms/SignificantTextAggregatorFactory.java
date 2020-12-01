@@ -48,7 +48,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregat
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -106,8 +105,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection.
@@ -131,7 +130,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.lookup().source(),
             context.bigArrays(),
             fieldType,
-            searchContext.getQueryShardContext().getIndexAnalyzer(f -> {
+            context.getIndexAnalyzer(f -> {
                 throw new IllegalArgumentException("No analyzer configured for field " + f);
             }),
             sourceFieldNames,
@@ -147,7 +146,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             DocValueFormat.RAW,
             bucketCountThresholds,
             incExcFilter,
-            searchContext,
+            context,
             parent,
             SubAggCollectionMode.BREADTH_FIRST,
             false,

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.ArrayList;
@@ -39,7 +38,7 @@ public final class MappingLookup {
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
     private final int metadataFieldCount;
-    private final FieldNameAnalyzer indexAnalyzer;
+    private final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
 
     public static MappingLookup fromMapping(Mapping mapping) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
@@ -81,7 +80,6 @@ public final class MappingLookup {
                          Collection<RuntimeFieldType> runtimeFieldTypes,
                          int metadataFieldCount) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
-        Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
         boolean hasNested = false;
@@ -118,7 +116,6 @@ public final class MappingLookup {
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFieldTypes);
 
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
-        this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
 
@@ -136,17 +133,9 @@ public final class MappingLookup {
         return fieldTypeLookup;
     }
 
-    /**
-     * A smart analyzer used for indexing that takes into account specific analyzers configured
-     * per {@link FieldMapper}.
-     */
-    public FieldNameAnalyzer indexAnalyzer() {
-        return this.indexAnalyzer;
-    }
-
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
-        if (this.indexAnalyzer.analyzers().containsKey(field)) {
-            return this.indexAnalyzer.analyzers().get(field);
+        if (this.indexAnalyzers.containsKey(field)) {
+            return this.indexAnalyzers.get(field);
         }
         return unmappedFieldAnalyzer.apply(field);
     }

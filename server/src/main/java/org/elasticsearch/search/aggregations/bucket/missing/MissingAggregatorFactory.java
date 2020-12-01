@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,19 +45,15 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected MissingAggregator createUnmapped(SearchContext searchContext,
-                                                Aggregator parent,
-                                                Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+    protected MissingAggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new MissingAggregator(name, factories, config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return context.getValuesSourceRegistry()
             .getAggregator(MissingAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, factories, config, searchContext, parent, cardinality, metadata);
+            .build(name, factories, config, context, parent, cardinality, metadata);
     }
 }

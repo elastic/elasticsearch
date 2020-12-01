@@ -19,12 +19,9 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -33,8 +30,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assume.assumeThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BitArrayTests extends ESTestCase {
 
@@ -89,30 +84,15 @@ public class BitArrayTests extends ESTestCase {
     }
 
     public void testClearingDoesntAllocate() {
-        CircuitBreakerService breaker = mock(CircuitBreakerService.class);
         ByteSizeValue max = new ByteSizeValue(1, ByteSizeUnit.KB);
-        when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
-            private long total = 0;
-
-            @Override
-            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                total += bytes;
-                if (total > max.getBytes()) {
-                    throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
-                }
-                return total;
-            }
-
-            @Override
-            public long addWithoutBreaking(long bytes) {
-                total += bytes;
-                return total;
-            }
-        });
-        BigArrays bigArrays = new BigArrays(null, breaker, CircuitBreaker.REQUEST, true);
+        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), max);
         try (BitArray bitArray = new BitArray(1, bigArrays)) {
             bitArray.clear(100000000);
         }
+    }
+
+    public void testAllocation() {
+        MockBigArrays.assertFitsIn(new ByteSizeValue(100), bigArrays -> new BitArray(1, bigArrays));
     }
 
     public void testOr() {

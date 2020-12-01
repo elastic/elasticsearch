@@ -23,9 +23,12 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -109,11 +112,11 @@ public class CcrLicenseChecker {
      * @param consumer      the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
      */
     public void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-            final Client client,
-            final String clusterAlias,
-            final String leaderIndex,
-            final Consumer<Exception> onFailure,
-            final BiConsumer<String[], IndexMetadata> consumer) {
+        final Client client,
+        final String clusterAlias,
+        final String leaderIndex,
+        final Consumer<Exception> onFailure,
+        final BiConsumer<String[], Tuple<IndexMetadata, DataStream>> consumer) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
@@ -127,20 +130,35 @@ public class CcrLicenseChecker {
                 onFailure,
                 remoteClusterStateResponse -> {
                     ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                    IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
+                    final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
                     if (leaderIndexMetadata == null) {
-                        onFailure.accept(new IndexNotFoundException(leaderIndex));
+                        final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                        final Exception failure;
+                        if (indexAbstraction == null) {
+                            failure = new IndexNotFoundException(leaderIndex);
+                        } else {
+                            // provided name may be an alias or data stream and in that case throw a specific error:
+                            String message = String.format(Locale.ROOT,
+                                "cannot follow [%s], because it is a %s",
+                                leaderIndex, indexAbstraction.getType()
+                            );
+                            failure = new IllegalArgumentException(message);
+                        }
+                        onFailure.accept(failure);
                         return;
                     }
                     if (leaderIndexMetadata.getState() == IndexMetadata.State.CLOSE) {
                         onFailure.accept(new IndexClosedException(leaderIndexMetadata.getIndex()));
                         return;
                     }
+                    IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                    final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null ?
+                        indexAbstraction.getParentDataStream().getDataStream() : null;
                     final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
                     hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
                             fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, onFailure, historyUUIDs ->
-                                    consumer.accept(historyUUIDs, leaderIndexMetadata));
+                                    consumer.accept(historyUUIDs, Tuple.tuple(leaderIndexMetadata, remoteDataStream)));
                         } else {
                             onFailure.accept(e);
                         }

@@ -10,17 +10,17 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class GeoShapeTileGridAggregator extends GeoTileGridAggregator {
     public GeoShapeTileGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, int requiredSize,
-                                      int shardSize, SearchContext aggregationContext, Aggregator parent,
+                                      int shardSize, AggregationContext context, Aggregator parent,
                                       CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
-        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, cardinality, metadata);
+        super(name, factories, valuesSource, requiredSize, shardSize, context, parent, cardinality, metadata);
     }
 
     /**

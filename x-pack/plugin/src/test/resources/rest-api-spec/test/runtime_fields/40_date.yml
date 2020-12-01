@@ -8,18 +8,9 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            properties:
-              timestamp:
-                type: date
-              temperature:
-                type: long
-              voltage:
-                type: double
-              node:
-                type: keyword
+            runtime:
               tomorrow:
-                type: runtime
-                runtime_type: date
+                type: date
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
@@ -29,8 +20,7 @@ setup:
                     days: 1
               # Test fetching from _source and parsing
               tomorrow_from_source:
-                type: runtime
-                runtime_type: date
+                type: date
                 script:
                   source: |
                     Instant instant = Instant.ofEpochMilli(parse(params._source.timestamp));
@@ -38,8 +28,7 @@ setup:
                     emit(dt.plus(1, ChronoUnit.DAYS).toEpochMilli());
               # Test returning millis
               the_past:
-                type: runtime
-                runtime_type: date
+                type: date
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
@@ -47,8 +36,7 @@ setup:
                     }
               # Test fetching many values
               all_week:
-                type: runtime
-                runtime_type: date
+                type: date
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
@@ -58,13 +46,21 @@ setup:
                     }
               # Test format parameter
               formatted_tomorrow:
-                type: runtime
-                runtime_type: date
+                type: date
                 format: yyyy-MM-dd
                 script: |
                   for (def dt : doc['timestamp']) {
                     emit(dt.plus(1, ChronoUnit.DAYS).toEpochMilli());
                   }
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
 
   - do:
       bulk:
@@ -89,25 +85,23 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.tomorrow.type: runtime }
-  - match: {sensor.mappings.properties.tomorrow.runtime_type: date }
+  - match: {sensor.mappings.runtime.tomorrow.type: date }
   - match:
-      sensor.mappings.properties.tomorrow.script.source: |
+      sensor.mappings.runtime.tomorrow.script.source: |
         for (def dt : doc['timestamp']) {
           emit(dt.plus(params.days, ChronoUnit.DAYS).toEpochMilli());
         }
-  - match: {sensor.mappings.properties.tomorrow.script.params: {days: 1} }
-  - match: {sensor.mappings.properties.tomorrow.script.lang: painless }
+  - match: {sensor.mappings.runtime.tomorrow.script.params: {days: 1} }
+  - match: {sensor.mappings.runtime.tomorrow.script.lang: painless }
 
-  - match: {sensor.mappings.properties.formatted_tomorrow.type: runtime }
-  - match: {sensor.mappings.properties.formatted_tomorrow.runtime_type: date }
+  - match: {sensor.mappings.runtime.formatted_tomorrow.type: date }
   - match:
-      sensor.mappings.properties.formatted_tomorrow.script.source: |
+      sensor.mappings.runtime.formatted_tomorrow.script.source: |
         for (def dt : doc['timestamp']) {
           emit(dt.plus(1, ChronoUnit.DAYS).toEpochMilli());
         }
-  - match: {sensor.mappings.properties.formatted_tomorrow.script.lang: painless }
-  - match: {sensor.mappings.properties.formatted_tomorrow.format: yyyy-MM-dd }
+  - match: {sensor.mappings.runtime.formatted_tomorrow.script.lang: painless }
+  - match: {sensor.mappings.runtime.formatted_tomorrow.format: yyyy-MM-dd }
 
 ---
 "fetch fields":

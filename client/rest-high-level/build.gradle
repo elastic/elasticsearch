@@ -72,19 +72,22 @@ File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
 
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'tests.rest.async', 'false'
   systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
   systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
 }
 
+// Requires https://github.com/elastic/elasticsearch/pull/64403 to have this moved to task avoidance api.
 RestIntegTestTask asyncIntegTest = tasks.create("asyncIntegTest", RestIntegTestTask) {
     systemProperty 'tests.rest.async', 'true'
     systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
     systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
 }
 
-check.dependsOn(asyncIntegTest)
+tasks.named("check").configure {
+  dependsOn(asyncIntegTest)
+}
 
 testClusters.all {
   testDistribution = 'DEFAULT'

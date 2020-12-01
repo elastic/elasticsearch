@@ -69,6 +69,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -86,6 +87,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -184,6 +186,20 @@ public class RestoreService implements ClusterStateApplier {
      * @param listener restore listener
      */
     public void restoreSnapshot(final RestoreSnapshotRequest request, final ActionListener<RestoreCompletionResponse> listener) {
+        restoreSnapshot(request, listener, (clusterState, builder) -> {});
+    }
+
+    /**
+     * Restores snapshot specified in the restore request.
+     *
+     * @param request  restore request
+     * @param listener restore listener
+     * @param updater  handler that allows callers to make modifications to {@link Metadata}
+     *                 in the same cluster state update as the restore operation
+     */
+    public void restoreSnapshot(final RestoreSnapshotRequest request,
+                                final ActionListener<RestoreCompletionResponse> listener,
+                                final BiConsumer<ClusterState, Metadata.Builder> updater) {
         try {
             // Read snapshot info and metadata from the repository
             final String repositoryName = request.repository();
@@ -324,7 +340,8 @@ public class RestoreService implements ClusterStateApplier {
                                         .index(renamedIndexName);
                                     indexMdBuilder.settings(Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
-                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
+                                        .timestampMillisRange(IndexLongFieldRange.NO_SHARDS);
                                     shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
                                     if (!request.includeAliases() && !snapshotIndexMetadata.getAliases().isEmpty()) {
                                         // Remove all aliases - they shouldn't be restored
@@ -357,6 +374,7 @@ public class RestoreService implements ClusterStateApplier {
                                             1 + currentIndexMetadata.getSettingsVersion()));
                                     indexMdBuilder.aliasesVersion(
                                         Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()));
+                                    indexMdBuilder.timestampMillisRange(IndexLongFieldRange.NO_SHARDS);
 
                                     for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
                                         indexMdBuilder.primaryTerm(shard,
@@ -455,6 +473,7 @@ public class RestoreService implements ClusterStateApplier {
                         }
 
                         RoutingTable rt = rtBuilder.build();
+                        updater.accept(currentState, mdBuilder);
                         ClusterState updatedState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rt).build();
                         return allocationService.reroute(updatedState, "restored snapshot [" + snapshot + "]");
                     }
@@ -604,7 +623,7 @@ public class RestoreService implements ClusterStateApplier {
             .map(i -> metadata.get(renameIndex(i.getName(), request, true)).getIndex())
             .collect(Collectors.toList());
         return new DataStream(dataStreamName, dataStream.getTimeStampField(), updatedIndices, dataStream.getGeneration(),
-            dataStream.getMetadata());
+            dataStream.getMetadata(), dataStream.isHidden());
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
@@ -910,6 +929,12 @@ public class RestoreService implements ClusterStateApplier {
             throw new SnapshotRestoreException(new Snapshot(repository, snapshotInfo.snapshotId()),
                                                "the snapshot was created with Elasticsearch version [" + snapshotInfo.version() +
                                                    "] which is higher than the version of this node [" + Version.CURRENT + "]");
+        }
+        if (snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+            throw new SnapshotRestoreException(new Snapshot(repository, snapshotInfo.snapshotId()),
+                    "the snapshot was created with Elasticsearch version [" + snapshotInfo.version() +
+                            "] which is below the current versions minimum index compatibility version [" +
+                            Version.CURRENT.minimumIndexCompatibilityVersion() + "]");
         }
     }
 

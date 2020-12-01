@@ -131,31 +131,27 @@ public class IndexAbstractionResolver {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
         final boolean isHidden = indexAbstraction.isHidden();
+        boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             //complicated to support those options with aliases pointing to multiple indices...
-            if (indicesOptions.ignoreAliases()) {
-                return false;
-            } else if (isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index)) {
-                return true;
-            } else {
-                return false;
-            }
+            return isVisible && indicesOptions.ignoreAliases() == false;
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            return includeDataStreams;
+            return isVisible && includeDataStreams;
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-        IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);
-        if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {
-            return false;
-        }
-
-        // the index is not hidden and since it is a date math expression, we consider it visible regardless of open/closed
+        // since it is a date math expression, we consider the index visible regardless of open/closed/hidden as the user is using
+        // date math to explicitly reference the index
         if (dateMathExpression) {
             assert IndexMetadata.State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
             return true;
         }
+        if (isVisible == false) {
+            return false;
+        }
+
+        IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }

@@ -37,13 +37,13 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -265,9 +265,10 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 }
             }
 
-            mergeBuckets(mergeMap, bucketOrd + 1);
+            LongUnaryOperator howToRewrite = b -> mergeMap[(int) b];
+            rewriteBuckets(bucketOrd + 1, howToRewrite);
             if (deferringCollector != null) {
-                deferringCollector.mergeBuckets(mergeMap);
+                deferringCollector.rewriteBuckets(howToRewrite);
             }
         }
 
@@ -370,9 +371,9 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                     }
                 };
 
-                mergeBuckets(numClusters, mergeMap);
+                rewriteBuckets(numClusters, mergeMap);
                 if (deferringCollector != null) {
-                    deferringCollector.mergeBuckets(mergeMap);
+                    deferringCollector.rewriteBuckets(mergeMap);
                 }
             }
         }
@@ -440,11 +441,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     private CollectionPhase collector;
 
-    private MergingBucketsDeferringCollector deferringCollector;
+    private BestBucketsDeferringCollector deferringCollector;
 
     VariableWidthHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, int shardSize,
                                      int initialBuffer, @Nullable ValuesSourceConfig valuesSourceConfig,
-                                     SearchContext context, Aggregator parent,
+                                     AggregationContext context, Aggregator parent,
                                      Map<String, Object> metadata) throws IOException{
         super(name, factories, context, parent, metadata);
 
@@ -506,8 +507,8 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     }
 
     @Override
-    public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
+    public DeferringBucketCollector buildDeferringCollector() {
+        deferringCollector = new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 

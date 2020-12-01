@@ -60,3 +60,4 @@ There are reloadable secure settings for:
 * {plugins}/repository-gcs-client.html[The GCS repository plugin]
 * {plugins}/repository-s3-client.html[The S3 repository plugin]
 * <<monitoring-settings>>
+* <<notification-settings>>

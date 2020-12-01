@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.analytics.rate;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lease.Releasables;
@@ -17,9 +14,12 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.Map;
 
 public abstract class AbstractRateAggregator extends NumericMetricsAggregator.SingleValue {
 
@@ -37,7 +37,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
         RateMode rateMode,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
@@ -80,7 +80,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         if (sizedBucketAggregator == null || valuesSource == null || owningBucketOrd >= sums.size()) {
             return 0.0;
         }
-        return sums.get(owningBucketOrd) / sizedBucketAggregator.bucketSize(owningBucketOrd, rateUnit);
+        return sums.get(owningBucketOrd) / divisor(owningBucketOrd);
     }
 
     @Override
@@ -88,7 +88,15 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalRate(name, sums.get(bucket), sizedBucketAggregator.bucketSize(bucket, rateUnit), format, metadata());
+        return new InternalRate(name, sums.get(bucket), divisor(bucket), format, metadata());
+    }
+
+    private double divisor(long owningBucketOrd) {
+        if (sizedBucketAggregator == parent) {
+            return sizedBucketAggregator.bucketSize(owningBucketOrd, rateUnit);
+        } else {
+            return sizedBucketAggregator.bucketSize(rateUnit);
+        }
     }
 
     @Override

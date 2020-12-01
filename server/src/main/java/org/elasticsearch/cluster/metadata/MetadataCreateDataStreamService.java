@@ -30,7 +30,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -71,7 +70,7 @@ public class MetadataCreateDataStreamService {
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request,
                                  ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> firstBackingIndexRef = new AtomicReference<>();
-        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
             response -> {
                 if (response.isAcknowledged()) {
                     String firstBackingIndexName = firstBackingIndexRef.get();
@@ -89,18 +88,12 @@ public class MetadataCreateDataStreamService {
             finalListener::onFailure
         );
         clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
-
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
-                }
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
                 }
             });
     }
@@ -159,8 +152,9 @@ public class MetadataCreateDataStreamService {
         if (dataStreamName.toLowerCase(Locale.ROOT).equals(dataStreamName) == false) {
             throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
-        if (dataStreamName.startsWith(".")) {
-            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '.'");
+        if (dataStreamName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '"
+                + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
         ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
@@ -189,8 +183,9 @@ public class MetadataCreateDataStreamService {
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
         dsBackingIndices.add(writeIndex.getIndex());
+        boolean hidden = template.getDataStreamTemplate().isHidden();
         DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
-                                                  template.metadata() != null ? Map.copyOf(template.metadata()) : null);
+                                                  template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
             writeIndex.getIndex().getName(),

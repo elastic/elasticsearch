@@ -82,15 +82,15 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
-        assertThat(settingsAsMap.getOrDefault("write_date_as_epoch_millis", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
 
-        config = fromString("{\"write_date_as_epoch_millis\" : null}");
+        config = fromString("{\"dates_as_epoch_millis\" : null}");
         assertNull(emptyConfig.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
-        assertNull(settingsAsMap.getOrDefault("write_date_as_epoch_millis", "not_set"));
+        assertNull(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"));
     }
 
     public void testExplicitNullOnWriteBuilder() throws IOException {
@@ -101,7 +101,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         Map<String, Object> settingsAsMap = xContentToMap(config);
         assertNull(settingsAsMap.getOrDefault("max_page_search_size", "not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
-        assertThat(settingsAsMap.getOrDefault("write_date_as_epoch_millis", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
 
         SettingsConfig emptyConfig = new SettingsConfig.Builder().build();
         assertNull(emptyConfig.getMaxPageSearchSize());
@@ -116,7 +116,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
-        assertThat(settingsAsMap.getOrDefault("write_date_as_epoch_millis", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
 
         config = new SettingsConfig.Builder().setDatesAsEpochMilli(null).build();
         // returns null, however it's `null` as in "use default"
@@ -125,7 +125,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
-        assertNull(settingsAsMap.getOrDefault("write_date_as_epoch_millis", "not_set"));
+        assertNull(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"));
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

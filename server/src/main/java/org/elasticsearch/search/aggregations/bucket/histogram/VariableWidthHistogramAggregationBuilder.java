@@ -158,8 +158,7 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder,
-                                                       Object aggregatorSupplier) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         Settings settings = context.getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         if (numBuckets > maxBuckets) {
@@ -187,9 +186,13 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
             throw new IllegalArgumentException("3/4 of " + SHARD_SIZE_FIELD.getPreferredName() + " must be at least "
                 + NUM_BUCKETS_FIELD.getPreferredName() + " but was [" + mergePhaseInit + "<" + numBuckets + "] for [" + name + "]");
         }
+
+        VariableWidthHistogramAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         return new VariableWidthHistogramAggregatorFactory(name, config, numBuckets, shardSize, initialBuffer,
             context, parent, subFactoriesBuilder, metadata,
-            (VariableWidthHistogramAggregatorSupplier) aggregatorSupplier);
+            aggregatorSupplier);
     }
 
     @Override

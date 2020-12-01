@@ -103,8 +103,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder,
-                                                       Object aggregatorSupplier) throws IOException {
+                                                       Builder subFactoriesBuilder) throws IOException {
         return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
                 subFactoriesBuilder, metadata);
     }

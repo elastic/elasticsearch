@@ -162,10 +162,11 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder,
-                                                       Object aggregatorSupplier) throws IOException {
-        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, context, parent,
-                subFactoriesBuilder, metadata, (DiversifiedAggregatorSupplier) aggregatorSupplier);
+                                                       Builder subFactoriesBuilder) throws IOException {
+        DiversifiedAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, context,
+                                                parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

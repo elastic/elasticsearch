@@ -112,11 +112,11 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     protected GeoBoundsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                     AggregatorFactory parent,
-                                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                                    Object aggregatorSupplier) throws IOException {
-        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude,
-                                              context, parent, subFactoriesBuilder, metadata,
-                                              (GeoBoundsAggregatorSupplier) aggregatorSupplier);
+                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        GeoBoundsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, context, parent,
+                                              subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

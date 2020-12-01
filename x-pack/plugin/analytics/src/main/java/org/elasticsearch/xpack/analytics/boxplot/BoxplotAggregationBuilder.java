@@ -106,11 +106,12 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     protected BoxplotAggregatorFactory innerBuild(AggregationContext context,
                                                   ValuesSourceConfig config,
                                                   AggregatorFactory parent,
-                                                  AggregatorFactories.Builder subFactoriesBuilder,
-                                                  Object aggregatorSupplier) throws IOException {
-        return new BoxplotAggregatorFactory(name, config, compression, context,
-                                            parent, subFactoriesBuilder, metadata,
-                                            (BoxplotAggregatorSupplier) aggregatorSupplier);
+                                                  AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        BoxplotAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
+        return new BoxplotAggregatorFactory(name, config, compression, context, parent, subFactoriesBuilder,
+                                            metadata, aggregatorSupplier);
     }
 
     @Override

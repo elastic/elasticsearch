@@ -95,10 +95,10 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     protected ValueCountAggregatorFactory innerBuild(AggregationContext context,
                                                      ValuesSourceConfig config,
                                                      AggregatorFactory parent,
-                                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                                     Object aggregatorSupplier) throws IOException {
-        return new ValueCountAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata,
-                                               (MetricAggregatorSupplier) aggregatorSupplier);
+                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        MetricAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new ValueCountAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

@@ -88,10 +88,11 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     @Override
     protected SumAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                               AggregatorFactory parent,
-                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                              Object aggregatorSupplier) throws IOException {
+                                              AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        MetricAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new SumAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata,
-                                        (MetricAggregatorSupplier) aggregatorSupplier);
+                                        aggregatorSupplier);
     }
 
     @Override

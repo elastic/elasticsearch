@@ -350,11 +350,12 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder,
-                                                       Object aggregatorSupplier) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        TermsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new TermsAggregatorFactory(name, config, order, includeExclude, executionHint, collectMode,
                 bucketCountThresholds, showTermDocCountError, context, parent, subFactoriesBuilder, metadata,
-                (TermsAggregatorSupplier) aggregatorSupplier);
+                aggregatorSupplier);
     }
 
     @Override

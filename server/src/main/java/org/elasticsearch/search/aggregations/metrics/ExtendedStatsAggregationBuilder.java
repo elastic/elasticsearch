@@ -104,11 +104,11 @@ public class ExtendedStatsAggregationBuilder
     @Override
     protected ExtendedStatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                         AggregatorFactory parent,
-                                                        AggregatorFactories.Builder subFactoriesBuilder,
-                                                        Object aggregatorSupplier) throws IOException {
-        return new ExtendedStatsAggregatorFactory(name, config, sigma, context,
-                                                  parent, subFactoriesBuilder, metadata,
-                                                  (ExtendedStatsAggregatorProvider) aggregatorSupplier);
+                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        ExtendedStatsAggregatorProvider aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new ExtendedStatsAggregatorFactory(name, config, sigma, context, parent,
+                                                  subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

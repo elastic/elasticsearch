@@ -81,11 +81,12 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     protected StringStatsAggregatorFactory innerBuild(AggregationContext context,
                                                       ValuesSourceConfig config,
                                                       AggregatorFactory parent,
-                                                      AggregatorFactories.Builder subFactoriesBuilder,
-                                                      Object aggregatorSupplier) throws IOException {
+                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        StringStatsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new StringStatsAggregatorFactory(name, config, showDistribution, context,
                                                 parent, subFactoriesBuilder, metadata,
-                                                (StringStatsAggregatorSupplier) aggregatorSupplier);
+                                                aggregatorSupplier);
     }
 
     @Override

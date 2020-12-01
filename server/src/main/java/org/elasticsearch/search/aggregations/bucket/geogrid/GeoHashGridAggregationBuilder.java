@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -71,12 +70,15 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     protected ValuesSourceAggregatorFactory createFactory(
-        String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
-        GeoBoundingBox geoBoundingBox, AggregationContext context,
-        AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metadata, Object aggregationSupplier) throws IOException {
+            String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
+            GeoBoundingBox geoBoundingBox, AggregationContext context,
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metadata) throws IOException {
+
+        GeoGridAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
-            context, parent, subFactoriesBuilder, metadata, (GeoGridAggregatorSupplier) aggregationSupplier);
+            context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     private GeoHashGridAggregationBuilder(GeoHashGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,

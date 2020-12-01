@@ -100,11 +100,13 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder,
-                                                       Object aggregatorSupplier) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+
+        MissingAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         return new MissingAggregatorFactory(name, config, context,
-                                            parent, subFactoriesBuilder, metadata,
-                                            (MissingAggregatorSupplier) aggregatorSupplier);
+                                            parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

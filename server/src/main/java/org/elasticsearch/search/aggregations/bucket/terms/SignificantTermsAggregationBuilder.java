@@ -295,12 +295,13 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder,
-                                                       Object aggregatorSupplier) throws IOException {
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = significanceHeuristic.rewrite(context);
+
+        SignificantTermsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metadata,
-                (SignificantTermsAggregatorSupplier) aggregatorSupplier);
+                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

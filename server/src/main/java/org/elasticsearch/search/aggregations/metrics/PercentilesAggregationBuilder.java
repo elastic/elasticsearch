@@ -132,10 +132,13 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
             AggregationContext context,
             ValuesSourceConfig config,
             AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder,
-            Object aggregatorSupplier) throws IOException {
+            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+
+        PercentilesAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         return new PercentilesAggregatorFactory(name, config, values, configOrDefault(), keyed,
-            context, parent, subFactoriesBuilder, metadata, (PercentilesAggregatorSupplier) aggregatorSupplier);
+            context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

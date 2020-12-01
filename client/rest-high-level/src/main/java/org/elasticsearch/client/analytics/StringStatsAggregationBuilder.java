@@ -103,8 +103,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                       AggregatorFactory parent, Builder subFactoriesBuilder,
-                                                       Object aggregatorSupplier) throws IOException {
+                                                       AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         throw new UnsupportedOperationException();
     }
 

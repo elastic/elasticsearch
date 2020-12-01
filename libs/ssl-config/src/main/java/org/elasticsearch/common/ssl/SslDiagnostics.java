@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.Arrays;
+import java.util.stream.IntStream;
 
 public class SslDiagnostics {
 
@@ -152,6 +153,30 @@ public class SslDiagnostics {
         }
     }
 
+    public enum ExtendedKeyUsage {
+        serverAuth ("1.3.6.1.5.5.7.3.1"),
+        clientAuth ("1.3.6.1.5.5.7.3.2"),
+        codeSigning ("1.3.6.1.5.5.7.3.3"),
+        emailProtection ("1.3.6.1.5.5.7.3.4"),
+        timeStamping ("1.3.6.1.5.5.7.3.8"),
+        ocspSigning ("1.3.6.1.5.5.7.3.9");
+
+        private String oid;
+
+        private ExtendedKeyUsage(String oid) {
+            this.oid = oid;
+        }
+
+        public static String decodeOid(String oid) {
+            for (ExtendedKeyUsage e : values()) {
+                if (e.oid != null && e.oid.equals(oid)) {
+                    return e.name();
+                }
+            }
+            return oid;
+        }
+    }
+
     /**
      * @param contextName    The descriptive name of this SSL context (e.g. "xpack.security.transport.ssl")
      * @param trustedIssuers A Map of DN to Certificate, for the issuers that were trusted in the context in which this failure occurred
@@ -178,9 +203,9 @@ public class SslDiagnostics {
             .append(peerType.name().toLowerCase(Locale.ROOT))
             .append(" provided a certificate with subject name [")
             .append(peerCert.getSubjectX500Principal().getName())
-            .append("] and ")
+            .append("], ")
             .append(fingerprintDescription(peerCert))
-            .append(" and ")
+            .append(", ")
             .append(keyUsageDescription(peerCert))
             .append(" and ")
             .append(extendedKeyUsageDescription(peerCert));
@@ -415,23 +440,40 @@ public class SslDiagnostics {
     }
 
     private static String keyUsageDescription(X509Certificate certificate) {
-        return Optional.ofNullable(certificate.getKeyUsage())
-            .map(keyUsage -> "keyUsage [" + Arrays.toString(keyUsage) + "]")
+        boolean[] keyUsage = certificate.getKeyUsage();
+        if (keyUsage == null || keyUsage.length == 0) {
+            return "no keyUsage";
+        }
+
+        final String[] keyUsageGlossary = {"digitalSignature", "nonRepudiation", "keyEncipherment",
+            "dataEncipherment", "keyAgreement", "keyCertSign", "cRLSign", "encipherOnly",
+            "decipherOnly"};
+
+        List<String> keyUsageDescription = new ArrayList<>();
+        IntStream.range(0, keyUsage.length).forEach(i -> {
+            if (keyUsage[i]) {
+                keyUsageDescription.add(keyUsageGlossary[i]);
+            }
+        });
+        return keyUsageDescription.stream()
+            .reduce((a, b) -> a + ", " + b)
+            .map(str ->  "keyUsage [" + str + "]")
             .orElse("no keyUsage");
     }
 
     private static String extendedKeyUsageDescription(X509Certificate certificate) {
         try {
             return Optional.ofNullable(certificate.getExtendedKeyUsage())
-                .map(list -> generateExtendedKeyUsageDescription(list))
+                .map(keyUsage -> generateExtendedKeyUsageDescription(keyUsage))
                 .orElse("no extendedKeyUsage");
         } catch (CertificateParsingException e) {
             return "invalid extendedKeyUsage [" + e.toString() + "]";
         }
     }
 
-    private static String generateExtendedKeyUsageDescription(List<String> list) {
-        return list.stream()
+    private static String generateExtendedKeyUsageDescription(List<String> oids) {
+        return oids.stream()
+            .map(ExtendedKeyUsage::decodeOid)
             .reduce((x, y) -> x + ", " + y)
             .map(str -> "extendedKeyUsage [" + str + "]")
             .orElse("no extendedKeyUsage");
@@ -444,10 +486,9 @@ public class SslDiagnostics {
         String protocol = Optional.ofNullable(session)
             .map(SSLSession::getProtocol)
             .orElse("<unknown protocol>");
-        message.append("; the session supports the cipher suite [")
+        message.append("; the session supports cipher suite [")
             .append(cipherSuite)
-            .append("] and ")
-            .append("the protocol [")
+            .append("] and protocol [")
             .append(protocol)
             .append("]");
     }

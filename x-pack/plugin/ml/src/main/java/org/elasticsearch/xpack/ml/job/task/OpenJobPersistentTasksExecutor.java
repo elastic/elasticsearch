@@ -31,12 +31,16 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedContext;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -65,16 +69,19 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     private final AutodetectProcessManager autodetectProcessManager;
+    private final DatafeedContextProvider datafeedContextProvider;
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
 
     private volatile ClusterState clusterState;
 
     public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
-                                          AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker,
-                                          Client client, IndexNameExpressionResolver expressionResolver) {
+                                          AutodetectProcessManager autodetectProcessManager,
+                                          DatafeedContextProvider datafeedContextProvider, MlMemoryTracker memoryTracker, Client client,
+                                          IndexNameExpressionResolver expressionResolver) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
+        this.datafeedContextProvider = Objects.requireNonNull(datafeedContextProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         clusterService.addListener(event -> clusterState = event.state());
@@ -155,7 +162,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         // simply because there are no ml nodes in the cluster then we fail quickly here:
         PersistentTasksCustomMetadata.Assignment assignment = getAssignment(params, clusterState);
         if (assignment.equals(AWAITING_UPGRADE)) {
-            throw makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
+            throw makeCurrentlyBeingUpgradedException(logger, params.getJobId());
         }
 
         if (assignment.getExecutorNode() == null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT) == false) {
@@ -193,6 +200,38 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             return;
         }
 
+        ActionListener<DatafeedContext> datafeedContextListener = ActionListener.wrap(
+            datafeedContext -> {
+                if (datafeedContext != null && datafeedContext.shouldRecoverFromCurrentSnapshot()) {
+                    // This job has a datafeed attached to it and the job had advanced past the current model snapshot.
+                    // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
+                    ModelSnapshot modelSnapshot = datafeedContext.getModelSnapshot() == null ?
+                        ModelSnapshot.emptySnapshot(jobTask.getJobId()) : datafeedContext.getModelSnapshot();
+                    logger.info("[{}] job had advanced past its current model snapshot [{}]; performing recovery",
+                        jobTask.getJobId(), modelSnapshot.getSnapshotId());
+                    revertToSnapshot(modelSnapshot, ActionListener.wrap(
+                        response -> openJob(jobTask),
+                        jobTask::markAsFailed
+                    ));
+                } else {
+                    openJob(jobTask);
+                }
+            },
+            jobTask::markAsFailed
+        );
+
+        datafeedContextProvider.buildDatafeedContextForJob(jobTask.getJobId(), clusterState, datafeedContextListener);
+    }
+
+    private void revertToSnapshot(ModelSnapshot modelSnapshot, ActionListener<RevertModelSnapshotAction.Response> listener) {
+        RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(modelSnapshot.getJobId(),
+            modelSnapshot.getSnapshotId());
+        request.setForce(true);
+        request.setDeleteInterveningResults(true);
+        executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, listener);
+    }
+
+    private void openJob(JobTask jobTask) {
         String jobId = jobTask.getJobId();
         autodetectProcessManager.openJob(jobTask, clusterState, (e2, shouldFinalizeJob) -> {
             if (e2 == null) {
@@ -235,7 +274,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             && assignment.isAssigned() == false) {
             // Assignment has failed on the master node despite passing our "fast fail" validation
             if (assignment.equals(AWAITING_UPGRADE)) {
-                return Optional.of(makeCurrentlyBeingUpgradedException(logger, jobId, assignment.getExplanation()));
+                return Optional.of(makeCurrentlyBeingUpgradedException(logger, jobId));
             } else if (assignment.getExplanation().contains("[" + EnableAssignmentDecider.ALLOCATION_NONE_EXPLANATION + "]")) {
                 return Optional.of(makeAssignmentsNotAllowedException(logger, jobId));
             } else {
@@ -260,7 +299,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         return new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
     }
 
-    static ElasticsearchException makeCurrentlyBeingUpgradedException(Logger logger, String jobId, String explanation) {
+    static ElasticsearchException makeCurrentlyBeingUpgradedException(Logger logger, String jobId) {
         String msg = "Cannot open jobs when upgrade mode is enabled";
         logger.warn("[{}] {}", jobId, msg);
         return new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);

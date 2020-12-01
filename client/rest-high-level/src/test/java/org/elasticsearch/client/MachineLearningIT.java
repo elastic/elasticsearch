@@ -2825,6 +2825,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65699")
     public void testUpdateModelSnapshot() throws Exception {
         String jobId = "test-update-model-snapshot";
 

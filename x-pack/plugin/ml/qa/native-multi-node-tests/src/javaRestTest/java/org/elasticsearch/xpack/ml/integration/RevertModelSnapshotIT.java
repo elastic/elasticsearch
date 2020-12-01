@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation.Event;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -25,9 +26,11 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.After;
@@ -49,6 +52,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This test pushes data through a job in 2 runs creating
@@ -58,19 +63,60 @@ import static org.hamcrest.Matchers.not;
 public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void tearDownData() throws Exception {
+    public void tearDownData() {
         cleanUp();
     }
 
     public void testRevertModelSnapshot() throws Exception {
-        test("revert-model-snapshot-it-job", false);
+        testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion("revert-model-snapshot-it-job", false);
     }
 
     public void testRevertModelSnapshot_DeleteInterveningResults() throws Exception {
-        test("revert-model-snapshot-it-job-delete-intervening-results", true);
+        testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion("revert-model-snapshot-it-job-delete-intervening-results", true);
     }
 
-    private void test(String jobId, boolean deleteInterveningResults) throws Exception {
+    public void testRevertToEmptySnapshot() throws Exception {
+        String jobId = "revert-to-empty-snapshot-test";
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        long startTime = 1491004800000L;
+
+        String data = generateData(startTime, bucketSpan, 20, Arrays.asList("foo"),
+            (bucketIndex, series) -> bucketIndex == 19 ? 100.0 : 10.0).stream().collect(Collectors.joining());
+
+        Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
+        openJob(job.getId());
+        postData(job.getId(), data);
+        flushJob(job.getId(), true);
+        closeJob(job.getId());
+
+        assertThat(getJob(jobId).get(0).getModelSnapshotId(), is(notNullValue()));
+        List<Bucket> expectedBuckets = getBuckets(jobId);
+        assertThat(expectedBuckets.size(), equalTo(20));
+        List<AnomalyRecord> expectedRecords = getRecords(jobId);
+        assertThat(expectedBuckets.isEmpty(), is(false));
+        assertThat(expectedRecords.isEmpty(), is(false));
+
+        RevertModelSnapshotAction.Response revertResponse = revertModelSnapshot(jobId, "empty", true);
+        assertThat(revertResponse.getModel().getSnapshotId(), equalTo("empty"));
+
+        assertThat(getJob(jobId).get(0).getModelSnapshotId(), is(nullValue()));
+        assertThat(getBuckets(jobId).isEmpty(), is(true));
+        assertThat(getRecords(jobId).isEmpty(), is(true));
+        assertThat(getJobStats(jobId).get(0).getDataCounts().getLatestRecordTimeStamp(), is(nullValue()));
+
+        // Now run again and see we get same results
+        openJob(job.getId());
+        DataCounts dataCounts = postData(job.getId(), data);
+        assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+        flushJob(job.getId(), true);
+        closeJob(job.getId());
+
+        assertThat(getBuckets(jobId).size(), equalTo(expectedBuckets.size()));
+        assertThat(getRecords(jobId), equalTo(expectedRecords));
+    }
+
+    private void testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion(String jobId, boolean deleteInterveningResults) throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
         long startTime = 1491004800000L;
 

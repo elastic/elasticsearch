@@ -50,7 +50,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final Version QUOTA_FS_PLUGIN_SUPPORT = Version.V_7_11_0;
+    private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
 
     private final String name;
     private final String description;
@@ -62,6 +62,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final boolean hasNativeController;
     private final PluginType type;
     private final String javaOpts;
+    private final boolean isLicensed;
 
     /**
      * Construct plugin info.
@@ -76,10 +77,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param hasNativeController   whether or not the plugin has a native controller
      * @param type                  the type of the plugin. Expects "bootstrap" or "isolated".
      * @param javaOpts              any additional JVM CLI parameters added by this plugin
+     * @param isLicensed            whether is this a licensed plugin
      */
     public PluginInfo(String name, String description, String version, Version elasticsearchVersion, String javaVersion,
                       String classname, List<String> extendedPlugins, boolean hasNativeController,
-                      PluginType type, String javaOpts) {
+                      PluginType type, String javaOpts, boolean isLicensed) {
         this.name = name;
         this.description = description;
         this.version = version;
@@ -90,6 +92,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.hasNativeController = hasNativeController;
         this.type = type;
         this.javaOpts = javaOpts;
+        this.isLicensed = isLicensed;
     }
 
     /**
@@ -108,12 +111,14 @@ public class PluginInfo implements Writeable, ToXContentObject {
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
 
-        if (in.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+        if (in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             type = PluginType.valueOf(in.readString());
             javaOpts = in.readOptionalString();
+            isLicensed = in.readBoolean();
         } else {
             type = PluginType.ISOLATED;
             javaOpts = null;
+            isLicensed = false;
         }
     }
 
@@ -128,9 +133,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
 
-        if (out.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             out.writeString(type.name());
             out.writeOptionalString(javaOpts);
+            out.writeBoolean(isLicensed);
         }
     }
 
@@ -204,12 +210,14 @@ public class PluginInfo implements Writeable, ToXContentObject {
             );
         }
 
+        boolean isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
+
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
         }
 
         return new PluginInfo(name, description, version, esVersion, javaVersionString,
-                              classname, extendedPlugins, hasNativeController, type, javaOpts);
+                              classname, extendedPlugins, hasNativeController, type, javaOpts, isLicensed);
     }
 
     private static PluginType getPluginType(String name, String rawType) {
@@ -348,6 +356,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getJavaOpts() {
         return javaOpts;
+    }
+
+    /**
+     * Whether a license must be accepted before this plugin can be installed.
+     *
+     * @return {@code true} if a license must be accepted.
+     */
+    public boolean isLicensed() {
+        return isLicensed;
     }
 
     @Override

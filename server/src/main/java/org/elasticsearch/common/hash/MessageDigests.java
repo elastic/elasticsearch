@@ -25,8 +25,8 @@ import java.util.Objects;
 
 /**
  * This MessageDigests class provides convenience methods for obtaining
- * thread local {@link MessageDigest} instances for MD5, SHA-1, and
- * SHA-256 message digests.
+ * thread local {@link MessageDigest} instances for MD5, SHA-1, SHA-256 and
+ * SHA-512 message digests.
  */
 public final class MessageDigests {
 
@@ -43,6 +43,7 @@ public final class MessageDigests {
     private static final ThreadLocal<MessageDigest> MD5_DIGEST = createThreadLocalMessageDigest("MD5");
     private static final ThreadLocal<MessageDigest> SHA_1_DIGEST = createThreadLocalMessageDigest("SHA-1");
     private static final ThreadLocal<MessageDigest> SHA_256_DIGEST = createThreadLocalMessageDigest("SHA-256");
+    private static final ThreadLocal<MessageDigest> SHA_512_DIGEST = createThreadLocalMessageDigest("SHA-512");
 
     /**
      * Returns a {@link MessageDigest} instance for MD5 digests; note
@@ -78,6 +79,18 @@ public final class MessageDigests {
      */
     public static MessageDigest sha256() {
         return get(SHA_256_DIGEST);
+    }
+
+    /**
+     * Returns a {@link MessageDigest} instance for SHA-512 digests;
+     * note that the instance returned is thread local and must not be
+     * shared amongst threads.
+     *
+     * @return a thread local {@link MessageDigest} instance that
+     * provides SHA-512 message digest functionality.
+     */
+    public static MessageDigest sha512() {
+        return get(SHA_512_DIGEST);
     }
 
     private static MessageDigest get(ThreadLocal<MessageDigest> messageDigest) {

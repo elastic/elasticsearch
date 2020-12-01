@@ -19,15 +19,20 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -38,8 +43,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.containsString;
@@ -52,7 +57,85 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return singletonList(new MockMetadataMapperPlugin());
+        return List.of(new DocumentParserTestsPlugin(), new TestRuntimeField.Plugin());
+    }
+
+    public void testParseWithRuntimeField() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "test")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        //field defined as runtime field but not under properties: no dynamic updates, the field does not get indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testParseWithShadowedField() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        builder.startObject("runtime");
+        builder.startObject("field").field("type", "test").endObject();
+        builder.endObject();
+        builder.startObject("properties");
+        builder.startObject("field").field("type", "keyword").endObject();
+        builder.endObject().endObject().endObject();
+
+        DocumentMapper mapper = createDocumentMapper(builder);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        //field defined as runtime field as well as under properties: no dynamic updates, the field gets indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testParseWithRuntimeFieldDottedNameDisabledObject() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        builder.startObject("runtime");
+        builder.startObject("path1.path2.path3.field").field("type", "test").endObject();
+        builder.endObject();
+        builder.startObject("properties");
+        builder.startObject("path1").field("type", "object").field("enabled", false).endObject();
+        builder.endObject().endObject().endObject();
+        MapperService mapperService = createMapperService(builder);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("path1").startObject("path2").startObject("path3");
+            b.field("field", "value");
+            b.endObject().endObject().endObject();
+        }));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNull(doc.rootDoc().getField("path1.path2.path3.field"));
+    }
+
+    public void testParseWithShadowedSubField() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        builder.startObject("runtime");
+        builder.startObject("field.keyword").field("type", "test").endObject();
+        builder.endObject();
+        builder.startObject("properties");
+        builder.startObject("field").field("type", "text");
+        builder.startObject("fields").startObject("keyword").field("type", "keyword").endObject().endObject();
+        builder.endObject().endObject().endObject().endObject();
+
+        DocumentMapper mapper = createDocumentMapper(builder);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        //field defined as runtime field as well as under properties: no dynamic updates, the field gets indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+        assertNotNull(doc.rootDoc().getField("field.keyword"));
+    }
+
+    public void testParseWithShadowedMultiField() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+        builder.startObject("runtime");
+        builder.startObject("field").field("type", "test").endObject();
+        builder.endObject();
+        builder.startObject("properties");
+        builder.startObject("field").field("type", "text");
+        builder.startObject("fields").startObject("keyword").field("type", "keyword").endObject().endObject();
+        builder.endObject().endObject().endObject().endObject();
+
+        DocumentMapper mapper = createDocumentMapper(builder);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        //field defined as runtime field as well as under properties: no dynamic updates, the field gets indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+        assertNotNull(doc.rootDoc().getField("field.keyword"));
     }
 
     public void testFieldDisabled() throws Exception {
@@ -941,21 +1024,21 @@ public class DocumentParserTests extends MapperServiceTestCase {
         {
             // A metadata field that parses a value fails to parse a null value
             MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-                mapper.parse(source(b -> b.nullField(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE))));
+                mapper.parse(source(b -> b.nullField(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE))));
             assertTrue(e.getMessage(), e.getMessage().contains("failed to parse field [_mock_metadata]"));
         }
         {
             // A metadata field that parses a value fails to parse an object
             MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-                mapper.parse(source(b -> b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE)
+                mapper.parse(source(b -> b.field(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE)
                     .startObject().field("sub-field", "true").endObject())));
             assertTrue(e.getMessage(), e.getMessage().contains("failed to parse field [_mock_metadata]"));
         }
         {
             ParsedDocument doc = mapper.parse(source(b ->
-                b.field(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value")
+                b.field(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value")
             ));
-            IndexableField field = doc.rootDoc().getField(MockMetadataMapperPlugin.MockMetadataMapper.CONTENT_TYPE);
+            IndexableField field = doc.rootDoc().getField(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE);
             assertEquals("mock-metadata-field-value", field.stringValue());
         }
     }
@@ -1404,5 +1487,44 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "1234")));
         assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type
+    }
+
+    /**
+     * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
+     * as well as a mock runtime field parser.
+     */
+    private static final class DocumentParserTestsPlugin extends Plugin implements MapperPlugin {
+        /**
+         * A mock metadata field mapper that supports being set from the document source.
+         */
+        private static final class MockMetadataMapper extends MetadataFieldMapper {
+            private static final String CONTENT_TYPE = "_mock_metadata";
+            private static final String FIELD_NAME = "_mock_metadata";
+
+            protected MockMetadataMapper() {
+                super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME));
+            }
+
+            @Override
+            protected void parseCreateField(ParseContext context) throws IOException {
+                if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
+                    context.doc().add(new StringField(FIELD_NAME, context.parser().text(), Field.Store.YES));
+                } else {
+                    throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a string.");
+                }
+            }
+
+            @Override
+            protected String contentType() {
+                return CONTENT_TYPE;
+            }
+
+            private static final TypeParser PARSER = new FixedTypeParser(c -> new MockMetadataMapper());
+        }
+
+        @Override
+        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+            return Collections.singletonMap(MockMetadataMapper.CONTENT_TYPE, MockMetadataMapper.PARSER);
+        }
     }
 }

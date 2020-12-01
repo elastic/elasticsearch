@@ -100,6 +100,8 @@ operatorExpression
 //   https://github.com/antlr/antlr4/issues/781
 predicate
     : NOT? kind=IN LP expression (COMMA expression)* RP
+    | kind=SEQ constant
+    | kind=SEQ LP constant (COMMA constant)* RP
     ;
 
 primaryExpression
@@ -125,7 +127,7 @@ constant
     ;
 
 comparisonOperator
-    : SEQ | EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue

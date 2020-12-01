@@ -28,11 +28,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -62,6 +62,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 public class TestSearchContext extends SearchContext {
     public static final SearchShardTarget SHARD_TARGET =
@@ -97,7 +99,7 @@ public class TestSearchContext extends SearchContext {
         this.indexService = indexService;
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.indexShard = indexService.getShardOrNull(0);
-        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
+        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap());
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
@@ -273,11 +275,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public IndexShard indexShard() {
         return indexShard;
-    }
-
-    @Override
-    public MapperService mapperService() {
-        return indexService == null ? null : indexService.mapperService();
     }
 
     @Override
@@ -512,6 +509,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return null;
+    }
+
+    @Override
+    public NestedDocuments getNestedDocuments() {
+        return new NestedDocuments(indexService.mapperService(), bitsetFilterCache()::getBitSetProducer);
     }
 
     @Override

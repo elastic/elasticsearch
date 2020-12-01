@@ -222,9 +222,10 @@ public class DeflateCompressor implements Compressor {
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
         final BytesStreamOutput buffer = baos.get();
         final Inflater inflater = inflaterRef.get();
-        inflater.reset();
         try (InflaterOutputStream ios = new InflaterOutputStream(buffer, inflater)) {
             bytesReference.slice(HEADER.length, bytesReference.length() - HEADER.length).writeTo(ios);
+        } finally {
+            inflater.reset();
         }
         final BytesReference res = buffer.copyBytes();
         buffer.reset();
@@ -238,11 +239,12 @@ public class DeflateCompressor implements Compressor {
     @Override
     public BytesReference compress(BytesReference bytesReference) throws IOException {
         final BytesStreamOutput buffer = baos.get();
-        final Deflater deflater = deflaterRef.get();
-        deflater.reset();
         buffer.write(HEADER);
+        final Deflater deflater = deflaterRef.get();
         try (DeflaterOutputStream dos = new DeflaterOutputStream(buffer, deflater, true)) {
             bytesReference.writeTo(dos);
+        } finally {
+            deflater.reset();
         }
         final BytesReference res = buffer.copyBytes();
         buffer.reset();

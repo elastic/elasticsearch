@@ -60,6 +60,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -79,19 +80,19 @@ import static java.util.Map.entry;
 
 public class Analysis {
 
-    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
+    public static Version parseAnalysisVersion(IndexSettings indexSettings, Settings settings, Logger logger) {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {
             return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
         // check for explicit version on the index itself as default for all analysis components
-        sVersion = indexSettings.get("index.analysis.version");
+        sVersion = indexSettings.getSettings().get("index.analysis.version");
         if (sVersion != null) {
             return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
         // resolve the analysis version based on the version the index was created with
-        return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
+        return indexSettings.getIndexVersionCreated().luceneVersion;
     }
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {

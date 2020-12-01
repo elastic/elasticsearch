@@ -38,7 +38,7 @@ field using the `event_category_field` parameter of the EQL search API.
 
 [discrete]
 [[eql-syntax-match-any-event-category]]
-==== Match any event category
+=== Match any event category
 
 To match events of any category, use the `any` keyword. You can also use the
 `any` keyword to search for documents without a event category field.
@@ -53,7 +53,7 @@ any where network.protocol == "http"
 
 [discrete]
 [[eql-syntax-escape-an-event-category]]
-==== Escape an event category
+=== Escape an event category
 
 Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to
 escape event categories that:
@@ -77,7 +77,7 @@ escape event categories that:
 
 [discrete]
 [[eql-syntax-escape-a-field-name]]
-==== Escape a field name
+=== Escape a field name
 
 Use enclosing enclosing backticks (+++`+++) to escape field names that:
 
@@ -110,7 +110,7 @@ EQL operators are case-sensitive by default.
 
 [discrete]
 [[eql-syntax-comparison-operators]]
-==== Comparison operators
+=== Comparison operators
 
 [source,eql]
 ----
@@ -197,7 +197,7 @@ process where process.parent.name == "foo" and process.name == "foo"
 
 [discrete]
 [[eql-syntax-logical-operators]]
-==== Logical operators
+=== Logical operators
 
 [source,eql]
 ----
@@ -217,7 +217,7 @@ Returns `true` if the condition to the right is `false`.
 
 [discrete]
 [[eql-syntax-lookup-operators]]
-==== Lookup operators
+=== Lookup operators
 
 [source,eql]
 ----
@@ -240,7 +240,7 @@ to compare strings.
 
 [discrete]
 [[eql-syntax-math-operators]]
-==== Math operators
+=== Math operators
 
 [source,eql]
 ----
@@ -334,7 +334,7 @@ Strings enclosed in single quotes (`'`) are not supported.
 
 [discrete]
 [[eql-syntax-escape-characters]]
-==== Escape characters in a string
+=== Escape characters in a string
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).
@@ -360,7 +360,7 @@ double quote (`\"`) instead.
 
 [discrete]
 [[eql-syntax-raw-strings]]
-==== Raw strings
+=== Raw strings
 
 Raw strings treat special characters, such as backslashes (`\`), as literal
 characters. Raw strings are enclosed in three double quotes (`"""`).
@@ -380,7 +380,7 @@ use a regular string with the `\"` escape sequence.
 
 [discrete]
 [[eql-syntax-wildcards]]
-==== Wildcards
+=== Wildcards
 
 For string comparisons using the `:` operator, you can use wildcards (`*`) to
 match specific patterns:

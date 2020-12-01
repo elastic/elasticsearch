@@ -204,7 +204,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         }
 
         int shardIndex = request.shardIndex() != -1 ? request.shardIndex() : request.shardId().id();
-        int numShards = context.getIndexSettings().getNumberOfShards();
+        int numShards = request.numberOfShards();
         String field = this.field;
         boolean useTermQuery = false;
         if (IdFieldMapper.NAME.equals(field)) {

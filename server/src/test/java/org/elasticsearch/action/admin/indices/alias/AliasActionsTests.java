@@ -216,6 +216,7 @@ public class AliasActionsTests extends ESTestCase {
     public void testParseRemove() throws IOException {
         String[] indices = generateRandomStringArray(10, 5, false, false);
         String[] aliases = generateRandomStringArray(10, 5, false, false);
+        Boolean mustExist = null;
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject();
         {
@@ -231,6 +232,10 @@ public class AliasActionsTests extends ESTestCase {
                 } else {
                     b.field("alias", aliases[0]);
                 }
+                if (randomBoolean()) {
+                    mustExist = randomBoolean();
+                    b.field("must_exist", mustExist);
+                }
             }
             b.endObject();
         }
@@ -241,6 +246,7 @@ public class AliasActionsTests extends ESTestCase {
             assertEquals(AliasActions.Type.REMOVE, action.actionType());
             assertThat(action.indices(), equalTo(indices));
             assertThat(action.aliases(), equalTo(aliases));
+            assertThat(action.mustExist(), equalTo(mustExist));
         }
     }
 

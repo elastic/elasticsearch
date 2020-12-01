@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 
 public class SegmentsStatsTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65267")
     public void testFileExtensionDescriptions() throws Exception {
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig()

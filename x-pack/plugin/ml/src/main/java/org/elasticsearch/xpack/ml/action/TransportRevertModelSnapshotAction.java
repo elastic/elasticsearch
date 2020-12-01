@@ -127,13 +127,22 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                                   Consumer<Exception> errorHandler) {
         logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
 
+        if (ModelSnapshot.isTheEmptySnapshot(request.getSnapshotId())) {
+            handler.accept(ModelSnapshot.emptySnapshot(request.getJobId()));
+            return;
+        }
+
         provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
             if (modelSnapshot == null) {
-                throw new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(),
-                        request.getJobId()));
+                throw missingSnapshotException(request);
             }
             handler.accept(modelSnapshot.result);
         }, errorHandler);
+    }
+
+    private static ResourceNotFoundException missingSnapshotException(RevertModelSnapshotAction.Request request) {
+        return new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(),
+            request.getJobId()));
     }
 
     private ActionListener<RevertModelSnapshotAction.Response> wrapDeleteOldAnnotationsListener(
@@ -142,7 +151,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             String jobId) {
 
         return ActionListener.wrap(response -> {
-            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
+            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp() == null ? new Date(0) : modelSnapshot.getLatestResultTimeStamp();
             logger.info("[{}] Removing intervening annotations after reverting model: deleting annotations after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
@@ -176,7 +185,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // wrap the listener with one that invokes the OldDataRemover on
         // acknowledged responses
         return ActionListener.wrap(response -> {
-            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
+            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp() == null ? new Date(0) : modelSnapshot.getLatestResultTimeStamp();
             logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);

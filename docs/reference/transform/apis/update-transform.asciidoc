@@ -118,7 +118,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-doc
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
 `dates_as_epoch_millis`:::
 (Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-write-date-as-epoch-milli]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-write-dates-as-epoch-milli]
 ====
 //End settings
 

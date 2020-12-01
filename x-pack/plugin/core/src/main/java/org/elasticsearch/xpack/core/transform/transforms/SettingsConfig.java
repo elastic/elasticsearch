@@ -31,7 +31,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
 
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
-    private static final int DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS = -1;
+    private static final int DEFAULT_DATES_AS_EPOCH_MILLIS = -1;
 
     private static ConstructingObjectParser<SettingsConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SettingsConfig, Void> parser = new ConstructingObjectParser<>(
@@ -44,7 +44,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
         parser.declareField(
             optionalConstructorArg(),
-            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS : p.booleanValue() ? 1 : 0,
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_DATES_AS_EPOCH_MILLIS : p.booleanValue() ? 1 : 0,
             TransformField.DATES_AS_EPOCH_MILLIS,
             ValueType.BOOLEAN_OR_NULL
         );
@@ -77,7 +77,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: change to V_7_11
             this.datesAsEpochMillis = in.readOptionalInt();
         } else {
-            this.datesAsEpochMillis = DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS;
+            this.datesAsEpochMillis = DEFAULT_DATES_AS_EPOCH_MILLIS;
         }
     }
 
@@ -132,7 +132,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (docsPerSecond != null && (docsPerSecond.equals(DEFAULT_DOCS_PER_SECOND) == false)) {
             builder.field(TransformField.DOCS_PER_SECOND.getPreferredName(), docsPerSecond);
         }
-        if (datesAsEpochMillis != null && (datesAsEpochMillis.equals(DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS) == false)) {
+        if (datesAsEpochMillis != null && (datesAsEpochMillis.equals(DEFAULT_DATES_AS_EPOCH_MILLIS) == false)) {
             builder.field(TransformField.DATES_AS_EPOCH_MILLIS.getPreferredName(), datesAsEpochMillis > 0 ? true : false);
         }
         builder.endObject();
@@ -171,7 +171,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public static class Builder {
         private Integer maxPageSearchSize;
         private Float docsPerSecond;
-        private Integer writeDateAsEpochMilli;
+        private Integer dateAsEpochMilli;
 
         /**
          * Default builder
@@ -186,7 +186,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         public Builder(SettingsConfig base) {
             this.maxPageSearchSize = base.maxPageSearchSize;
             this.docsPerSecond = base.docsPerSecond;
-            this.writeDateAsEpochMilli = base.datesAsEpochMillis;
+            this.dateAsEpochMilli = base.datesAsEpochMillis;
         }
 
         /**
@@ -226,10 +226,10 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          * An explicit `null` resets to default.
          *
          * @param datesAsEpochMilli true if dates should be written as epoch_millis.
-         * @return the {@link Builder} with writeDateAsEpochMilli set.
+         * @return the {@link Builder} with datesAsEpochMilli set.
          */
         public Builder setDatesAsEpochMilli(Boolean datesAsEpochMilli) {
-            this.writeDateAsEpochMilli = datesAsEpochMilli == null ? DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS : datesAsEpochMilli ? 1 : 0;
+            this.dateAsEpochMilli = datesAsEpochMilli == null ? DEFAULT_DATES_AS_EPOCH_MILLIS : datesAsEpochMilli ? 1 : 0;
             return this;
         }
 
@@ -251,7 +251,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     : update.getMaxPageSearchSize();
             }
             if (update.getDatesAsEpochMillisForUpdate() != null) {
-                this.writeDateAsEpochMilli = update.getDatesAsEpochMillisForUpdate().equals(DEFAULT_WRITE_DATE_AS_EPOCH_MILLIS)
+                this.dateAsEpochMilli = update.getDatesAsEpochMillisForUpdate().equals(DEFAULT_DATES_AS_EPOCH_MILLIS)
                     ? null
                     : update.getDatesAsEpochMillisForUpdate();
             }
@@ -260,7 +260,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, writeDateAsEpochMilli);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, dateAsEpochMilli);
         }
     }
 }

@@ -281,13 +281,25 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     }
 
     public void testExtractRawValueMixedObjects() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-            .startObject("foo").field("cat", "meow").endObject()
-            .field("foo.bar", "baz")
-            .endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            Map<String, Object> map = parser.map();
-            assertThat(XContentMapValues.extractRawValues("foo.bar", map), Matchers.contains("baz"));
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("foo").field("cat", "meow").endObject()
+                .field("foo.bar", "baz")
+                .endObject();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                Map<String, Object> map = parser.map();
+                assertThat(XContentMapValues.extractRawValues("foo.bar", map), Matchers.contains("baz"));
+            }
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("foo").field("bar", "meow").endObject()
+                .field("foo.bar", "baz")
+                .endObject();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                Map<String, Object> map = parser.map();
+                assertThat(XContentMapValues.extractRawValues("foo.bar", map), Matchers.containsInAnyOrder("meow", "baz"));
+            }
         }
     }
 

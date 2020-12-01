@@ -389,8 +389,8 @@ characters:
 [source,eql]
 ----
 my-field : "doc*"  // Matches "doc", "docs", or "document" but not "dos"
-my-field : "*doc"    
-my-field : "d*c"
+my-field : "*doc"  // Matches "adoc" or "asciidoc"
+my-field : "d*c"   // Matches "doc" or "disc"
 ----
 
 The `?` wildcard matches exactly one character:
@@ -398,8 +398,8 @@ The `?` wildcard matches exactly one character:
 [source,eql]
 ----
 my-field : "doc?"  // Matches "docs" but not "doc", "document", or "dos"
-my-field : "?doc"
-my-field : "d?c"
+my-field : "?doc"  // Matches "adoc" but not "asciidoc"
+my-field : "d?c"   // Matches "doc" but not "disc"
 ----
 
 The `:` operator also supports wildcards in <<eql-syntax-lookup-operators,list

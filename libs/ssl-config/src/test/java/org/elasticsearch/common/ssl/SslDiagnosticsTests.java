@@ -63,7 +63,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by" +
@@ -78,7 +79,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc])" +
@@ -92,7 +94,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1]" +
             " but the server did not provide a copy of the issuing certificate in the certificate chain"));
@@ -106,7 +109,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc])" +
@@ -120,7 +124,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc])" +
@@ -136,7 +141,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1]" +
             " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
@@ -151,7 +157,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1]" +
             " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
@@ -171,7 +178,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.CLIENT, session,
             "xpack.security.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with client at [192.168.1.2];" +
-            " the client provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the client provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate is issued by [CN=Test CA 1]" +
             " but the client did not provide a copy of the issuing certificate in the certificate chain;" +
             " this ssl context ([xpack.security.http.ssl]) is not configured to trust that issuer" +
@@ -185,7 +193,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1]" +
             " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
@@ -201,7 +210,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.9];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1]" +
             " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
@@ -228,7 +238,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             "xpack.security.authc.realms.ldap.ldap1.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.5];" +
             " the server provided a certificate with subject name [CN=elastic1,OU=windows,DC=example,DC=com]" +
-            " and fingerprint [" + MOCK_FINGERPRINT_4 + "];" +
+            " and fingerprint [" + MOCK_FINGERPRINT_4 + "] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate does not have any subject alternative names;" +
             " the certificate is issued by [CN=ca,OU=windows,DC=example,DC=com];" +
             " the certificate is" +
@@ -257,7 +268,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             "xpack.security.authc.realms.ldap.ldap1.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.6];" +
             " the server provided a certificate with subject name [CN=elastic1,OU=windows,DC=example,DC=com]" +
-            " and fingerprint [" + MOCK_FINGERPRINT_4 + "];" +
+            " and fingerprint [" + MOCK_FINGERPRINT_4 + "] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate does not have any subject alternative names;" +
             " the certificate is issued by [CN=ca,OU=windows,DC=example,DC=com];" +
             " the certificate is" +
@@ -275,7 +287,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=Test CA 1]" +
-            " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
+            " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate does not have any subject alternative names;" +
             " the certificate is self-issued; the [CN=Test CA 1] certificate is trusted in this ssl context ([xpack.http.ssl])"));
     }
@@ -288,7 +301,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.10.10];" +
             " the server provided a certificate with subject name [CN=Test CA 1]" +
-            " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
+            " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate does not have any subject alternative names;" +
             " the certificate is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl])"));
     }
@@ -301,7 +315,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             "xpack.http.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=Test CA 1]" +
-            " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
+            " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate does not have any subject alternative names;" +
             " the certificate is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl]);" +
             " this ssl context does trust a certificate with subject [CN=Test CA 1]" +
@@ -330,7 +345,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             "xpack.monitoring.exporters.elastic-cloud.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.3];" +
             " the server provided a certificate with subject name [CN=foo,DC=example,DC=com]" +
-            " and fingerprint [" + MOCK_FINGERPRINT_1 + "];" +
+            " and fingerprint [" + MOCK_FINGERPRINT_1 + "] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate does not have any DNS/IP subject alternative names;" +
             " the certificate is self-issued;" +
             " the [CN=foo,DC=example,DC=com] certificate is trusted in this ssl context ([xpack.monitoring.exporters.elastic-cloud.ssl])"));
@@ -348,7 +364,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             "xpack.security.transport.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.6];" +
             " the server provided a certificate with subject name [CN=foo,DC=example,DC=com]" +
-            " and invalid encoding [java.security.cert.CertificateEncodingException: MOCK INVALID ENCODING];" +
+            " and invalid encoding [java.security.cert.CertificateEncodingException: MOCK INVALID ENCODING] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate does not have any subject alternative names;" +
             " the certificate is self-issued;" +
             " the [CN=foo,DC=example,DC=com] certificate is not trusted in this ssl context ([xpack.security.transport.ssl])"));
@@ -363,7 +380,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             "xpack.security.transport.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with client at [192.168.1.7];" +
             " the client provided a certificate with subject name [CN=cert1]" +
-            " and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate is issued by [CN=Test CA 1]" +
             " but the client did not provide a copy of the issuing certificate in the certificate chain;" +
             " the issuing certificate with fingerprint [2b7b0416391bdf86502505c23149022d2213dadc]" +
@@ -386,7 +404,8 @@ public class SslDiagnosticsTests extends ESTestCase {
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.security.authc.realms.saml.saml1.ssl", trustIssuers);
         assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.4];" +
-            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
+            " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050] and no keyUsage and no extendedKeyUsage;" +
+            " the session supports the cipher suite [<unknown cipherSuite>] and the protocol [<unknown protocol>];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by (subject [CN=Test CA 1]" +

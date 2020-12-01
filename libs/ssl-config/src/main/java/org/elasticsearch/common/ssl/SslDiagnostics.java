@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.Arrays;
 
 public class SslDiagnostics {
 
@@ -178,7 +179,13 @@ public class SslDiagnostics {
             .append(" provided a certificate with subject name [")
             .append(peerCert.getSubjectX500Principal().getName())
             .append("] and ")
-            .append(fingerprintDescription(peerCert));
+            .append(fingerprintDescription(peerCert))
+            .append(" and ")
+            .append(keyUsageDescription(peerCert))
+            .append(" and ")
+            .append(extendedKeyUsageDescription(peerCert));
+
+        addSessionDescription(session, message);
 
         if (peerType == PeerType.SERVER) {
             try {
@@ -405,5 +412,43 @@ public class SslDiagnostics {
 
     private static boolean isSelfIssued(X509Certificate certificate) {
         return certificate.getIssuerX500Principal().equals(certificate.getSubjectX500Principal());
+    }
+
+    private static String keyUsageDescription(X509Certificate certificate) {
+        return Optional.ofNullable(certificate.getKeyUsage())
+            .map(keyUsage -> "keyUsage [" + Arrays.toString(keyUsage) + "]")
+            .orElse("no keyUsage");
+    }
+
+    private static String extendedKeyUsageDescription(X509Certificate certificate) {
+        try {
+            return Optional.ofNullable(certificate.getExtendedKeyUsage())
+                .map(list -> generateExtendedKeyUsageDescription(list))
+                .orElse("no extendedKeyUsage");
+        } catch (CertificateParsingException e) {
+            return "invalid extendedKeyUsage [" + e.toString() + "]";
+        }
+    }
+
+    private static String generateExtendedKeyUsageDescription(List<String> list) {
+        return list.stream()
+            .reduce((x, y) -> x + ", " + y)
+            .map(str -> "extendedKeyUsage [" + str + "]")
+            .orElse("no extendedKeyUsage");
+    }
+
+    private static void addSessionDescription(SSLSession session, StringBuilder message) {
+        String cipherSuite = Optional.ofNullable(session)
+            .map(SSLSession::getCipherSuite)
+            .orElse("<unknown cipherSuite>");
+        String protocol = Optional.ofNullable(session)
+            .map(SSLSession::getProtocol)
+            .orElse("<unknown protocol>");
+        message.append("; the session supports the cipher suite [")
+            .append(cipherSuite)
+            .append("] and ")
+            .append("the protocol [")
+            .append(protocol)
+            .append("]");
     }
 }

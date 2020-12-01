@@ -12,10 +12,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,7 +33,7 @@ final class GeoLineAggregator extends MetricsAggregator {
     private final SortOrder sortOrder;
     private final int size;
 
-    GeoLineAggregator(String name, GeoLineMultiValuesSource valuesSources, SearchContext context,
+    GeoLineAggregator(String name, GeoLineMultiValuesSource valuesSources, AggregationContext context,
                       Aggregator parent, Map<String,Object> metaData, boolean includeSorts, SortOrder sortOrder,
                       int size) throws IOException {
         super(name, context, parent, metaData);

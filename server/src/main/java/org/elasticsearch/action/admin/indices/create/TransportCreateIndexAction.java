@@ -70,7 +70,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 .aliases(request.aliases())
                 .waitForActiveShards(request.waitForActiveShards());
 
-        createIndexService.createIndex(updateRequest, ActionListener.map(listener, response ->
+        createIndexService.createIndex(updateRequest, listener.map(response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
     }
 

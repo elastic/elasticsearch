@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -30,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -46,6 +48,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -63,9 +66,14 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -76,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -311,9 +320,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         Query query
     ) {
         return new AggregationContext() {
+            private final CircuitBreaker breaker = mock(CircuitBreaker.class);
+            private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
+
             @Override
             public IndexSearcher searcher() {
                 return searcher;
+            }
+
+            @Override
+            public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+                return agg;
+            }
+
+            @Override
+            public boolean profiling() {
+                return false;
             }
 
             @Override
@@ -383,6 +405,56 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public NestedScope nestedScope() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SubSearchContext subSearchContext() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void addReleasable(Aggregator aggregator) {
+                // TODO we'll have to handle this in the tests eventually
+            }
+
+            @Override
+            public MultiBucketConsumer multiBucketConsumer() {
+                return multiBucketConsumer;
+            }
+
+            @Override
+            public BitsetFilterCache bitsetFilterCache() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BucketedSort buildBucketedSort(SortBuilder<?> sort, int size, ExtraData values) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int shardRandomSeed() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long getRelativeTimeInMillis() {
+                return 0;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return false;
+            }
+
+            @Override
+            public CircuitBreaker breaker() {
+                return breaker;
+            }
+
+            @Override
+            public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
                 throw new UnsupportedOperationException();
             }
         };

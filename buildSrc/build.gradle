@@ -18,7 +18,6 @@
  */
 
 import org.gradle.internal.jvm.Jvm
-import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -165,17 +164,6 @@ if (project != rootProject) {
   tasks.named("thirdPartyAudit").configure {
     enabled = false
   }
-  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
-    // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
-    // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
-    tasks.named("test").configure {
-      enabled = false;
-    }
-    tasks.named("testingConventions").configure {
-      enabled = false
-    }
-  }
-
   configurations.register("distribution")
   configurations.register("reaper")
 
@@ -244,8 +232,6 @@ if (project != rootProject) {
   tasks.register("integTest", Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
-    maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
   }
@@ -253,7 +239,9 @@ if (project != rootProject) {
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
     it.executable = Jvm.current().getJavaExecutable()
+    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
 
   /*

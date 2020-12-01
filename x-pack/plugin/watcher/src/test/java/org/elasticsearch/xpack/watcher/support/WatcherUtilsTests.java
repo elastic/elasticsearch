@@ -37,6 +37,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherUtils.flattenModel;
 import static org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput.DEFAULT_SEARCH_TYPE;
+import static org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,7 +92,9 @@ public class WatcherUtilsTests extends ESTestCase {
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
         IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
+            randomBoolean(), randomBoolean(), DEFAULT_INDICES_OPTIONS.allowAliasesToMultipleIndices(),
+            DEFAULT_INDICES_OPTIONS.forbidClosedIndices(), DEFAULT_INDICES_OPTIONS.ignoreAliases(),
+            DEFAULT_INDICES_OPTIONS.ignoreThrottled());
         SearchType expectedSearchType = getRandomSupportedSearchType();
 
         BytesReference expectedSource = null;
@@ -143,7 +146,6 @@ public class WatcherUtilsTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65397")
     public void testDeserializeSearchRequest() throws Exception {
 
         XContentBuilder builder = jsonBuilder().startObject();
@@ -158,18 +160,14 @@ public class WatcherUtilsTests extends ESTestCase {
             }
         }
 
-        IndicesOptions indicesOptions = WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS;
+        IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         if (randomBoolean()) {
             indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
-            builder.startObject("indices_options")
-                    .field("allow_no_indices", indicesOptions.allowNoIndices())
-                    .field("expand_wildcards", indicesOptions.expandWildcardsClosed() && indicesOptions.expandWildcardsOpen() ? "all" :
-                            indicesOptions.expandWildcardsClosed() ? "closed" :
-                                    indicesOptions.expandWildcardsOpen() ? "open" :
-                                            "none")
-                    .field("ignore_unavailable", indicesOptions.ignoreUnavailable())
-                    .endObject();
+                randomBoolean(), randomBoolean(), indicesOptions.allowAliasesToMultipleIndices(),
+                indicesOptions.forbidClosedIndices(), indicesOptions.ignoreAliases(), indicesOptions.ignoreThrottled());
+            builder.startObject("indices_options");
+            indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
         }
 
         SearchType searchType = SearchType.DEFAULT;
@@ -225,5 +223,4 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
         }
     }
-
 }

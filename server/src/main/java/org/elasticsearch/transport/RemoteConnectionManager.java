@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -142,9 +143,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
-        ArrayList<DiscoveryNode> newConnections = new ArrayList<>(this.connectedNodes);
-        newConnections.add(addedNode);
-        this.connectedNodes = Collections.unmodifiableList(newConnections);
+        this.connectedNodes = CollectionUtils.appendToCopy(this.connectedNodes, addedNode);
     }
 
     private synchronized void removeConnectedNode(DiscoveryNode removedNode) {

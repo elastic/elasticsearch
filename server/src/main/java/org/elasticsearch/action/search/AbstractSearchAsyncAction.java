@@ -314,13 +314,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         });
     }
 
+
     @Override
     public final void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
-        /* This is the main search phase transition where we move to the next phase. At this point we check if there is
-         * at least one successful operation left and if so we move to the next phase. If not we immediately fail the
-         * search phase as "all shards failed"*/
-        if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure
-            final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
+        /* This is the main search phase transition where we move to the next phase. If all shards
+         * failed or if there was a failure and partial results are not allowed, then we immediately
+         * fail. Otherwise we continue to the next phase.
+         */
+        ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
+        if (shardSearchFailures.length == getNumShards()) {
+            shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0 ? null :
                 ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
             logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
@@ -331,7 +334,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (allowPartialResults == false && successfulOps.get() != getNumShards()) {
                 // check if there are actual failures in the atomic array since
                 // successful retries can reset the failures to null
-                ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
                 if (shardSearchFailures.length > 0) {
                     if (logger.isDebugEnabled()) {
                         int numShardFailures = shardSearchFailures.length;

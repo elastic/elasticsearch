@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTe
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -30,9 +32,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
 
+import static java.util.Collections.emptySortedSet;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
+import static org.elasticsearch.index.store.cache.TestUtils.randomRanges;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
@@ -50,6 +57,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
     }
 
     public void testCacheSynchronization() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/65543", Constants.WINDOWS);
         final int numShards = randomIntBetween(1, 3);
         final Index index = new Index(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
         final SnapshotId snapshotId = new SnapshotId("_snapshot_name", UUIDs.randomBase64UUID(random()));
@@ -158,6 +166,45 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                     assertThat(cacheService.isCacheFileToSync(cacheFile), is(false));
                     assertThat(fileSystemProvider.getNumberOfFSyncs(cacheFile.getFile()), equalTo(cacheFileAndExpectedNumberOfFSyncs.v2()));
                 });
+            }
+        }
+    }
+
+    public void testPut() throws Exception {
+        final Path cacheDir = createTempDir();
+        try (CacheService cacheService = defaultCacheService()) {
+            final long fileLength = randomLongBetween(0L, 1000L);
+            final CacheKey cacheKey = new CacheKey(
+                new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
+                new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
+                new ShardId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()), randomInt(5)),
+                randomAlphaOfLength(105).toLowerCase(Locale.ROOT)
+            );
+            final String cacheFileUuid = UUIDs.randomBase64UUID(random());
+            final SortedSet<Tuple<Long, Long>> cacheFileRanges = randomBoolean() ? randomRanges(fileLength) : emptySortedSet();
+
+            if (randomBoolean()) {
+                final Path cacheFilePath = cacheDir.resolve(cacheFileUuid);
+                Files.createFile(cacheFilePath);
+
+                cacheService.put(cacheKey, fileLength, cacheDir, cacheFileUuid, cacheFileRanges);
+
+                cacheService.start();
+                final CacheFile cacheFile = cacheService.get(cacheKey, fileLength, cacheDir);
+                assertThat(cacheFile, notNullValue());
+                assertThat(cacheFile.getFile(), equalTo(cacheFilePath));
+                assertThat(cacheFile.getCacheKey(), equalTo(cacheKey));
+                assertThat(cacheFile.getLength(), equalTo(fileLength));
+
+                for (Tuple<Long, Long> cacheFileRange : cacheFileRanges) {
+                    assertThat(cacheFile.getAbsentRangeWithin(cacheFileRange.v1(), cacheFileRange.v2()), nullValue());
+                }
+            } else {
+                final FileNotFoundException exception = expectThrows(
+                    FileNotFoundException.class,
+                    () -> cacheService.put(cacheKey, fileLength, cacheDir, cacheFileUuid, cacheFileRanges)
+                );
+                assertThat(exception.getMessage(), containsString(cacheFileUuid));
             }
         }
     }

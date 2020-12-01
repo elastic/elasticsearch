@@ -84,28 +84,13 @@ and `long` data types. Runtime fields with a `type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.
 
 Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
-of the `_search` request. You can retrieve the results of running a script, but
-also make the script results available for queries and aggregations.
+of the `_search` request, but also make the script results available for
+queries and aggregations.
 
 IMPORTANT: Objects are not supported in the `"runtime"` section under the
 mapping definition. If you want to map a runtime field under an object, you
 can
 <<runtime-overriding-fields,override the field value in the search request>>.
-
-[[runtime-updating-scripts]]
-.Updating runtime scripts
-****
-
-Updating a script while a dependent query is running can return
-inconsistent results. Each shard might have access to different versions of the
-script, depending on when the mapping change takes effect.
-
-Existing queries or visualizations in {kib} that rely on runtime fields can
-fail if you change the field type. For example, a bar chart visualization
-that uses a runtime field of type `ip` will fail if the type is changed
-to `boolean`.
-
-****
 
 The script in the following request extracts the day of the week from the
 `@timestamp` field, which is defined as a `date` data type.
@@ -134,6 +119,21 @@ PUT /my-index
 definition.
 <2> Each runtime has its own field type, just like any other field.
 <3> The script defines the evaluation to calculate at search time.
+
+[[runtime-updating-scripts]]
+.Updating runtime scripts
+****
+
+Updating a script while a dependent query is running can return
+inconsistent results. Each shard might have access to different versions of the
+script, depending on when the mapping change takes effect.
+
+Existing queries or visualizations in {kib} that rely on runtime fields can
+fail if you change the field type. For example, a bar chart visualization
+that uses a runtime field of type `ip` will fail if the type is changed
+to `boolean`.
+
+****
 
 [discrete]
 [[runtime-search-request]]
@@ -212,6 +212,7 @@ POST my-index/_search
   }
 }
 ----
+// TEST[continued]
 
 [discrete]
 [[runtime-retrieving-fields]]
@@ -231,13 +232,9 @@ the calculated value is equal to `Thursday`.
 ----
 GET my-index/_search
 {
-  "query": {
-    "match": {
-      "day_of_week": "Thursday"
-    }
-  },
   "fields": [
-    "@timestamp", "day_of_week"
+    "@timestamp",
+    "day_of_week"
   ],
   "_source": false
 }
@@ -324,7 +321,6 @@ The mapping contains two fields: `@timestamp` and `message`.
 ----
 {
   "my-index" : {
-    "aliases" : { },
     "mappings" : {
       "properties" : {
         "@timestamp" : {
@@ -340,7 +336,7 @@ The mapping contains two fields: `@timestamp` and `message`.
   }
 }
 ----
-// TESTRESPONSE[s/\.\.\./"aliases": $body.my-index.aliases, "settings": $body.my-index.settings/]
+// TESTRESPONSE[s/\.\.\./"settings": $body.my-index.settings/]
 
 If you want to retrieve results that include `clientip`, you can add that field
 as a runtime field in the mapping. The runtime script operates on the `clientip`

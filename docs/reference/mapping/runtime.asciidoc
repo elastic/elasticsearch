@@ -21,30 +21,27 @@ other field, and {es} sees runtime fields no differently.
 
 Alternatively, you can specify a `runtime_mappings` section in a search request
 to use runtime fields that exist only as part of the query. This
-flexibility allows you to create or override field values in `_source` for the
+flexibility allows you to create or overlay field values in `_source` for the
 duration of the query without modifying the field itself.
 
 [discrete]
 [[runtime-use-cases]]
 === Use cases
-Runtime fields are useful when working with log data, especially when you're
-unsure about the data structure. Your search speed decreases, but your index
-size is much smaller and you can more quickly process logs without having to
-index them.
+Runtime fields are useful when working with <<runtime-examples,log data>>,
+especially when you're unsure about the data structure. Your search speed
+decreases, but your index size is much smaller and you can more quickly process
+logs without having to index them.
 
-Runtime fields help to alleviate several common issues when using {es}:
+Runtime fields are especially useful in the following contexts:
 
-* Reindexing your data between development iterations is slow and can make
-experimenting on large datasets difficult
-* Indexing data before searching makes running one-off searches costly and
-resource intensive
-* Indexing all of your data instead of just the fields you want to search
-requires more disk space to gain performance at search time
-* Reindexing data for time-based indices to ensure that existing indices
-include any new fields in the index template is slow
-* Determining how a field is evaluated in {kib} at index or search time is
-difficult for scripted fields because they have different needs based on where
-they are implemented
+* Adding fields to documents that are already indexed without having to reindex
+data
+* Immediately begin working on a new data stream without fully understanding
+the data it contains
+* Overlaying an indexed field with a runtime field to fix a mistake after
+indexing documents
+* Defining fields that are only relevant for a particular context (such as a
+visualization in {kib}) without influencing the underlying schema
 
 [discrete]
 [[runtime-compromises]]
@@ -90,7 +87,7 @@ queries and aggregations.
 IMPORTANT: Objects are not supported in the `"runtime"` section under the
 mapping definition. If you want to map a runtime field under an object, you
 can
-<<runtime-overriding-fields,override the field value in the search request>>.
+<<runtime-overlaying-fields,overlay the field value in the search request>>.
 
 The script in the following request extracts the day of the week from the
 `@timestamp` field, which is defined as a `date` data type.
@@ -170,9 +167,9 @@ GET my-index/_search
 // TEST[continued]
 
 [discrete]
-[[runtime-overriding-fields]]
-==== Overriding fields in the search request
-You can use the `runtime_mappings` section of the `_search` request to override
+[[runtime-overlaying-fields]]
+==== Overlaying fields in the search request
+You can use the `runtime_mappings` section of the `_search` request to overlay
 field values inside objects by naming the runtime fields with dot notation. For
 example, index the following documents into `my-index`.
 
@@ -187,11 +184,11 @@ POST my-index/_bulk?refresh=true
 
 In the `runtime_mappings` section of the `_search` request, you can define a
 script that operates on the `name.first` field. The values you specify will
-override fields in `_source` for the duration of the query without modifying
-the field itself.
+overlay field values in `_source` for the duration of the query without
+modifying the field itself.
 
-The following request evaluates the `name.last` field and overrides the
-`name.first` field in the search request based on the script valuation.
+The following request evaluates the `name.last` field and overlays the value for
+the `name.first` field in the search request based on the script valuation.
 
 [source,console]
 ----

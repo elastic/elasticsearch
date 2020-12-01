@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -21,9 +24,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.persistent.PersistentTaskResponse;
@@ -44,11 +50,15 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
@@ -56,6 +66,7 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -525,6 +536,11 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed(jobId, "data_feed_id", TimeValue.timeValueSeconds(1));
         waitForJobToHaveProcessedExactly(jobId, numDocs1);
 
+        // At this point the lookback has completed and normally there would be a model snapshot persisted.
+        // We manually index a model snapshot document to imitate this behaviour and to avoid the job
+        // having to recover after reassignment.
+        indexModelSnapshotFromCurrentJobStats(jobId);
+
         client().admin().indices().prepareFlush().get();
 
         disrupt.run();
@@ -618,5 +634,29 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     private void ensureStableCluster() {
         ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
+    }
+
+    private void indexModelSnapshotFromCurrentJobStats(String jobId) throws IOException {
+        JobStats jobStats = getJobStats(jobId);
+        DataCounts dataCounts = jobStats.getDataCounts();
+
+        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId)
+            .setLatestRecordTimeStamp(dataCounts.getLatestRecordTimeStamp())
+            .setMinVersion(Version.CURRENT)
+            .setSnapshotId(jobId + "_mock_snapshot")
+            .setTimestamp(new Date())
+            .build();
+
+        try (XContentBuilder xContentBuilder = JsonXContent.contentBuilder()) {
+            modelSnapshot.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            indexRequest.id(ModelSnapshot.documentId(modelSnapshot));
+            indexRequest.source(xContentBuilder);
+            client().index(indexRequest).actionGet();
+        }
+
+        JobUpdate jobUpdate = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
+        client().execute(UpdateJobAction.INSTANCE, new UpdateJobAction.Request(jobId, jobUpdate)).actionGet();
     }
 }

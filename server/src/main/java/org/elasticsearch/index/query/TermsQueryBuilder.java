@@ -441,13 +441,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             ? new GetRequest(termsLookup.index(), termsLookup.id())
             : new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
-        client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
+        client.get(getRequest, actionListener.map(getResponse -> {
             List<Object> terms = new ArrayList<>();
             if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                List<Object> extractedValues = XContentMapValues.    extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+                List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
                 terms.addAll(extractedValues);
             }
-            delegatedListener.onResponse(terms);
+            return terms;
         }));
     }
 
@@ -471,7 +471,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         } else if (this.termsLookup != null) {
             SetOnce<List<?>> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) ->
-                fetch(termsLookup, client, ActionListener.map(listener, list -> {
+                fetch(termsLookup, client, listener.map(list -> {
                 supplier.set(list);
                 return null;
             })));

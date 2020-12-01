@@ -36,6 +36,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -75,10 +76,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(ScriptedBlockPlugin.class);
-        plugins.addAll(super.nodePlugins());
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), ScriptedBlockPlugin.class);
     }
 
     public void testAutomaticCancellationDuringQueryPhase() throws Exception {

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -69,10 +70,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(WaitForSnapshotBlobCacheShardsActivePlugin.class);
-        plugins.addAll(super.nodePlugins());
-        return org.elasticsearch.common.collect.List.copyOf(plugins);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), WaitForSnapshotBlobCacheShardsActivePlugin.class);
     }
 
     @Override

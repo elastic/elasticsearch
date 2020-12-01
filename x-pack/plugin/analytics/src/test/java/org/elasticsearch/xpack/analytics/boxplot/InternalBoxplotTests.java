@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -21,7 +22,6 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,15 +102,12 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> extendedNamedXContents = new ArrayList<>(super.getNamedXContents());
-        extendedNamedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class,
-            new ParseField(BoxplotAggregationBuilder.NAME),
-            (p, c) -> {
-                assumeTrue("There is no ParsedBoxlot yet", false);
-                return null;
-            }
-        ));
-        return extendedNamedXContents;
+        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
+                new ParseField(BoxplotAggregationBuilder.NAME),
+                (p, c) -> {
+                    assumeTrue("There is no ParsedBoxlot yet", false);
+                    return null;
+                }));
     }
 
     public void testIQR() {

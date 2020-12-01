@@ -52,6 +52,7 @@ dependencies {
   testImplementation project(path: xpackModule('ilm'), configuration: 'default')
   compileOnly project(path: xpackModule('autoscaling'), configuration: 'default')
   testImplementation project(path: xpackModule('data-streams'), configuration: 'default')
+  testImplementation project(':modules:ingest-common')
   // This should not be here
   testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
 

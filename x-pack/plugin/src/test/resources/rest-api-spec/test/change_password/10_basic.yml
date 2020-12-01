@@ -90,14 +90,14 @@ teardown:
 # test that the role actually works
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       cluster.health: {}
   - match: { timed_out: false }
 
 # change password as the current user. the user role only grants the ability to change their own password
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       security.change_password:
         body:  >
             {
@@ -108,13 +108,13 @@ teardown:
   - do:
       catch: unauthorized
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       cluster.health: {}
 
 # login with new credentials
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0Mg=="
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3JkMg=="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -123,14 +123,14 @@ teardown:
 # test that the role actually works
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       cluster.health: {}
   - match: { timed_out: false }
 
 # attempt to change another users password
   - do:
       headers:
-        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0LXBhc3N3b3Jk"
       catch: forbidden
       security.change_password:
         username: "anotheruser"

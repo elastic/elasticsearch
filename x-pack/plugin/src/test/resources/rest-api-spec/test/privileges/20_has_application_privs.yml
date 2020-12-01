@@ -333,7 +333,7 @@ teardown:
     } }
 
   - do:
-      headers: { Authorization: "Basic bXlhcHBfeW91cmFwcF93aWxkYXJkX3JvbGVfdXNlcjpwQHNzdzByZA==" } # myapp_yourapp_wildard_role_user
+      headers: { Authorization: "Basic bXlhcHBfeW91cmFwcF93aWxkYXJkX3JvbGVfdXNlcjpzM2NyM3QtcEBzc3cwcmQ=" } # myapp_yourapp_wildard_role_user
       security.has_privileges:
         user: null
         body: >

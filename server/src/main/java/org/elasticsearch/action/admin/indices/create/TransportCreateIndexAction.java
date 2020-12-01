@@ -38,6 +38,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -68,55 +69,55 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     protected void masterOperation(Task task, final CreateIndexRequest request, final ClusterState state,
                                    final ActionListener<CreateIndexResponse> listener) {
         String cause = request.cause();
-        if (cause.length() == 0) {
+        if (cause.isEmpty()) {
             cause = "api";
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
 
-        String mappings = request.mappings();
-        Settings settings = request.settings();
-        Set<Alias> aliases = request.aliases();
-
-        String concreteIndexName = indexName;
-        boolean isSystemIndex = false;
-
-        SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-
-        if (descriptor != null && descriptor.isAutomaticallyManaged()) {
-            isSystemIndex = true;
-            // System indices define their own settings and mappings, which cannot be overridden.
-            mappings = descriptor.getMappings();
-            settings = descriptor.getSettings();
-            concreteIndexName = descriptor.getPrimaryIndex();
-
-            if (descriptor.getAliasName() == null) {
-                aliases = Set.of();
-            } else {
-                aliases = Set.of(new Alias(descriptor.getAliasName()));
-            }
-        }
-
-        final CreateIndexClusterStateUpdateRequest updateRequest =
-            new CreateIndexClusterStateUpdateRequest(cause, concreteIndexName, request.index())
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .aliases(aliases)
-                .waitForActiveShards(request.waitForActiveShards());
-
-        if (isSystemIndex) {
-            updateRequest.waitForActiveShards(ActiveShardCount.ALL);
-        }
-
-        if (mappings != null) {
-            updateRequest.mappings(mappings);
-        }
-
-        if (settings != null) {
-            updateRequest.settings(settings);
-        }
+        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+        final CreateIndexClusterStateUpdateRequest updateRequest = descriptor != null && descriptor.isAutomaticallyManaged()
+            ? buildSystemIndexUpdateRequest(request, cause, descriptor)
+            : buildUpdateRequest(request, cause, indexName);
 
         createIndexService.createIndex(updateRequest, ActionListener.map(listener, response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
     }
 
+    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause, String indexName) {
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .settings(request.settings())
+            .mappings(request.mappings())
+            .aliases(request.aliases())
+            .waitForActiveShards(request.waitForActiveShards());
+    }
+
+    private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+        CreateIndexRequest request,
+        String cause,
+        SystemIndexDescriptor descriptor
+    ) {
+        final Settings settings = Objects.requireNonNullElse(descriptor.getSettings(), Settings.EMPTY);
+
+        final Set<Alias> aliases;
+        if (descriptor.getAliasName() == null) {
+            aliases = Set.of();
+        } else {
+            aliases = Set.of(new Alias(descriptor.getAliasName()));
+        }
+
+        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+            cause,
+            descriptor.getPrimaryIndex(),
+            request.index()
+        );
+
+        return updateRequest.ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .aliases(aliases)
+            .waitForActiveShards(ActiveShardCount.ALL)
+            .mappings(descriptor.getMappings())
+            .settings(settings);
+    }
 }

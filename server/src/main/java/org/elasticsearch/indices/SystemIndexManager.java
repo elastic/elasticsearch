@@ -44,6 +44,7 @@ import org.elasticsearch.gateway.GatewayService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
@@ -59,10 +60,12 @@ public class SystemIndexManager implements ClusterStateListener {
 
     private final SystemIndices systemIndices;
     private final Client client;
+    private final AtomicBoolean isUpgradeInProgress;
 
     public SystemIndexManager(SystemIndices systemIndices, Client client) {
         this.systemIndices = systemIndices;
         this.client = client;
+        this.isUpgradeInProgress = new AtomicBoolean(false);
     }
 
     @Override
@@ -155,6 +158,10 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param descriptor information about the system index
      */
     private void upgradeIndexMetadata(SystemIndexDescriptor descriptor) {
+        if (isUpgradeInProgress.compareAndSet(false, true) == false) {
+            return;
+        }
+
         final String indexName = descriptor.getPrimaryIndex();
 
         PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);
@@ -164,6 +171,7 @@ public class SystemIndexManager implements ClusterStateListener {
         originSettingClient.admin().indices().putMapping(request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                isUpgradeInProgress.set(false);
                 if (acknowledgedResponse.isAcknowledged() == false) {
                     logger.error("Put mapping request for [{}] was not acknowledged", indexName);
                 }
@@ -171,6 +179,7 @@ public class SystemIndexManager implements ClusterStateListener {
 
             @Override
             public void onFailure(Exception e) {
+                isUpgradeInProgress.set(false);
                 logger.error("Put mapping request for [" + indexName + "] failed", e);
             }
         });

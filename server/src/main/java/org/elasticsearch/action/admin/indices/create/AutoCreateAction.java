@@ -152,37 +152,36 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             return currentState;
                         }
 
-                        CreateIndexClusterStateUpdateRequest updateRequest = buildUpdateRequest(indexName);
+                        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+                        CreateIndexClusterStateUpdateRequest updateRequest = descriptor != null && descriptor.isAutomaticallyManaged()
+                            ? buildSystemIndexUpdateRequest(descriptor)
+                            : buildUpdateRequest(indexName);
 
                         return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                     }
                 }
 
                 private CreateIndexClusterStateUpdateRequest buildUpdateRequest(String indexName) {
-                    boolean isSystemIndex = false;
-                    String mappings = null;
-                    Settings settings = null;
-                    String aliasName = null;
-                    String concreteIndexName = indexName;
+                    CreateIndexClusterStateUpdateRequest updateRequest =
+                        new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
+                            .ackTimeout(request.timeout())
+                            .masterNodeTimeout(request.masterNodeTimeout());
+                    logger.debug("Auto-creating index {}", indexName);
+                    return updateRequest;
+                }
 
-                    final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-
-                    if (descriptor != null && descriptor.isAutomaticallyManaged()) {
-                        isSystemIndex = true;
-
-                        mappings = descriptor.getMappings();
-                        settings = descriptor.getSettings();
-                        aliasName = descriptor.getAliasName();
-                        concreteIndexName = descriptor.getPrimaryIndex();
-                    }
+                private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(SystemIndexDescriptor descriptor) {
+                    String mappings = descriptor.getMappings();
+                    Settings settings = descriptor.getSettings();
+                    String aliasName = descriptor.getAliasName();
+                    String concreteIndexName = descriptor.getPrimaryIndex();
 
                     CreateIndexClusterStateUpdateRequest updateRequest =
                         new CreateIndexClusterStateUpdateRequest(request.cause(), concreteIndexName, request.index())
-                            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+                            .ackTimeout(request.timeout())
+                            .masterNodeTimeout(request.masterNodeTimeout());
 
-                    if (isSystemIndex) {
-                        updateRequest.waitForActiveShards(ActiveShardCount.ALL);
-                    }
+                    updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 
                     if (mappings != null) {
                         updateRequest.mappings(mappings);
@@ -194,11 +193,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest.aliases(Set.of(new Alias(aliasName)));
                     }
 
-                    if (isSystemIndex) {
-                        logger.info("Auto-creating system index {}", concreteIndexName);
-                    } else {
-                        logger.debug("Auto-creating index {}", concreteIndexName);
-                    }
+                    logger.info("Auto-creating system index {}", concreteIndexName);
 
                     return updateRequest;
                 }

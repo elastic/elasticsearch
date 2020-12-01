@@ -199,6 +199,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .id(docId)
                 .doc(source, XContentType.JSON)
                 .retryOnConflict(5);
+            // updates create the index automatically if it doesn't exist so we force the creation
+            // preemptively.
             createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
         } catch(Exception e) {
             listener.onFailure(e);
@@ -217,6 +219,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .id(docId)
             .doc(source, XContentType.JSON)
             .retryOnConflict(5);
+        // updates create the index automatically if it doesn't exist so we force the creation
+        // preemptively.
         createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
     }
 
@@ -227,6 +231,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                ActionListener<DeleteResponse> listener) {
         try {
             DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
+            // deletes create the index automatically if it doesn't exist so we force the creation
+            // preemptively.
             createIndexIfNecessary(ActionListener.wrap(v -> client.delete(request, listener), listener::onFailure));
         } catch(Exception e) {
             listener.onFailure(e);

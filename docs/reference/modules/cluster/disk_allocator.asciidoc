@@ -3,7 +3,7 @@
 [[disk-based-shard-allocation-description]]
 // tag::disk-based-shard-allocation-description-tag[]
 
-The <<balance,shards-rebalancing-settings>> of the cluster depends only on the
+The <<shards-rebalancing-settings,balance>> of the cluster depends only on the
 number of shards on each node and the indices to which those shards belong. It
 considers neither the sizes of these shards nor the available disk space on
 each node, for the following reasons:

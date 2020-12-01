@@ -267,7 +267,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public boolean hasMappings() {
-        return mapperSnapshot.documentMapper() != null;
+        return mapperSnapshot.hasMappings();
     }
 
     /**
@@ -329,7 +329,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public boolean isSourceEnabled() {
-        return mapperSnapshot.documentMapper().sourceMapper().enabled();
+        return mapperSnapshot.sourceEnabled();
     }
 
     /**
@@ -594,7 +594,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Build a loader for nested documents.
      */
     public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(mapperSnapshot.documentMapper(), bitsetFilterCache::getBitSetProducer);
+        return mapperSnapshot.getNestedDocuments(bitsetFilterCache::getBitSetProducer);
     }
 
     /**

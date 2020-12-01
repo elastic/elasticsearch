@@ -20,6 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,6 +53,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.NestedDocuments;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -115,7 +118,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
 
     /**
-     * The current mapping accessed through {@link #snapshot()} and {@link #indexAnalyzer()}.
+     * The current mapping accessed through {@link #snapshot()} and {@link #indexAnalyzer(String, Function)}.
      */
     private volatile AbstractSnapshot snapshot = new EmptySnapshot(this);
 
@@ -198,7 +201,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return false;
         }
 
-        final Snapshot updatedSnapshot;
+        final AbstractSnapshot updatedSnapshot;
         try {
             updatedSnapshot = internalMerge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
         } catch (Exception e) {
@@ -245,7 +248,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private void assertMappingVersion(
             final IndexMetadata currentIndexMetadata,
             final IndexMetadata newIndexMetadata,
-            final Snapshot updatedSnapshot) throws IOException {
+            final AbstractSnapshot updatedSnapshot) throws IOException {
         if (Assertions.ENABLED && currentIndexMetadata != null) {
             if (currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
@@ -293,11 +296,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        Snapshot updatedSnapshot = internalMerge(type, mappingSource, reason);
-        return updatedSnapshot == null ? null : updatedSnapshot.documentMapper();
+        AbstractSnapshot updatedSnapshot = internalMerge(type, mappingSource, reason);
+        return updatedSnapshot == null ? null : updatedSnapshot.documentMapper(); // TODO return Snapshot here
     }
 
-    private synchronized Snapshot internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
+    private synchronized AbstractSnapshot internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
@@ -306,7 +309,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return null;
     }
 
-    private synchronized Snapshot internalMerge(String type, CompressedXContent mappings, MergeReason reason) {
+    private synchronized AbstractSnapshot internalMerge(String type, CompressedXContent mappings, MergeReason reason) {
 
         DocumentMapper documentMapper;
 
@@ -319,7 +322,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return internalMerge(documentMapper, reason);
     }
 
-    private synchronized Snapshot internalMerge(DocumentMapper mapper, MergeReason reason) {
+    private synchronized AbstractSnapshot internalMerge(DocumentMapper mapper, MergeReason reason) {
 
         assert mapper != null;
 
@@ -379,7 +382,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     private String resolveDocumentType(String type) {
         if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
-            Snapshot currentSnapshot = snapshot;
+            AbstractSnapshot currentSnapshot = snapshot;
             if (currentSnapshot.documentMapper() != null) {
                 return currentSnapshot.documentMapper().type();
             }
@@ -444,7 +447,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * @param field                     the field name
      * @param unindexedFieldAnalyzer    a function to return an Analyzer for a field with no
      *                                  directly associated index-time analyzer
-     * @deprecated Prefer {@link #snapshot()} and then {@link Snapshot#indexAnalyzer()}.
+     * @deprecated Prefer {@link #snapshot()} and then {@link Snapshot#indexAnalyzer}.
      */
     @Deprecated
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
@@ -554,15 +557,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         boolean containsBrokenAnalysis(String field);
 
         /**
-         * Get the actual mapping.
-         * @deprecated Prefer any other method. {@link DocumentMapper} doesn't support
-         *             runtime fields and is otherwise tightly coupled to the internals
-         *             of mappings.
-         */
-        @Deprecated
-        DocumentMapper documentMapper();
-
-        /**
          * Current version of the of the mapping. Increments if the mapping
          * changes locally. Distinct from
          * {@link IndexMetadata#getMappingVersion()} because it purely
@@ -584,6 +578,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         boolean isMetadataField(String field);
 
         IndexAnalyzers getIndexAnalyzers();
+
+        /**
+         * Build a loader for nested documents.
+         */
+        NestedDocuments getNestedDocuments(Function<Query, BitSetProducer> filterProducer);
+
+        /**
+         * Are there mappings for this index?
+         */
+        boolean hasMappings();
+
+        /**
+         * Is source enabled on this index?
+         */
+        boolean sourceEnabled();
     }
 
     /**
@@ -630,6 +639,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         abstract MappedSnapshot merge(DocumentMapper mapper, MergeReason reason);
 
         abstract Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers();
+
+        abstract DocumentMapper documentMapper();
 
         /**
          * The name of the operation to log when merging new mappings. If the
@@ -697,11 +708,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         @Override
-        public DocumentMapper documentMapper() {
-            return null;
-        }
-
-        @Override
         public long version() {
             return 0;
         }
@@ -733,6 +739,26 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         protected String updateOperationName() {
             return  "added";
         }
+
+        @Override
+        public NestedDocuments getNestedDocuments(Function<Query, BitSetProducer> filterProducer) {
+            return null;
+        }
+
+        @Override
+        public boolean hasMappings() {
+            return false;
+        }
+
+        @Override
+        public boolean sourceEnabled() {
+            return false;
+        }
+
+        @Override
+        DocumentMapper documentMapper() {
+            return null;
+        }
     }
 
     /**
@@ -760,11 +786,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 return new TypeFieldType(mapper.type());
             }
             return mapper.mappers().fieldTypes().get(fullName);
-        }
-
-        @Override
-        public DocumentMapper documentMapper() {
-            return mapper;
         }
 
         @Override
@@ -839,6 +860,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         protected String updateOperationName() {
             return  "updated";
         }
+
+        @Override
+        public NestedDocuments getNestedDocuments(Function<Query, BitSetProducer> filterProducer) {
+            return new NestedDocuments(mapper, filterProducer);
+        }
+
+        @Override
+        public boolean hasMappings() {
+            return true;
+        }
+
+        @Override
+        public boolean sourceEnabled() {
+            return mapper.sourceMapper().enabled();
+        }
+
+        DocumentMapper documentMapper() {
+            return mapper;
+        }
     }
 
     /**
@@ -882,6 +922,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         @Override
+        public boolean hasMappings() {
+            return true;
+        }
+
+        @Override
+        public boolean sourceEnabled() {
+            return true;
+        }
+
+        @Override
         public ObjectMapper getObjectMapper(String name) {
             throw new UnsupportedOperationException();
         }
@@ -912,11 +962,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         @Override
-        public DocumentMapper documentMapper() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public long version() {
             throw new UnsupportedOperationException();
         }
@@ -940,6 +985,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         public IndexAnalyzers getIndexAnalyzers() {
             throw new UnsupportedOperationException();
         }
-        
+
+        @Override
+        public NestedDocuments getNestedDocuments(Function<Query, BitSetProducer> filterProducer) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

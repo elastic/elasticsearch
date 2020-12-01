@@ -141,7 +141,7 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, 
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         return client.prepareSearch(indices)
                 // always track total hits accurately
@@ -150,7 +150,7 @@ public class Querier {
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
     }
-    
+
     protected static void logSearchResponse(SearchResponse response, Logger logger) {
         List<Aggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
@@ -160,7 +160,7 @@ public class Querier {
         for (int i = 0; i < aggs.size(); i++) {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
-        
+
         logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
                 response.getHits().getTotalHits().relation.toString(),
@@ -177,7 +177,7 @@ public class Querier {
 
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
-     * 
+     *
      * This listener consumes the whole result set, sorts it in memory then sends the paginated
      * results back to the client.
      */
@@ -226,23 +226,24 @@ public class Querier {
             }
 
             // 1. consume all pages received
-            consumeRowSet(page.rowSet());
+            if (consumeRowSet(page.rowSet())) {
 
-            Cursor cursor = page.next();
-            // 1a. trigger a next call if there's still data
-            if (cursor != Cursor.EMPTY) {
-                // trigger a next call
-                planExecutor.nextPage(cfg, cursor, this);
-                // make sure to bail out afterwards as we'll get called by a different thread
-                return;
+                Cursor cursor = page.next();
+                // 1a. trigger a next call if there's still data
+                if (cursor != Cursor.EMPTY) {
+                    // trigger a next call
+                    planExecutor.nextPage(cfg, cursor, this);
+                    // make sure to bail out afterwards as we'll get called by a different thread
+                    return;
+                }
+
+                // no more data available, the last thread sends the response
+                // 2. send the in-memory view to the client
+                sendResponse();
             }
-
-            // no more data available, the last thread sends the response
-            // 2. send the in-memory view to the client
-            sendResponse();
         }
 
-        private void consumeRowSet(RowSet rowSet) {
+        private boolean consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
             for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
                 List<Object> row = new ArrayList<>(rrs.columnCount());
@@ -251,8 +252,10 @@ public class Querier {
                 if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
                     onFailure(new SqlIllegalArgumentException(
                             "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
+                    return false;
                 }
             }
+            return true;
         }
 
         private void sendResponse() {
@@ -308,7 +311,7 @@ public class Querier {
             if (log.isTraceEnabled()) {
                 logSearchResponse(response, log);
             }
-            
+
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);

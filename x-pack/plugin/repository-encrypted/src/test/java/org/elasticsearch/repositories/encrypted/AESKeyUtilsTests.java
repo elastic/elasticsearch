@@ -35,6 +35,8 @@ public class AESKeyUtilsTests extends ESTestCase {
         byte[] key2Bytes = randomByteArrayOfLength(AESKeyUtils.KEY_LENGTH_IN_BYTES);
         SecretKey key2 = new SecretKeySpec(key2Bytes, "AES");
         assertThat(AESKeyUtils.computeId(key1), not(equalTo(AESKeyUtils.computeId(key2))));
+        assertThat(AESKeyUtils.computeId(key1), equalTo(AESKeyUtils.computeId(key1)));
+        assertThat(AESKeyUtils.computeId(key2), equalTo(AESKeyUtils.computeId(key2)));
     }
 
     public void testFailedWrapUnwrap() throws Exception {

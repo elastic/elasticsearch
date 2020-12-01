@@ -43,9 +43,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(
                 new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
-        MapperService.Snapshot mapperService = new MapperService.StubSnapshot(
-            Map.of("_field_names", fieldNamesFieldType, "field_name", fieldType)
-        );
+        MapperService.Snapshot mapperService = new StubSnapshot(Map.of("_field_names", fieldNamesFieldType, "field_name", fieldType));
 
         QueryShardContext queryShardContext = new QueryShardContext(0,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,

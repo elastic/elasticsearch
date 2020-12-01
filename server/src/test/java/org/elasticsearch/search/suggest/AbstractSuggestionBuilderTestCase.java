@@ -39,6 +39,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.StubSnapshot;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -175,7 +176,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 },
                 Collections.emptyMap(),
                 Collections.emptyMap());
-            MapperService.Snapshot mapperSnapshot = new MapperService.StubSnapshot(fieldName -> fieldType) {
+            MapperService.Snapshot mapperSnapshot = new StubSnapshot(fieldName -> fieldType) {
                 public IndexAnalyzers getIndexAnalyzers() {
                     return indexAnalyzers;
                 }
@@ -217,7 +218,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         Settings indexSettings = builder.build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
             indexSettings);
-        MapperService.Snapshot mapperSnapshot = new MapperService.StubSnapshot(Map.of());
+        MapperService.Snapshot mapperSnapshot = new StubSnapshot(Map.of());
 
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             null, mapperSnapshot, null, null, xContentRegistry(), namedWriteableRegistry, null, null,

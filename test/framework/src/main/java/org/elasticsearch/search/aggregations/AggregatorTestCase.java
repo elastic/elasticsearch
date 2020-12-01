@@ -101,6 +101,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -143,6 +144,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -279,6 +281,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         MapperService.Snapshot mapperSnapshot = mapperSnapshotMock();
         when(mapperSnapshot.hasNested()).thenReturn(false);
+        when(mapperSnapshot.getNestedDocuments(any())).thenReturn(new NestedDocuments(null, null));
         QueryShardContext queryShardContext = queryShardContextMock(
             contextIndexSearcher,
             mapperSnapshot,

@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.StubSnapshot;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
@@ -414,7 +415,7 @@ public class QueryShardContextTests extends ESTestCase {
             indexSettings,
             () -> true
         );
-        return new MapperService.StubSnapshot(fieldTypeLookup) {
+        return new StubSnapshot(fieldTypeLookup) {
             @Override
             public IndexAnalyzers getIndexAnalyzers() {
                 return indexAnalyzers;

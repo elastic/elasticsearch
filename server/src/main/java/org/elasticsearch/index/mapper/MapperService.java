@@ -68,7 +68,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static java.util.Collections.unmodifiableSet;
 import static java.util.Objects.requireNonNull;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
@@ -878,117 +877,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         DocumentMapper documentMapper() {
             return mapper;
-        }
-    }
-
-    /**
-     * A mapping snapshot with the "central" methods that are useful for testing.
-     */
-    public static class StubSnapshot implements Snapshot {
-        private final Function<String, MappedFieldType> lookup;
-        private final Supplier<Set<String>> fields;
-
-        public StubSnapshot(Function<String, MappedFieldType> lookup) {
-            this.lookup = lookup;
-            this.fields = () -> {
-                throw new UnsupportedOperationException();
-            };
-        }
-
-        public StubSnapshot(Map<String, MappedFieldType> lookup) {
-            this.lookup = lookup::get;
-            this.fields = lookup::keySet;
-        }
-
-        @Override
-        public MappedFieldType fieldType(String fullName) {
-            return lookup.apply(fullName);
-        }
-
-        @Override
-        public Set<String> simpleMatchToFullName(String pattern) {
-            if (Regex.isSimpleMatchPattern(pattern) == false) {
-                return singleton(pattern);
-            }
-            if (Regex.isMatchAllPattern(pattern)) {
-                return unmodifiableSet(fields.get());
-            }
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean hasNested() {
-            return false;
-        }
-
-        @Override
-        public boolean hasMappings() {
-            return true;
-        }
-
-        @Override
-        public boolean sourceEnabled() {
-            return true;
-        }
-
-        @Override
-        public ObjectMapper getObjectMapper(String name) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Set<String> sourcePath(String fullName) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public DocumentMapperForType documentMapperWithAutoCreate() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean containsBrokenAnalysis(String field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long version() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ParserContext parserContext() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isMetadataField(String field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public IndexAnalyzers getIndexAnalyzers() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public NestedDocuments getNestedDocuments(Function<Query, BitSetProducer> filterProducer) {
-            throw new UnsupportedOperationException();
         }
     }
 }

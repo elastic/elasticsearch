@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.StubSnapshot;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -585,7 +586,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     private void runTestOnIndices(int numberIndices, CheckedConsumer<List<TestIndexContext>, Exception> body) throws Exception {
-        MapperService.Snapshot mapperSnapshot = new MapperService.StubSnapshot(fieldName -> {
+        MapperService.Snapshot mapperSnapshot = new StubSnapshot(fieldName -> {
             if (fieldName.equals(MISSING_FIELD_NAME)) {
                 return null;
             } else {

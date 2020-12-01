@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.StubSnapshot;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -65,9 +66,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MapperService.Snapshot mapperSnapshot = new MapperService.StubSnapshot(
-            fieldName -> new KeywordFieldMapper.KeywordFieldType(fieldName)
-        );
+        MapperService.Snapshot mapperSnapshot = new StubSnapshot(fieldName -> new KeywordFieldMapper.KeywordFieldType(fieldName));
         ScriptService scriptService = mock(ScriptService.class);
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -174,9 +173,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MapperService.Snapshot mapperSnapshot = new MapperService.StubSnapshot(
-            fieldName -> new KeywordFieldMapper.KeywordFieldType(fieldName)
-        );
+        MapperService.Snapshot mapperSnapshot = new StubSnapshot(fieldName -> new KeywordFieldMapper.KeywordFieldType(fieldName));
         ScriptService scriptService = mock(ScriptService.class);
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

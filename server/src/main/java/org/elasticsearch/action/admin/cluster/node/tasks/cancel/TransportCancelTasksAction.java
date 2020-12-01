@@ -87,7 +87,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     protected void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask, ActionListener<TaskInfo> listener) {
         String nodeId = clusterService.localNode().getId();
         taskManager.cancelTaskAndDescendants(cancellableTask, request.getReason(), request.waitForCompletion(),
-            ActionListener.map(listener, r -> cancellableTask.taskInfo(nodeId, false)));
+                listener.map(r -> cancellableTask.taskInfo(nodeId, false)));
     }
 }
 

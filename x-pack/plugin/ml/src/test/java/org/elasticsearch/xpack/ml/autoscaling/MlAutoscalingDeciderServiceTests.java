@@ -234,7 +234,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             assertThat(result.isEmpty(), is(false));
             AutoscalingDeciderResult autoscalingDeciderResult = result.get();
             assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(),
-                equalTo(ByteSizeValue.ofMb(400).getBytes()));
+                equalTo((ByteSizeValue.ofMb(100).getBytes() + OVERHEAD) * 4));
             assertThat(autoscalingDeciderResult.requiredCapacity().tier().memory().getBytes(),
                 equalTo(ByteSizeValue.ofGb(12).getBytes()));
         }
@@ -247,7 +247,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             assertThat(result.isEmpty(), is(false));
             AutoscalingDeciderResult autoscalingDeciderResult = result.get();
             assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(),
-                equalTo(ByteSizeValue.ofMb(400).getBytes()));
+                equalTo((ByteSizeValue.ofMb(100).getBytes() + OVERHEAD) * 4));
             assertThat(autoscalingDeciderResult.requiredCapacity().tier().memory().getBytes(),
                 equalTo(ByteSizeValue.ofGb(12).getBytes()));
         }

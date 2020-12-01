@@ -11,7 +11,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
-import org.elasticsearch.xpack.core.rollup.v2.RollupV2Config;
+import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,8 +28,8 @@ public class RestRollupAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String index = restRequest.param("index");
-        RollupV2Config job = RollupV2Config.fromXContent(restRequest.contentParser(), index);
-        RollupAction.Request request = new RollupAction.Request(job);
+        RollupActionConfig config = RollupActionConfig.fromXContent(restRequest.contentParser());
+        RollupAction.Request request = new RollupAction.Request(index, config);
         return channel -> client.execute(RollupAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.elasticsearch.index.store.cache.TestUtils.mergeContiguousRanges;
+import static org.elasticsearch.index.store.cache.TestUtils.randomRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -562,19 +563,5 @@ public class SparseFileTrackerTests extends ESTestCase {
             gap.onCompletion();
             return true;
         }
-    }
-
-    /**
-     * Generates a sorted set of non-empty and non-contiguous random ranges that could fit into a file of a given maximum length.
-     */
-    private static SortedSet<Tuple<Long, Long>> randomRanges(long length) {
-        final SortedSet<Tuple<Long, Long>> randomRanges = new TreeSet<>(Comparator.comparingLong(Tuple::v1));
-        for (long i = 0L; i < length;) {
-            long start = randomLongBetween(i, Math.max(0L, length - 1L));
-            long end = randomLongBetween(start + 1L, length); // +1 for non empty ranges
-            randomRanges.add(Tuple.tuple(start, end));
-            i = end + 1L + randomLongBetween(0L, Math.max(0L, length - end)); // +1 for non contiguous ranges
-        }
-        return randomRanges;
     }
 }

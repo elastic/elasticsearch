@@ -34,9 +34,11 @@ public class RollupAction extends ActionType<RollupAction.Response> {
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
-        private RollupV2Config rollupConfig;
+        private String sourceIndex;
+        private RollupActionConfig rollupConfig;
 
-        public Request(RollupV2Config rollupConfig) {
+        public Request(String sourceIndex, RollupActionConfig rollupConfig) {
+            this.sourceIndex = sourceIndex;
             this.rollupConfig = rollupConfig;
         }
 
@@ -44,7 +46,8 @@ public class RollupAction extends ActionType<RollupAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            rollupConfig = new RollupV2Config(in);
+            sourceIndex = in.readString();
+            rollupConfig = new RollupActionConfig(in);
         }
 
         @Override
@@ -55,10 +58,15 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeString(sourceIndex);
             rollupConfig.writeTo(out);
         }
 
-        public RollupV2Config getRollupConfig() {
+        public String getSourceIndex() {
+            return sourceIndex;
+        }
+
+        public RollupActionConfig getRollupConfig() {
             return rollupConfig;
         }
 
@@ -70,6 +78,7 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field("source_index", sourceIndex);
             rollupConfig.toXContent(builder, params);
             builder.endObject();
             return builder;
@@ -77,7 +86,7 @@ public class RollupAction extends ActionType<RollupAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(rollupConfig);
+            return Objects.hash(sourceIndex, rollupConfig);
         }
 
         @Override
@@ -89,7 +98,8 @@ public class RollupAction extends ActionType<RollupAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(rollupConfig, other.rollupConfig);
+            return Objects.equals(sourceIndex, other.sourceIndex)
+                && Objects.equals(rollupConfig, other.rollupConfig);
         }
     }
 

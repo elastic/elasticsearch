@@ -71,7 +71,6 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
@@ -162,8 +161,10 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -172,9 +173,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -379,9 +382,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        if (shardRouting.isRelocationTarget()) {
-            cleanFilesCondition = new CleanFilesCondition(shardRouting);
-        }
     }
 
     public ThreadPool getThreadPool() {
@@ -461,40 +461,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public QueryCachingPolicy getQueryCachingPolicy() {
         return cachingPolicy;
-    }
-
-    /**
-     * A ref counter that can be used to delay responding to a {@link org.elasticsearch.indices.recovery.RecoveryCleanFilesRequest} until
-     * it is released.
-     */
-    private final class CleanFilesCondition extends AbstractRefCounted {
-
-        private Runnable asyncActivation;
-
-        CleanFilesCondition(ShardRouting routing) {
-            super("relocation condition for [" + routing.shardId() + "][" + routing.allocationId() + "]");
-        }
-
-        @Override
-        protected void closeInternal() {
-            synchronized (this) {
-                if (asyncActivation != null) {
-                    threadPool.generic().execute(asyncActivation);
-                }
-            }
-        }
-
-        // Set the relocation context when receiving it and execute the handoff right away if no more conditions are waiting or create a
-        // Runnable to execute once all conditions have finished
-        void receivePrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
-            synchronized (this) {
-                if (decRef()) {
-                    doActivateWithPrimaryContext(primaryContext, listener);
-                } else {
-                    asyncActivation = () -> doActivateWithPrimaryContext(primaryContext, listener);
-                }
-            }
-        }
     }
 
     @Override
@@ -642,14 +608,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
                         }, null);
                 }
-            }
-            if (newRouting.isRelocationTarget()) {
-                if (currentRouting.isRelocationTarget() == false) {
-                    assert cleanFilesCondition == null : "Found relocation condition even though there shouldn't be one";
-                    cleanFilesCondition = new CleanFilesCondition(newRouting);
-                }
-            } else {
-                cleanFilesCondition = null;
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
@@ -2456,23 +2414,51 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
-    private CleanFilesCondition cleanFilesCondition;
+    private final AtomicInteger outstandingCleanFilesConditions = new AtomicInteger(0);
+
+    private final Deque<Runnable> afterCleanFilesActions = new LinkedList<>();
 
     /**
      * Creates a {@link Runnable} that must be executed before primary relocation to this shard can complete by a call to
      * {@link #activateThrottling()}.
      *
-     * @return listener that must be resolved before primary relocation to this shard can complete
+     * @return runnable that must be executed before the clean files step in peer recovery finishes
      */
-    public Runnable createRelocationDependency() {
-        assert assertRelocationTarget();
-        logger.trace("adding relocation condition for [{}]", shardRouting);
-        final CleanFilesCondition condition;
-        synchronized (mutex) {
-            condition = this.cleanFilesCondition;
+    public Runnable addCleanFilesDependency() {
+        logger.trace("adding clean files dependency for [{}]", shardRouting);
+        outstandingCleanFilesConditions.incrementAndGet();
+        return () -> {
+            if (outstandingCleanFilesConditions.decrementAndGet() == 0) {
+                runAfterCleanFilesActions();
+            }
+        };
+    }
+
+    /**
+     * Execute a {@link Runnable} on the generic pool once all dependencies added via {@link #addCleanFilesDependency()} have finished.
+     * If there are no dependencies to wait for then the {@code Runnable} will be executed on the calling thread.
+     */
+    public void afterCleanFiles(Runnable runnable) {
+        if (outstandingCleanFilesConditions.get() == 0) {
+            runnable.run();
+        } else {
+            synchronized (afterCleanFilesActions) {
+                afterCleanFilesActions.add(runnable);
+            }
+            if (outstandingCleanFilesConditions.get() == 0) {
+                runAfterCleanFilesActions();
+            }
         }
-        condition.incRef();
-        return condition::decRef;
+    }
+
+    private void runAfterCleanFilesActions() {
+        synchronized (afterCleanFilesActions) {
+            final Executor executor = threadPool.generic();
+            Runnable afterCleanFilesAction;
+            while ((afterCleanFilesAction = afterCleanFilesActions.poll()) != null) {
+                executor.execute(afterCleanFilesAction);
+            }
+        }
     }
 
     /**
@@ -2480,38 +2466,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param primaryContext the sequence number context
      */
-    public void activateWithPrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
-        assert assertRelocationTarget();
+    public void activateWithPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
+        assert shardRouting.primary() && shardRouting.isRelocationTarget() :
+            "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) :
             "primary context [" + primaryContext + "] does not contain relocation target [" + routingEntry() + "]";
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
             .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC :
             "local checkpoint [" + getLocalCheckpoint() + "] does not match checkpoint from primary context [" + primaryContext + "]";
-        final CleanFilesCondition condition;
         synchronized (mutex) {
-            condition = cleanFilesCondition;
+            replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
-        condition.receivePrimaryContext(primaryContext, listener);
-    }
-
-    private void doActivateWithPrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
-        try {
-            synchronized (mutex) {
-                // make changes to primaryMode flag only under mutex
-                replicationTracker.activateWithPrimaryContext(primaryContext);
-            }
-            ensurePeerRecoveryRetentionLeasesExist();
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        listener.onResponse(null);
-    }
-
-    private boolean assertRelocationTarget() {
-        assert shardRouting.primary() && shardRouting.isRelocationTarget() :
-                "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
-        return true;
+        ensurePeerRecoveryRetentionLeasesExist();
     }
 
     private void ensurePeerRecoveryRetentionLeasesExist() {

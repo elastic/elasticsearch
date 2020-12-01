@@ -442,7 +442,17 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(),
-                    listener);
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(Void unused) {
+                                recoveryRef.target().indexShard().afterCleanFiles(() -> listener.onResponse(null));
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        });
             }
         }
     }

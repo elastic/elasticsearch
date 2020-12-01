@@ -90,7 +90,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         logger.info("--> sleep for 5s to ensure we are actually stuck at the FINALIZE stage and that the primary has not yet relocated");
         TimeUnit.SECONDS.sleep(5L);
         final RecoveryState recoveryState = getActiveRestores(restoredIndex).get(0);
-        assertSame(RecoveryState.Stage.FINALIZE, recoveryState.getStage());
+        assertSame(RecoveryState.Stage.TRANSLOG, recoveryState.getStage());
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final String primaryNodeId = state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId();
         final DiscoveryNode primaryNode = state.nodes().resolveNode(primaryNodeId);

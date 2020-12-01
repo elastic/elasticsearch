@@ -167,7 +167,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /**
      * Set flag to signal to {@link org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryMonitor} that it must not cancel this
      * recovery temporarily. This is used by the primary relocation mechanism to avoid recovery failure in case a long running relocation
-     * condition was added to the shard via {@link IndexShard#createRelocationDependency()}.
+     * condition was added to the shard via {@link IndexShard#addCleanFilesDependency()}.
      *
      * @return releasable that once closed will re-enable liveness checks by the recovery monitor
      */
@@ -355,7 +355,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
-        indexShard.activateWithPrimaryContext(primaryContext, listener);
+        ActionListener.completeWith(listener, () -> {
+            indexShard.activateWithPrimaryContext(primaryContext);
+            return null;
+        });
     }
 
     @Override

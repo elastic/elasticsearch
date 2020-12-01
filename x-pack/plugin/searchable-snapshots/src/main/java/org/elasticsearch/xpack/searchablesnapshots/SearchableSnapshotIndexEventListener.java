@@ -44,7 +44,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         final boolean success = directory.loadSnapshot(indexShard.recoveryState(), preWarmListener);
         final ShardRouting shardRouting = indexShard.routingEntry();
         if (success && shardRouting.isRelocationTarget()) {
-            final Runnable preWarmCondition = indexShard.createRelocationDependency();
+            final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
             preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
                 logger.warn(
                     new ParameterizedMessage(

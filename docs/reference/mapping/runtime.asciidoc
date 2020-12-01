@@ -260,6 +260,7 @@ field type for `message`.
 ----
 PUT /my-index/
 {
+  "aliases": {},
   "mappings": {
     "properties": {
       "@timestamp": {

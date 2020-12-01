@@ -21,8 +21,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,9 +56,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(SearchBusinessRules.class);
-        return plugins;
+        return Collections.singleton(SearchBusinessRules.class);
     }
 
     public void testPinnedPromotions() throws Exception {

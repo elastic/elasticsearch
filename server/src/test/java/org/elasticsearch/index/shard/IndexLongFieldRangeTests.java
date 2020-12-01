@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexLongFieldRangeTests extends ESTestCase {
 
-    public void testMutableShardImpliesMutableIndex() {
+    public void testUnknownShardImpliesUnknownIndex() {
         final IndexLongFieldRange range = randomSpecificRange(false);
         assertThat(range.extendWithShardRange(
                 IntStream.of(range.getShards()).max().orElse(0) + 1,
@@ -64,7 +64,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
                 sameInstance(range));
     }
 
-    public void testExtendMutableRangeIsNoOp() {
+    public void testExtendUnknownRangeIsNoOp() {
         assertThat(IndexLongFieldRange.UNKNOWN.extendWithShardRange(
                 between(0, 10),
                 between(0, 10),

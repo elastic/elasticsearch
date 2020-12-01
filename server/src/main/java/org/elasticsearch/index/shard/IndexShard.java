@@ -1742,9 +1742,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (rawTimestampFieldRange == ShardLongFieldRange.EMPTY) {
             return ShardLongFieldRange.EMPTY;
         }
-        if (hasMappedTimestampField == false) {
-            return ShardLongFieldRange.UNKNOWN;
-        }
+        assert hasMappedTimestampField;
         final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) mappedFieldType;
 
         try {

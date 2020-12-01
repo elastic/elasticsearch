@@ -38,7 +38,7 @@ public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTest
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings repositorySettings(String repoName) {
         return Settings.builder()
             .put("uri", "hdfs:///")
             .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())

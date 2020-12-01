@@ -517,7 +517,7 @@ final class DocumentParser {
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.OBJECT);
                 if (builder == null) {
-                    Version version = Version.indexCreated(context.indexSettings().getSettings());
+                    Version version = context.indexSettings().getIndexVersionCreated();
                     builder = new ObjectMapper.Builder(currentFieldName, version).enabled(true);
                 }
                 objectMapper = builder.build(context.path());
@@ -699,7 +699,7 @@ final class DocumentParser {
                     if (builder == null) {
                         boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
                         builder = new DateFieldMapper.Builder(currentFieldName, DateFieldMapper.Resolution.MILLISECONDS,
-                            dateTimeFormatter, ignoreMalformed, Version.indexCreated(context.indexSettings().getSettings()));
+                            dateTimeFormatter, ignoreMalformed, context.indexSettings().getIndexVersionCreated());
                     }
                     return builder;
 
@@ -850,7 +850,7 @@ final class DocumentParser {
                     case TRUE:
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT);
                         if (builder == null) {
-                            Version version = Version.indexCreated(context.indexSettings().getSettings());
+                            Version version = context.indexSettings().getIndexVersionCreated();
                             builder = new ObjectMapper.Builder(paths[i], version).enabled(true);
                         }
                         mapper = (ObjectMapper) builder.build(context.path());

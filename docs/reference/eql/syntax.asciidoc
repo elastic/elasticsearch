@@ -388,7 +388,7 @@ characters:
 
 [source,eql]
 ----
-my-field : "doc*"    // Matches "doc", "docs", or "document" but not "dos"
+my-field : "doc*"  // Matches "doc", "docs", or "document" but not "dos"
 my-field : "*doc"    
 my-field : "d*c"
 ----
@@ -397,7 +397,7 @@ The `?` wildcard matches exactly one character:
 
 [source,eql]
 ----
-my-field : "doc?"    // Matches "docs" but not "doc", "document", or "dos"
+my-field : "doc?"  // Matches "docs" but not "doc", "document", or "dos"
 my-field : "?doc"
 my-field : "d?c"
 ----

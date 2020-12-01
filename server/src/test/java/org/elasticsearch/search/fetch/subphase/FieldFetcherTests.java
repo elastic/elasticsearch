@@ -21,19 +21,21 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -42,7 +44,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 
-public class FieldFetcherTests extends ESSingleNodeTestCase {
+public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testLeafValues() throws IOException {
         MapperService mapperService = createMapperService();
@@ -86,6 +88,24 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         assertNotNull(rangeField);
         assertThat(rangeField.getValues().size(), equalTo(1));
         assertThat(rangeField.getValue(), equalTo(org.elasticsearch.common.collect.Map.of("gte", 0.0f, "lte", 2.718f)));
+    }
+
+    public void testMixedObjectValues() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .field("foo.bar", "baz")
+            .endObject();
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo.bar");
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("foo.bar");
+        assertThat(field.getValues().size(), equalTo(1));
+        assertThat(field.getValue(), equalTo("baz"));
     }
 
     public void testNonExistentField() throws IOException {
@@ -181,7 +201,7 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldNamesWithWildcard() throws IOException {
-        MapperService mapperService = createMapperService();;
+        MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "first", "second")
             .field("integer_field", 333)
@@ -231,17 +251,10 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     }
 
     public void testIgnoreAbove() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "keyword")
-                    .field("ignore_above", 20)
-                .endObject()
-            .endObject()
-        .endObject();
-
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
-        MapperService mapperService = indexService.mapperService();
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("ignore_above", 20);
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "value", "other_value", "really_really_long_value")
@@ -258,18 +271,15 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldAliases() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field").field("type", "keyword").endObject()
-                .startObject("alias_field")
-                    .field("type", "alias")
-                    .field("path", "field")
-                .endObject()
-            .endObject()
-        .endObject();
-
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
-        MapperService mapperService = indexService.mapperService();
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field").field("type", "keyword").endObject();
+            b.startObject("alias_field");
+            {
+                b.field("type", "alias");
+                b.field("path", "field");
+            }
+            b.endObject();
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
@@ -290,19 +300,14 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiFields() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "integer")
-                    .startObject("fields")
-                        .startObject("keyword").field("type", "keyword").endObject()
-                    .endObject()
-                .endObject()
-            .endObject()
-        .endObject();
-
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
-        MapperService mapperService = indexService.mapperService();
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "integer");
+            b.startObject("fields");
+            {
+                b.startObject("keyword").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", 42)
@@ -323,24 +328,21 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     }
 
     public void testCopyTo() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "keyword")
-                .endObject()
-                .startObject("other_field")
-                    .field("type", "integer")
-                    .field("copy_to", "field")
-                .endObject()
-                .startObject("yet_another_field")
-                    .field("type", "keyword")
-                    .field("copy_to", "field")
-                .endObject()
-            .endObject()
-        .endObject();
-
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
-        MapperService mapperService = indexService.mapperService();
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field").field("type", "keyword").endObject();
+            b.startObject("other_field");
+            {
+                b.field("type", "integer");
+                b.field("copy_to", "field");
+            }
+            b.endObject();
+            b.startObject("yet_another_field");
+            {
+                b.field("type", "keyword");
+                b.field("copy_to", "field");
+            }
+            b.endObject();
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "one", "two", "three")
@@ -357,7 +359,7 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     }
 
     public void testObjectFields() throws IOException {
-        MapperService mapperService = createMapperService();;
+        MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "first", "second")
             .startObject("object")
@@ -370,18 +372,11 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     }
 
     public void testTextSubFields() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("field")
-                    .field("type", "text")
-                    .startObject("index_prefixes").endObject()
-                    .field("index_phrases", true)
-                .endObject()
-            .endObject()
-        .endObject();
-
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
-        MapperService mapperService = indexService.mapperService();
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("index_prefixes").endObject();
+            b.field("index_phrases", true);
+        }));
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .array("field", "some text")
@@ -410,12 +405,13 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields);
-        return fieldFetcher.fetch(sourceLookup, org.elasticsearch.common.collect.Set.of());
+        FieldFetcher fieldFetcher = FieldFetcher.create(newQueryShardContext(mapperService), null, fields);
+        return fieldFetcher.fetch(sourceLookup, new HashSet<>());
     }
 
     public MapperService createMapperService() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("_doc")
             .startObject("properties")
             .startObject("field").field("type", "keyword").endObject()
             .startObject("integer_field").field("type", "integer").endObject()
@@ -429,13 +425,13 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
             .endObject()
             .startObject("field_that_does_not_match").field("type", "keyword").endObject()
             .endObject()
+            .endObject()
             .endObject();
 
-        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
-        return indexService.mapperService();
+        return createMapperService(mapping);
     }
 
-    private static QueryShardContext createQueryShardContext(MapperService mapperService) {
+    private static QueryShardContext newQueryShardContext(MapperService mapperService) {
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)

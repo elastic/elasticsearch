@@ -33,6 +33,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -54,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -96,9 +96,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(defaultAnalyzer, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
         }
 
         @Override
@@ -115,12 +115,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 similarity.get(),
                 wrapAnalyzer(analyzers.getSearchAnalyzer()),
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer()));
-            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(
+            return new AnnotatedTextFieldType(
                 buildFullName(contentPath),
                 store.getValue(),
                 tsi,
                 meta.getValue());
-            return ft;
         }
 
         @Override
@@ -141,7 +140,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, () -> c.getIndexAnalyzers().getDefaultIndexAnalyzer()));
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     /**
      * Parses markdown-like syntax into plain text and AnnotationTokens with offsets for
@@ -546,6 +545,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzers).init(this);
     }
 }

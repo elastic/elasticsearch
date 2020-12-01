@@ -156,11 +156,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
             Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
 
+    @SuppressWarnings("Convert2Diamond") // since some IntelliJs mysteriously report an error if an <Integer> is replaced with <> here:
     public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
         "index.number_of_routing_shards",
         INDEX_NUMBER_OF_SHARDS_SETTING,
         1,
-        new Setting.Validator<>() {
+        new Setting.Validator<Integer>() {
 
             @Override
             public void validate(final Integer value) {
@@ -1243,7 +1244,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 initialRecoveryFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, initialRecoveryMap);
             }
-            Version indexCreatedVersion = Version.indexCreated(settings);
+            Version indexCreatedVersion = indexCreatedVersion(settings);
             Version indexUpgradedVersion = settings.getAsVersion(IndexMetadata.SETTING_VERSION_UPGRADED, indexCreatedVersion);
 
             if (primaryTerms == null) {
@@ -1530,11 +1531,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (Assertions.ENABLED) {
                 assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_7_2_0)) {
+
+            Version indexVersion = indexCreatedVersion(builder.settings);
+            if (Assertions.ENABLED && indexVersion.onOrAfter(Version.V_7_2_0)) {
                 assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
+     *
+     * @throws IllegalArgumentException if the given index settings doesn't contain a value for the key
+     *                                  {@value IndexMetadata#SETTING_VERSION_CREATED}
+     */
+    private static Version indexCreatedVersion(Settings indexSettings) {
+        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        if (indexVersion == Version.V_EMPTY) {
+            final String message = String.format(
+                Locale.ROOT,
+                "[%s] is not present in the index settings for index with UUID [%s]",
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
+            throw new IllegalArgumentException(message);
+        }
+        return indexVersion;
     }
 
     /**

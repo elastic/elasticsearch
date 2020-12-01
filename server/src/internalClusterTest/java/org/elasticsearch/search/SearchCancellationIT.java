@@ -44,7 +44,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.lookup.LeafFieldsLookup;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
@@ -386,7 +386,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 if (runnable != null) {
                     runnable.run();
                 }
-                LeafFieldsLookup fieldsLookup = (LeafFieldsLookup) params.get("_fields");
+                LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
                 LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {

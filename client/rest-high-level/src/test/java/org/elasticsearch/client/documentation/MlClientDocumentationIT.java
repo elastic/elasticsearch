@@ -2366,13 +2366,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 jobId, // <1>
                 snapshotId, // <2>
                 TimeValue.timeValueMinutes(30), // <3>
-                false); // <4>
+                true); // <4>
             // end::upgrade-job-model-snapshot-request
 
             try {
                 // tag::upgrade-job-model-snapshot-execute
                 UpgradeJobModelSnapshotResponse response = client.machineLearning().upgradeJobSnapshot(request, RequestOptions.DEFAULT);
                 // end::upgrade-job-model-snapshot-execute
+                fail("upgrade model snapshot should not have succeeded.");
             } catch (ElasticsearchException ex) {
                 assertThat(ex.getMessage(), containsString("Expected persisted state but no state exists"));
             }
@@ -2384,7 +2385,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::upgrade-job-model-snapshot-response
         }
         {
-            UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, false);
+            UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, true);
 
             // tag::upgrade-job-model-snapshot-execute-listener
             ActionListener<UpgradeJobModelSnapshotResponse> listener =

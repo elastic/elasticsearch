@@ -40,6 +40,9 @@ backing indices, the user can retrieve a document directly from
 [source,console]
 ----
 PUT /.ds-my-data-stream-2099-03-08-000002/_doc/2
+{
+  "my-field": "foo"
+}
 ----
 ////
 

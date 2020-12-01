@@ -63,20 +63,20 @@ public interface ActionListener<Response> {
         return new MappedActionListener<>(fn, this);
     }
 
-    final class MappedActionListener<Response, O> implements ActionListener<Response> {
+    final class MappedActionListener<Response, MappedResponse> implements ActionListener<Response> {
 
-        private final CheckedFunction<Response, O, Exception> fn;
+        private final CheckedFunction<Response, MappedResponse, Exception> fn;
 
-        private final ActionListener<O> delegate;
+        private final ActionListener<MappedResponse> delegate;
 
-        public MappedActionListener(CheckedFunction<Response, O, Exception> fn, ActionListener<O> delegate) {
+        private MappedActionListener(CheckedFunction<Response, MappedResponse, Exception> fn, ActionListener<MappedResponse> delegate) {
             this.fn = fn;
             this.delegate = delegate;
         }
 
         @Override
         public void onResponse(Response response) {
-            O mapped;
+            MappedResponse mapped;
             try {
                 mapped = fn.apply(response);
             } catch (Exception e) {

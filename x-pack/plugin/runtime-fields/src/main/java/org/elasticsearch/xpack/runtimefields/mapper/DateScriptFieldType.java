@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
@@ -91,10 +92,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     });
 
     private final DateFormatter dateTimeFormatter;
+    private final DateMathParser dateMathParser;
 
     private DateScriptFieldType(String name, DateFieldScript.Factory scriptFactory, DateFormatter dateTimeFormatter, Builder builder) {
         super(name, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), builder);
         this.dateTimeFormatter = dateTimeFormatter;
+        this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }
 
     DateScriptFieldType(
@@ -107,6 +110,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     ) {
         super(name, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), script, meta, toXContent);
         this.dateTimeFormatter = dateTimeFormatter;
+        this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }
 
     @Override
@@ -148,7 +152,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 origin,
                 true,
                 null,
-                dateTimeFormatter.toDateMathParser(),
+                this.dateMathParser,
                 now,
                 DateFieldMapper.Resolution.MILLISECONDS
             );
@@ -179,7 +183,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         @Nullable DateMathParser parser,
         QueryShardContext context
     ) {
-        parser = parser == null ? dateTimeFormatter.toDateMathParser() : parser;
+        parser = parser == null ? this.dateMathParser : parser;
         checkAllowExpensiveQueries(context);
         return DateFieldType.dateRangeQuery(
             lowerTerm,
@@ -197,14 +201,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         return DateFieldType.handleNow(context, now -> {
-            long l = DateFieldType.parseToLong(
-                value,
-                false,
-                null,
-                dateTimeFormatter.toDateMathParser(),
-                now,
-                DateFieldMapper.Resolution.MILLISECONDS
-            );
+            long l = DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS);
             checkAllowExpensiveQueries(context);
             return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
         });
@@ -218,16 +215,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         return DateFieldType.handleNow(context, now -> {
             LongSet terms = new LongHashSet(values.size());
             for (Object value : values) {
-                terms.add(
-                    DateFieldType.parseToLong(
-                        value,
-                        false,
-                        null,
-                        dateTimeFormatter.toDateMathParser(),
-                        now,
-                        DateFieldMapper.Resolution.MILLISECONDS
-                    )
-                );
+                terms.add(DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
             }
             checkAllowExpensiveQueries(context);
             return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);

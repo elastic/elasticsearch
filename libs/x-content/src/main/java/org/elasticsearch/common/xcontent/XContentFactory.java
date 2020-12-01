@@ -121,6 +121,14 @@ public class XContentFactory {
             return YamlXContent.contentBuilder();
         } else if (type == XContentType.CBOR) {
             return CborXContent.contentBuilder();
+        } else if (type == XContentType.VND_JSON) {
+            return JsonXContent.contentBuilder();
+        } else if (type == XContentType.VND_SMILE) {
+            return SmileXContent.contentBuilder();
+        } else if (type == XContentType.VND_YAML) {
+            return YamlXContent.contentBuilder();
+        } else if (type == XContentType.VND_CBOR) {
+            return CborXContent.contentBuilder();
         }
         throw new IllegalArgumentException("No matching content type for " + type);
     }

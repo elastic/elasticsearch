@@ -346,6 +346,16 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 clientStats.localAddress = NetworkAddress.format(httpChannel.getLocalAddress());
                 clientStats.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
             }
+            if (clientStats.forwardedFor == null) {
+                if (httpRequest.getHeaders().containsKey("x-forwarded-for")) {
+                    clientStats.forwardedFor = httpRequest.getHeaders().get("x-forwarded-for").get(0);
+                }
+            }
+            if (clientStats.opaqueId == null) {
+                if (httpRequest.getHeaders().containsKey("x-opaque-id")) {
+                    clientStats.opaqueId = httpRequest.getHeaders().get("x-opaque-id").get(0);
+                }
+            }
             clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
             clientStats.lastUri = httpRequest.uri();
             clientStats.requestCount++;

@@ -87,6 +87,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
         static final String CLIENT_LAST_REQUEST_TIME_MILLIS = "last_request_time_millis";
         static final String CLIENT_REQUEST_COUNT = "request_count";
         static final String CLIENT_REQUEST_SIZE_BYTES = "request_size_bytes";
+        static final String CLIENT_FORWARDED_FOR = "x_forwarded_for";
+        static final String CLIENT_OPAQUE_ID = "x_opaque_id";
     }
 
     @Override
@@ -102,6 +104,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             builder.field(Fields.CLIENT_LOCAL_ADDRESS, clientStats.localAddress);
             builder.field(Fields.CLIENT_REMOTE_ADDRESS, clientStats.remoteAddress);
             builder.field(Fields.CLIENT_LAST_URI, clientStats.lastUri);
+            builder.field(Fields.CLIENT_FORWARDED_FOR, clientStats.forwardedFor);
+            builder.field(Fields.CLIENT_OPAQUE_ID, clientStats.opaqueId);
             builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, clientStats.openedTimeMillis);
             builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, clientStats.closedTimeMillis);
             builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, clientStats.lastRequestTimeMillis);
@@ -114,12 +118,14 @@ public class HttpStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    static class ClientStats implements Writeable {
+    public static class ClientStats implements Writeable {
         int id;
         String agent;
         String localAddress;
         String remoteAddress;
         String lastUri;
+        String forwardedFor;
+        String opaqueId;
         long openedTimeMillis;
         long closedTimeMillis = -1;
         volatile long lastRequestTimeMillis = -1;
@@ -131,12 +137,31 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.openedTimeMillis = openedTimeMillis;
         }
 
+        // visible for testing
+        public ClientStats(String agent, String localAddress, String remoteAddress, String lastUri, String forwardedFor, String opaqueId,
+            long openedTimeMillis, long closedTimeMillis, long lastRequestTimeMillis, long requestCount, long requestSizeBytes) {
+            this.id = System.identityHashCode(this);
+            this.agent = agent;
+            this.localAddress = localAddress;
+            this.remoteAddress = remoteAddress;
+            this.lastUri = lastUri;
+            this.forwardedFor = forwardedFor;
+            this.opaqueId = opaqueId;
+            this.openedTimeMillis = openedTimeMillis;
+            this.closedTimeMillis = closedTimeMillis;
+            this.lastRequestTimeMillis = lastRequestTimeMillis;
+            this.requestCount = requestCount;
+            this.requestSizeBytes = requestSizeBytes;
+        }
+
         ClientStats(StreamInput in) throws IOException {
             this.id = in.readInt();
             this.agent = in.readString();
             this.localAddress = in.readString();
             this.remoteAddress = in.readString();
             this.lastUri = in.readString();
+            this.forwardedFor = in.readString();
+            this.opaqueId = in.readString();
             this.openedTimeMillis = in.readLong();
             this.closedTimeMillis = in.readLong();
             this.lastRequestTimeMillis = in.readLong();
@@ -144,12 +169,15 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.requestSizeBytes = in.readLong();
         }
 
-        @Override public void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(id);
             out.writeString(agent);
             out.writeString(localAddress);
             out.writeString(remoteAddress);
             out.writeString(lastUri);
+            out.writeString(forwardedFor);
+            out.writeString(opaqueId);
             out.writeLong(openedTimeMillis);
             out.writeLong(closedTimeMillis);
             out.writeLong(lastRequestTimeMillis);

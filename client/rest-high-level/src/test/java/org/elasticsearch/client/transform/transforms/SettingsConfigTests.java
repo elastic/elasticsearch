@@ -71,7 +71,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
 
         SettingsConfig emptyConfig = fromString("{}");
         assertNull(emptyConfig.getMaxPageSearchSize());
-        assertNull(emptyConfig.getWriteDateAsEpochMillis());
+        assertNull(emptyConfig.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(emptyConfig);
         assertTrue(settingsAsMap.isEmpty());
@@ -85,7 +85,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("write_date_as_epoch_millis", "not_set"), equalTo("not_set"));
 
         config = fromString("{\"write_date_as_epoch_millis\" : null}");
-        assertNull(emptyConfig.getWriteDateAsEpochMillis());
+        assertNull(emptyConfig.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
@@ -105,7 +105,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
 
         SettingsConfig emptyConfig = new SettingsConfig.Builder().build();
         assertNull(emptyConfig.getMaxPageSearchSize());
-        assertNull(emptyConfig.getWriteDateAsEpochMillis());
+        assertNull(emptyConfig.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(emptyConfig);
         assertTrue(settingsAsMap.isEmpty());
@@ -118,9 +118,9 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
         assertThat(settingsAsMap.getOrDefault("write_date_as_epoch_millis", "not_set"), equalTo("not_set"));
 
-        config = new SettingsConfig.Builder().setWriteDateAsEpochMilli(null).build();
+        config = new SettingsConfig.Builder().setDatesAsEpochMilli(null).build();
         // returns null, however it's `null` as in "use default"
-        assertNull(emptyConfig.getWriteDateAsEpochMillis());
+        assertNull(emptyConfig.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));

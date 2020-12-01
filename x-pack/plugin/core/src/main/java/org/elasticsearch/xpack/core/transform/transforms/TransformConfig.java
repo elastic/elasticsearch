@@ -473,10 +473,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             Integer maxPageSearchSize = transformConfig.getSettings().getMaxPageSearchSize() != null
                 ? transformConfig.getSettings().getMaxPageSearchSize()
                 : maxPageSearchSizeDeprecated;
-            Boolean writeDateAsEpochMillis = transformConfig.getSettings().getWriteDateAsEpochMillis();
+            Boolean datesAsEpochMillis = transformConfig.getSettings().getDatesAsEpochMillis();
 
             builder.setSettings(
-                new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond(), writeDateAsEpochMillis)
+                new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond(), datesAsEpochMillis)
             );
         }
 
@@ -488,10 +488,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             Integer maxPageSearchSize = transformConfig.getSettings().getMaxPageSearchSize() != null
                 ? transformConfig.getSettings().getMaxPageSearchSize()
                 : maxPageSearchSizeDeprecated;
-            Boolean writeDateAsEpochMillis = true;
+            Boolean datesAsEpochMillis = true;
 
             builder.setSettings(
-                new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond(), writeDateAsEpochMillis)
+                new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond(), datesAsEpochMillis)
             );
         }
 

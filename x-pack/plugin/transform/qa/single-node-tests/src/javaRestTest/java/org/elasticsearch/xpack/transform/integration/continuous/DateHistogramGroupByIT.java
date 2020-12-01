@@ -55,7 +55,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder();
         addCommonBuilderParameters(transformConfigBuilder);
         if (dateAsEpochMillis) {
-            transformConfigBuilder.setSettings(addCommonSetings(new SettingsConfig.Builder()).setWriteDateAsEpochMilli(true).build());
+            transformConfigBuilder.setSettings(addCommonSetings(new SettingsConfig.Builder()).setDatesAsEpochMilli(true).build());
         }
 
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));

@@ -18,7 +18,7 @@ Updates certain properties of a {transform}.
 [[update-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
+If the {es} {security-features} are enabled, you must have the following
 built-in roles and privileges:
 
 * `transform_admin`
@@ -116,7 +116,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-doc
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
-`write_date_as_epoch_millis`:::
+`dates_as_epoch_millis`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-write-date-as-epoch-milli]
 ====
@@ -134,7 +134,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 `index`:::
 (Required, string or array)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
-    
+
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]

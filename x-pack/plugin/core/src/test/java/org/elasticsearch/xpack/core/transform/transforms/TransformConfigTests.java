@@ -414,16 +414,16 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
 
-        assertTrue(transformConfigRewritten.getSettings().getWriteDateAsEpochMillis());
+        assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
 
         TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig).setSettings(
-            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setWriteDateAsEpochMilli(true).build()
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMilli(true).build()
         ).setVersion(Version.V_8_0_0).build(); // todo: V_7_11_0
 
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter711);
 
-        assertTrue(transformConfigRewritten.getSettings().getWriteDateAsEpochMillis());
+        assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertEquals(Version.V_8_0_0, transformConfigRewritten.getVersion()); // todo: V_7_11_0
     }
 

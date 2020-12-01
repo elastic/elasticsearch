@@ -394,12 +394,11 @@ Test unmapped fields inside disabled objects:
            body:
               fields: [ { "field" : "*", "include_unmapped" : true } ]
   -  match:
-        hits.hits.0.fields.f1: 
+        hits.hits.0.fields.f1:
+        - 1
+        - 2
+        - 3
         - some text
-        -
-          - 1
-          - 2
-          - 3
   -  match:
         hits.hits.0.fields.f1\.a:
         - b

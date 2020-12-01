@@ -961,7 +961,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
-        private IndexLongFieldRange timestampMillisRange = IndexLongFieldRange.UNKNOWN;
+        private IndexLongFieldRange timestampMillisRange = IndexLongFieldRange.NO_SHARDS;
 
         public Builder(String index) {
             this.index = index;

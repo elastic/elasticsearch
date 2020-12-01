@@ -197,7 +197,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testFreezeAndUnfreeze()  {
         final IndexService originalIndexService = createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
-        assertThat(originalIndexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.MUTABLE));
+        assertThat(originalIndexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -227,7 +227,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexShard shard = indexService.getShard(0);
             Engine engine = IndexShardTestCase.getEngine(shard);
             assertThat(engine, Matchers.instanceOf(InternalEngine.class));
-            assertThat(indexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.MUTABLE));
+            assertThat(indexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         client().prepareIndex("index").setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
     }
@@ -499,7 +499,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final IndexLongFieldRange timestampFieldRange
                 = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampMillisRange();
-        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.MUTABLE)));
+        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").getMillis()));
@@ -531,7 +531,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final IndexLongFieldRange timestampFieldRange
                 = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampMillisRange();
-        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.MUTABLE)));
+        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").getMillis()));

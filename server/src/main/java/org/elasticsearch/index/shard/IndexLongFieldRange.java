@@ -46,7 +46,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     /**
      * Sentinel value indicating that no information is currently available, for instance because the index has just been created.
      */
-    public static final IndexLongFieldRange UNKNOWN = new IndexLongFieldRange(new int[0], Long.MAX_VALUE, Long.MIN_VALUE);
+    public static final IndexLongFieldRange NO_SHARDS = new IndexLongFieldRange(new int[0], Long.MAX_VALUE, Long.MIN_VALUE);
 
     /**
      * Sentinel value indicating an empty range, for instance because the field is missing or has no values in any shard.
@@ -54,9 +54,9 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     public static final IndexLongFieldRange EMPTY = new IndexLongFieldRange(null, Long.MAX_VALUE, Long.MIN_VALUE);
 
     /**
-     * Sentinel value indicating the actual range may change in the future.
+     * Sentinel value indicating the actual range is unknown, for instance because more docs may be added in future.
      */
-    public static final IndexLongFieldRange MUTABLE = new IndexLongFieldRange(null, Long.MIN_VALUE, Long.MAX_VALUE);
+    public static final IndexLongFieldRange UNKNOWN = new IndexLongFieldRange(null, Long.MIN_VALUE, Long.MAX_VALUE);
 
     @Nullable // if this range includes all shards
     private final int[] shards;
@@ -99,7 +99,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     public long getMin() {
         assert shards == null : "min is meaningless if we don't have data from all shards yet";
         assert this != EMPTY : "min is meaningless if range is empty";
-        assert this != MUTABLE : "min is meaningless if range is mutable";
+        assert this != UNKNOWN : "min is meaningless if range is unknown";
         return min;
     }
 
@@ -109,22 +109,22 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     public long getMax() {
         assert shards == null : "max is meaningless if we don't have data from all shards yet";
         assert this != EMPTY : "max is meaningless if range is empty";
-        assert this != MUTABLE : "max is meaningless if range is mutable";
+        assert this != UNKNOWN : "max is meaningless if range is unknown";
         return max;
     }
 
     private static final byte WIRE_TYPE_OTHER = (byte)0;
-    private static final byte WIRE_TYPE_UNKNOWN = (byte)1;
-    private static final byte WIRE_TYPE_MUTABLE = (byte)2;
+    private static final byte WIRE_TYPE_NO_SHARDS = (byte)1;
+    private static final byte WIRE_TYPE_UNKNOWN = (byte)2;
     private static final byte WIRE_TYPE_EMPTY = (byte)3;
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
-            if (this == UNKNOWN) {
+            if (this == NO_SHARDS) {
+                out.writeByte(WIRE_TYPE_NO_SHARDS);
+            } else if (this == UNKNOWN) {
                 out.writeByte(WIRE_TYPE_UNKNOWN);
-            } else if (this == MUTABLE) {
-                out.writeByte(WIRE_TYPE_MUTABLE);
             } else if (this == EMPTY) {
                 out.writeByte(WIRE_TYPE_EMPTY);
             } else {
@@ -144,15 +144,15 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     public static IndexLongFieldRange readFrom(StreamInput in) throws IOException {
         if (in.getVersion().before(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
             // conservative treatment for BWC
-            return MUTABLE;
+            return UNKNOWN;
         }
 
         final byte type = in.readByte();
         switch (type) {
+            case WIRE_TYPE_NO_SHARDS:
+                return NO_SHARDS;
             case WIRE_TYPE_UNKNOWN:
                 return UNKNOWN;
-            case WIRE_TYPE_MUTABLE:
-                return MUTABLE;
             case WIRE_TYPE_EMPTY:
                 return EMPTY;
             case WIRE_TYPE_OTHER:
@@ -164,11 +164,11 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (this == MUTABLE) {
-            builder.field("mutable", true);
+        if (this == UNKNOWN) {
+            builder.field("unknown", true);
         } else if (this == EMPTY) {
             builder.field("empty", true);
-        } else if (this == UNKNOWN) {
+        } else if (this == NO_SHARDS) {
             builder.startArray("shards");
             builder.endArray();
         } else {
@@ -188,7 +188,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     public static IndexLongFieldRange fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
-        Boolean isMutable = null;
+        Boolean isUnknown = null;
         Boolean isEmpty = null;
         Long min = null;
         Long max = null;
@@ -197,43 +197,43 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("mutable".equals(currentFieldName)) {
-                    if (Boolean.FALSE.equals(isMutable)) {
-                        throw new IllegalArgumentException("unexpected field 'mutable'");
+                if ("unknown".equals(currentFieldName)) {
+                    if (Boolean.FALSE.equals(isUnknown)) {
+                        throw new IllegalArgumentException("unexpected field 'unknown'");
                     } else {
-                        isMutable = Boolean.TRUE;
+                        isUnknown = Boolean.TRUE;
                         isEmpty = Boolean.FALSE;
                     }
                 } else if ("empty".equals(currentFieldName)) {
                     if (Boolean.FALSE.equals(isEmpty)) {
                         throw new IllegalArgumentException("unexpected field 'empty'");
                     } else {
-                        isMutable = Boolean.FALSE;
+                        isUnknown = Boolean.FALSE;
                         isEmpty = Boolean.TRUE;
                     }
                 } else if ("min".equals(currentFieldName)) {
-                    if (Boolean.TRUE.equals(isMutable) || Boolean.TRUE.equals(isEmpty)) {
+                    if (Boolean.TRUE.equals(isUnknown) || Boolean.TRUE.equals(isEmpty)) {
                         throw new IllegalArgumentException("unexpected field 'min'");
                     } else {
-                        isMutable = Boolean.FALSE;
+                        isUnknown = Boolean.FALSE;
                         isEmpty = Boolean.FALSE;
                         min = parser.longValue();
                     }
                 } else if ("max".equals(currentFieldName)) {
-                    if (Boolean.TRUE.equals(isMutable) || Boolean.TRUE.equals(isEmpty)) {
+                    if (Boolean.TRUE.equals(isUnknown) || Boolean.TRUE.equals(isEmpty)) {
                         throw new IllegalArgumentException("unexpected field 'max'");
                     } else {
-                        isMutable = Boolean.FALSE;
+                        isUnknown = Boolean.FALSE;
                         isEmpty = Boolean.FALSE;
                         max = parser.longValue();
                     }
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("shards".equals(currentFieldName)) {
-                    if (Boolean.TRUE.equals(isMutable) || Boolean.TRUE.equals(isEmpty) || shardsList != null) {
+                    if (Boolean.TRUE.equals(isUnknown) || Boolean.TRUE.equals(isEmpty) || shardsList != null) {
                         throw new IllegalArgumentException("unexpected array 'shards'");
                     } else {
-                        isMutable = Boolean.FALSE;
+                        isUnknown = Boolean.FALSE;
                         isEmpty = Boolean.FALSE;
                         shardsList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -250,21 +250,21 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
             }
         }
 
-        if (Boolean.TRUE.equals(isMutable)) {
+        if (Boolean.TRUE.equals(isUnknown)) {
             //noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
             assert min == null && max == null && shardsList == null && Boolean.FALSE.equals(isEmpty);
-            return MUTABLE;
+            return UNKNOWN;
         } else if (Boolean.TRUE.equals(isEmpty)) {
             //noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
-            assert min == null && max == null && shardsList == null && Boolean.FALSE.equals(isMutable);
+            assert min == null && max == null && shardsList == null && Boolean.FALSE.equals(isUnknown);
             return EMPTY;
         } else if (shardsList != null && shardsList.isEmpty()) {
             //noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
-            assert min == null && max == null && Boolean.FALSE.equals(isEmpty) && Boolean.FALSE.equals(isMutable);
-            return UNKNOWN;
+            assert min == null && max == null && Boolean.FALSE.equals(isEmpty) && Boolean.FALSE.equals(isUnknown);
+            return NO_SHARDS;
         } else if (min != null) {
             //noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
-            assert Boolean.FALSE.equals(isMutable) && Boolean.FALSE.equals(isEmpty);
+            assert Boolean.FALSE.equals(isUnknown) && Boolean.FALSE.equals(isEmpty);
             if (max == null) {
                 throw new IllegalArgumentException("field 'max' unexpectedly missing");
             }
@@ -284,9 +284,9 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     public IndexLongFieldRange extendWithShardRange(int shardId, int shardCount, ShardLongFieldRange shardFieldRange) {
         if (shardFieldRange == ShardLongFieldRange.MUTABLE) {
             assert shards == null
-                    ? this == MUTABLE
+                    ? this == UNKNOWN
                     : Arrays.stream(shards).noneMatch(i -> i == shardId);
-            return MUTABLE;
+            return UNKNOWN;
         }
         if (shards == null || Arrays.stream(shards).anyMatch(i -> i == shardId)) {
             assert shardFieldRange == ShardLongFieldRange.EMPTY || min <= shardFieldRange.getMin() && shardFieldRange.getMax() <= max;
@@ -312,9 +312,9 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        if (this == UNKNOWN) {
+        if (this == NO_SHARDS) {
             return "UNKNOWN";
-        } else if (this == MUTABLE) {
+        } else if (this == UNKNOWN) {
             return "MUTABLE";
         } else if (this == EMPTY) {
             return "EMPTY";
@@ -329,7 +329,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (this == EMPTY || this == MUTABLE || this == UNKNOWN || o == EMPTY || o == MUTABLE || o == UNKNOWN) return false;
+        if (this == EMPTY || this == UNKNOWN || this == NO_SHARDS || o == EMPTY || o == UNKNOWN || o == NO_SHARDS) return false;
         IndexLongFieldRange that = (IndexLongFieldRange) o;
         return min == that.min &&
                 max == that.max &&
@@ -354,15 +354,15 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         if (shards != null && Arrays.stream(shards).noneMatch(i -> i == shardId)) {
             return this;
         }
-        if (this == MUTABLE) {
+        if (this == UNKNOWN) {
             return this;
         }
 
         if (shards == null && numberOfShards == 1) {
-            return UNKNOWN;
+            return NO_SHARDS;
         }
         if (shards != null && shards.length == 1 && shards[0] == shardId) {
-            return UNKNOWN;
+            return NO_SHARDS;
         }
 
         final IntStream currentShards = shards == null ? IntStream.range(0, numberOfShards) : Arrays.stream(shards);

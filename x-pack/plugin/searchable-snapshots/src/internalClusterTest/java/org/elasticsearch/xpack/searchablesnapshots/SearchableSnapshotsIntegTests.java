@@ -150,7 +150,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .metadata()
                 .index(indexName)
                 .getTimestampMillisRange(),
-            sameInstance(IndexLongFieldRange.MUTABLE)
+            sameInstance(IndexLongFieldRange.UNKNOWN)
         );
 
         final boolean deletedBeforeMount = randomBoolean();
@@ -775,7 +775,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .getTimestampMillisRange();
 
         assertTrue(timestampMillisRange.isComplete());
-        assertThat(timestampMillisRange, not(sameInstance(IndexLongFieldRange.MUTABLE)));
+        assertThat(timestampMillisRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         if (docCount == 0) {
             assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
         } else {

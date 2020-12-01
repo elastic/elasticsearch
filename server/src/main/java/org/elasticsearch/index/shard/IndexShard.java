@@ -1754,7 +1754,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     dateFieldType.resolution().roundUpToMillis(rawTimestampFieldRange.getMax()));
         } catch (IllegalArgumentException e) {
             logger.debug(new ParameterizedMessage("could not convert {} to a millisecond time range", rawTimestampFieldRange), e);
-            return ShardLongFieldRange.of(Long.MIN_VALUE, Long.MAX_VALUE); // any search might match this shard
+            return ShardLongFieldRange.MUTABLE; // any search might match this shard
         }
     }
 

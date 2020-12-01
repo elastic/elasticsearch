@@ -90,7 +90,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         final IndexLongFieldRange timestampFieldRange
                 = client().admin().cluster().prepareState().get().getState().metadata().index("index").getTimestampMillisRange();
-        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.MUTABLE)));
+        assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").getMillis()));

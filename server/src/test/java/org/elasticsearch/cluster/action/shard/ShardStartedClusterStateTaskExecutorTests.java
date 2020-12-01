@@ -287,7 +287,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final ShardRouting primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         final String primaryAllocationId = primaryShard.allocationId().getId();
 
-        assertThat(indexMetadata.getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(indexMetadata.getTimestampMillisRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
 
         final ShardLongFieldRange shardTimestampMillisRange = randomBoolean() ? ShardLongFieldRange.MUTABLE :
                 randomBoolean() ? ShardLongFieldRange.EMPTY : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
@@ -311,7 +311,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
 
             final IndexLongFieldRange timestampMillisRange = result.resultingState.metadata().index(indexName).getTimestampMillisRange();
             if (shardTimestampMillisRange == ShardLongFieldRange.MUTABLE) {
-                assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.MUTABLE));
+                assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.UNKNOWN));
             } else if (shardTimestampMillisRange == ShardLongFieldRange.EMPTY) {
                 assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
             } else {

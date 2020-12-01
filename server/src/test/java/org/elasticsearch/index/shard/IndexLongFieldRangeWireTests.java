@@ -41,12 +41,12 @@ public class IndexLongFieldRangeWireTests extends AbstractWireSerializingTestCas
 
     @Override
     protected IndexLongFieldRange mutateInstance(IndexLongFieldRange instance) throws IOException {
-        if (instance == IndexLongFieldRange.MUTABLE) {
+        if (instance == IndexLongFieldRange.UNKNOWN) {
             return IndexLongFieldRangeTestUtils.randomSpecificRange();
         }
 
         if (randomBoolean()) {
-            return IndexLongFieldRange.MUTABLE;
+            return IndexLongFieldRange.UNKNOWN;
         }
 
         while (true) {

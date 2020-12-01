@@ -37,12 +37,12 @@ public class IndexLongFieldRangeTests extends ESTestCase {
                 IntStream.of(range.getShards()).max().orElse(0) + 1,
                 between(1, 10),
                 ShardLongFieldRange.MUTABLE),
-                sameInstance(IndexLongFieldRange.MUTABLE));
+                sameInstance(IndexLongFieldRange.UNKNOWN));
     }
 
     public void testExtendWithKnownShardIsNoOp() {
         IndexLongFieldRange range = randomSpecificRange();
-        if (range == IndexLongFieldRange.UNKNOWN) {
+        if (range == IndexLongFieldRange.NO_SHARDS) {
             // need at least one known shard
             range = range.extendWithShardRange(between(0, 5), 5, ShardLongFieldRange.EMPTY);
         }
@@ -65,16 +65,16 @@ public class IndexLongFieldRangeTests extends ESTestCase {
     }
 
     public void testExtendMutableRangeIsNoOp() {
-        assertThat(IndexLongFieldRange.MUTABLE.extendWithShardRange(
+        assertThat(IndexLongFieldRange.UNKNOWN.extendWithShardRange(
                 between(0, 10),
                 between(0, 10),
                 ShardLongFieldRangeWireTests.randomRange()),
-                sameInstance(IndexLongFieldRange.MUTABLE));
+                sameInstance(IndexLongFieldRange.UNKNOWN));
     }
 
     public void testCompleteEmptyRangeIsEmptyInstance() {
         final int shardCount = between(1, 5);
-        IndexLongFieldRange range = IndexLongFieldRange.UNKNOWN;
+        IndexLongFieldRange range = IndexLongFieldRange.NO_SHARDS;
         for (int i = 0; i < shardCount; i++) {
             assertFalse(range.isComplete());
             range = range.extendWithShardRange(i, shardCount, ShardLongFieldRange.EMPTY);
@@ -85,7 +85,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
 
     public void testIsCompleteWhenAllShardRangesIncluded() {
         final int shardCount = between(1, 5);
-        IndexLongFieldRange range = IndexLongFieldRange.UNKNOWN;
+        IndexLongFieldRange range = IndexLongFieldRange.NO_SHARDS;
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         for (int i = 0; i < shardCount; i++) {
@@ -114,7 +114,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
     }
 
     public void testCanRemoveShardRange() {
-        assertThat(IndexLongFieldRange.MUTABLE.removeShard(between(0, 4), 5), sameInstance(IndexLongFieldRange.MUTABLE));
+        assertThat(IndexLongFieldRange.UNKNOWN.removeShard(between(0, 4), 5), sameInstance(IndexLongFieldRange.UNKNOWN));
 
         final IndexLongFieldRange initialRange = randomSpecificRange();
         final int shardCount = initialRange.isComplete()
@@ -124,7 +124,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
         final IndexLongFieldRange rangeWithoutShard = initialRange.removeShard(shard, shardCount);
         assertFalse(rangeWithoutShard.isComplete());
         assertTrue(Arrays.stream(rangeWithoutShard.getShards()).noneMatch(i -> i == shard));
-        if (rangeWithoutShard != IndexLongFieldRange.UNKNOWN) {
+        if (rangeWithoutShard != IndexLongFieldRange.NO_SHARDS) {
             assertThat(rangeWithoutShard.getMinUnsafe(), equalTo(initialRange.getMinUnsafe()));
             assertThat(rangeWithoutShard.getMaxUnsafe(), equalTo(initialRange.getMaxUnsafe()));
         }

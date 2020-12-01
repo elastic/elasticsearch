@@ -29,7 +29,7 @@ public class IndexLongFieldRangeTestUtils {
     static IndexLongFieldRange randomRange() {
         switch (ESTestCase.between(1, 3)) {
             case 1:
-                return IndexLongFieldRange.MUTABLE;
+                return IndexLongFieldRange.UNKNOWN;
             case 2:
                 return IndexLongFieldRange.EMPTY;
             case 3:
@@ -44,7 +44,7 @@ public class IndexLongFieldRangeTestUtils {
     }
 
     static IndexLongFieldRange randomSpecificRange(Boolean complete) {
-        IndexLongFieldRange range = IndexLongFieldRange.UNKNOWN;
+        IndexLongFieldRange range = IndexLongFieldRange.NO_SHARDS;
 
         final int shardCount = ESTestCase.between(1, 5);
         for (int i = 0; i < shardCount; i++) {
@@ -59,15 +59,15 @@ public class IndexLongFieldRangeTestUtils {
             }
         }
 
-        assert range != IndexLongFieldRange.MUTABLE;
+        assert range != IndexLongFieldRange.UNKNOWN;
         assert complete == null || complete.equals(range.isComplete());
         return range;
     }
 
     static boolean checkForSameInstances(IndexLongFieldRange expected, IndexLongFieldRange actual) {
-        final boolean expectSame = expected == IndexLongFieldRange.MUTABLE
+        final boolean expectSame = expected == IndexLongFieldRange.UNKNOWN
                 || expected == IndexLongFieldRange.EMPTY
-                || expected == IndexLongFieldRange.UNKNOWN;
+                || expected == IndexLongFieldRange.NO_SHARDS;
         if (expectSame) {
             assertSame(expected, actual);
         }

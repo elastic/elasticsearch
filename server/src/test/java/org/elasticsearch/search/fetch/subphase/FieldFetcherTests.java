@@ -441,19 +441,15 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     public void testSimpleUnmappedArray() throws IOException {
         MapperService mapperService = createMapperService();
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .array("unmapped_field", "foo", "bar")
-            .endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().array("unmapped_field", "foo", "bar").endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field", null, true), null);
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.keySet(), containsInAnyOrder("unmapped_field"));
+        DocumentField field = fields.get("unmapped_field");
 
-        for (DocumentField field : fields.values()) {
-            assertThat(field.getValues().size(), equalTo(2));
-            assertThat(field.getValues().get(0), equalTo("foo"));
-            assertThat(field.getValues().get(1), equalTo("bar"));
-        }
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), hasItems("foo", "bar"));
     }
 
     public void testSimpleUnmappedArrayWithObjects() throws IOException {
@@ -497,25 +493,19 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         assertThat(fields.size(), equalTo(1));
         DocumentField field = fields.get("unmapped_field.f1");
         assertThat(field.getValues().size(), equalTo(2));
-        assertThat(field.getValues().get(0), equalTo("a"));
-        assertThat(field.getValues().get(1), equalTo("b"));
+        assertThat(field.getValues(), hasItems("a", "b"));
 
         fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f2", null, true), null);
         assertThat(fields.size(), equalTo(1));
         field = fields.get("unmapped_field.f2");
         assertThat(field.getValues().size(), equalTo(4));
-        assertThat(field.getValues().get(0), equalTo(1));
-        assertThat(field.getValues().get(1), equalTo(2));
-        assertThat(field.getValues().get(2), equalTo(3));
-        assertThat(field.getValues().get(3), equalTo(4));
+        assertThat(field.getValues(), hasItems(1, 2, 3, 4));
 
         fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_field.f3", null, true), null);
         assertThat(fields.size(), equalTo(1));
         field = fields.get("unmapped_field.f3");
         assertThat(field.getValues().size(), equalTo(3));
-        assertThat(field.getValues().get(0), equalTo(1));
-        assertThat(field.getValues().get(1), equalTo(2));
-        assertThat(field.getValues().get(2), equalTo("foo"));
+        assertThat(field.getValues(), hasItems(1, 2, "foo"));
     }
 
     public void testUnmappedFieldsInsideObject() throws IOException {

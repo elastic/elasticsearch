@@ -128,7 +128,7 @@ public final class JobModelSnapshotUpgrader {
             return;
         }
 
-        StateStreamer stateStreamer = new StateStreamer(client);
+        StateStreamer stateStreamer = new StateStreamer(client, true);
         Executor executor = new Executor(stateStreamer, processor, autodetectWorkerExecutor, process);
         if (continueRunning.get() == false) {
             onFinish.accept(null);

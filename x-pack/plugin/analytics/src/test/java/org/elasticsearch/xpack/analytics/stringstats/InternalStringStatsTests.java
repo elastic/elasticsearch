@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.stringstats;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -19,7 +20,6 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,10 +40,8 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> result = new ArrayList<>(super.getNamedXContents());
-        result.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(StringStatsAggregationBuilder.NAME),
-                (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c)));
-        return result;
+        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
+                new ParseField(StringStatsAggregationBuilder.NAME), (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c)));
     }
 
     @Override

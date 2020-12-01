@@ -74,7 +74,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             jobId = in.readString();
             snapshotId = in.readString();
             deleteInterveningResults = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
                 force = in.readBoolean();
             } else {
                 force = false;
@@ -121,7 +121,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             out.writeString(jobId);
             out.writeString(snapshotId);
             out.writeBoolean(deleteInterveningResults);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
                 out.writeBoolean(force);
             }
         }

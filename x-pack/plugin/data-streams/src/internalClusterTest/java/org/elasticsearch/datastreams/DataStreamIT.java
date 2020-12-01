@@ -1090,8 +1090,10 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            startsWith("data stream [logs-foobar] could create backing indices that conflict with 1 " +
-                "existing index(s) or alias(s) including '.ds-logs-foobar'")
+            startsWith(
+                "data stream [logs-foobar] could create backing indices that conflict with 1 "
+                    + "existing index(s) or alias(s) including '.ds-logs-foobar"
+            )
         );
     }
 

@@ -74,10 +74,16 @@
         name: simple-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       catch: bad_request
       indices.clone:
-        index: ".ds-simple-data-stream1-*000001"
+        index: $idx0name
         target: "target"
         wait_for_active_shards: 1
         master_timeout: 10s
@@ -112,10 +118,16 @@
         name: simple-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       catch: bad_request
       indices.shrink:
-        index: ".ds-simple-data-stream1-*000001"
+        index: $idx0name
         target: "target"
         wait_for_active_shards: 1
         master_timeout: 10s
@@ -180,10 +192,16 @@
         name: simple-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       catch: bad_request
       indices.split:
-        index: ".ds-simple-data-stream1-*000001"
+        index: $idx0name
         target: "target"
         wait_for_active_shards: 1
         master_timeout: 10s

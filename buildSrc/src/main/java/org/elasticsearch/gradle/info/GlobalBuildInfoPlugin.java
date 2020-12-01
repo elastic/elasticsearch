@@ -57,8 +57,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -68,12 +66,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
     private static Integer _defaultParallel = null;
-    private static Set<File> JAVA_HOME_ENVS = System.getenv()
-        .entrySet()
-        .stream()
-        .filter(entry -> entry.getKey().matches(".*JAVA.*_HOME"))
-        .map(entry -> new File(entry.getValue()))
-        .collect(Collectors.toSet());
 
     private final SharedJavaInstallationRegistry javaInstallationRegistry;
     private JvmMetadataDetector metadataDetector;
@@ -195,7 +187,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private InstallationLocation getJavaInstallation(File javaHome) {
         System.out.println("javaHome = " + javaHome);
-        return filteredInstallationLocationStream().map(i -> {
+        return javaInstallationRegistry.listInstallations().stream().map(i -> {
             System.out.println("installation = " + i.getDisplayName());
             return i;
         }).filter(installationLocation -> isSameFile(javaHome, installationLocation)).findFirst().get();
@@ -214,25 +206,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
      * To make transition more reliable we only take env var provided installations into account for now
      */
     private List<JavaHome> getAvailableJavaVersions() {
-        return filteredInstallationLocationStream().map(installationLocation -> {
+        return javaInstallationRegistry.listInstallations().stream().map(installationLocation -> {
             File installationDir = installationLocation.getLocation();
             JvmInstallationMetadata metadata = metadataDetector.getMetadata(installationDir);
             int actualVersion = Integer.parseInt(metadata.getLanguageVersion().getMajorVersion());
             return JavaHome.of(actualVersion, providers.provider(() -> installationDir));
         }).collect(Collectors.toList());
-    }
-
-    private Stream<InstallationLocation> filteredInstallationLocationStream() {
-        // We cannot filter by InstallationLocation#source = env as it is not reliable
-        // as only the 1st found source type is listed. E.g. jdk detected by sdkman detection AND
-        // ENV variable does only list one source in a non deterministic way.
-        return javaInstallationRegistry.listInstallations()
-            .stream()
-            .filter(
-                installation -> installation.getSource().contains("Current JVM")
-                    || installation.getSource().contains("java_home")
-                    || JAVA_HOME_ENVS.stream().anyMatch(envHome -> isSameFile(envHome, installation))
-            );
     }
 
     private static String getTestSeed() {
@@ -460,10 +439,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
         return firstLine;
     }
-
-    private static Predicate<InstallationLocation> javaInstallationFilter = installation -> installation.getSource().contains("Current JVM")
-        || installation.getSource().contains("java_home")
-        || installation.getSource().contains("environment variable");
 
     public static class GitInfo {
         private final String revision;

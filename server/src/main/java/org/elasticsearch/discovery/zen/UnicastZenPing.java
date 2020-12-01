@@ -24,7 +24,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -295,8 +294,7 @@ public class UnicastZenPing implements ZenPing {
                     try {
                         Connection finalResult = result;
                         PlainActionFuture.get(fut ->
-                            transportService.handshake(finalResult, connectionProfile.getHandshakeTimeout(),
-                                ActionListener.map(fut, x -> null)));
+                            transportService.handshake(finalResult, connectionProfile.getHandshakeTimeout(), fut.map(x -> null)));
                         synchronized (this) {
                             // acquire lock and check if closed, to prevent leaving an open connection after closing
                             ensureOpen();

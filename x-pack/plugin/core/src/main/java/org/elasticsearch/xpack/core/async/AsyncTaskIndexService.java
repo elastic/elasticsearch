@@ -67,7 +67,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
-    private static Settings settings() {
+    static Settings settings() {
         return Settings.builder()
             .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -76,7 +76,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .build();
     }
 
-    private static XContentBuilder mappings() throws IOException {
+    static XContentBuilder mappings() throws IOException {
         XContentBuilder builder = jsonBuilder()
             .startObject()
                 .startObject(SINGLE_MAPPING_NAME)

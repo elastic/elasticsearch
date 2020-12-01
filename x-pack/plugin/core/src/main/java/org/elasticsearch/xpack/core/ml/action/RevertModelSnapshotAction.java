@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -39,12 +40,14 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
 
         public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
         public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
+        private static final ParseField FORCE = new ParseField("force");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString((request, snapshotId) -> request.snapshotId = snapshotId, SNAPSHOT_ID);
             PARSER.declareBoolean(Request::setDeleteInterveningResults, DELETE_INTERVENING);
+            PARSER.declareBoolean(Request::setForce, FORCE);
         }
 
         public static Request parseRequest(String jobId, String snapshotId, XContentParser parser) {
@@ -61,6 +64,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         private String jobId;
         private String snapshotId;
         private boolean deleteInterveningResults;
+        private boolean force;
 
         public Request() {
         }
@@ -70,6 +74,11 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             jobId = in.readString();
             snapshotId = in.readString();
             deleteInterveningResults = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                force = in.readBoolean();
+            } else {
+                force = false;
+            }
         }
 
         public Request(String jobId, String snapshotId) {
@@ -93,6 +102,14 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             this.deleteInterveningResults = deleteInterveningResults;
         }
 
+        public boolean isForce() {
+            return force;
+        }
+
+        public void setForce(boolean force) {
+            this.force = force;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -104,6 +121,9 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             out.writeString(jobId);
             out.writeString(snapshotId);
             out.writeBoolean(deleteInterveningResults);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(force);
+            }
         }
 
         @Override
@@ -112,13 +132,14 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(SNAPSHOT_ID.getPreferredName(), snapshotId);
             builder.field(DELETE_INTERVENING.getPreferredName(), deleteInterveningResults);
+            builder.field(FORCE.getPreferredName(), force);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, snapshotId, deleteInterveningResults);
+            return Objects.hash(jobId, snapshotId, deleteInterveningResults, force);
         }
 
         @Override
@@ -130,8 +151,10 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(snapshotId, other.snapshotId)
-                    && Objects.equals(deleteInterveningResults, other.deleteInterveningResults);
+            return Objects.equals(jobId, other.jobId)
+                    && Objects.equals(snapshotId, other.snapshotId)
+                    && Objects.equals(deleteInterveningResults, other.deleteInterveningResults)
+                    && force == other.force;
         }
     }
 

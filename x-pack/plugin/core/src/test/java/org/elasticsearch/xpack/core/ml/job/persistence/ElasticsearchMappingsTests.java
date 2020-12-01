@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,7 +68,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     // These are not reserved because they're Elasticsearch keywords, not
     // field names
-    private static List<String> KEYWORDS = Arrays.asList(
+    private static final List<String> KEYWORDS = Arrays.asList(
             ElasticsearchMappings.ANALYZER,
             ElasticsearchMappings.COPY_TO,
             ElasticsearchMappings.DYNAMIC,
@@ -76,10 +77,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.PROPERTIES,
             ElasticsearchMappings.TYPE,
             ElasticsearchMappings.WHITESPACE,
-            "runtime_mappings"
+            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
     );
 
-    private static List<String> INTERNAL_FIELDS = Arrays.asList(
+    private static final List<String> INTERNAL_FIELDS = Arrays.asList(
             GetResult._ID,
             GetResult._INDEX
     );
@@ -195,6 +196,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testAddDocMappingIfMissing() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));

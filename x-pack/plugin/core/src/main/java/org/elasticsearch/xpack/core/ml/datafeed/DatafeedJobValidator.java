@@ -41,7 +41,7 @@ public final class DatafeedJobValidator {
             checkValidDelayedDataCheckConfig(bucketSpan, delayedDataCheckConfig);
         }
 
-        checkTimeFieldIsNotARuntimeField(datafeedConfig, job.getDataDescription().getTimeField());
+        checkTimeFieldIsNotASearchRuntimeField(datafeedConfig, job.getDataDescription().getTimeField());
     }
 
     private static void checkValidDelayedDataCheckConfig(TimeValue bucketSpan, DelayedDataCheckConfig delayedDataCheckConfig) {
@@ -102,7 +102,8 @@ public final class DatafeedJobValidator {
         }
     }
 
-    private static void checkTimeFieldIsNotARuntimeField(DatafeedConfig datafeedConfig, String timeField) {
+    private static void checkTimeFieldIsNotASearchRuntimeField(DatafeedConfig datafeedConfig, String timeField) {
+        // check the search RT mappings defined in the datafeed
         Map<String, Object> runtimeMappings = datafeedConfig.getRuntimeMappings();
         for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
             // top level objects are fields

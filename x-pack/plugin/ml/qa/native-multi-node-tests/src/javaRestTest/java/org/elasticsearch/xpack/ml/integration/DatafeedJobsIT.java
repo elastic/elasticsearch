@@ -163,7 +163,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeFormat("yyyy-MM-dd HH:mm:ss");
 
         Detector.Builder d = new Detector.Builder("count", null);
         // day_of_week is a runtime field.

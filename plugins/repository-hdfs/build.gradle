@@ -99,7 +99,7 @@ tasks.named("integTest").configure {
   dependsOn(project.tasks.named("bundlePlugin"))
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   plugin(project.tasks.bundlePlugin.archiveFile)
 }
 

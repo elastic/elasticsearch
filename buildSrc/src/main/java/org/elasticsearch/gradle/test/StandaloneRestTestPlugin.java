@@ -74,7 +74,10 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         final SourceSet testSourceSet = sourceSets.create("test");
 
-        project.getTasks().withType(Test.class).configureEach(test -> test.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs()));
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            test.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
+            test.setClasspath(testSourceSet.getRuntimeClasspath());
+        });
 
         // create a compileOnly configuration as others might expect it
         project.getConfigurations().create("compileOnly");

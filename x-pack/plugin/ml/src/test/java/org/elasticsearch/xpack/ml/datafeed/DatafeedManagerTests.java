@@ -37,9 +37,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedActionTests;
-import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -78,9 +75,7 @@ public class DatafeedManagerTests extends ESTestCase {
     private ThreadPool threadPool;
     private DatafeedJob datafeedJob;
     private DatafeedManager datafeedManager;
-    private DatafeedConfigProvider datafeedConfigProvider;
-    private JobConfigProvider jobConfigProvider;
-    private JobResultsProvider jobResultsProvider;
+    private DatafeedContextProvider datafeedContextProvider;
     private long currentTime = 120000;
     private AnomalyDetectionAuditor auditor;
     private ArgumentCaptor<ClusterStateListener> capturedClusterStateListener = ArgumentCaptor.forClass(ClusterStateListener.class);
@@ -138,29 +133,13 @@ public class DatafeedManagerTests extends ESTestCase {
         AutodetectProcessManager autodetectProcessManager = mock(AutodetectProcessManager.class);
         doAnswer(invocation -> hasOpenAutodetectCommunicator.get()).when(autodetectProcessManager).hasOpenAutodetectCommunicator(anyLong());
 
-        jobConfigProvider = mock(JobConfigProvider.class);
-        final Job.Builder datafeedJob = createDatafeedJob();
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<Job.Builder> listener = (ActionListener<Job.Builder>) invocationOnMock.getArguments()[1];
-            listener.onResponse(datafeedJob);
-            return null;
-        }).when(jobConfigProvider).getJob(eq(JOB_ID), any());
+        datafeedContextProvider = mock(DatafeedContextProvider.class);
 
-        datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        final DatafeedConfig.Builder datafeedConfig = createDatafeedConfig(DATAFEED_ID, JOB_ID);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<DatafeedConfig.Builder> listener = (ActionListener<DatafeedConfig.Builder>) invocationOnMock.getArguments()[1];
-            listener.onResponse(datafeedConfig);
-            return null;
-        }).when(datafeedConfigProvider).getDatafeedConfig(eq(DATAFEED_ID), any());
-
-        jobResultsProvider = mock(JobResultsProvider.class);
-        givenDatafeedHasNeverRunBefore();
+        DatafeedConfig.Builder datafeedConfig = createDatafeedConfig(DATAFEED_ID, job.getId());
+        givenDatafeedHasNeverRunBefore(job.build(), datafeedConfig.build());
 
         datafeedManager = new DatafeedManager(threadPool, mock(Client.class), clusterService, datafeedJobBuilder,
-                () -> currentTime, auditor, autodetectProcessManager, jobConfigProvider, datafeedConfigProvider, jobResultsProvider);
+                () -> currentTime, auditor, autodetectProcessManager, datafeedContextProvider);
 
         verify(clusterService).addListener(capturedClusterStateListener.capture());
     }
@@ -492,19 +471,19 @@ public class DatafeedManagerTests extends ESTestCase {
         return task;
     }
 
-    private void givenDatafeedHasNeverRunBefore() {
+    private void givenDatafeedHasNeverRunBefore(Job job, DatafeedConfig datafeed) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<RestartTimeInfo> listener = (ActionListener<RestartTimeInfo>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new RestartTimeInfo(null, null, false));
+            ActionListener<DatafeedContext> datafeedContextListener = (ActionListener<DatafeedContext>) invocationOnMock.getArguments()[2];
+            DatafeedContext datafeedContext = DatafeedContext.builder(0L)
+                .setJob(job)
+                .setDatafeedConfig(datafeed)
+                .setModelSnapshot(null)
+                .setRestartTimeInfo(new RestartTimeInfo(null, null, false))
+                .setTimingStats(new DatafeedTimingStats(job.getId()))
+                .build();
+            datafeedContextListener.onResponse(datafeedContext);
             return null;
-        }).when(jobResultsProvider).getRestartTimeInfo(eq(JOB_ID), any());
-
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            Consumer<DatafeedTimingStats> consumer = (Consumer<DatafeedTimingStats>) invocationOnMock.getArguments()[1];
-            consumer.accept(new DatafeedTimingStats(JOB_ID));
-            return null;
-        }).when(jobResultsProvider).datafeedTimingStats(eq(JOB_ID), any(), any());
+        }).when(datafeedContextProvider).buildDatafeedContext(eq(DATAFEED_ID), anyLong(), any());
     }
 }

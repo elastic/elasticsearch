@@ -19,27 +19,27 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.watcher.transport.actions.ListWatchesAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ListWatchesRequestTests extends AbstractSerializingTestCase<ListWatchesAction.Request> {
+public class QueryWatchesRequestTests extends AbstractSerializingTestCase<QueryWatchesAction.Request> {
 
     @Override
-    protected ListWatchesAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return ListWatchesAction.Request.fromXContent(parser);
+    protected QueryWatchesAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return QueryWatchesAction.Request.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<ListWatchesAction.Request> instanceReader() {
-        return ListWatchesAction.Request::new;
+    protected Writeable.Reader<QueryWatchesAction.Request> instanceReader() {
+        return QueryWatchesAction.Request::new;
     }
 
     @Override
-    protected ListWatchesAction.Request createTestInstance() {
+    protected QueryWatchesAction.Request createTestInstance() {
         QueryBuilder query = null;
         if (randomBoolean()) {
             query = QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20));
@@ -57,7 +57,7 @@ public class ListWatchesRequestTests extends AbstractSerializingTestCase<ListWat
             searchAfter = new SearchAfterBuilder();
             searchAfter.setSortValues(new Object[]{randomInt()});
         }
-        return new ListWatchesAction.Request(
+        return new QueryWatchesAction.Request(
             randomBoolean() ? randomIntBetween(0, 10000) : null,
             randomBoolean() ? randomIntBetween(0, 10000) : null,
             query,

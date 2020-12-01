@@ -1,30 +1,30 @@
 [role="xpack"]
-[[watcher-api-list-watches]]
-=== List watches API
+[[watcher-api-query-watches]]
+=== Query watches API
 ++++
-<titleabbrev>List watches</titleabbrev>
+<titleabbrev>Query watches</titleabbrev>
 ++++
 
-Retrieves registered all watches.
+Retrieves all registered watches.
 
-[[watcher-api-list-watches-request]]
+[[watcher-api-query-watches-request]]
 ==== {api-request-title}
 
-`GET /_watcher/_list_watches`
+`GET /_watcher/_query_watches`
 
-[[watcher-api-list-watches-prereqs]]
+[[watcher-api-query-watches-prereqs]]
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` or `monitor_watcher` cluster privileges to use
 this API. For more information, see <<security-privileges>>.
 
-//[[watcher-api-list-watches-desc]]
+//[[watcher-api-query-watches-desc]]
 //==== {api-description-title}
 
 Retrieves all watches in a paginated manner and
 optionally filtering watches by a query.
 
-//[[watcher-api-list-watches-request-body]]
+//[[watcher-api-query-watches-request-body]]
 //==== {api-request-body-title}
 
 This API supports the following fields:
@@ -47,7 +47,7 @@ This API supports the following fields:
 
 Note that only the `_id` and `metadata.*` fields are queryable or sortable.
 
-//[[watcher-api-list-watches-response-body]]
+//[[watcher-api-query-watches-response-body]]
 //==== {api-response-body-title}
 
 This api returns the following top level fields:
@@ -58,14 +58,14 @@ This api returns the following top level fields:
 `watches`::
     A list of watches based on the `from`, `size` or `search_after` request body parameters.
 
-[[watcher-api-list-watches-example]]
+[[watcher-api-query-watches-example]]
 ==== {api-examples-title}
 
 The following example list all stored watches:
 
 [source,console]
 --------------------------------------------------
-GET /_watcher/_list_watches
+GET /_watcher/_query_watches
 --------------------------------------------------
 // TEST[setup:my_active_watch]
 

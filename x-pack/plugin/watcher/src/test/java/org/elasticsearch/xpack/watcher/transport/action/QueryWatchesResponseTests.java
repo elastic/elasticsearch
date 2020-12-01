@@ -17,7 +17,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.xpack.core.watcher.transport.actions.ListWatchesAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.actions.email.EmailActionTests;
@@ -37,12 +37,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class ListWatchesResponseTests extends AbstractSerializingTestCase<ListWatchesAction.Response> {
+public class QueryWatchesResponseTests extends AbstractSerializingTestCase<QueryWatchesAction.Response> {
 
-    private static final ConstructingObjectParser<ListWatchesAction.Response.Item, Void> TEST_ITEM_PARSER = new ConstructingObjectParser<>(
-        "list_watch_response_item",
+    private static final ConstructingObjectParser<QueryWatchesAction.Response.Item, Void> TEST_ITEM_PARSER = new ConstructingObjectParser<>(
+        "query_watches_response_item",
         false,
-        (args, c) -> new ListWatchesAction.Response.Item((String) args[0], (XContentSource) args[1],
+        (args, c) -> new QueryWatchesAction.Response.Item((String) args[0], (XContentSource) args[1],
             (WatchStatus) args[2], (long) args[3], (long) args[4])
     );
 
@@ -63,10 +63,10 @@ public class ListWatchesResponseTests extends AbstractSerializingTestCase<ListWa
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ListWatchesAction.Response, Void> TEST_PARSER = new ConstructingObjectParser<>(
-        "list_watch_response",
+    private static final ConstructingObjectParser<QueryWatchesAction.Response, Void> TEST_PARSER = new ConstructingObjectParser<>(
+        "query_watches_response",
         false,
-        (args, c) -> new ListWatchesAction.Response((long) args[0], (List<ListWatchesAction.Response.Item>) args[1])
+        (args, c) -> new QueryWatchesAction.Response((long) args[0], (List<QueryWatchesAction.Response.Item>) args[1])
     );
 
     static {
@@ -75,19 +75,19 @@ public class ListWatchesResponseTests extends AbstractSerializingTestCase<ListWa
     }
 
     @Override
-    protected ListWatchesAction.Response doParseInstance(XContentParser parser) throws IOException {
+    protected QueryWatchesAction.Response doParseInstance(XContentParser parser) throws IOException {
         return TEST_PARSER.parse(parser, null);
     }
 
     @Override
-    protected Writeable.Reader<ListWatchesAction.Response> instanceReader() {
-        return ListWatchesAction.Response::new;
+    protected Writeable.Reader<QueryWatchesAction.Response> instanceReader() {
+        return QueryWatchesAction.Response::new;
     }
 
     @Override
-    protected ListWatchesAction.Response createTestInstance() {
+    protected QueryWatchesAction.Response createTestInstance() {
         int numWatches = randomIntBetween(0, 10);
-        List<ListWatchesAction.Response.Item> items = new ArrayList<>(numWatches);
+        List<QueryWatchesAction.Response.Item> items = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
             Watch watch = createWatch("_id + " + i);
             try (XContentBuilder builder = jsonBuilder()) {
@@ -95,13 +95,13 @@ public class ListWatchesResponseTests extends AbstractSerializingTestCase<ListWa
                     .hideSecrets(true)
                     .includeStatus(false)
                     .build());
-                items.add(new ListWatchesAction.Response.Item(randomAlphaOfLength(4),
+                items.add(new QueryWatchesAction.Response.Item(randomAlphaOfLength(4),
                     new XContentSource(builder), watch.status(), 1, 0));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
-        return new ListWatchesAction.Response(numWatches + randomIntBetween(0, 100), items);
+        return new QueryWatchesAction.Response(numWatches + randomIntBetween(0, 100), items);
     }
 
     private Watch createWatch(String watchId)  {
@@ -114,12 +114,12 @@ public class ListWatchesResponseTests extends AbstractSerializingTestCase<ListWa
     }
 
     @Override
-    protected void assertEqualInstances(ListWatchesAction.Response expectedInstance, ListWatchesAction.Response newInstance) {
+    protected void assertEqualInstances(QueryWatchesAction.Response expectedInstance, QueryWatchesAction.Response newInstance) {
         assertThat(expectedInstance.getWatchTotalCount(), equalTo(newInstance.getWatchTotalCount()));
         assertThat(expectedInstance.getWatches().size(), equalTo(newInstance.getWatches().size()));
         for (int i = 0; i < expectedInstance.getWatches().size(); i++) {
-            ListWatchesAction.Response.Item expected = expectedInstance.getWatches().get(i);
-            ListWatchesAction.Response.Item actual = newInstance.getWatches().get(i);
+            QueryWatchesAction.Response.Item expected = expectedInstance.getWatches().get(i);
+            QueryWatchesAction.Response.Item actual = newInstance.getWatches().get(i);
             assertThat(expected.getId(), equalTo(actual.getId()));
             assertThat(expected.getSource(), equalTo(actual.getSource()));
             assertThat(expected.getSeqNo(), equalTo(actual.getSeqNo()));

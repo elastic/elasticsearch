@@ -34,12 +34,12 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
+public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> {
 
-    public static final ListWatchesAction INSTANCE = new ListWatchesAction();
-    public static final String NAME = "cluster:monitor/xpack/watcher/watch/list";
+    public static final QueryWatchesAction INSTANCE = new QueryWatchesAction();
+    public static final String NAME = "cluster:monitor/xpack/watcher/watch/query";
 
-    private ListWatchesAction() {
+    private QueryWatchesAction() {
         super(NAME, Response::new);
     }
 
@@ -53,7 +53,7 @@ public class ListWatchesAction extends ActionType<ListWatchesAction.Response> {
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "list_watch_request",
+            "query_watches_request",
             true,
             (args, c) -> {
                 Integer from = (Integer) args[0];

@@ -9,7 +9,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.watcher.transport.actions.ListWatchesAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -17,29 +17,29 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestListWatchesAction extends BaseRestHandler {
+public class RestQueryWatchesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_watcher/_list_watches"),
-            new Route(POST, "/_watcher/_list_watches")
+            new Route(GET, "/_watcher/_query_watches"),
+            new Route(POST, "/_watcher/_query_watches")
         );
     }
 
     @Override
     public String getName() {
-        return "watcher_list_watches";
+        return "watcher_query_watches";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        final ListWatchesAction.Request listWatchesRequest;
+        final QueryWatchesAction.Request queryWatchesRequest;
         if (request.hasContentOrSourceParam()) {
-            listWatchesRequest = ListWatchesAction.Request.fromXContent(request.contentOrSourceParamParser());
+            queryWatchesRequest = QueryWatchesAction.Request.fromXContent(request.contentOrSourceParamParser());
         } else {
-            listWatchesRequest = new ListWatchesAction.Request(null, null, null, null, null);
+            queryWatchesRequest = new QueryWatchesAction.Request(null, null, null, null, null);
         }
-        return channel -> client.execute(ListWatchesAction.INSTANCE, listWatchesRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(QueryWatchesAction.INSTANCE, queryWatchesRequest, new RestToXContentListener<>(channel));
     }
 }

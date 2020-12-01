@@ -71,7 +71,7 @@ import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
-import org.elasticsearch.xpack.core.watcher.transport.actions.ListWatchesAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
@@ -144,7 +144,7 @@ import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction.Deact
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
-import org.elasticsearch.xpack.watcher.rest.action.RestListWatchesAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestQueryWatchesAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
@@ -155,7 +155,7 @@ import org.elasticsearch.xpack.watcher.transform.script.ScriptTransformFactory;
 import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
-import org.elasticsearch.xpack.watcher.transport.actions.TransportListWatchesAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportQueryWatchesAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportAckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportActivateWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportDeleteWatchAction;
@@ -558,7 +558,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
                 new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
                 new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
-                new ActionHandler<>(ListWatchesAction.INSTANCE, TransportListWatchesAction.class),
+                new ActionHandler<>(QueryWatchesAction.INSTANCE, TransportQueryWatchesAction.class),
                 usageAction,
                 infoAction);
     }
@@ -581,7 +581,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 new RestActivateWatchAction(),
                 new DeactivateRestHandler(),
                 new RestExecuteWatchAction(),
-                new RestListWatchesAction());
+                new RestQueryWatchesAction());
     }
 
     @Override

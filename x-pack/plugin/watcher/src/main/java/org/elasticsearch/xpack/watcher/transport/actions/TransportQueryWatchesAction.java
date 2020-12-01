@@ -21,7 +21,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.xpack.core.watcher.transport.actions.ListWatchesAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
@@ -39,29 +39,29 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportListWatchesAction extends WatcherTransportAction<ListWatchesAction.Request, ListWatchesAction.Response> {
+public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWatchesAction.Request, QueryWatchesAction.Response> {
 
     private final Clock clock;
     private final Client client;
     private final WatchParser parser;
 
     @Inject
-    public TransportListWatchesAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState,
-                                      ClockHolder clockHolder, Client client, WatchParser parser) {
-        super(ListWatchesAction.NAME, transportService, actionFilters, licenseState, ListWatchesAction.Request::new);
+    public TransportQueryWatchesAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState,
+                                       ClockHolder clockHolder, Client client, WatchParser parser) {
+        super(QueryWatchesAction.NAME, transportService, actionFilters, licenseState, QueryWatchesAction.Request::new);
         this.clock = clockHolder.clock;
         this.client = client;
         this.parser = parser;
     }
 
     @Override
-    protected void doExecute(ListWatchesAction.Request request, ActionListener<ListWatchesAction.Response> listener) {
+    protected void doExecute(QueryWatchesAction.Request request, ActionListener<QueryWatchesAction.Response> listener) {
         SearchRequest searchRequest = createSearchRequest(request);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, searchRequest,
             ActionListener.<SearchResponse>wrap(r -> transformResponse(r, listener), listener::onFailure), client::search);
     }
 
-    SearchRequest createSearchRequest(ListWatchesAction.Request request) {
+    SearchRequest createSearchRequest(QueryWatchesAction.Request request) {
         SearchRequest searchRequest = new SearchRequest(Watch.INDEX);
         if (request.getFrom() != null) {
             searchRequest.source().from(request.getFrom());
@@ -87,15 +87,15 @@ public class TransportListWatchesAction extends WatcherTransportAction<ListWatch
     }
 
 
-    void transformResponse(SearchResponse searchResponse, ActionListener<ListWatchesAction.Response> listener) {
+    void transformResponse(SearchResponse searchResponse, ActionListener<QueryWatchesAction.Response> listener) {
         assert searchResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
-        List<ListWatchesAction.Response.Item> items = Arrays.stream(searchResponse.getHits().getHits())
+        List<QueryWatchesAction.Response.Item> items = Arrays.stream(searchResponse.getHits().getHits())
             .map(this::transformSearchHit)
             .collect(Collectors.toList());
-        listener.onResponse(new ListWatchesAction.Response(searchResponse.getHits().getTotalHits().value, items));
+        listener.onResponse(new QueryWatchesAction.Response(searchResponse.getHits().getTotalHits().value, items));
     }
 
-    ListWatchesAction.Response.Item transformSearchHit(SearchHit searchHit) {
+    QueryWatchesAction.Response.Item transformSearchHit(SearchHit searchHit) {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         try (XContentBuilder builder = jsonBuilder()) {
             Watch watch = parser.parseWithSecrets(searchHit.getId(), true, searchHit.getSourceRef(), now,
@@ -104,7 +104,7 @@ public class TransportListWatchesAction extends WatcherTransportAction<ListWatch
                 .hideSecrets(true)
                 .includeStatus(false)
                 .build());
-            return new ListWatchesAction.Response.Item(searchHit.getId(), new XContentSource(builder), watch.status(),
+            return new QueryWatchesAction.Response.Item(searchHit.getId(), new XContentSource(builder), watch.status(),
                 watch.getSourceSeqNo(), watch.getSourcePrimaryTerm());
         } catch (IOException e) {
             throw new UncheckedIOException(e);

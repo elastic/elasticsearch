@@ -16,7 +16,7 @@ teardown:
         ignore: 404
 
 ---
-"Test list watches api":
+"Test query watches api":
   - skip:
       features: warnings
   - do:
@@ -86,7 +86,7 @@ teardown:
   - match: { created: true }
 
   - do:
-      watcher.list_watches:
+      watcher.query_watches:
         body: {}
   - match: { count: 2}
   - match: { watches.0._id: "my_watch1" }

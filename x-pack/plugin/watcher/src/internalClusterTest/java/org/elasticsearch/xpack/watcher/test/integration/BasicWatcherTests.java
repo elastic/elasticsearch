@@ -23,7 +23,7 @@ import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.xpack.core.watcher.transport.actions.ListWatchesAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
@@ -384,7 +384,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithMinimumPerformedActionsCount(watchName, 1);
     }
 
-    public void testListWatches() {
+    public void testQueryWatches() {
         int numWatches = 6;
         for (int i = 0; i < numWatches; i++) {
             PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("" + i)
@@ -397,9 +397,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
         refresh();
 
-        ListWatchesAction.Request request =
-            new ListWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
-        ListWatchesAction.Response response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        QueryWatchesAction.Request request =
+            new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
+        QueryWatchesAction.Response response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("0"));
@@ -409,8 +409,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherMetadata = (Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
         assertThat(watcherMetadata.get("key2"), equalTo(5));
 
-        request = new ListWatchesAction.Request(2, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
-        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        request = new QueryWatchesAction.Request(2, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("2"));
@@ -420,8 +420,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherMetadata = (Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
         assertThat(watcherMetadata.get("key2"), equalTo(3));
 
-        request = new ListWatchesAction.Request(null, null, new TermQueryBuilder("_id", "4"), null, null);
-        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        request = new QueryWatchesAction.Request(null, null, new TermQueryBuilder("_id", "4"), null, null);
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo(1L));
         assertThat(response.getWatches().size(), equalTo(1));
         assertThat(response.getWatches().get(0).getId(), equalTo("4"));
@@ -429,8 +429,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(watcherMetadata.get("key1"), equalTo(4));
         assertThat(watcherMetadata.get("key2"), equalTo(2));
 
-        request = new ListWatchesAction.Request(4, 2, null, List.of(new FieldSortBuilder("metadata.key2")), null);
-        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        request = new QueryWatchesAction.Request(4, 2, null, List.of(new FieldSortBuilder("metadata.key2")), null);
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("1"));
@@ -443,9 +443,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(watcherMetadata.get("key2"), equalTo(6));
     }
 
-    public void testListWatchesNoWatches() {
-        ListWatchesAction.Request request = new ListWatchesAction.Request(null, null, null, null, null);
-        ListWatchesAction.Response response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+    public void testQueryWatchesNoWatches() {
+        QueryWatchesAction.Request request = new QueryWatchesAction.Request(null, null, null, null, null);
+        QueryWatchesAction.Response response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo(0L));
         assertThat(response.getWatches().size(), equalTo(0));
 
@@ -453,13 +453,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("*");
         deleteIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpenHidden());
         client().admin().indices().delete(deleteIndexRequest).actionGet();
-        request = new ListWatchesAction.Request(null, null, null, null, null);
-        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        request = new QueryWatchesAction.Request(null, null, null, null, null);
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo(0L));
         assertThat(response.getWatches().size(), equalTo(0));
     }
 
-    public void testListWatchesSearchAfter() {
+    public void testQueryWatchesSearchAfter() {
         int numWatches = 6;
         for (int i = 0; i < numWatches; i++) {
             PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("" + i)
@@ -472,33 +472,33 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
         refresh();
 
-        ListWatchesAction.Request request =
-            new ListWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")), null);
-        ListWatchesAction.Response response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        QueryWatchesAction.Request request =
+            new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")), null);
+        QueryWatchesAction.Response response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("0"));
         assertThat(response.getWatches().get(1).getId(), equalTo("1"));
 
-        request = new ListWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
+        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
             new SearchAfterBuilder().setSortValues(new Object[]{"1"}));
-        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("2"));
         assertThat(response.getWatches().get(1).getId(), equalTo("3"));
 
-        request = new ListWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
+        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
             new SearchAfterBuilder().setSortValues(new Object[]{"3"}));
-        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("4"));
         assertThat(response.getWatches().get(1).getId(), equalTo("5"));
 
-        request = new ListWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
+        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
             new SearchAfterBuilder().setSortValues(new Object[]{"5"}));
-        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(0));
     }

@@ -222,7 +222,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public void executeSnapshotLegacy(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         createSnapshotLegacy(request,
-            ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure));
+            ActionListener.wrap(snapshot -> addListener(snapshot, listener.map(Tuple::v2)), listener::onFailure));
     }
 
     /**
@@ -336,8 +336,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot completion listener
      */
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        createSnapshot(request,
-            ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure));
+        createSnapshot(request, ActionListener.wrap(snapshot -> addListener(snapshot, listener.map(Tuple::v2)), listener::onFailure));
     }
 
     /**
@@ -3121,7 +3120,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         protected void masterOperation(UpdateIndexShardSnapshotStatusRequest request, ClusterState state,
                                        ActionListener<ActionResponse.Empty> listener) throws Exception {
             innerUpdateSnapshotState(new ShardSnapshotUpdate(request.snapshot(), request.shardId(), request.status()),
-                    ActionListener.delegateFailure(listener, (l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
+                    listener.map(v -> ActionResponse.Empty.INSTANCE));
         }
 
         @Override

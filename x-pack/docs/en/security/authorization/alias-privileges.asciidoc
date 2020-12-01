@@ -36,12 +36,18 @@ Because the user is automatically granted the same privileges to the stream's
 backing indices, the user can retrieve a document directly from
 `.ds-my-data-stream-2099-03-08-000002`:
 
+////
+[source,console]
+----
+PUT /.ds-my-data-stream-2099-03-08-000002/_doc/2
+----
+////
+
 [source,console]
 ----
 GET /.ds-my-data-stream-2099-03-08-000002/_doc/2
 ----
-// TEST[setup:my_index]
-// TEST[s/.ds-my-data-stream-2099-03-08-000002/my-index-000001/]
+// TEST[continued]
 
 Later `my-data-stream` <<manually-roll-over-a-data-stream,rolls over>>. This
 creates a new backing index: `.ds-my-data-stream-2099-03-09-000003`. Because the
@@ -52,8 +58,8 @@ documents directly from `.ds-my-data-stream-2099-03-09-000003`:
 ----
 GET /.ds-my-data-stream-2099-03-09-000003/_doc/2
 ----
-// TEST[setup:my_index]
-// TEST[s/.ds-my-data-stream-2099-03-09-000003/my-index-000001/]
+// TEST[continued]
+// TEST[s/.ds-my-data-stream-2099-03-09-000003/.ds-my-data-stream-2099-03-08-000002/]
 
 [[index-alias-privileges]]
 ==== Index alias privileges

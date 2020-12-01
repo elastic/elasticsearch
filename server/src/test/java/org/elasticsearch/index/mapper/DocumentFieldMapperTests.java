@@ -121,9 +121,12 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             Collections.emptyList(),
             0);
 
-        assertAnalyzes(mappingLookup.indexAnalyzer(), "field1", "index1");
-        assertAnalyzes(mappingLookup.indexAnalyzer(), "field2", "index2");
-        expectThrows(IllegalArgumentException.class, () -> mappingLookup.indexAnalyzer().tokenStream("field3", "blah"));
+        assertAnalyzes(mappingLookup.indexAnalyzer("field1", f -> null), "field1", "index1");
+        assertAnalyzes(mappingLookup.indexAnalyzer("field2", f -> null), "field2", "index2");
+        expectThrows(IllegalArgumentException.class,
+            () -> mappingLookup.indexAnalyzer("field3", f -> {
+                throw new IllegalArgumentException();
+            }).tokenStream("field3", "blah"));
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

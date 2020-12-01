@@ -60,8 +60,7 @@ public class TransportVerifyRepositoryAction extends
     @Override
     protected void masterOperation(Task task, final VerifyRepositoryRequest request, ClusterState state,
                                    final ActionListener<VerifyRepositoryResponse> listener) {
-        repositoriesService.verifyRepository(request.name(), ActionListener.delegateFailure(listener,
-            (delegatedListener, verifyResponse) ->
-                delegatedListener.onResponse(new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0])))));
+        repositoriesService.verifyRepository(request.name(), listener.map(
+                verifyResponse -> new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0]))));
     }
 }

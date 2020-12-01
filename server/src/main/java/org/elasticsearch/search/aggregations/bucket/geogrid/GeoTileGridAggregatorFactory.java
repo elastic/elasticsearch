@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,11 +56,9 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -70,10 +67,8 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return context.getValuesSourceRegistry()
             .getAggregator(GeoTileGridAggregationBuilder.REGISTRY_KEY, config)
             .build(
@@ -82,7 +77,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                 config.getValuesSource(),
                 precision,
                 geoBoundingBox,
-            requiredSize, shardSize, searchContext, parent, cardinality, metadata);
+            requiredSize, shardSize, context, parent, cardinality, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {

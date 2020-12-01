@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -497,4 +500,27 @@ public class ReadOnlyEngine extends Engine {
     public CompletionStats completionStats(String... fieldNamePatterns) {
         return completionStatsCache.get(fieldNamePatterns);
     }
+
+    /**
+     * @return a {@link ShardLongFieldRange} containing the min and max raw values of the given field for this shard, or {@link
+     * ShardLongFieldRange#EMPTY} if this field is not found or empty.
+     */
+    @Override
+    public ShardLongFieldRange getRawFieldRange(String field) throws IOException {
+        try (Searcher searcher = acquireSearcher("field_range")) {
+            final DirectoryReader directoryReader = searcher.getDirectoryReader();
+
+            final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);
+            final byte[] maxPackedValue = PointValues.getMaxPackedValue(directoryReader, field);
+
+            if (minPackedValue == null || maxPackedValue == null) {
+                assert minPackedValue == null && maxPackedValue == null
+                        : Arrays.toString(minPackedValue) + "-" + Arrays.toString(maxPackedValue);
+                return ShardLongFieldRange.EMPTY;
+            }
+
+            return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
+        }
+    }
+
 }

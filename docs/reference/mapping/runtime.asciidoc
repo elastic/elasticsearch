@@ -321,6 +321,7 @@ The mapping contains two fields: `@timestamp` and `message`.
 ----
 {
   "my-index" : {
+    "aliases" : { },
     "mappings" : {
       "properties" : {
         "@timestamp" : {
@@ -336,7 +337,7 @@ The mapping contains two fields: `@timestamp` and `message`.
   }
 }
 ----
-// TESTRESPONSE[s/\.\.\./"settings": $body.my-index.settings/]
+// TESTRESPONSE[s/\.\.\./"aliases": $body.my-index.aliases, "settings": $body.my-index.settings/]
 
 If you want to retrieve results that include `clientip`, you can add that field
 as a runtime field in the mapping. The runtime script operates on the `clientip`

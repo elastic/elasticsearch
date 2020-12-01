@@ -27,7 +27,7 @@ include::watcher/execute-watch.asciidoc[]
 //GET
 include::watcher/get-watch.asciidoc[]
 include::watcher/stats.asciidoc[]
-//LIST
+//QUERY
 include::watcher/query-watches.asciidoc[]
 //PUT
 include::watcher/put-watch.asciidoc[]

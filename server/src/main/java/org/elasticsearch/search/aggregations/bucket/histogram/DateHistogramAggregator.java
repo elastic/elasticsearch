@@ -44,9 +44,9 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorSupplier;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,7 +89,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -143,7 +143,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -164,8 +164,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (max < -RangeAggregator.MAX_ACCURATE_BOUND || max > RangeAggregator.MAX_ACCURATE_BOUND) {
             return null;
         }
-        RangeAggregatorSupplier rangeSupplier = context.getQueryShardContext()
-            .getValuesSourceRegistry()
+        RangeAggregatorSupplier rangeSupplier = context.getValuesSourceRegistry()
             .getAggregator(RangeAggregationBuilder.REGISTRY_KEY, valuesSourceConfig);
         if (rangeSupplier == null) {
             return null;
@@ -228,13 +227,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-
-        super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
         this.preparedRounding = preparedRounding;
         this.order = order;

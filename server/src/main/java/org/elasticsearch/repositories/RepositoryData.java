@@ -24,6 +24,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -280,10 +281,7 @@ public final class RepositoryData {
             if (snapshotIds == null) {
                 allIndexSnapshots.put(indexId, List.of(snapshotId));
             } else {
-                final List<SnapshotId> copy = new ArrayList<>(snapshotIds.size() + 1);
-                copy.addAll(snapshotIds);
-                copy.add(snapshotId);
-                allIndexSnapshots.put(indexId, Collections.unmodifiableList(copy));
+                allIndexSnapshots.put(indexId, CollectionUtils.appendToCopy(snapshotIds, snapshotId));
             }
         }
 

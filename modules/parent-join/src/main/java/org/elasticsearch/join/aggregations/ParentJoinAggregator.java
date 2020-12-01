@@ -40,8 +40,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -63,7 +63,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
 
     public ParentJoinAggregator(String name,
                                     AggregatorFactories factories,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     Query inFilter,
                                     Query outFilter,

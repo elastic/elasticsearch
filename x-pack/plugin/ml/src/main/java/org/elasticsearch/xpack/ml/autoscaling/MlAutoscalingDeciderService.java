@@ -157,7 +157,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         }
         jobSizes.sort(Comparator.comparingLong(Long::longValue).reversed());
         long tierMemory = 0L;
-        long nodeMemory = jobSizes.get(0);
+        // Node memory needs to be AT LEAST the size of the largest job + the required overhead.
+        long nodeMemory = jobSizes.get(0) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
         Iterator<Long> iter = jobSizes.iterator();
         while (jobSizes.size() > maxNumInQueue && iter.hasNext()) {
             tierMemory += iter.next();
@@ -227,7 +228,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         return scaleDownDetected == NO_SCALE_DOWN_POSSIBLE;
     }
 
-    NativeMemoryCapacity currentScale(final List<DiscoveryNode> machineLearningNodes) {
+    public static NativeMemoryCapacity currentScale(final List<DiscoveryNode> machineLearningNodes, int maxMachineMemoryPercent, boolean useAuto) {
         long[] mlMemory = machineLearningNodes.stream()
             .mapToLong(node -> NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent, useAuto).orElse(0L))
             .toArray();
@@ -243,6 +244,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 .max(Long::compare)
                 .orElse(null)
         );
+    }
+
+    NativeMemoryCapacity currentScale(final List<DiscoveryNode> machineLearningNodes) {
+        return currentScale(machineLearningNodes, maxMachineMemoryPercent, useAuto);
     }
 
     @Override
@@ -568,14 +573,16 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             return Optional.empty();
         }
         long currentlyNecessaryTier = nodeLoads.stream().mapToLong(NodeLoad::getAssignedJobMemory).sum();
+        // The required NATIVE node memory is the largest job and our static overhead.
+        long currentlyNecessaryNode = largestJob == 0 ? 0 : largestJob + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
         // We consider a scale down if we are not fully utilizing the tier
         // Or our largest job could be on a smaller node (meaning the same size tier but smaller nodes are possible).
-        if (currentlyNecessaryTier < currentCapacity.getTier() || largestJob < currentCapacity.getNode()) {
+        if (currentlyNecessaryTier < currentCapacity.getTier() || currentlyNecessaryNode < currentCapacity.getNode()) {
             NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(
                 currentlyNecessaryTier,
-                largestJob,
+                currentlyNecessaryNode,
                 // If our newly suggested native capacity is the same, we can use the previously stored jvm size
-                largestJob == currentCapacity.getNode() ? currentCapacity.getJvmSize() : null);
+                currentlyNecessaryNode == currentCapacity.getNode() ? currentCapacity.getJvmSize() : null);
             return Optional.of(
                 new AutoscalingDeciderResult(
                     nativeMemoryCapacity.autoscalingCapacity(maxMachineMemoryPercent, useAuto),

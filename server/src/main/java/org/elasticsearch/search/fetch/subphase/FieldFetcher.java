@@ -138,15 +138,7 @@ public class FieldFetcher {
                 );
             } else if (value instanceof List) {
                 // iterate through list values
-                List<Object> list = collectUnmappedList(documentFields, (List<?>) value, currentPath, currentState);
-                if (list.isEmpty() == false) {
-                    DocumentField currentEntry = documentFields.get(currentPath);
-                    if (currentEntry == null) {
-                        documentFields.put(currentPath, new DocumentField(currentPath, list));
-                    } else {
-                        currentEntry.getValues().addAll(list);
-                    }
-                }
+                collectUnmappedList(documentFields, (List<?>) value, currentPath, currentState);
             } else {
                 // we have a leaf value
                 if (this.unmappedFetchAutomaton.isAccept(currentState) && this.mappedToExclude.contains(currentPath) == false) {
@@ -165,12 +157,7 @@ public class FieldFetcher {
         }
     }
 
-    private List<Object> collectUnmappedList(
-        Map<String, DocumentField> documentFields,
-        Iterable<?> iterable,
-        String parentPath,
-        int lastState
-    ) {
+    private void collectUnmappedList(Map<String, DocumentField> documentFields, Iterable<?> iterable, String parentPath, int lastState) {
         List<Object> list = new ArrayList<>();
         for (Object value : iterable) {
             if (value instanceof Map) {
@@ -182,12 +169,19 @@ public class FieldFetcher {
                 );
             } else if (value instanceof List) {
                 // weird case, but can happen for objects with "enabled" : "false"
-                list.add(collectUnmappedList(documentFields, (List<?>) value, parentPath, lastState));
+                collectUnmappedList(documentFields, (List<?>) value, parentPath, lastState);
             } else if (this.unmappedFetchAutomaton.isAccept(lastState) && this.mappedToExclude.contains(parentPath) == false) {
                 list.add(value);
             }
         }
-        return list;
+        if (list.isEmpty() == false) {
+            DocumentField currentEntry = documentFields.get(parentPath);
+            if (currentEntry == null) {
+                documentFields.put(parentPath, new DocumentField(parentPath, list));
+            } else {
+                currentEntry.getValues().addAll(list);
+            }
+        }
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

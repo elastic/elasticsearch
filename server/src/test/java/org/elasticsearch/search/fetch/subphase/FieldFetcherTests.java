@@ -45,7 +45,6 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class FieldFetcherTests extends MapperServiceTestCase {
 
@@ -577,12 +576,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.keySet(), containsInAnyOrder("obj", "obj.a"));
 
         List<Object> obj = fields.get("obj").getValues();
-        assertEquals(2, obj.size());
-        assertThat(obj.get(0), instanceOf(String.class));
-        assertEquals("string_value", obj.get(0).toString());
-        assertThat(obj.get(1), instanceOf(List.class));
-        assertEquals(3, ((List<?>) obj.get(1)).size());
-        assertEquals("[1, 2, 3]", obj.get(1).toString());
+        assertEquals(4, obj.size());
+        assertThat(obj, hasItems("string_value", 1, 2, 3));
 
         List<Object> innerObj = fields.get("obj.a").getValues();
         assertEquals(1, innerObj.size());

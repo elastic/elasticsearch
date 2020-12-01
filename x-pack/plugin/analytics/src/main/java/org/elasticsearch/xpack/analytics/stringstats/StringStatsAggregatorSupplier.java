@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +19,7 @@ public interface StringStatsAggregatorSupplier {
                      ValuesSource valuesSource,
                      boolean showDistribution,
                      DocValueFormat format,
-                     SearchContext context,
+                     AggregationContext context,
                      Aggregator parent,
                      Map<String, Object> metadata) throws IOException;
 }

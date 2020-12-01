@@ -106,8 +106,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connectionRef.set(c);
             l.onResponse(null);
         };
-        PlainActionFuture.get(
-            fut -> connectionManager.connectToNode(node, connectionProfile, validator, ActionListener.map(fut, x -> null)));
+        PlainActionFuture.get(fut -> connectionManager.connectToNode(node, connectionProfile, validator, fut.map(x -> null)));
 
         assertFalse(connection.isClosed());
         assertTrue(connectionManager.nodeConnected(node));

@@ -239,13 +239,13 @@ public class SparseFileTracker {
             case 1:
                 final Range requiredRange = requiredRanges.get(0);
                 requiredRange.completionListener.addListener(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     Math.min(requiredRange.completionListener.end, subRange.v2())
                 );
                 break;
             default:
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     requiredRanges.size()
                 );
                 requiredRanges.forEach(
@@ -328,13 +328,13 @@ public class SparseFileTracker {
             case 1:
                 final Range pendingRange = pendingRanges.get(0);
                 pendingRange.completionListener.addListener(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     Math.min(pendingRange.completionListener.end, end)
                 );
                 return true;
             default:
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     pendingRanges.size()
                 );
                 pendingRanges.forEach(

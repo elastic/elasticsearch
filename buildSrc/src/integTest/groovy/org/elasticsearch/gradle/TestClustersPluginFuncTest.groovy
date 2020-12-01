@@ -22,6 +22,7 @@ package org.elasticsearch.gradle
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
 import spock.lang.IgnoreIf
+import spock.lang.IgnoreRest
 import spock.lang.Requires
 import spock.util.environment.OperatingSystem
 

@@ -45,6 +45,7 @@ class DistributionDownloadFixture {
                 }
             }"""
             List<String> givenArguments = gradleRunner.getArguments()
+            println "givenArguments = $givenArguments"
             GradleRunner effectiveRunner = gradleRunner.withArguments(givenArguments + ['-I', initFile.getAbsolutePath()])
             buildRunClosure.delegate = effectiveRunner
             return buildRunClosure.call(effectiveRunner)

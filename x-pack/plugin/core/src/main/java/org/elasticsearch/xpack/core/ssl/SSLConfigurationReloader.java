@@ -85,7 +85,7 @@ public final class SSLConfigurationReloader {
         Map<Path, List<SSLConfiguration>> pathToConfigurationsMap = new HashMap<>();
         for (SSLConfiguration sslConfiguration : sslConfigurations) {
             List<Path> filePaths = sslConfiguration.filesToMonitor(environment);
-            checkFilesAccess(filesToMonitor);
+            checkFilesAccess(filePaths);
             for (Path directory : directoriesToMonitor(filePaths)) {
                 pathToConfigurationsMap.compute(directory, (path, list) -> {
                     if (list == null) {

@@ -143,7 +143,7 @@ public class ReservedRealmTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), enabled, false));
+            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), enabled));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
@@ -155,7 +155,7 @@ public class ReservedRealmTests extends ESTestCase {
         // the realm assumes it owns the hashed password so it fills it with 0's
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), true, false));
+            callback.onResponse(new ReservedUserInfo(hasher.hash(newPassword), true));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
@@ -317,7 +317,7 @@ public class ReservedRealmTests extends ESTestCase {
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
         char[] hash = hasher.hash(password);
-        ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
+        ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
@@ -382,7 +382,7 @@ public class ReservedRealmTests extends ESTestCase {
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             char[] hash = hasher.hash(password);
-            ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
+            ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
             callback.onResponse(userInfo);
             return null;
         }).when(usersStore).getReservedUserInfo(eq("elastic"), any(ActionListener.class));

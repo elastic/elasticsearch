@@ -73,8 +73,16 @@ public class DateFormatTests extends ESTestCase {
         String format = "YYYY-ww";
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
-        ZonedDateTime dateTime = javaFunction.apply("2020-33");
-        assertThat(dateTime, equalTo(ZonedDateTime.of(2020,8,10,0,0,0,0,timezone)));
+        ZonedDateTime dateTime = javaFunction.apply("2019-33");
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2019,8,12,0,0,0,0,timezone)));
+    }
+
+    public void testParseWeekBasedYear() {
+        String format = "YYYY";
+        ZoneId timezone = DateUtils.of("Europe/Amsterdam");
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        ZonedDateTime dateTime = javaFunction.apply("2019");
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2018,12,31,0,0,0,0,timezone)));
     }
 
     public void testParseWeekBasedWithLocale() {
@@ -91,7 +99,7 @@ public class DateFormatTests extends ESTestCase {
             String format = "yyyy-MM-dd'T'HH:mm";
             ZoneId timezone = ZoneId.of("UTC");
             Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
-            // this means that hour will be 10:00 at UTC as timezone was provided on a pattern,
+            // this means that hour will be 01:00 at UTC as timezone was not on a pattern, but provided as an ingest param
             ZonedDateTime dateTime = javaFunction.apply("2020-01-01T01:00");
             assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 01, 0, 0, 0, timezone)));
         }
@@ -99,7 +107,7 @@ public class DateFormatTests extends ESTestCase {
             String format = "yyyy-MM-dd'T'HH:mm";
             ZoneId timezone = ZoneId.of("-01:00");
             Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
-            // this means that hour will be 10:00 at -01:00 as timezone was provided on a pattern,
+            // this means that hour will be 01:00 at -01:00 as timezone was not on a pattern, but provided as an ingest param
             ZonedDateTime dateTime = javaFunction.apply("2020-01-01T01:00");
             assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 01, 0, 0, 0, timezone)));
         }
@@ -109,7 +117,7 @@ public class DateFormatTests extends ESTestCase {
         String format = "yyyy-MM-dd'T'HH:mm XXX";
         ZoneId timezone = ZoneId.of("-01:00");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
-        // this means that hour will be 01:00 at -02:00 as timezone was provided. Converted to -01:00 as requested on timezone -01:00 param
+        // this means that hour will be 01:00 at -02:00 as timezone on a pattern. Converted to -01:00 as requested on ingest param
 
         ZonedDateTime dateTime = javaFunction.apply("2020-01-01T01:00 -02:00");
         assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 02, 0, 0, 0, timezone)));
@@ -119,7 +127,7 @@ public class DateFormatTests extends ESTestCase {
         String format = "yyyy-MM-dd";
         ZoneId timezone = ZoneId.of("-01:00");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
-        // this means that hour will be 00:00 at -01:00 as timezone was provided on in pattern
+        // this means that hour will be 00:00 (default) at -01:00 as timezone was not on a pattern, but -01:00 was an ingest param
         ZonedDateTime dateTime = javaFunction.apply("2020-01-01");
         assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 01, 01, 0, 0, 0, 0, timezone)));
     }

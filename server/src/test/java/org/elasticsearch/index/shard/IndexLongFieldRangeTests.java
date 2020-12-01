@@ -36,7 +36,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
         assertThat(range.extendWithShardRange(
                 IntStream.of(range.getShards()).max().orElse(0) + 1,
                 between(1, 10),
-                ShardLongFieldRange.MUTABLE),
+                ShardLongFieldRange.UNKNOWN),
                 sameInstance(IndexLongFieldRange.UNKNOWN));
     }
 

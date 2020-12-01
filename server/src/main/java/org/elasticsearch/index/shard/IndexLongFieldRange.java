@@ -282,7 +282,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     }
 
     public IndexLongFieldRange extendWithShardRange(int shardId, int shardCount, ShardLongFieldRange shardFieldRange) {
-        if (shardFieldRange == ShardLongFieldRange.MUTABLE) {
+        if (shardFieldRange == ShardLongFieldRange.UNKNOWN) {
             assert shards == null
                     ? this == UNKNOWN
                     : Arrays.stream(shards).noneMatch(i -> i == shardId);

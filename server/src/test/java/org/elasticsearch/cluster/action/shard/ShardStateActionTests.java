@@ -426,7 +426,7 @@ public class ShardStateActionTests extends ESTestCase {
         final ShardRouting shardRouting = getRandomShardRouting(index);
         final long primaryTerm = clusterService.state().metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
         final TestListener listener = new TestListener();
-        shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", ShardLongFieldRange.MUTABLE, listener);
+        shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", ShardLongFieldRange.UNKNOWN, listener);
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests[0].request, instanceOf(ShardStateAction.StartedShardEntry.class));
@@ -435,7 +435,7 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(entry.shardId, equalTo(shardRouting.shardId()));
         assertThat(entry.allocationId, equalTo(shardRouting.allocationId().getId()));
         assertThat(entry.primaryTerm, equalTo(primaryTerm));
-        assertThat(entry.timestampMillisRange, sameInstance(ShardLongFieldRange.MUTABLE));
+        assertThat(entry.timestampMillisRange, sameInstance(ShardLongFieldRange.UNKNOWN));
 
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
         listener.await();
@@ -533,7 +533,7 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             assertThat(deserialized.timestampMillisRange, version.onOrAfter(ShardLongFieldRange.LONG_FIELD_RANGE_VERSION_INTRODUCED) ?
-                    equalTo(timestampMillisRange) : sameInstance(ShardLongFieldRange.MUTABLE));
+                    equalTo(timestampMillisRange) : sameInstance(ShardLongFieldRange.UNKNOWN));
         }
     }
 

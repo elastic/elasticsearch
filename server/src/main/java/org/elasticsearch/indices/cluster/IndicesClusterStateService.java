@@ -811,7 +811,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /**
          * @return the range of the {@code @timestamp} field for this shard, in milliseconds since the epoch, or {@link
-         * ShardLongFieldRange#EMPTY} if this field is not found, or {@link ShardLongFieldRange#MUTABLE} if its range is not fixed.
+         * ShardLongFieldRange#EMPTY} if this field is not found, or {@link ShardLongFieldRange#UNKNOWN} if its range is not fixed.
          */
         @Nullable
         ShardLongFieldRange getTimestampMillisRange();

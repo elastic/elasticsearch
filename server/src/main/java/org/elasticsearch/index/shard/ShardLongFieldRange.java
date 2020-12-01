@@ -40,9 +40,9 @@ public class ShardLongFieldRange implements Writeable {
     public static final ShardLongFieldRange EMPTY = new ShardLongFieldRange(Long.MAX_VALUE, Long.MIN_VALUE);
 
     /**
-     * Sentinel value indicating the actual range may change in the future.
+     * Sentinel value indicating the actual range is unknown, for instance because more docs may be added in future.
      */
-    public static final ShardLongFieldRange MUTABLE = new ShardLongFieldRange(Long.MIN_VALUE, Long.MAX_VALUE);
+    public static final ShardLongFieldRange UNKNOWN = new ShardLongFieldRange(Long.MIN_VALUE, Long.MAX_VALUE);
 
     /**
      * Construct a new {@link ShardLongFieldRange} with the given (inclusive) minimum and maximum.
@@ -63,7 +63,7 @@ public class ShardLongFieldRange implements Writeable {
      * @return the (inclusive) minimum of this range.
      */
     public long getMin() {
-        assert this != EMPTY && this != MUTABLE && min <= max: "must not use actual min of sentinel values";
+        assert this != EMPTY && this != UNKNOWN && min <= max: "must not use actual min of sentinel values";
         return min;
     }
 
@@ -71,14 +71,14 @@ public class ShardLongFieldRange implements Writeable {
      * @return the (inclusive) maximum of this range.
      */
     public long getMax() {
-        assert this != EMPTY && this != MUTABLE && min <= max : "must not use actual max of sentinel values";
+        assert this != EMPTY && this != UNKNOWN && min <= max : "must not use actual max of sentinel values";
         return max;
     }
 
     @Override
     public String toString() {
-        if (this == MUTABLE) {
-            return "MUTABLE";
+        if (this == UNKNOWN) {
+            return "UNKNOWN";
         } else if (this == EMPTY) {
             return "EMPTY";
         } else {
@@ -86,19 +86,23 @@ public class ShardLongFieldRange implements Writeable {
         }
     }
 
+    private static final byte WIRE_TYPE_OTHER = (byte)0;
+    private static final byte WIRE_TYPE_UNKNOWN = (byte)1;
+    private static final byte WIRE_TYPE_EMPTY = (byte)2;
+
     public static ShardLongFieldRange readFrom(StreamInput in) throws IOException {
         if (in.getVersion().before(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
             // conservative treatment for BWC
-            return MUTABLE;
+            return UNKNOWN;
         }
 
         final byte type = in.readByte();
         switch (type) {
-            case 1:
-                return MUTABLE;
-            case 2:
+            case WIRE_TYPE_UNKNOWN:
+                return UNKNOWN;
+            case WIRE_TYPE_EMPTY:
                 return EMPTY;
-            case 0:
+            case WIRE_TYPE_OTHER:
                 return ShardLongFieldRange.of(in.readZLong(), in.readZLong());
             default:
                 throw new IllegalStateException("type [" + type + "] not known");
@@ -108,12 +112,12 @@ public class ShardLongFieldRange implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
-            if (this == MUTABLE) {
-                out.writeByte((byte) 1);
+            if (this == UNKNOWN) {
+                out.writeByte(WIRE_TYPE_UNKNOWN);
             } else if (this == EMPTY) {
-                out.writeByte((byte) 2);
+                out.writeByte(WIRE_TYPE_EMPTY);
             } else {
-                out.writeByte((byte) 0);
+                out.writeByte(WIRE_TYPE_OTHER);
                 out.writeZLong(min);
                 out.writeZLong(max);
             }
@@ -124,7 +128,7 @@ public class ShardLongFieldRange implements Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (this == EMPTY || this == MUTABLE || o == EMPTY || o == MUTABLE) return false;
+        if (this == EMPTY || this == UNKNOWN || o == EMPTY || o == UNKNOWN) return false;
         final ShardLongFieldRange that = (ShardLongFieldRange) o;
         return min == that.min && max == that.max;
     }

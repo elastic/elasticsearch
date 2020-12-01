@@ -1723,7 +1723,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert isReadAllowed();
 
         if (mapperService() == null) {
-            return ShardLongFieldRange.MUTABLE; // no mapper service, no idea if the field even exists
+            return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
         final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         final boolean hasMappedTimestampField = mappedFieldType instanceof DateFieldMapper.DateFieldType;
@@ -1734,10 +1734,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             rawTimestampFieldRange = engine.getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, hasMappedTimestampField);
         } catch (IOException e) {
             logger.debug("exception obtaining range for timestamp field", e);
-            return ShardLongFieldRange.MUTABLE;
+            return ShardLongFieldRange.UNKNOWN;
         }
-        if (rawTimestampFieldRange == ShardLongFieldRange.MUTABLE) {
-            return ShardLongFieldRange.MUTABLE;
+        if (rawTimestampFieldRange == ShardLongFieldRange.UNKNOWN) {
+            return ShardLongFieldRange.UNKNOWN;
         }
         if (rawTimestampFieldRange == ShardLongFieldRange.EMPTY) {
             return ShardLongFieldRange.EMPTY;
@@ -1754,7 +1754,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     dateFieldType.resolution().roundUpToMillis(rawTimestampFieldRange.getMax()));
         } catch (IllegalArgumentException e) {
             logger.debug(new ParameterizedMessage("could not convert {} to a millisecond time range", rawTimestampFieldRange), e);
-            return ShardLongFieldRange.MUTABLE; // any search might match this shard
+            return ShardLongFieldRange.UNKNOWN; // any search might match this shard
         }
     }
 

@@ -38,7 +38,7 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
     public static ShardLongFieldRange randomRange() {
         switch (between(1, 3)) {
             case 1:
-                return ShardLongFieldRange.MUTABLE;
+                return ShardLongFieldRange.UNKNOWN;
             case 2:
                 return ShardLongFieldRange.EMPTY;
             case 3:
@@ -55,16 +55,16 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
 
     @Override
     protected ShardLongFieldRange mutateInstance(ShardLongFieldRange instance) throws IOException {
-        if (instance == ShardLongFieldRange.MUTABLE) {
+        if (instance == ShardLongFieldRange.UNKNOWN) {
             return randomBoolean() ? ShardLongFieldRange.EMPTY : randomSpecificRange();
         }
         if (instance == ShardLongFieldRange.EMPTY) {
-            return randomBoolean() ? ShardLongFieldRange.MUTABLE : randomSpecificRange();
+            return randomBoolean() ? ShardLongFieldRange.UNKNOWN : randomSpecificRange();
         }
 
         switch (between(1, 4)) {
             case 1:
-                return ShardLongFieldRange.MUTABLE;
+                return ShardLongFieldRange.UNKNOWN;
             case 2:
                 return ShardLongFieldRange.EMPTY;
             case 3:
@@ -84,7 +84,7 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
 
     @Override
     protected void assertEqualInstances(ShardLongFieldRange expectedInstance, ShardLongFieldRange newInstance) {
-        if (expectedInstance == ShardLongFieldRange.MUTABLE || expectedInstance == ShardLongFieldRange.EMPTY) {
+        if (expectedInstance == ShardLongFieldRange.UNKNOWN || expectedInstance == ShardLongFieldRange.EMPTY) {
             assertSame(expectedInstance, newInstance);
         } else {
             super.assertEqualInstances(expectedInstance, newInstance);

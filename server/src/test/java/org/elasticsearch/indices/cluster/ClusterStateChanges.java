@@ -319,7 +319,7 @@ public class ClusterStateChanges {
                     e.getKey().allocationId().getId(),
                     e.getValue(),
                     "shard started",
-                    ShardLongFieldRange.MUTABLE))
+                    ShardLongFieldRange.UNKNOWN))
             .collect(Collectors.toList()));
     }
 

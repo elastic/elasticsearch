@@ -1866,7 +1866,7 @@ public abstract class Engine implements Closeable {
     /**
      * @return a {@link ShardLongFieldRange} containing the min and max raw values of the given field for this shard if the engine
      * guarantees these values never to change, or {@link ShardLongFieldRange#EMPTY} if this field is not found or empty, or
-     * {@link ShardLongFieldRange#MUTABLE} if this field's value range may change in future.
+     * {@link ShardLongFieldRange#UNKNOWN} if this field's value range may change in future.
      */
     public abstract ShardLongFieldRange getRawFieldRange(String field, boolean isMappedField) throws IOException;
 

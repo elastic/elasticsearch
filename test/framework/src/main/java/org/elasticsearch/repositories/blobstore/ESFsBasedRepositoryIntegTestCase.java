@@ -44,9 +44,6 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
         return FsRepository.TYPE;
     }
 
-    @Override
-    protected abstract Settings repositorySettings(String repoName);
-
     public void testMissingDirectoriesNotCreatedInReadonlyRepository() throws IOException, InterruptedException {
         final String repoName = randomRepositoryName();
         final Path repoPath = randomRepoPath();

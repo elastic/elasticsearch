@@ -108,7 +108,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
                 .get()
                 .isTimedOut()
         );
-        assertThat(getActiveRestores(restoredIndex), Matchers.empty());
+        assertBusy(() -> assertThat(getActiveRestores(restoredIndex), Matchers.empty()));
     }
 
     private static List<RecoveryState> getActiveRestores(String restoredIndex) {

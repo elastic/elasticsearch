@@ -121,6 +121,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         this.transportService = transportService;
     }
 
+    public DiscoveryNode getLocalNode() {
+        return transportService.getLocalNode();
+    }
+
     /**
      * Returns <code>true</code> if at least one remote cluster is configured
      */
@@ -178,7 +182,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * will invoke the listener immediately.
      */
     void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
-        getRemoteClusterConnection(clusterAlias).ensureConnected(listener);
+        final RemoteClusterConnection remoteClusterConnection;
+        try {
+            remoteClusterConnection = getRemoteClusterConnection(clusterAlias);
+        } catch (NoSuchRemoteClusterException e) {
+            listener.onFailure(e);
+            return;
+        }
+        remoteClusterConnection.ensureConnected(listener);
     }
 
     /**

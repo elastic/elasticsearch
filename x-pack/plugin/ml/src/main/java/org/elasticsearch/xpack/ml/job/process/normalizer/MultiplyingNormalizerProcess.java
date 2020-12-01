@@ -85,6 +85,10 @@ public class MultiplyingNormalizerProcess implements NormalizerProcess {
     }
 
     @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
+    }
+
+    @Override
     public void flushStream() {
         // Nothing to do
     }

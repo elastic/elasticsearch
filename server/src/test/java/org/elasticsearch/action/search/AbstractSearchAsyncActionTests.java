@@ -160,33 +160,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
     }
 
-    public void testBuildSearchResponse() {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
-        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(10);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            phaseResults, null, false, new AtomicLong());
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, action.buildShardFailures(), null, null);
-        assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
-        assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
-        assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
-        assertSame(searchResponse.getHits(), internalSearchResponse.hits());
-    }
-
-    public void testBuildSearchResponseAllowPartialFailures() {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        final ArraySearchPhaseResults<SearchPhaseResult> queryResult = new ArraySearchPhaseResults<>(10);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, queryResult, null, false, new AtomicLong());
-        action.onShardFailure(0, new SearchShardTarget("node", new ShardId("index", "index-uuid", 0), null, OriginalIndices.NONE),
-            new IllegalArgumentException());
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, action.buildShardFailures(), null, null);
-        assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
-        assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
-        assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
-        assertSame(searchResponse.getHits(), internalSearchResponse.hits());
-    }
-
     public void testSendSearchResponseDisallowPartialFailures() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();

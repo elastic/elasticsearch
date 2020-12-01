@@ -974,8 +974,9 @@ There are three available modes:
 +
 --
 * `auto`: The chunk size is dynamically calculated. This is the default and
-recommended value.
-* `manual`: Chunking is applied according to the specified `time_span`.
+recommended value when the {dfeed} does not use aggregations.
+* `manual`: Chunking is applied according to the specified `time_span`. Use this 
+mode when the {dfeed} uses aggregations.
 * `off`: No chunking is applied.
 --
 end::mode[]
@@ -1029,7 +1030,8 @@ values:
 --
 * `ok`: The models stayed below the configured value.
 * `soft_limit`: The models used more than 60% of the configured memory limit
-and older unused models will be pruned to free up space.
+and older unused models will be pruned to free up space. Additionally, in
+categorization jobs no further category examples will be stored.
 * `hard_limit`: The models used more space than the configured memory limit.
 As a result, not all incoming data was processed.
 --
@@ -1283,7 +1285,9 @@ and <<script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]
-The `size` parameter that is used in {es} searches. The default value is `1000`.
+The `size` parameter that is used in {es} searches when the {dfeed} does not use 
+aggregations. The default value is `1000`. The maximum value is the value of 
+`index.max_result_window` which is 10,000 by default.
 end::scroll-size[]
 
 tag::search-bucket-avg[]

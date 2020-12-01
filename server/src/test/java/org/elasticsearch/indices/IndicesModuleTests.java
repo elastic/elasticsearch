@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -62,7 +63,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     }
 
-    private static MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
+    private static final MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
 
     private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
         @Override
@@ -172,6 +173,14 @@ public class IndicesModuleTests extends ESTestCase {
                 return Collections.singletonMap("foo", PARSER);
             }
         };
+        List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("already registered"));
+    }
+
+    public void testDuplicateRuntimeFieldPlugin() {
+        TestRuntimeField.Plugin plugin = new TestRuntimeField.Plugin();
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));

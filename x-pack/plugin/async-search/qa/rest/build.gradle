@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
-  name 'test-deprecated-query'
+  name 'x-pack-test-deprecated-query'
   description 'Deprecated query plugin'
   classname 'org.elasticsearch.query.DeprecatedQueryPlugin'
 }

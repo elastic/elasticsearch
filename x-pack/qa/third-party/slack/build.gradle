@@ -20,7 +20,7 @@ if (!slackUrl) {
   integTest.enabled = false
   testingConventions.enabled = false
 } else {
-  testClusters.integTest {
+  testClusters.matching { it.name == "integTest" }.configureEach {
     testDistribution = 'DEFAULT'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'

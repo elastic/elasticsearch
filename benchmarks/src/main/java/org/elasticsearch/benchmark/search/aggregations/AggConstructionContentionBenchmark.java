@@ -1,0 +1,290 @@
+package org.elasticsearch.benchmark.search.aggregations;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.BucketedSort.ExtraData;
+import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.annotations.Warmup;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+@Fork(2)
+@Warmup(iterations = 10)
+@Measurement(iterations = 5)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@State(Scope.Benchmark)
+@Threads(Threads.MAX)
+public class AggConstructionContentionBenchmark {
+    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+    private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
+    private final Index index = new Index("test", "uuid");
+    private final IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
+        Settings.EMPTY,
+        new IndexFieldDataCache.Listener() {
+        }
+    );
+
+    private CircuitBreakerService breakerService;
+    private BigArrays bigArrays;
+
+    @Param({ "noop", "real" })
+    private String breaker;
+
+    @Setup
+    public void setup() {
+        breakerService = buildBreakerService();
+        bigArrays = new BigArrays(recycler, breakerService, "request");
+    }
+
+    @Benchmark
+    public void sum() throws IOException {
+        buildFactories(new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("s").field("int_1")));
+    }
+
+    @Benchmark
+    public void sixSums() throws IOException {
+        buildFactories(
+            new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("s1").field("int_1"))
+                .addAggregator(new SumAggregationBuilder("s2").field("int_2"))
+                .addAggregator(new SumAggregationBuilder("s3").field("int_3"))
+                .addAggregator(new SumAggregationBuilder("s4").field("int_4"))
+                .addAggregator(new SumAggregationBuilder("s5").field("int_5"))
+                .addAggregator(new SumAggregationBuilder("s6").field("int_6"))
+        );
+    }
+
+    @Benchmark
+    public void termsSum() throws IOException {
+        buildFactories(
+            new AggregatorFactories.Builder().addAggregator(
+                new TermsAggregationBuilder("t").field("int_1").subAggregation(new SumAggregationBuilder("s").field("int_2"))
+            )
+        );
+    }
+
+    private void buildFactories(AggregatorFactories.Builder factories) throws IOException {
+        try (DummyAggregationContext context = new DummyAggregationContext()) {
+            factories.build(context, null).createTopLevelAggregators();
+        }
+    }
+
+    private CircuitBreakerService buildBreakerService() {
+        switch (breaker) {
+            case "real":
+                return new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+            case "noop":
+                return new NoneCircuitBreakerService();
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    private class DummyAggregationContext extends AggregationContext implements Releasable {
+        private final Query query = new MatchAllDocsQuery();
+        private final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
+        private final List<Aggregator> releaseMe = new ArrayList<>();
+
+        @Override
+        public Query query() {
+            return query;
+        }
+
+        @Override
+        public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+            return agg;
+        }
+
+        @Override
+        public boolean profiling() {
+            return false;
+        }
+
+        @Override
+        public long nowInMillis() {
+            return 0;
+        }
+
+        @Override
+        protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
+            IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
+            }, index, ft.name());
+            return ft.fielddataBuilder("test", this::lookup).build(indexFieldDataCache, breakerService);
+        }
+
+        @Override
+        public MappedFieldType getFieldType(String path) {
+            if (path.startsWith("int")) {
+                return new NumberFieldMapper.NumberFieldType(path, NumberType.INTEGER);
+            }
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isFieldMapped(String field) {
+            return field.startsWith("int");
+        }
+
+        @Override
+        public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SearchLookup lookup() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ValuesSourceRegistry getValuesSourceRegistry() {
+            return searchModule.getValuesSourceRegistry();
+        }
+
+        @Override
+        public BigArrays bigArrays() {
+            return bigArrays;
+        }
+
+        @Override
+        public IndexSearcher searcher() {
+            return null;
+        }
+
+        @Override
+        public Query buildQuery(QueryBuilder builder) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IndexSettings getIndexSettings() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ObjectMapper getObjectMapper(String path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public NestedScope nestedScope() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SubSearchContext subSearchContext() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addReleasable(Aggregator aggregator) {
+            releaseMe.add(aggregator);
+        }
+
+        @Override
+        public MultiBucketConsumer multiBucketConsumer() {
+            return multiBucketConsumer;
+        }
+
+        @Override
+        public BitsetFilterCache bitsetFilterCache() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BucketedSort buildBucketedSort(SortBuilder<?> sort, int size, ExtraData values) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int shardRandomSeed() {
+            return 0;
+        }
+
+        @Override
+        public long getRelativeTimeInMillis() {
+            return 0;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+
+        @Override
+        public CircuitBreaker breaker() {
+            return breaker;
+        }
+
+        @Override
+        public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(releaseMe);
+        }
+    }
+}

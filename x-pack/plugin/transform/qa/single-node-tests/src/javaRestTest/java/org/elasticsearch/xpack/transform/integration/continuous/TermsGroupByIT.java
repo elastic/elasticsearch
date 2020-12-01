@@ -60,7 +60,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
 
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
         addCommonAggregations(aggregations);
-        aggregations.addAggregator(AggregationBuilders.max("metric.avg").field("metric"));
+        aggregations.addAggregator(AggregationBuilders.avg("metric.avg").field("metric"));
 
         pivotConfigBuilder.setAggregations(aggregations);
         transformConfigBuilder.setPivotConfig(pivotConfigBuilder.build());
@@ -83,7 +83,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
             // missing_bucket produces `null`, we can't use `null` in aggs, so we have to use a magic value, see gh#60043
             terms.missing(MISSING_BUCKET_KEY);
         }
-        terms.subAggregation(AggregationBuilders.max("metric.avg").field("metric"));
+        terms.subAggregation(AggregationBuilders.avg("metric.avg").field("metric"));
         sourceBuilderSource.aggregation(terms);
         searchRequestSource.source(sourceBuilderSource);
         SearchResponse responseSource = search(searchRequestSource);
@@ -129,8 +129,8 @@ public class TermsGroupByIT extends ContinuousTestCase {
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
-                XContentMapValues.extractValue("count", source),
-                equalTo(Double.valueOf(bucket.getDocCount()))
+                ((Integer) XContentMapValues.extractValue("count", source)).longValue(),
+                equalTo(bucket.getDocCount())
             );
 
             SingleValue avgAgg = (SingleValue) bucket.getAggregations().get("metric.avg");
@@ -154,8 +154,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
                     + iteration
                     + " full source: "
                     + source,
-                // TODO: aggs return double for MAX_RUN_FIELD, although it is an integer
-                Double.valueOf((Integer) XContentMapValues.extractValue(INGEST_RUN_FIELD, source)),
+                XContentMapValues.extractValue(INGEST_RUN_FIELD, source),
                 equalTo(XContentMapValues.extractValue(MAX_RUN_FIELD, source))
             );
         }

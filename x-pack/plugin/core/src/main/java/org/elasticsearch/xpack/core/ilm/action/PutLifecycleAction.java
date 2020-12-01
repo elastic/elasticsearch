@@ -22,23 +22,12 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutLifecycleAction extends ActionType<PutLifecycleAction.Response> {
+public class PutLifecycleAction extends ActionType<AcknowledgedResponse> {
     public static final PutLifecycleAction INSTANCE = new PutLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/put";
 
     protected PutLifecycleAction() {
-        super(NAME, PutLifecycleAction.Response::new);
-    }
-
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

@@ -13,17 +13,27 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class PredictionFieldTypeTests extends ESTestCase {
 
+    private static final String NOT_BOOLEAN = "not_boolean";
+
     public void testTransformPredictedValueBoolean() {
-        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(null, randomBoolean() ? null : randomAlphaOfLength(10)),
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(null, randomBoolean() ? null : NOT_BOOLEAN),
             is(nullValue()));
-        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(1.0, randomBoolean() ? null : randomAlphaOfLength(10)),
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(1.0, randomBoolean() ? null : NOT_BOOLEAN),
             is(true));
-        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(0.0, randomBoolean() ? null : randomAlphaOfLength(10)),
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(0.0, randomBoolean() ? null : NOT_BOOLEAN),
             is(false));
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(0.0, "1"), is(true));
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(0.0, "0"), is(false));
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(0.0, "TruE"), is(true));
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(0.0, "fAlsE"), is(false));
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(1.0, "0"), is(false));
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(1.0, "1"), is(true));
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(1.0, "TruE"), is(true));
+        assertThat(PredictionFieldType.BOOLEAN.transformPredictedValue(1.0, "fAlse"), is(false));
         expectThrows(IllegalArgumentException.class,
-            () -> PredictionFieldType.BOOLEAN.transformPredictedValue(0.1, randomBoolean() ? null : randomAlphaOfLength(10)));
+            () -> PredictionFieldType.BOOLEAN.transformPredictedValue(0.1, randomBoolean() ? null : NOT_BOOLEAN));
         expectThrows(IllegalArgumentException.class,
-            () -> PredictionFieldType.BOOLEAN.transformPredictedValue(1.1, randomBoolean() ? null : randomAlphaOfLength(10)));
+            () -> PredictionFieldType.BOOLEAN.transformPredictedValue(1.1, randomBoolean() ? null : NOT_BOOLEAN));
     }
 
     public void testTransformPredictedValueString() {

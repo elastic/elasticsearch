@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.PerClassSingleValue;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -291,20 +293,31 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testWithCustomFeatureProcessors() throws Exception {
         initialize("classification_with_custom_feature_processors");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
-        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+        indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config =
             buildAnalytics(jobId, sourceIndex, destIndex, null,
             new Classification(
                 KEYWORD_FIELD,
-                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(0).build(),
                 null,
                 null,
-                null,
-                null,
-                null,
+                2,
+                10.0,
+                42L,
                 Arrays.asList(
-                    new OneHotEncoding(TEXT_FIELD, Collections.singletonMap(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom"), true)
+                    new OneHotEncoding(ALIAS_TO_KEYWORD_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom").map(), true),
+                    new OneHotEncoding(ALIAS_TO_NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_1")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_1").map(), true),
+                    new OneHotEncoding(NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2").map(), true),
+                    new OneHotEncoding(TEXT_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3").map(), true)
                 )));
         putAnalytics(config);
 
@@ -320,11 +333,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
-            assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
-            assertThat(importanceArray, hasSize(greaterThan(0)));
         }
 
         assertProgressComplete(jobId);
@@ -352,9 +361,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         TrainedModelConfig modelConfig = response.getResources().results().get(0);
         modelConfig.ensureParsedDefinition(xContentRegistry());
         assertThat(modelConfig.getModelDefinition().getPreProcessors().size(), greaterThan(0));
-        for (int i = 0; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+        for (int i = 0; i < 4; i++) {
             PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
-            assertThat(preProcessor.isCustom(), equalTo(i == 0));
+            assertThat(preProcessor.isCustom(), is(true));
+        }
+        for (int i = 4; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+            PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
+            assertThat(preProcessor.isCustom(), is(false));
         }
     }
 
@@ -459,6 +472,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(e.getMessage(), startsWith("field [text-field] of type [text] is non-aggregatable"));
     }
 
+    public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsTextAndKeyword() throws Exception {
+        testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
+            "classification_training_percent_is_50_text_and_keyword", TEXT_FIELD + ".keyword", KEYWORD_FIELD_VALUES, "keyword");
+    }
+
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean() throws Exception {
         testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
@@ -503,7 +521,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
         }
 
-        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
+        waitUntilAnalyticsIsStopped(jobId);
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
@@ -831,7 +849,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "          \"type\": \"integer\"\n" +
             "        }," +
             "        \""+ TEXT_FIELD + "\": {\n" +
-            "          \"type\": \"text\"\n" +
+            "          \"type\": \"text\",\n" +
+            "          \"fields\": {" +
+            "            \"keyword\": {" +
+            "              \"type\": \"keyword\"\n" +
+            "            }" +
+            "          }" +
             "        }," +
             "        \""+ KEYWORD_FIELD + "\": {\n" +
             "          \"type\": \"keyword\"\n" +
@@ -969,16 +992,16 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         {   // Accuracy
             Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
             assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
-            for (Accuracy.PerClassResult klass : accuracyResult.getClasses()) {
+            for (PerClassSingleValue klass : accuracyResult.getClasses()) {
                 assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
-                assertThat(klass.getAccuracy(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                assertThat(klass.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
 
         {   // AucRoc
             AucRoc.Result aucRocResult = (AucRoc.Result) evaluateDataFrameResponse.getMetrics().get(1);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRoc.NAME.getPreferredName()));
-            assertThat(aucRocResult.getScore(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+            assertThat(aucRocResult.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             assertThat(aucRocResult.getCurve(), hasSize(greaterThan(0)));
         }
 
@@ -1004,18 +1027,18 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         {   // Precision
             Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(3);
             assertThat(precisionResult.getMetricName(), equalTo(Precision.NAME.getPreferredName()));
-            for (Precision.PerClassResult klass : precisionResult.getClasses()) {
+            for (PerClassSingleValue klass : precisionResult.getClasses()) {
                 assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
-                assertThat(klass.getPrecision(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                assertThat(klass.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
 
         {   // Recall
             Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(4);
             assertThat(recallResult.getMetricName(), equalTo(Recall.NAME.getPreferredName()));
-            for (Recall.PerClassResult klass : recallResult.getClasses()) {
+            for (PerClassSingleValue klass : recallResult.getClasses()) {
                 assertThat(klass.getClassName(), is(in(dependentVariableValuesAsStrings)));
-                assertThat(klass.getRecall(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                assertThat(klass.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
     }

@@ -132,7 +132,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             listener::onFailure,
             (leaderHistoryUUID, leaderIndexMetadata) -> {
                 try {
-                    start(request, leaderCluster, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
+                    start(request, leaderCluster, leaderIndexMetadata.v1(), followerIndexMetadata, leaderHistoryUUID, listener);
                 } catch (final IOException e) {
                     listener.onFailure(e);
                 }
@@ -445,7 +445,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
         // soft deletes setting is checked manually
         settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
-        settings.remove(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+        settings.remove(IndexMetadata.SETTING_VERSION_CREATED);
         settings.remove(IndexMetadata.SETTING_INDEX_UUID);
         settings.remove(IndexMetadata.SETTING_HISTORY_UUID);
         settings.remove(IndexMetadata.SETTING_INDEX_PROVIDED_NAME);

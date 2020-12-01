@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -117,6 +117,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile RunState runState;
 
     private volatile long lastCheckpointCleanup = 0L;
+
+    protected volatile boolean indexerThreadShuttingDown = false;
+    protected volatile boolean stopCalledDuringIndexerThreadShutdown = false;
 
     public TransformIndexer(
         ThreadPool threadPool,
@@ -387,6 +390,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void onFinish(ActionListener<Void> listener) {
+        startIndexerThreadShutdown();
         try {
             // This indicates an early exit since no changes were found.
             // So, don't treat this like a checkpoint being completed, as no work was done.
@@ -454,6 +458,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     @Override
+    protected void afterFinishOrFailure() {
+        finishIndexerThreadShutdown();
+    }
+
+    @Override
     protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
         switch (runState) {
             case APPLY_RESULTS:
@@ -503,6 +512,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void onFailure(Exception exc) {
+        startIndexerThreadShutdown();
         // the failure handler must not throw an exception due to internal problems
         try {
             handleFailure(exc);
@@ -599,10 +609,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 return Collections.singletonList(shouldStopAtCheckpointListener);
             }
-
-            List<ActionListener<Void>> newListeners = new ArrayList<>(currentListeners);
-            newListeners.add(shouldStopAtCheckpointListener);
-            return newListeners;
+            return CollectionUtils.appendToCopy(currentListeners, shouldStopAtCheckpointListener);
         }) == null) {
             return false;
         }
@@ -613,9 +620,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return true;
     }
 
-    void stopAndSaveState() {
+    synchronized void stopAndSaveState() {
         onStop();
-        doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+        if (indexerThreadShuttingDown) {
+            stopCalledDuringIndexerThreadShutdown = true;
+        } else {
+            doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+        }
     }
 
     synchronized void handleFailure(Exception e) {
@@ -998,6 +1009,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             pageSize = initialConfiguredPageSize;
         } else {
             pageSize = function.getInitialPageSize();
+        }
+    }
+
+    private synchronized void startIndexerThreadShutdown() {
+        indexerThreadShuttingDown  = true;
+        stopCalledDuringIndexerThreadShutdown = false;
+    }
+
+    private synchronized void finishIndexerThreadShutdown() {
+        indexerThreadShuttingDown  = false;
+        if (stopCalledDuringIndexerThreadShutdown) {
+            doSaveState(IndexerState.STOPPED,  getPosition(), () -> {});
         }
     }
 

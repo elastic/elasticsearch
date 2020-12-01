@@ -54,6 +54,7 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
     public static final Set<PosixFilePermission> p750 = fromString("rwxr-x---");
     public static final Set<PosixFilePermission> p660 = fromString("rw-rw----");
     public static final Set<PosixFilePermission> p644 = fromString("rw-r--r--");
+    public static final Set<PosixFilePermission> p664 = fromString("rw-rw-r--");
     public static final Set<PosixFilePermission> p600 = fromString("rw-------");
 
     private final Fileness fileness;

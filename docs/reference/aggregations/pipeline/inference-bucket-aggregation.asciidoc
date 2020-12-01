@@ -1,9 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-pipeline-inference-bucket-aggregation]]
-=== {infer-cap} Bucket Aggregation
+=== {infer-cap} bucket aggregation
+++++
+<titleabbrev>{infer-cap} bucket</titleabbrev>
+++++
 
-experimental::[]
+beta::[]
 
 A parent pipeline aggregation which loads a pre-trained model and performs 
 {infer} on the collated result fields from the parent bucket aggregation.

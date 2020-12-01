@@ -82,7 +82,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
         } else {
             rateUnit = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             if (in.readBoolean()) {
                 rateMode = in.readEnum(RateMode.class);
             }
@@ -101,7 +101,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
         } else {
             out.writeByte((byte) 0);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             if (rateMode != null) {
                 out.writeBoolean(true);
                 out.writeEnum(rateMode);

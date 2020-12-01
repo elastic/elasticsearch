@@ -62,12 +62,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -464,33 +461,24 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
 
         final List<ParsedDocument> docs = new ArrayList<>();
-        final DocumentMapper docMapper;
-        final MapperService mapperService = context.getMapperService();
-        docMapper = mapperService.documentMapper();
         for (BytesReference document : documents) {
-            docs.add(docMapper.parse(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
+            docs.add(context.parseDocument(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
         }
 
-        FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer) docMapper.mappers().indexAnalyzer();
-        // Need to this custom impl because FieldNameAnalyzer is strict and the percolator sometimes isn't when
+        // We need this custom analyzer because the default index analyzer is strict and the percolator sometimes isn't when
         // 'index.percolator.map_unmapped_fields_as_string' is enabled:
         Analyzer analyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
-                Analyzer analyzer = fieldNameAnalyzer.analyzers().get(fieldName);
-                if (analyzer != null) {
-                    return analyzer;
-                } else {
-                    return context.getIndexAnalyzers().getDefaultIndexAnalyzer();
-                }
+                return context.getIndexAnalyzer(f -> context.getIndexAnalyzers().getDefaultIndexAnalyzer());
             }
         };
         final IndexSearcher docSearcher;
         final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
-            assert docs.size() != 1 || docMapper.hasNestedObjects();
+            assert docs.size() != 1 || context.hasNested();
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
-            excludeNestedDocuments = docMapper.hasNestedObjects() && docs.stream()
+            excludeNestedDocuments = context.hasNested() && docs.stream()
                     .map(ParsedDocument::docs)
                     .mapToInt(List::size)
                     .anyMatch(size -> size > 1);

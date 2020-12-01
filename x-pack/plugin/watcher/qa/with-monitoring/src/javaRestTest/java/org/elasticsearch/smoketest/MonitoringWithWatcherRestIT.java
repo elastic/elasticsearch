@@ -56,6 +56,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         adminClient().performRequest(deleteRequest);
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/59132" )
     public void testThatLocalExporterAddsWatches() throws Exception {
         String watchId = createMonitoringWatch();
 

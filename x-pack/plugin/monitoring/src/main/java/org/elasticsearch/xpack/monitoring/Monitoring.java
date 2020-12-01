@@ -77,6 +77,9 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public static final Setting<Boolean> CLEAN_WATCHER_HISTORY = boolSetting("xpack.watcher.history.cleaner_service.enabled",
         true, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
+    public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting("xpack.monitoring.migration.decommission_alerts",
+        false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     protected final Settings settings;
 
     private Exporters exporters;
@@ -146,6 +149,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         List<Setting<?>> settings = new ArrayList<>();
         settings.add(MonitoringField.HISTORY_DURATION);
         settings.add(CLEAN_WATCHER_HISTORY);
+        settings.add(MIGRATION_DECOMMISSION_ALERTS);
         settings.add(MonitoringService.ENABLED);
         settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
         settings.add(MonitoringService.INTERVAL);

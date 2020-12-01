@@ -55,6 +55,10 @@ public class ExceptionsHelper {
         return new ElasticsearchException(msg, cause);
     }
 
+    public static ElasticsearchException serverError(String msg, Object... args) {
+        return new ElasticsearchException(msg, args);
+    }
+
     public static ElasticsearchException serverError(String msg, Throwable cause, Object... args) {
         return new ElasticsearchException(msg, cause, args);
     }

@@ -42,7 +42,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -515,8 +515,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final String humanReadableSuffix = "_string";
-        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
-            builder.field(ID.getPreferredName(), jobId);
+        builder.field(ID.getPreferredName(), jobId);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(JOB_TYPE.getPreferredName(), jobType);
             if (jobVersion != null) {
                 builder.field(JOB_VERSION.getPreferredName(), jobVersion);

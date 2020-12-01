@@ -31,6 +31,7 @@ import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
+import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 
 plugins {
   id 'lifecycle-base'
@@ -286,9 +287,10 @@ gradle.projectsEvaluated {
       // :test:framework:test cannot run before and after :server:test
       return
     }
-    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
-      integTest.mustRunAfter test
+    tasks.matching {it.name.equals('integTest')}.configureEach {integTestTask ->
+      integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
+
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
@@ -329,6 +331,17 @@ allprojects {
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
         folder.output = "build-eclipse/" + i
+      }
+
+      // Starting with Gradle 6.7 test dependencies are not exposed by eclipse
+      // projects by default. This breaks project dependencies using the `java-test-fixtures` plugin
+      // or dependencies on other projects manually declared testArtifacts configurations
+      // This issue is tracked in gradle issue tracker.
+      // See https://github.com/gradle/gradle/issues/14932 for further details
+      classpath.entries.findAll {
+        it instanceof ProjectDependency
+      }.each {
+        it.entryAttributes.remove('without_test_code')
       }
     }
   }
@@ -377,7 +390,7 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-wrapper {
+tasks.named("wrapper").configure {
   distributionType = 'ALL'
   doLast {
     final DistributionLocator locator = new DistributionLocator()
@@ -405,6 +418,9 @@ gradle.projectsEvaluated {
         it.enabled = false
       }
       maybeConfigure(project.tasks, 'dependenciesInfo') {
+        it.enabled = false
+      }
+      maybeConfigure(project.tasks, 'dependenciesGraph') {
         it.enabled = false
       }
     }

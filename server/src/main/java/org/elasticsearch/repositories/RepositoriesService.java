@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -120,19 +120,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @param request  register repository request
      * @param listener register repository listener
      */
-    public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void registerRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
         validate(request.name());
 
-        final ActionListener<ClusterStateUpdateResponse> registrationListener;
+        final ActionListener<AcknowledgedResponse> registrationListener;
         if (request.verify()) {
             registrationListener = ActionListener.delegateFailure(listener, (delegatedListener, clusterStateUpdateResponse) -> {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
                     // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                    verifyRepository(request.name(), ActionListener.delegateFailure(delegatedListener,
-                        (innerDelegatedListener, discoveryNodes) -> innerDelegatedListener.onResponse(clusterStateUpdateResponse)));
+                    verifyRepository(request.name(), delegatedListener.map(discoveryNodes -> clusterStateUpdateResponse));
                 } else {
                     delegatedListener.onResponse(clusterStateUpdateResponse);
                 }
@@ -150,46 +149,35 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<>(request, registrationListener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
+            new AckedClusterStateUpdateTask(request, registrationListener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     ensureRepositoryNotInUse(currentState, request.name());
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                    RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
-                    if (repositories == null) {
-                        logger.info("put repository [{}]", request.name());
-                        repositories = new RepositoriesMetadata(
-                            Collections.singletonList(new RepositoryMetadata(request.name(), request.type(), request.settings())));
-                    } else {
-                        boolean found = false;
-                        List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
-
-                        for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                            if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
-                                if (newRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata)) {
-                                    // Previous version is the same as this one no update is needed.
-                                    return currentState;
-                                }
-                                found = true;
-                                repositoriesMetadata.add(newRepositoryMetadata);
-                            } else {
-                                repositoriesMetadata.add(repositoryMetadata);
+                    RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+                    boolean found = false;
+                    List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
+                    for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
+                        if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+                            if (newRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata)) {
+                                // Previous version is the same as this one no update is needed.
+                                return currentState;
                             }
-                        }
-                        if (!found) {
-                            logger.info("put repository [{}]", request.name());
-                            repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
+                            found = true;
+                            repositoriesMetadata.add(newRepositoryMetadata);
                         } else {
-                            logger.info("update repository [{}]", request.name());
+                            repositoriesMetadata.add(repositoryMetadata);
                         }
-                        repositories = new RepositoriesMetadata(repositoriesMetadata);
                     }
+                    if (!found) {
+                        logger.info("put repository [{}]", request.name());
+                        repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
+                    } else {
+                        logger.info("update repository [{}]", request.name());
+                    }
+                    repositories = new RepositoriesMetadata(repositoriesMetadata);
                     mdBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
                     return ClusterState.builder(currentState).metadata(mdBuilder).build();
                 }
@@ -207,6 +195,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
             });
     }
+
     /**
      * Unregisters repository in the cluster
      * <p>
@@ -215,20 +204,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @param request  unregister repository request
      * @param listener unregister repository listener
      */
-    public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<>(request, listener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
+            new AckedClusterStateUpdateTask(request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                    RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
-                    if (repositories != null && repositories.repositories().size() > 0) {
+                    RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+                    if (repositories.repositories().size() > 0) {
                         List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size());
                         boolean changed = false;
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
@@ -314,11 +299,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             final ClusterState state = event.state();
-            RepositoriesMetadata oldMetadata = event.previousState().getMetadata().custom(RepositoriesMetadata.TYPE);
-            RepositoriesMetadata newMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE);
+            final RepositoriesMetadata oldMetadata =
+                    event.previousState().getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            final RepositoriesMetadata newMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
             // Check if repositories got changed
-            if ((oldMetadata == null && newMetadata == null) || (oldMetadata != null && oldMetadata.equalsIgnoreGenerations(newMetadata))) {
+            if (oldMetadata.equalsIgnoreGenerations(newMetadata)) {
                 for (Repository repo : repositories.values()) {
                     repo.updateState(state);
                 }
@@ -330,7 +316,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             Map<String, Repository> survivors = new HashMap<>();
             // First, remove repositories that are no longer there
             for (Map.Entry<String, Repository> entry : repositories.entrySet()) {
-                if (newMetadata == null || newMetadata.repository(entry.getKey()) == null) {
+                if (newMetadata.repository(entry.getKey()) == null) {
                     logger.debug("unregistering repository [{}]", entry.getKey());
                     Repository repository = entry.getValue();
                     closeRepository(repository);
@@ -341,40 +327,39 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             }
 
             Map<String, Repository> builder = new HashMap<>();
-            if (newMetadata != null) {
-                // Now go through all repositories and update existing or create missing
-                for (RepositoryMetadata repositoryMetadata : newMetadata.repositories()) {
-                    Repository repository = survivors.get(repositoryMetadata.name());
-                    if (repository != null) {
-                        // Found previous version of this repository
-                        RepositoryMetadata previousMetadata = repository.getMetadata();
-                        if (previousMetadata.type().equals(repositoryMetadata.type()) == false
+
+            // Now go through all repositories and update existing or create missing
+            for (RepositoryMetadata repositoryMetadata : newMetadata.repositories()) {
+                Repository repository = survivors.get(repositoryMetadata.name());
+                if (repository != null) {
+                    // Found previous version of this repository
+                    RepositoryMetadata previousMetadata = repository.getMetadata();
+                    if (previousMetadata.type().equals(repositoryMetadata.type()) == false
                             || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
-                            // Previous version is different from the version in settings
-                            logger.debug("updating repository [{}]", repositoryMetadata.name());
-                            closeRepository(repository);
-                            archiveRepositoryStats(repository, state.version());
-                            repository = null;
-                            try {
-                                repository = createRepository(repositoryMetadata, typesRegistry);
-                            } catch (RepositoryException ex) {
-                                // TODO: this catch is bogus, it means the old repo is already closed,
-                                // but we have nothing to replace it
-                                logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]",
-                                    repositoryMetadata.name()), ex);
-                            }
-                        }
-                    } else {
+                        // Previous version is different from the version in settings
+                        logger.debug("updating repository [{}]", repositoryMetadata.name());
+                        closeRepository(repository);
+                        archiveRepositoryStats(repository, state.version());
+                        repository = null;
                         try {
                             repository = createRepository(repositoryMetadata, typesRegistry);
                         } catch (RepositoryException ex) {
-                            logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
+                            // TODO: this catch is bogus, it means the old repo is already closed,
+                            // but we have nothing to replace it
+                            logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]",
+                                    repositoryMetadata.name()), ex);
                         }
                     }
-                    if (repository != null) {
-                        logger.debug("registering repository [{}]", repositoryMetadata.name());
-                        builder.put(repositoryMetadata.name(), repository);
+                } else {
+                    try {
+                        repository = createRepository(repositoryMetadata, typesRegistry);
+                    } catch (RepositoryException ex) {
+                        logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
                     }
+                }
+                if (repository != null) {
+                    logger.debug("registering repository [{}]", repositoryMetadata.name());
+                    builder.put(repositoryMetadata.name(), repository);
                 }
             }
             for (Repository repo : builder.values()) {

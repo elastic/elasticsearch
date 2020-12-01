@@ -223,6 +223,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     /**
      * Check that deprecation messages can be recorded to an index
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65589")
     public void testDeprecationMessagesCanBeIndexed() throws Exception {
         try {
             configureWriteDeprecationLogsToIndex(true);
@@ -238,7 +239,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             assertBusy(() -> {
                 Response response;
                 try {
-                    response = client().performRequest(new Request("GET", "logs-deprecation-elasticsearch/_search"));
+                    response = client().performRequest(new Request("GET", ".logs-deprecation-elasticsearch/_search"));
                 } catch (Exception e) {
                     // It can take a moment for the index to be created. If it doesn't exist then the client
                     // throws an exception. Translate it into an assertion error so that assertBusy() will
@@ -307,7 +308,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             });
         } finally {
             configureWriteDeprecationLogsToIndex(null);
-            client().performRequest(new Request("DELETE", "_data_stream/logs-deprecation-elasticsearch"));
+            client().performRequest(new Request("DELETE", "_data_stream/.logs-deprecation-elasticsearch"));
         }
     }
 

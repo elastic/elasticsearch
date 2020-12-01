@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -64,12 +63,13 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                                 ClusterName clusterName,
                                 List<ClusterStatsNodeResponse> nodes,
                                 List<FailedNodeException> failures,
-                                ClusterState state) {
+                                MappingStats mappingStats,
+                                AnalysisStats analysisStats) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
-        indicesStats = new ClusterStatsIndices(nodes, MappingStats.of(state), AnalysisStats.of(state));
+        indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status

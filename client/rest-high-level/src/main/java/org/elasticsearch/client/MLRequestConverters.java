@@ -86,6 +86,7 @@ import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -123,8 +124,8 @@ final class MLRequestConverters {
         if (getJobRequest.getAllowNoMatch() != null) {
             params.putParam(GetJobRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getJobRequest.getAllowNoMatch()));
         }
-        if (getJobRequest.getForExport() != null) {
-            params.putParam(GetJobRequest.FOR_EXPORT, Boolean.toString(getJobRequest.getForExport()));
+        if (getJobRequest.getExcludeGenerated() != null) {
+            params.putParam(GetJobRequest.EXCLUDE_GENERATED, Boolean.toString(getJobRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -273,8 +274,8 @@ final class MLRequestConverters {
             params.putParam(GetDatafeedRequest.ALLOW_NO_MATCH.getPreferredName(),
                     Boolean.toString(getDatafeedRequest.getAllowNoMatch()));
         }
-        if (getDatafeedRequest.getForExport() != null) {
-            params.putParam(GetDatafeedRequest.FOR_EXPORT, Boolean.toString(getDatafeedRequest.getForExport()));
+        if (getDatafeedRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDatafeedRequest.EXCLUDE_GENERATED, Boolean.toString(getDatafeedRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -426,6 +427,29 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(updateModelSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request upgradeJobSnapshot(UpgradeJobModelSnapshotRequest upgradeJobModelSnapshotRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(upgradeJobModelSnapshotRequest.getJobId())
+            .addPathPartAsIs("model_snapshots")
+            .addPathPart(upgradeJobModelSnapshotRequest.getSnapshotId())
+            .addPathPartAsIs("_upgrade")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (upgradeJobModelSnapshotRequest.getTimeout() != null) {
+            params.putParam(UpgradeJobModelSnapshotRequest.TIMEOUT.getPreferredName(),
+                upgradeJobModelSnapshotRequest.getTimeout().getStringRep());
+        }
+        if (upgradeJobModelSnapshotRequest.getWaitForCompletion() != null) {
+            params.putParam(UpgradeJobModelSnapshotRequest.WAIT_FOR_COMPLETION.getPreferredName(),
+                upgradeJobModelSnapshotRequest.getWaitForCompletion().toString());
+        }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -653,8 +677,8 @@ final class MLRequestConverters {
         if (getRequest.getAllowNoMatch() != null) {
             params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH, Boolean.toString(getRequest.getAllowNoMatch()));
         }
-        if (getRequest.getForExport() != null) {
-            params.putParam(GetDataFrameAnalyticsRequest.FOR_EXPORT, Boolean.toString(getRequest.getForExport()));
+        if (getRequest.getExcludeGenerated() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.EXCLUDE_GENERATED, Boolean.toString(getRequest.getExcludeGenerated()));
         }
         request.addParameters(params.asMap());
         return request;
@@ -795,8 +819,8 @@ final class MLRequestConverters {
         if (getTrainedModelsRequest.getTags() != null) {
             params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
         }
-        if (getTrainedModelsRequest.getForExport() != null) {
-            params.putParam(GetTrainedModelsRequest.FOR_EXPORT, Boolean.toString(getTrainedModelsRequest.getForExport()));
+        if (getTrainedModelsRequest.getExcludeGenerated() != null) {
+            params.putParam(GetTrainedModelsRequest.EXCLUDE_GENERATED, Boolean.toString(getTrainedModelsRequest.getExcludeGenerated()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());

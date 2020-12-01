@@ -39,7 +39,7 @@ public class GetTrainedModelsRequest implements Validatable {
     private static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
     private static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     public static final String ALLOW_NO_MATCH = "allow_no_match";
-    public static final String FOR_EXPORT = "for_export";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
     public static final String TAGS = "tags";
     public static final String INCLUDE = "include";
@@ -48,7 +48,7 @@ public class GetTrainedModelsRequest implements Validatable {
     private Boolean allowNoMatch;
     private Set<String> includes = new HashSet<>();
     private Boolean decompressDefinition;
-    private Boolean forExport;
+    private Boolean excludeGenerated;
     private PageParams pageParams;
     private List<String> tags;
 
@@ -163,8 +163,8 @@ public class GetTrainedModelsRequest implements Validatable {
         return setTags(Arrays.asList(tags));
     }
 
-    public Boolean getForExport() {
-        return forExport;
+    public Boolean getExcludeGenerated() {
+        return excludeGenerated;
     }
 
     /**
@@ -173,10 +173,10 @@ public class GetTrainedModelsRequest implements Validatable {
      * This is useful when getting the model and wanting to put it in another cluster.
      *
      * Default value is false.
-     * @param forExport Boolean value indicating if certain fields should be removed from the mode on GET
+     * @param excludeGenerated Boolean value indicating if certain fields should be removed from the mode on GET
      */
-    public GetTrainedModelsRequest setForExport(Boolean forExport) {
-        this.forExport = forExport;
+    public GetTrainedModelsRequest setExcludeGenerated(Boolean excludeGenerated) {
+        this.excludeGenerated = excludeGenerated;
         return this;
     }
 
@@ -198,12 +198,12 @@ public class GetTrainedModelsRequest implements Validatable {
             && Objects.equals(allowNoMatch, other.allowNoMatch)
             && Objects.equals(decompressDefinition, other.decompressDefinition)
             && Objects.equals(includes, other.includes)
-            && Objects.equals(forExport, other.forExport)
+            && Objects.equals(excludeGenerated, other.excludeGenerated)
             && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, allowNoMatch, pageParams, decompressDefinition, includes, forExport);
+        return Objects.hash(ids, allowNoMatch, pageParams, decompressDefinition, includes, excludeGenerated);
     }
 }

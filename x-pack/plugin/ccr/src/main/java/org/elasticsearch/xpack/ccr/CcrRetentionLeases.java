@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Setting;
@@ -74,7 +75,7 @@ public class CcrRetentionLeases {
             final Client remoteClient,
             final TimeValue timeout) {
         try {
-            final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
+            final PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
             asyncAddRetentionLease(leaderShardId, retentionLeaseId, retainingSequenceNumber, remoteClient, response);
             response.actionGet(timeout);
             return Optional.empty();
@@ -99,7 +100,7 @@ public class CcrRetentionLeases {
             final String retentionLeaseId,
             final long retainingSequenceNumber,
             final Client remoteClient,
-            final ActionListener<RetentionLeaseActions.Response> listener) {
+            final ActionListener<ActionResponse.Empty> listener) {
         final RetentionLeaseActions.AddRequest request =
                 new RetentionLeaseActions.AddRequest(leaderShardId, retentionLeaseId, retainingSequenceNumber, "ccr");
         remoteClient.execute(RetentionLeaseActions.Add.INSTANCE, request, listener);
@@ -123,7 +124,7 @@ public class CcrRetentionLeases {
             final Client remoteClient,
             final TimeValue timeout) {
         try {
-            final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
+            final PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
             asyncRenewRetentionLease(leaderShardId, retentionLeaseId, retainingSequenceNumber, remoteClient, response);
             response.actionGet(timeout);
             return Optional.empty();
@@ -148,7 +149,7 @@ public class CcrRetentionLeases {
             final String retentionLeaseId,
             final long retainingSequenceNumber,
             final Client remoteClient,
-            final ActionListener<RetentionLeaseActions.Response> listener) {
+            final ActionListener<ActionResponse.Empty> listener) {
         final RetentionLeaseActions.RenewRequest request =
                 new RetentionLeaseActions.RenewRequest(leaderShardId, retentionLeaseId, retainingSequenceNumber, "ccr");
         remoteClient.execute(RetentionLeaseActions.Renew.INSTANCE, request, listener);
@@ -168,7 +169,7 @@ public class CcrRetentionLeases {
             final ShardId leaderShardId,
             final String retentionLeaseId,
             final Client remoteClient,
-            final ActionListener<RetentionLeaseActions.Response> listener) {
+            final ActionListener<ActionResponse.Empty> listener) {
         final RetentionLeaseActions.RemoveRequest request = new RetentionLeaseActions.RemoveRequest(leaderShardId, retentionLeaseId);
         remoteClient.execute(RetentionLeaseActions.Remove.INSTANCE, request, listener);
     }

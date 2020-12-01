@@ -52,7 +52,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -200,10 +199,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected static String expectedFieldName(String builderFieldName) {
         return ALIAS_TO_CONCRETE_FIELD_NAME.getOrDefault(builderFieldName, builderFieldName);
-    }
-
-    protected Iterable<MappedFieldType> getMapping() {
-        return serviceHolder.mapperService.fieldTypes();
     }
 
     @AfterClass
@@ -418,7 +413,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
                 indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
-                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher(), () -> true, null);
+                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher(), () -> true, null, emptyMap());
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

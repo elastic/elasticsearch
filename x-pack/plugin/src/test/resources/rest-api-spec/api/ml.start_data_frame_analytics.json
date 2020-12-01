@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/start-dfanalytics.html",
       "description":"Starts a data frame analytics job."
     },
-    "stability":"experimental",
+    "stability":"beta",
     "url":{
       "paths":[
         {

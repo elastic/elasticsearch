@@ -19,37 +19,28 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
-public final class MappingLookup implements Iterable<Mapper> {
-
+public final class MappingLookup {
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
     private final int metadataFieldCount;
-    private final FieldNameAnalyzer indexAnalyzer;
+    private final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
 
-    private static void put(Map<String, Analyzer> analyzers, String key, Analyzer value, Analyzer defaultValue) {
-        if (value == null) {
-            value = defaultValue;
-        }
-        analyzers.put(key, value);
-    }
-
-    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex) {
+    public static MappingLookup fromMapping(Mapping mapping) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -58,24 +49,24 @@ public final class MappingLookup implements Iterable<Mapper> {
                 newFieldMappers.add(metadataMapper);
             }
         }
-        collect(mapping.root, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length, defaultIndex);
+        for (Mapper child : mapping.root) {
+            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
+        }
+        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers,
+            mapping.root.runtimeFieldTypes(), mapping.metadataMappers.length);
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
                                Collection<FieldMapper> fieldMappers,
                                Collection<FieldAliasMapper> fieldAliasMappers) {
-        if (mapper instanceof RootObjectMapper) {
-            // root mapper isn't really an object mapper
-        } else if (mapper instanceof ObjectMapper) {
+        if (mapper instanceof ObjectMapper) {
             objectMappers.add((ObjectMapper)mapper);
         } else if (mapper instanceof FieldMapper) {
             fieldMappers.add((FieldMapper)mapper);
         } else if (mapper instanceof FieldAliasMapper) {
             fieldAliasMappers.add((FieldAliasMapper) mapper);
         } else {
-            throw new IllegalStateException("Unrecognized mapper type [" +
-                mapper.getClass().getSimpleName() + "].");
+            throw new IllegalStateException("Unrecognized mapper type [" + mapper.getClass().getSimpleName() + "].");
         }
 
         for (Mapper child : mapper) {
@@ -86,10 +77,9 @@ public final class MappingLookup implements Iterable<Mapper> {
     public MappingLookup(Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
                          Collection<FieldAliasMapper> aliasMappers,
-                         int metadataFieldCount,
-                         Analyzer defaultIndex) {
+                         Collection<RuntimeFieldType> runtimeFieldTypes,
+                         int metadataFieldCount) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
-        Map<String, Analyzer> indexAnalyzers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
         boolean hasNested = false;
@@ -110,8 +100,7 @@ public final class MappingLookup implements Iterable<Mapper> {
             if (fieldMappers.put(mapper.name(), mapper) != null) {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
-            MappedFieldType fieldType = mapper.fieldType();
-            put(indexAnalyzers, fieldType.name(), fieldType.indexAnalyzer(), defaultIndex);
+            indexAnalyzers.putAll(mapper.indexAnalyzers());
         }
         this.metadataFieldCount = metadataFieldCount;
 
@@ -124,10 +113,9 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers);
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFieldTypes);
 
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
-        this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
 
@@ -141,21 +129,22 @@ public final class MappingLookup implements Iterable<Mapper> {
         return fieldMappers.get(field);
     }
 
-    public FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypes() {
         return fieldTypeLookup;
     }
 
-    /**
-     * A smart analyzer used for indexing that takes into account specific analyzers configured
-     * per {@link FieldMapper}.
-     */
-    public Analyzer indexAnalyzer() {
-        return this.indexAnalyzer;
+    public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
+        if (this.indexAnalyzers.containsKey(field)) {
+            return this.indexAnalyzers.get(field);
+        }
+        return unmappedFieldAnalyzer.apply(field);
     }
 
-    @Override
-    public Iterator<Mapper> iterator() {
-        return fieldMappers.values().iterator();
+    /**
+     * Returns an iterable over all the registered field mappers (including alias mappers)
+     */
+    public Iterable<Mapper> fieldMappers() {
+        return fieldMappers.values();
     }
 
     public void checkLimits(IndexSettings settings) {

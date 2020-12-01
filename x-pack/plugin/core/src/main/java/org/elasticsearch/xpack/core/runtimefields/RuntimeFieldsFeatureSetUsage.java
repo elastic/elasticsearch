@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -41,71 +43,71 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {
                 Object runtimeObject = mappingMetadata.getSourceAsMap().get("runtime");
-                if (runtimeObject instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> runtimeMappings = (Map<String, Object>) runtimeObject;
-                    for (Object runtimeFieldMappingObject : runtimeMappings.values()) {
-                        if (runtimeFieldMappingObject instanceof Map) {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> runtimeFieldMapping = (Map<String, Object>) runtimeFieldMappingObject;
-                            Object typeObject = runtimeFieldMapping.get("type");
-                            if (typeObject != null) {
-                                String type = typeObject.toString();
-                                RuntimeFieldStats stats = fieldTypes.computeIfAbsent(type, RuntimeFieldStats::new);
-                                stats.count++;
-                                if (indexFieldTypes.add(type)) {
-                                    stats.indexCount++;
-                                }
-                                Object scriptObject = runtimeFieldMapping.get("script");
-                                if (scriptObject == null) {
-                                    stats.scriptLessCount++;
-                                } else if (scriptObject instanceof Map) {
-                                    @SuppressWarnings("unchecked")
-                                    Map<String, Object> script = (Map<String, Object>) scriptObject;
-                                    Object sourceObject = script.get("source");
-                                    if (sourceObject != null) {
-                                        String scriptSource = sourceObject.toString();
-                                        int chars = scriptSource.length();
-                                        long lines = scriptSource.lines().count();
-                                        int docUsages = countOccurrences(scriptSource, "doc[\\[\\.]");
-                                        int sourceUsages = countOccurrences(scriptSource, "params\\._source");
-                                        stats.update(chars, lines, sourceUsages, docUsages);
-                                    }
-                                    Object langObject = script.get("lang");
-                                    if (langObject != null) {
-                                        stats.scriptLangs.add(langObject.toString());
-                                    }
-                                }
-                            }
+                if (runtimeObject instanceof Map == false) {
+                    continue;
+                }
+                Map<?, ?> runtimeMappings = (Map<?, ?>) runtimeObject;
+                for (Object runtimeFieldMappingObject : runtimeMappings.values()) {
+                    if (runtimeFieldMappingObject instanceof Map == false) {
+                        continue;
+                    }
+                    Map<?, ?> runtimeFieldMapping = (Map<?, ?>) runtimeFieldMappingObject;
+                    Object typeObject = runtimeFieldMapping.get("type");
+                    if (typeObject == null) {
+                        continue;
+                    }
+                    String type = typeObject.toString();
+                    RuntimeFieldStats stats = fieldTypes.computeIfAbsent(type, RuntimeFieldStats::new);
+                    stats.count++;
+                    if (indexFieldTypes.add(type)) {
+                        stats.indexCount++;
+                    }
+                    Object scriptObject = runtimeFieldMapping.get("script");
+                    if (scriptObject == null) {
+                        stats.scriptLessCount++;
+                    } else if (scriptObject instanceof Map) {
+                        Map<?, ?> script = (Map<?, ?>) scriptObject;
+                        Object sourceObject = script.get("source");
+                        if (sourceObject != null) {
+                            String scriptSource = sourceObject.toString();
+                            int chars = scriptSource.length();
+                            long lines = scriptSource.lines().count();
+                            int docUsages = countOccurrences(scriptSource, "doc[\\[\\.]");
+                            int sourceUsages = countOccurrences(scriptSource, "params\\._source");
+                            stats.update(chars, lines, sourceUsages, docUsages);
+                        }
+                        Object langObject = script.get("lang");
+                        if (langObject != null) {
+                            stats.scriptLangs.add(langObject.toString());
                         }
                     }
                 }
             }
         }
-        RuntimeFieldStats[] runtimeFieldStats = fieldTypes.values().toArray(new RuntimeFieldStats[0]);
-        Arrays.sort(runtimeFieldStats, Comparator.comparing(RuntimeFieldStats::type));
-        return new RuntimeFieldsFeatureSetUsage(runtimeFieldStats);
+        List<RuntimeFieldStats> runtimeFieldStats = new ArrayList<>(fieldTypes.values());
+        runtimeFieldStats.sort(Comparator.comparing(RuntimeFieldStats::type));
+        return new RuntimeFieldsFeatureSetUsage(Collections.unmodifiableList(runtimeFieldStats));
     }
 
-    private final RuntimeFieldStats[] stats;
+    private final List<RuntimeFieldStats> stats;
 
-    RuntimeFieldsFeatureSetUsage(RuntimeFieldStats[] stats) {
+    RuntimeFieldsFeatureSetUsage(List<RuntimeFieldStats> stats) {
         super(XPackField.RUNTIME_FIELDS, true, true);
         this.stats = stats;
     }
 
     public RuntimeFieldsFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.stats = in.readArray(RuntimeFieldStats::new, RuntimeFieldStats[]::new);
+        this.stats = in.readList(RuntimeFieldStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeArray(stats);
+        out.writeList(stats);
     }
 
-    RuntimeFieldStats[] getRuntimeFieldStats() {
+    List<RuntimeFieldStats> getRuntimeFieldStats() {
         return stats;
     }
 
@@ -133,12 +135,12 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         RuntimeFieldsFeatureSetUsage that = (RuntimeFieldsFeatureSetUsage) o;
-        return Arrays.equals(stats, that.stats);
+        return stats.equals(that.stats);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(stats);
+        return Objects.hash(stats);
     }
 
     private static int countOccurrences(String script, String keyword) {

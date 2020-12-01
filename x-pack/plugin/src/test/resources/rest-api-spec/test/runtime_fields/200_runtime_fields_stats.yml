@@ -107,6 +107,7 @@
   - match: { runtime_fields.enabled: true }
   - length: { runtime_fields.field_types: 7 }
   - match: { runtime_fields.field_types.0.name: boolean }
+  - match: { runtime_fields.field_types.0.lang: [painless] }
   - match: { runtime_fields.field_types.0.count: 1 }
   - match: { runtime_fields.field_types.0.index_count: 1 }
   - match: { runtime_fields.field_types.0.scriptless_count: 0 }
@@ -114,10 +115,13 @@
   - match: { runtime_fields.field_types.0.source_total: 0 }
   - match: { runtime_fields.field_types.0.lines_max:  3 }
   - match: { runtime_fields.field_types.0.lines_total: 3 }
+  - is_true: runtime_fields.field_types.0.chars_max
+  - is_true: runtime_fields.field_types.0.chars_total
   - match: { runtime_fields.field_types.0.doc_max: 1 }
   - match: { runtime_fields.field_types.0.doc_total: 1 }
 
   - match: { runtime_fields.field_types.1.name: date }
+  - match: { runtime_fields.field_types.1.lang: [painless] }
   - match: { runtime_fields.field_types.1.count: 2 }
   - match: { runtime_fields.field_types.1.index_count: 1 }
   - match: { runtime_fields.field_types.1.scriptless_count: 0 }
@@ -125,10 +129,13 @@
   - match: { runtime_fields.field_types.1.source_total: 0 }
   - match: { runtime_fields.field_types.1.lines_max:  3 }
   - match: { runtime_fields.field_types.1.lines_total: 6 }
+  - is_true: runtime_fields.field_types.1.chars_max
+  - is_true: runtime_fields.field_types.1.chars_total
   - match: { runtime_fields.field_types.1.doc_max: 1 }
   - match: { runtime_fields.field_types.1.doc_total: 2 }
 
   - match: { runtime_fields.field_types.2.name: double }
+  - match: { runtime_fields.field_types.2.lang: [painless] }
   - match: { runtime_fields.field_types.2.count: 1 }
   - match: { runtime_fields.field_types.2.index_count: 1 }
   - match: { runtime_fields.field_types.2.scriptless_count: 0 }
@@ -136,10 +143,13 @@
   - match: { runtime_fields.field_types.2.source_total: 1 }
   - match: { runtime_fields.field_types.2.lines_max:  1 }
   - match: { runtime_fields.field_types.2.lines_total: 1 }
+  - is_true: runtime_fields.field_types.2.chars_max
+  - is_true: runtime_fields.field_types.2.chars_total
   - match: { runtime_fields.field_types.2.doc_max: 0 }
   - match: { runtime_fields.field_types.2.doc_total: 0 }
 
   - match: { runtime_fields.field_types.3.name: geo_point }
+  - match: { runtime_fields.field_types.3.lang: [painless] }
   - match: { runtime_fields.field_types.3.count: 1 }
   - match: { runtime_fields.field_types.3.index_count: 1 }
   - match: { runtime_fields.field_types.3.scriptless_count: 0 }
@@ -147,10 +157,13 @@
   - match: { runtime_fields.field_types.3.source_total: 2 }
   - match: { runtime_fields.field_types.3.lines_max:  1 }
   - match: { runtime_fields.field_types.3.lines_total: 1 }
+  - is_true: runtime_fields.field_types.3.chars_max
+  - is_true: runtime_fields.field_types.3.chars_total
   - match: { runtime_fields.field_types.3.doc_max: 0 }
   - match: { runtime_fields.field_types.3.doc_total: 0 }
 
   - match: { runtime_fields.field_types.4.name: ip }
+  - match: { runtime_fields.field_types.4.lang: [painless] }
   - match: { runtime_fields.field_types.4.count: 1 }
   - match: { runtime_fields.field_types.4.index_count: 1 }
   - match: { runtime_fields.field_types.4.scriptless_count: 0 }
@@ -158,10 +171,13 @@
   - match: { runtime_fields.field_types.4.source_total: 0 }
   - match: { runtime_fields.field_types.4.lines_max:  4 }
   - match: { runtime_fields.field_types.4.lines_total: 4 }
+  - is_true: runtime_fields.field_types.4.chars_max
+  - is_true: runtime_fields.field_types.4.chars_total
   - match: { runtime_fields.field_types.4.doc_max: 1 }
   - match: { runtime_fields.field_types.4.doc_total: 1 }
 
   - match: { runtime_fields.field_types.5.name: keyword }
+  - match: { runtime_fields.field_types.5.lang: [painless] }
   - match: { runtime_fields.field_types.5.count: 3 }
   - match: { runtime_fields.field_types.5.index_count: 1 }
   - match: { runtime_fields.field_types.5.scriptless_count: 1 }
@@ -169,10 +185,13 @@
   - match: { runtime_fields.field_types.5.source_total: 1 }
   - match: { runtime_fields.field_types.5.lines_max:  3 }
   - match: { runtime_fields.field_types.5.lines_total: 4 }
+  - is_true: runtime_fields.field_types.5.chars_max
+  - is_true: runtime_fields.field_types.5.chars_total
   - match: { runtime_fields.field_types.5.doc_max: 1 }
   - match: { runtime_fields.field_types.5.doc_total: 1 }
 
   - match: { runtime_fields.field_types.6.name: long }
+  - match: { runtime_fields.field_types.6.lang: [painless] }
   - match: { runtime_fields.field_types.6.count: 1 }
   - match: { runtime_fields.field_types.6.index_count: 1 }
   - match: { runtime_fields.field_types.6.scriptless_count: 0 }
@@ -180,5 +199,7 @@
   - match: { runtime_fields.field_types.6.source_total: 0 }
   - match: { runtime_fields.field_types.6.lines_max:  3 }
   - match: { runtime_fields.field_types.6.lines_total: 3 }
+  - is_true: runtime_fields.field_types.6.chars_max
+  - is_true: runtime_fields.field_types.6.chars_total
   - match: { runtime_fields.field_types.6.doc_max: 1 }
   - match: { runtime_fields.field_types.6.doc_total: 1 }

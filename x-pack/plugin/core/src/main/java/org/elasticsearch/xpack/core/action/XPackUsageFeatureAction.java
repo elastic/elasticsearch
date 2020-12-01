@@ -47,9 +47,29 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction RUNTIME_FIELDS = new XPackUsageFeatureAction(XPackField.RUNTIME_FIELDS);
 
     static final List<XPackUsageFeatureAction> ALL = List.of(
-        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-        TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
-        AGGREGATE_METRIC, RUNTIME_FIELDS
+        AGGREGATE_METRIC,
+        ANALYTICS,
+        CCR,
+        DATA_STREAMS,
+        DATA_TIERS,
+        EQL,
+        FROZEN_INDICES,
+        GRAPH,
+        INDEX_LIFECYCLE,
+        LOGSTASH,
+        MACHINE_LEARNING,
+        MONITORING,
+        ROLLUP,
+        RUNTIME_FIELDS,
+        SEARCHABLE_SNAPSHOTS,
+        SECURITY,
+        SNAPSHOT_LIFECYCLE,
+        SPATIAL,
+        SQL,
+        TRANSFORM,
+        VECTORS,
+        VOTING_ONLY,
+        WATCHER
     );
 
     private XPackUsageFeatureAction(String name) {

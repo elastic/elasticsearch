@@ -16,7 +16,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.runtimefields.RuntimeFieldsFeatureSetUsage.RuntimeFieldStats;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTestCase<RuntimeFieldsFeatureSetUsage> {
@@ -103,11 +104,11 @@ public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTe
     @Override
     protected RuntimeFieldsFeatureSetUsage createTestInstance() {
         int numItems = randomIntBetween(0, 10);
-        RuntimeFieldStats[] statsArray = new RuntimeFieldStats[numItems];
-        for (int i = 0; i < statsArray.length; i++) {
-            statsArray[i] = randomRuntimeFieldStats("type" + i);
+        List<RuntimeFieldStats> stats = new ArrayList<>(numItems);
+        for (int i = 0; i < numItems; i++) {
+            stats.add(randomRuntimeFieldStats("type" + i));
         }
-        return new RuntimeFieldsFeatureSetUsage(statsArray);
+        return new RuntimeFieldsFeatureSetUsage(stats);
     }
 
     private static RuntimeFieldStats randomRuntimeFieldStats(String type) {
@@ -120,11 +121,12 @@ public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTe
 
     @Override
     protected RuntimeFieldsFeatureSetUsage mutateInstance(RuntimeFieldsFeatureSetUsage instance) throws IOException {
-        RuntimeFieldStats[] runtimeFieldStats = instance.getRuntimeFieldStats();
-        if (runtimeFieldStats.length == 0) {
-            return new RuntimeFieldsFeatureSetUsage(new RuntimeFieldStats[]{randomRuntimeFieldStats("type")});
+        List<RuntimeFieldStats> runtimeFieldStats = instance.getRuntimeFieldStats();
+        if (runtimeFieldStats.size() == 0) {
+            return new RuntimeFieldsFeatureSetUsage(Collections.singletonList(randomRuntimeFieldStats("type")));
         }
-        RuntimeFieldStats[] mutated = Arrays.copyOf(runtimeFieldStats, runtimeFieldStats.length - 1);
+        List<RuntimeFieldStats> mutated = new ArrayList<>(runtimeFieldStats);
+        mutated.remove(randomIntBetween(0, mutated.size() - 1));
         return new RuntimeFieldsFeatureSetUsage(mutated);
     }
 

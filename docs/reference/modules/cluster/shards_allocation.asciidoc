@@ -97,9 +97,22 @@ Specify when shard rebalancing is allowed:
 [[shards-rebalancing-heuristics]]
 ==== Shard balancing heuristics settings
 
-The following settings are used together to determine where to place each
-shard.  The cluster is balanced when no allowed rebalancing operation can bring the weight
-of any node closer to the weight of any other node by more than the `balance.threshold`.
+A cluster is _balanced_ when it has an equal number of shards on each node
+without having a concentration of shards from any index on any node. {es} runs
+an automatic process called _rebalancing_ which moves shards between the nodes
+in your cluster in order to improve its balance. Rebalancing obeys all other
+shard allocation rules such as <<cluster-shard-allocation-filtering,allocation
+filtering>> and <<forced-awareness,forced awareness>> which may prevent it from
+completely balancing the cluster. In that case, rebalancing strives to acheve
+the most balanced cluster possible within the rules you have configured.
+
+Rebalancing works by computing a _weight_ for each node based on its allocation
+of shards, and then moving shards between nodes to reduce the weight of the
+heavier nodes and increase the weight of the lighter ones. The cluster is
+balanced when there is no possible shard movement that can bring the weight of
+any node closer to the weight of any other node by more than a configurable
+threshold. The following settings allow you to control the details of these
+calculations.
 
 `cluster.routing.allocation.balance.shard`::
      (<<dynamic-cluster-setting,Dynamic>>)

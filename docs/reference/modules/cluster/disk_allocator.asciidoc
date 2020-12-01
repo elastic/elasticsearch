@@ -2,9 +2,60 @@
 ==== Disk-based shard allocation settings
 [[disk-based-shard-allocation-description]]
 // tag::disk-based-shard-allocation-description-tag[]
-{es} considers the available disk space on a node before deciding
-whether to allocate new shards to that node or to actively relocate shards away
-from that node.
+
+The <<balance,shards-rebalancing-settings>> of the cluster depends only on the
+number of shards on each node and the indices to which those shards belong. It
+considers neither the sizes of these shards nor the available disk space on
+each node, for the following reasons:
+
+* Disk usage changes over time. Balancing the disk usage of individual nodes
+would require a lot more shard movements, perhaps even wastefully undoing
+earlier movements. Moving a shard consumes resources such as I/O and network
+bandwidth and may evict data from the filesystem cache. These resources are
+better spent handling your searches and indexing where possible.
+
+* A cluster with accurately-balanced disk usage typically performs no better
+than one that has unequal disk usage across its nodes, as long as no disk is
+too full.
+
+The disk-based shard allocator ensures that all nodes have enough disk space
+without performing more shard movements than necessary. It allocates shards
+based on a pair of thresholds known as the _low watermark_ and the _high
+watermark_. Its primary goal is to ensure that no node breaches the high
+watermark, or at least that any such breach is only temporary. If a node
+breaches the high watermark then {es} will solve this by moving some of its
+shards onto other nodes in the cluster.
+
+NOTE: It is normal for nodes to temporarily exceed the high watermark from time
+to time.
+
+The allocator also tries to keep nodes clear of the high watermark by
+forbidding the allocation of more shards on a node that exceeds the low
+watermark. Importantly, if all of your nodes have exceeded the low watermark
+then no new shards can be allocated and {es} will not be able to move any
+shards between nodes in order to keep the disk usage below the high watermark.
+You must ensure that your cluster has enough disk space in total and that that
+there are always some nodes that are below the low watermark.
+
+Shard movements triggered by the disk-based shard allocator must also satisfy
+all other shard allocation rules such as
+<<cluster-shard-allocation-filtering,allocation filtering>> and
+<<forced-awareness,forced awareness>>. If these rules are too strict then they
+can also prevent the shard movements needed to keep the nodes' disk usage under
+control.
+
+If a node is filling up its disk faster than {es} can move shards elsewhere
+then there is a risk that the disk will completely fill up. To prevent this, as
+a last resort, once the disk usage reaches the _flood-stage_ watermark {es}
+will block further writes to the indices which have a shard on the affected
+node. It will also continue to move shards onto the other nodes in the cluster.
+Once the disk usage on the affected node has dropped below the high watermark,
+the write block will be removed automatically.
+
+[[disk-based-shard-allocation-does-not-balance]]
+IMPORTANT: It is completely normal for the nodes in your cluster to be using
+very different amounts of disk space. As long as any breaches of the high
+watermark are only temporary, {es} is working as expected.
 
 You can use the following settings to control disk-based allocation:
 

@@ -506,11 +506,7 @@ public class ReadOnlyEngine extends Engine {
      * ShardLongFieldRange#EMPTY} if this field is not found or empty.
      */
     @Override
-    public ShardLongFieldRange getRawFieldRange(String field, boolean isMappedField) throws IOException {
-        if (isMappedField == false) {
-            return ShardLongFieldRange.EMPTY; // no need to acquire a searcher if there's no field present
-        }
-
+    public ShardLongFieldRange getRawFieldRange(String field) throws IOException {
         try (Searcher searcher = acquireSearcher("field_range")) {
             final DirectoryReader directoryReader = searcher.getDirectoryReader();
 

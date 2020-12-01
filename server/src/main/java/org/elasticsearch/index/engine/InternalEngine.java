@@ -2767,7 +2767,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public ShardLongFieldRange getRawFieldRange(String field, boolean isMappedField) {
+    public ShardLongFieldRange getRawFieldRange(String field) {
         return ShardLongFieldRange.UNKNOWN;
     }
 

@@ -1726,12 +1726,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
         final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
-        final boolean hasMappedTimestampField = mappedFieldType instanceof DateFieldMapper.DateFieldType;
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
+            return ShardLongFieldRange.UNKNOWN; // field missing or not a date
+        }
+        final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) mappedFieldType;
 
         final Engine engine = getEngine();
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
-            rawTimestampFieldRange = engine.getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, hasMappedTimestampField);
+            rawTimestampFieldRange = engine.getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         } catch (IOException e) {
             logger.debug("exception obtaining range for timestamp field", e);
             return ShardLongFieldRange.UNKNOWN;
@@ -1742,8 +1745,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (rawTimestampFieldRange == ShardLongFieldRange.EMPTY) {
             return ShardLongFieldRange.EMPTY;
         }
-        assert hasMappedTimestampField;
-        final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) mappedFieldType;
 
         try {
             return ShardLongFieldRange.of(

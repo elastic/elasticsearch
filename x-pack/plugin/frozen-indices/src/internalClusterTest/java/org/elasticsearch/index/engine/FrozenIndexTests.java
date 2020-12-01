@@ -215,7 +215,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
             IndexShard shard = indexService.getShard(0);
             assertEquals(0, shard.refreshStats().getTotal());
-            assertThat(indexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.EMPTY));
+            assertThat(indexService.getMetadata().getTimestampMillisRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE,
             new FreezeRequest("index").setFreeze(false)).actionGet());

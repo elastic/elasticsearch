@@ -247,7 +247,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .metadata()
                 .index(restoredIndexName)
                 .getTimestampMillisRange(),
-            sameInstance(IndexLongFieldRange.EMPTY)
+            sameInstance(IndexLongFieldRange.UNKNOWN)
         );
 
         if (deletedBeforeMount) {

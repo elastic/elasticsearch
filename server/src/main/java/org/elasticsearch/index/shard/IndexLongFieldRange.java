@@ -313,9 +313,9 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         if (this == NO_SHARDS) {
-            return "UNKNOWN";
+            return "NO_SHARDS";
         } else if (this == UNKNOWN) {
-            return "MUTABLE";
+            return "UNKNOWN";
         } else if (this == EMPTY) {
             return "EMPTY";
         } else if (shards == null) {

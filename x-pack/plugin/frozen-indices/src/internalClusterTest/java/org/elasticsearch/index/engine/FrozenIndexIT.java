@@ -47,7 +47,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         return false;
     }
 
-    public void testTimestampRangeRecalculatedOnStalePrimaryAllocation() throws InterruptedException, IOException {
+    public void testTimestampRangeRecalculatedOnStalePrimaryAllocation() throws IOException {
         final List<String> nodeNames = internalCluster().startNodes(2);
 
         createIndex("index", Settings.builder()

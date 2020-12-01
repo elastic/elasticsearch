@@ -10,11 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,33 +21,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransportDeprecationInfoActionTests extends ESTestCase {
 
-    private ThreadPool threadPool;
-
-    @Before
-    public void startThreadPool() {
-        threadPool = new TestThreadPool("TransportDeprecationInfoActionTests");
-    }
-
-    @After
-    public void stopThreadPool() throws InterruptedException {
-        terminate(threadPool);
-    }
-
     public void testPluginSettingIssues() {
-        DeprecationChecker.Components components = mock(DeprecationChecker.Components.class);
-        when(components.settings()).thenReturn(Settings.EMPTY);
+        DeprecationCheckerComponents components = new DeprecationCheckerComponents(null, Settings.EMPTY, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
             new NamedChecker("bar",
                 Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null)),
                 false)),
-            threadPool.generic(),
             components,
             future
             );
@@ -62,15 +42,13 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
     }
 
     public void testPluginSettingIssuesWithFailures() {
-        DeprecationChecker.Components components = mock(DeprecationChecker.Components.class);
-        when(components.settings()).thenReturn(Settings.EMPTY);
+        DeprecationCheckerComponents components = new DeprecationCheckerComponents(null, Settings.EMPTY, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
             new NamedChecker("bar",
                 Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null)),
                 true)),
-            threadPool.generic(),
             components,
             future
         );
@@ -96,12 +74,12 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         }
 
         @Override
-        public void check(Components components, ActionListener<List<DeprecationIssue>> deprecationIssueListener) {
+        public void check(DeprecationCheckerComponents components, ActionListener<CheckResult> deprecationIssueListener) {
             if (shouldFail) {
                 deprecationIssueListener.onFailure(new Exception("boom"));
                 return;
             }
-            deprecationIssueListener.onResponse(issues);
+            deprecationIssueListener.onResponse(new CheckResult(name, issues));
         }
 
         @Override

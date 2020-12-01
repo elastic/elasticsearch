@@ -53,9 +53,9 @@ public class MlDeprecationChecker implements DeprecationChecker {
     }
 
     @Override
-    public void check(Components components, ActionListener<List<DeprecationIssue>> deprecationIssueListener) {
+    public void check(DeprecationCheckerComponents components, ActionListener<CheckResult> deprecationIssueListener) {
         if (XPackSettings.MACHINE_LEARNING_ENABLED.get(components.settings()) == false) {
-            deprecationIssueListener.onResponse(Collections.emptyList());
+            deprecationIssueListener.onResponse(new CheckResult(getName(), Collections.emptyList()));
         }
         Client client = components.client();
         ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN, GetDatafeedsAction.INSTANCE,
@@ -66,7 +66,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
                         checkDataFeedAggregations(df, components.xContentRegistry()).ifPresent(issues::add);
                         checkDataFeedQuery(df, components.xContentRegistry()).ifPresent(issues::add);
                     }
-                    deprecationIssueListener.onResponse(issues);
+                    deprecationIssueListener.onResponse(new CheckResult(getName(), issues));
                 },
                 deprecationIssueListener::onFailure
             ));

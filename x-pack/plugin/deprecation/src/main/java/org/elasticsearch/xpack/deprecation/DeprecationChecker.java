@@ -7,20 +7,12 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 
 public interface DeprecationChecker {
-
-    interface Components {
-        NamedXContentRegistry xContentRegistry();
-        Settings settings();
-        Client client();
-    }
 
     /**
      * Should this deprecation checker be enabled?
@@ -36,10 +28,28 @@ public interface DeprecationChecker {
      * @param components The components provided for the checker
      * @param deprecationIssueListener The issues found
      */
-    void check(Components components, ActionListener<List<DeprecationIssue>> deprecationIssueListener);
+    void check(DeprecationCheckerComponents components, ActionListener<CheckResult> deprecationIssueListener);
 
     /**
      * @return The name of the checker
      */
     String getName();
+
+    class CheckResult {
+        private final String checkerName;
+        private final List<DeprecationIssue> issues;
+
+        public CheckResult(String checkerName, List<DeprecationIssue> issues) {
+            this.checkerName = checkerName;
+            this.issues = issues;
+        }
+
+        public String getCheckerName() {
+            return checkerName;
+        }
+
+        public List<DeprecationIssue> getIssues() {
+            return issues;
+        }
+    }
 }

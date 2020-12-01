@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
@@ -27,8 +28,10 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -129,6 +132,23 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         } else {
             assertTrue(response.getIndexSettingsIssues().isEmpty());
         }
+    }
 
+    public void testCtorFailure() {
+        Map<String, List<DeprecationIssue>> indexNames = Stream.generate(() -> randomAlphaOfLength(10))
+            .limit(10)
+            .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
+        Set<String> shouldCauseFailure = new HashSet<>(indexNames.keySet());
+        shouldCauseFailure.add("cluster_settings");
+        shouldCauseFailure.add("node_settings");
+        for(int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            Map<String, List<DeprecationIssue>> pluginSettingsIssues = randomSubsetOf(3, shouldCauseFailure)
+                .stream()
+                .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> new DeprecationInfoAction.Response(Collections.emptyList(), Collections.emptyList(), indexNames, pluginSettingsIssues)
+            );
+        }
     }
 }

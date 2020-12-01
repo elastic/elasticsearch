@@ -10,8 +10,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,12 +34,8 @@ import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
@@ -95,8 +90,9 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         logger.debug("node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
                     }
                 }
-                StandardComponents components = new StandardComponents(xContentRegistry, settings, client);
-                pluginSettingIssues(PLUGIN_CHECKERS, threadPool.generic(), components, ActionListener.wrap(
+
+                DeprecationCheckerComponents components = new DeprecationCheckerComponents(xContentRegistry, settings, client);
+                pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
                     deprecationIssues -> listener.onResponse(
                         DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
                             request, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
@@ -111,115 +107,25 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     }
 
     static void pluginSettingIssues(List<DeprecationChecker> checkers,
-                                    ExecutorService executorService,
-                                    DeprecationChecker.Components components,
+                                    DeprecationCheckerComponents components,
                                     ActionListener<Map<String, List<DeprecationIssue>>> listener) {
-        NamedChainedExecutor<List<DeprecationIssue>> namedChainedExecutor = new NamedChainedExecutor<>(executorService);
-        for (DeprecationChecker checker : checkers) {
-            if (checker.enabled(components.settings())) {
-                namedChainedExecutor.add(new NamedChainedExecutor.ChainTask<>() {
-                    @Override
-                    public void run(ActionListener<List<DeprecationIssue>> listener) {
-                        checker.check(components, listener);
-                    }
-
-                    @Override
-                    public String name() {
-                        return checker.getName();
-                    }
-                });
-            }
+        List<DeprecationChecker> enabledCheckers = checkers
+            .stream()
+            .filter(c -> c.enabled(components.settings()))
+            .collect(Collectors.toList());
+        if (enabledCheckers.isEmpty()) {
+            listener.onResponse(Collections.emptyMap());
+            return;
         }
-        namedChainedExecutor.execute(listener);
-    }
-
-    static class StandardComponents implements DeprecationChecker.Components {
-
-        private final NamedXContentRegistry xContentRegistry;
-        private final Settings settings;
-        private final Client client;
-
-        StandardComponents(NamedXContentRegistry xContentRegistry, Settings settings, Client client) {
-            this.xContentRegistry = xContentRegistry;
-            this.settings = settings;
-            this.client = client;
-        }
-
-        @Override
-        public NamedXContentRegistry xContentRegistry() {
-            return xContentRegistry;
-        }
-
-        @Override
-        public Settings settings() {
-            return settings;
-        }
-
-        @Override
-        public Client client() {
-            return client;
+        GroupedActionListener<DeprecationChecker.CheckResult> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(
+            checkResults -> listener.onResponse(checkResults
+                    .stream()
+                    .collect(Collectors.toMap(DeprecationChecker.CheckResult::getCheckerName, DeprecationChecker.CheckResult::getIssues))),
+            listener::onFailure
+        ), enabledCheckers.size());
+        for(DeprecationChecker checker : checkers) {
+            checker.check(components, groupedActionListener);
         }
     }
 
-    static class NamedChainedExecutor<T> {
-        public interface ChainTask<T> {
-            void run(ActionListener<T> listener);
-
-            String name();
-        }
-
-        private final ExecutorService executorService;
-        private final LinkedList<ChainTask<T>> tasks = new LinkedList<>();
-        private final Map<String, T> collectedResponses;
-
-        /**
-         * Creates a new NamedChainedExecutor.
-         * Each chainedTask is executed in order serially
-         * @param executorService The service where to execute the tasks
-         */
-        NamedChainedExecutor(ExecutorService executorService) {
-            this.executorService = Objects.requireNonNull(executorService);
-            this.collectedResponses = new HashMap<>();
-        }
-
-        public synchronized void add(ChainTask<T> task) {
-            tasks.add(task);
-        }
-
-        private synchronized void execute(String previousName, T previousValue, ActionListener<Map<String, T>> listener) {
-            if (previousName != null) {
-                collectedResponses.put(previousName, previousValue);
-            }
-            if (tasks.isEmpty()) {
-                listener.onResponse(Collections.unmodifiableMap(new HashMap<>(collectedResponses)));
-                return;
-            }
-            ChainTask<T> task = tasks.pop();
-            executorService.execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                protected void doRun() {
-                    task.run(ActionListener.wrap(value -> execute(task.name(), value, listener), this::onFailure));
-                }
-            });
-        }
-
-        /**
-         * Execute all the chained tasks serially, notify listener when completed
-         *
-         * @param listener The ActionListener to notify when all executions have been completed
-         */
-        public synchronized void execute(ActionListener<Map<String, T>> listener) {
-            if (tasks.isEmpty()) {
-                listener.onResponse(Collections.emptyMap());
-                return;
-            }
-            collectedResponses.clear();
-            execute(null, null, listener);
-        }
-    }
 }

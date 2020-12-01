@@ -39,7 +39,7 @@ backing indices, the user can retrieve a document directly from
 ////
 [source,console]
 ----
-PUT /.ds-my-data-stream-2099-03-08-000002/_doc/2
+PUT /my-index/_doc/2
 {
   "my-field": "foo"
 }
@@ -51,6 +51,7 @@ PUT /.ds-my-data-stream-2099-03-08-000002/_doc/2
 GET /.ds-my-data-stream-2099-03-08-000002/_doc/2
 ----
 // TEST[continued]
+// TEST[s/.ds-my-data-stream-2099-03-08-000002/my-index/]
 
 Later `my-data-stream` <<manually-roll-over-a-data-stream,rolls over>>. This
 creates a new backing index: `.ds-my-data-stream-2099-03-09-000003`. Because the
@@ -62,7 +63,7 @@ documents directly from `.ds-my-data-stream-2099-03-09-000003`:
 GET /.ds-my-data-stream-2099-03-09-000003/_doc/2
 ----
 // TEST[continued]
-// TEST[s/.ds-my-data-stream-2099-03-09-000003/.ds-my-data-stream-2099-03-08-000002/]
+// TEST[s/.ds-my-data-stream-2099-03-09-000003/my-index/]
 
 [[index-alias-privileges]]
 ==== Index alias privileges

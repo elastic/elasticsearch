@@ -935,13 +935,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
-            AggregationContext aggContext = new ProductionAggregationContext(
-                queryShardContext,
-                context.parsedQuery() == null ? null : context.parsedQuery().query()
-            );
+            AggregationContext aggContext = new ProductionAggregationContext(context, multiBucketConsumerService.create());
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
-                context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
+                context.aggregations(new SearchContextAggregations(factories));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
             }
@@ -1178,7 +1175,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             try (canMatchSearcher) {
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias());
+                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
                 final boolean aliasFilterCanMatch = request.getAliasFilter()
                     .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;

@@ -20,8 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -108,7 +106,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentMapperParser documentMapperParser;
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
-    private final MapperAnalyzerWrapper indexAnalyzer;
     private final MapperRegistry mapperRegistry;
     private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
 
@@ -121,12 +118,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
-        this.indexAnalyzer = new MapperAnalyzerWrapper();
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
-                indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService, indexAnalyzers, indexSettings,
-                idFieldDataEnabled);
+                mapperRegistry.getRuntimeFieldTypeParsers()::get, indexVersionCreated, queryShardContextSupplier, dateFormatter,
+                scriptService, indexAnalyzers, indexSettings, idFieldDataEnabled);
         this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
@@ -432,20 +428,34 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns all mapped field types.
      */
-    public Iterable<MappedFieldType> fieldTypes() {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes();
+    public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
+        return this.mapper == null ? Collections.emptySet() :
+            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
     }
 
     public ObjectMapper getObjectMapper(String name) {
         return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
     }
 
-    public Analyzer indexAnalyzer() {
-        return this.indexAnalyzer;
+    /**
+     * Return the index-time analyzer associated with a particular field
+     * @param field                     the field name
+     * @param unindexedFieldAnalyzer    a function to return an Analyzer for a field with no
+     *                                  directly associated index-time analyzer
+     */
+    public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+        if (this.mapper == null) {
+            return unindexedFieldAnalyzer.apply(field);
+        }
+        return this.mapper.mappers().indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
     public boolean containsBrokenAnalysis(String field) {
-        return this.indexAnalyzer.containsBrokenAnalysis(field);
+        NamedAnalyzer a = indexAnalyzer(field, f -> null);
+        if (a == null) {
+            return false;
+        }
+        return a.containsBrokenAnalysis();
     }
 
     @Override
@@ -475,23 +485,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public boolean isMetadataField(String field) {
         return mapperRegistry.isMetadataField(indexVersionCreated, field);
-    }
-
-    /** An analyzer wrapper that can lookup fields within the index mappings */
-    final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
-
-        MapperAnalyzerWrapper() {
-            super(Analyzer.PER_FIELD_REUSE_STRATEGY);
-        }
-
-        @Override
-        protected Analyzer getWrappedAnalyzer(String fieldName) {
-            return mapper.mappers().indexAnalyzer();
-        }
-
-        boolean containsBrokenAnalysis(String field) {
-            return mapper.mappers().indexAnalyzer().containsBrokenAnalysis(field);
-        }
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {

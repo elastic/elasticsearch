@@ -503,6 +503,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         forceMergeActionWithCodec(null);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65171")
     public void testForceMergeActionWithCompressionCodec() throws Exception {
         forceMergeActionWithCodec("best_compression");
     }
@@ -1211,6 +1212,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54093")
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, 1L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");

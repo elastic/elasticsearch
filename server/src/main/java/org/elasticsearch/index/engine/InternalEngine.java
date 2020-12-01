@@ -1788,11 +1788,7 @@ public class InternalEngine extends Engine {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         } catch (Exception e) {
             if (isClosed.get() == false) {
-                try {
-                    logger.warn("failed to read latest segment infos on flush", e);
-                } catch (Exception inner) {
-                    e.addSuppressed(inner);
-                }
+                logger.warn("failed to read latest segment infos on flush", e);
                 if (Lucene.isCorruptionException(e)) {
                     throw new FlushFailedEngineException(shardId, e);
                 }

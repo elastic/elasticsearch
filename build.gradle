@@ -287,9 +287,10 @@ gradle.projectsEvaluated {
       // :test:framework:test cannot run before and after :server:test
       return
     }
-    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
-      integTest.mustRunAfter test
+    tasks.matching {it.name.equals('integTest')}.configureEach {integTestTask ->
+      integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
+
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
@@ -389,7 +390,7 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-wrapper {
+tasks.named("wrapper").configure {
   distributionType = 'ALL'
   doLast {
     final DistributionLocator locator = new DistributionLocator()
@@ -417,6 +418,9 @@ gradle.projectsEvaluated {
         it.enabled = false
       }
       maybeConfigure(project.tasks, 'dependenciesInfo') {
+        it.enabled = false
+      }
+      maybeConfigure(project.tasks, 'dependenciesGraph') {
         it.enabled = false
       }
     }

@@ -58,9 +58,7 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
     @Override
     protected void masterOperation(Task task, final DeleteRepositoryRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        repositoriesService.unregisterRepository(
-            request, ActionListener.delegateFailure(listener,
-                (delegatedListener, unregisterRepositoryResponse) ->
-                    delegatedListener.onResponse(AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged()))));
+        repositoriesService.unregisterRepository(request,
+                listener.map(unregisterRepositoryResponse -> AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged())));
     }
 }

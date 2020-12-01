@@ -66,7 +66,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     public static final String NAME = "ml";
     public static final Setting<Integer> NUM_ANOMALY_JOBS_IN_QUEUE = Setting.intSetting("num_anomaly_jobs_in_queue", 0, 0);
     public static final Setting<Integer> NUM_ANALYTICS_JOBS_IN_QUEUE = Setting.intSetting("num_analytics_jobs_in_queue", 0, 0);
-    public static final Setting<TimeValue> DOWN_SCALE_DELAY = Setting.timeSetting("down_scale_delay", TimeValue.ZERO);
+    public static final Setting<TimeValue> DOWN_SCALE_DELAY = Setting.timeSetting("down_scale_delay", TimeValue.timeValueHours(1));
 
     private final NodeLoadDetector nodeLoadDetector;
     private final MlMemoryTracker mlMemoryTracker;

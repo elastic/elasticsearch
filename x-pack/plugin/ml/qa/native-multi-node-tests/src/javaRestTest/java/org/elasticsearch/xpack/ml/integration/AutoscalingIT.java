@@ -100,7 +100,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     // and that xpack.ml.use_auto_machine_memory_percent is false
     public void testMLAutoscalingCapacity() {
         SortedMap<String, Settings> deciders = new TreeMap<>();
-        deciders.put(MlAutoscalingDeciderService.NAME, Settings.builder().build());
+        deciders.put(MlAutoscalingDeciderService.NAME,
+            Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build());
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             "ml_test",
             new TreeSet<>(Arrays.asList("ml")),

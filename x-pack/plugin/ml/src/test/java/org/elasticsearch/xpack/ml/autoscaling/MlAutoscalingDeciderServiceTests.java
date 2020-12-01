@@ -48,6 +48,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     private static final long DEFAULT_NODE_SIZE = ByteSizeValue.ofGb(2).getBytes();
     private static final long DEFAULT_JVM_SIZE = ByteSizeValue.ofMb((long)(DEFAULT_NODE_SIZE * 0.25)).getBytes();
     private static final long DEFAULT_JOB_SIZE = ByteSizeValue.ofMb(200).getBytes();
+    private static final long OVERHEAD = ByteSizeValue.ofMb(30).getBytes();
     private NodeLoadDetector nodeLoadDetector;
     private ClusterService clusterService;
     private Settings settings;
@@ -108,7 +109,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo((DEFAULT_JOB_SIZE + OVERHEAD) * 4));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(12 * DEFAULT_JOB_SIZE));
         }
         { // we allow one job in the analytics queue
@@ -119,7 +120,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * (DEFAULT_JOB_SIZE + OVERHEAD)));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(8 * DEFAULT_JOB_SIZE));
         }
         { // we allow one job in the anomaly queue and analytics queue
@@ -130,7 +131,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * (DEFAULT_JOB_SIZE + OVERHEAD)));
             assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
         }
     }

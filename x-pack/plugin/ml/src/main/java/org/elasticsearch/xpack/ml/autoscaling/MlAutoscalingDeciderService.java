@@ -228,7 +228,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         return scaleDownDetected == NO_SCALE_DOWN_POSSIBLE;
     }
 
-    public static NativeMemoryCapacity currentScale(final List<DiscoveryNode> machineLearningNodes, int maxMachineMemoryPercent, boolean useAuto) {
+    public static NativeMemoryCapacity currentScale(final List<DiscoveryNode> machineLearningNodes,
+                                                    int maxMachineMemoryPercent,
+                                                    boolean useAuto) {
         long[] mlMemory = machineLearningNodes.stream()
             .mapToLong(node -> NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent, useAuto).orElse(0L))
             .toArray();

@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -86,10 +85,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return context.getValuesSourceRegistry()
             .getAggregator(HistogramAggregationBuilder.REGISTRY_KEY, config)
             .build(
@@ -103,7 +100,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                 extendedBounds,
                 hardBounds,
                 config,
-                searchContext,
+                context,
                 parent,
                 cardinality,
                 metadata
@@ -111,10 +108,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
-            hardBounds, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+            hardBounds, config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

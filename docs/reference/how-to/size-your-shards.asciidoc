@@ -260,7 +260,7 @@ POST /my-index-000001/_shrink/my-shrunken-index-000001
 ----
 // TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
 
-{ilm-init} also has a <<ilm-shrink-action,shrink action>> for indices in the
+{ilm-init} also has a <<ilm-shrink,shrink action>> for indices in the
 warm phase.
 
 [discrete]

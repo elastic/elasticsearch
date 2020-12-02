@@ -512,7 +512,7 @@ signing certificate with the following command:
 
 [source, sh]
 --------------------------------------------------
-bin/elasticsearch-certutil cert -pem -days 1100 -name saml-sign -out saml-sign.zip
+bin/elasticsearch-certutil cert --self-signed --pem --days 1100 --name saml-sign --out saml-sign.zip
 --------------------------------------------------
 
 This will

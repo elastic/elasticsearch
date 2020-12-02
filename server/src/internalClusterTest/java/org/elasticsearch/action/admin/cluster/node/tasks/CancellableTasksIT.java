@@ -55,6 +55,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -307,6 +308,58 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
     }
 
+    public void testRemoveBanParentsOnDisconnect() throws Exception {
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4));
+        client().execute(TransportTestAction.ACTION, rootRequest);
+        Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
+        TaskId rootTaskId = getRootTaskId(rootRequest);
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks()
+            .setTaskId(rootTaskId).waitForCompletion(true).execute();
+        try {
+            assertBusy(() -> {
+                for (DiscoveryNode node : nodes) {
+                    TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
+                    Set<TaskId> expectedBans = new HashSet<>();
+                    for (TestRequest req : pendingRequests) {
+                        if (req.node.equals(node)) {
+                            List<Task> childTasks = taskManager.getTasks().values().stream()
+                                .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
+                                .collect(Collectors.toList());
+                            assertThat(childTasks, hasSize(1));
+                            CancellableTask childTask = (CancellableTask) childTasks.get(0);
+                            assertTrue(childTask.isCancelled());
+                            expectedBans.add(childTask.getParentTaskId());
+                        }
+                    }
+                    assertThat(taskManager.getBannedTaskIds(), equalTo(expectedBans));
+                }
+            }, 30, TimeUnit.SECONDS);
+
+            final Set<TaskId> bannedParents = new HashSet<>();
+            for (DiscoveryNode node : nodes) {
+                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
+                bannedParents.addAll(taskManager.getBannedTaskIds());
+            }
+            // Disconnect some outstanding child connections
+            for (DiscoveryNode node : nodes) {
+                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
+                for (TaskId bannedParent : bannedParents) {
+                    if (bannedParent.getNodeId().equals(node.getId()) && randomBoolean()) {
+                        Collection<Transport.Connection> childConns = taskManager.startBanOnChildTasks(bannedParent.getId(), () -> {});
+                        for (Transport.Connection connection : randomSubsetOf(childConns)) {
+                            connection.close();
+                        }
+                    }
+                }
+            }
+        } finally {
+            allowEntireRequest(rootRequest);
+            cancelFuture.actionGet();
+            ensureAllBansRemoved();
+        }
+    }
+
     static TaskId getRootTaskId(TestRequest request) throws Exception {
         SetOnce<TaskId> taskId = new SetOnce<>();
         assertBusy(() -> {
@@ -326,6 +379,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             rootTask.actionGet();
         } catch (Exception e) {
             final Throwable cause = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertNotNull(cause);
             assertThat(cause.getMessage(), anyOf(
                 equalTo("The parent task was cancelled, shouldn't start any child tasks"),
                 containsString("Task cancelled before it started:"),

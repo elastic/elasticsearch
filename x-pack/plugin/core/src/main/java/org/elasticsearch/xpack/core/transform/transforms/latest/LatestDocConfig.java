@@ -90,6 +90,14 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
 
         if (sort.size() != 1) {
             validationException = addValidationError("latest_doc.sort must have exactly one element", validationException);
+        } else {
+            SortBuilder<?> theOnlySort = sort.get(0);
+            if (theOnlySort instanceof FieldSortBuilder == false) {
+                validationException =
+                    addValidationError(
+                        "latest_doc.sort[0] must be of type FieldSortBuilder, was: " + theOnlySort.getClass().getSimpleName(),
+                        validationException);
+            }
         }
 
         return validationException;

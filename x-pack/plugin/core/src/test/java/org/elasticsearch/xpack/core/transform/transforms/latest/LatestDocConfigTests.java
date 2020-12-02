@@ -6,18 +6,27 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.latest;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -131,6 +140,38 @@ public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<L
 
         LatestDocConfig config = createLatestDocConfigFromString(json, false);
         assertThat(config.validate(null).validationErrors(), contains("latest_doc.sort must have exactly one element"));
+    }
+
+    public void testValidate_InvalidSortType() throws IOException {
+        String json = "{"
+            + " \"unique_key\": [ \"event\" ],"
+            + " \"sort\": { \"_script\": { \"script\": { \"source\": \"\" }, \"type\": \"string\" } }"
+            + "}";
+
+        LatestDocConfig config = createLatestDocConfigFromString(json, false);
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("latest_doc.sort[0] must be of type FieldSortBuilder, was: ScriptSortBuilder"));
+    }
+
+    public void testToCompositeAggXContent() throws IOException {
+        String json = "{"
+            + " \"unique_key\": [ \"field-A\", \"field-B\", \"field-C\", \"field-D\", \"field-E\" ],"
+            + " \"sort\": \"timestamp\""
+            + "}";
+
+        LatestDocConfig config = createLatestDocConfigFromString(json, false);
+        try (XContentBuilder builder = jsonBuilder()) {
+            config.toCompositeAggXContent(builder);
+            XContentParser parser = builder.generator()
+                .contentType()
+                .xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+            CompositeAggregationBuilder compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, "dummy");
+            assertThat(
+                compositeAggregation.sources().stream().map(CompositeValuesSourceBuilder::field).collect(Collectors.toList()),
+                containsInAnyOrder("field-A", "field-B", "field-C", "field-D", "field-E"));
+        }
     }
 
     private LatestDocConfig createLatestDocConfigFromString(String json, boolean lenient) throws IOException {

@@ -96,7 +96,7 @@ public class LatestDoc implements Function {
         TopHitsAggregationBuilder topHitsAgg =
             AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
                 .size(1)  // we are only interested in the top-1
-                .sorts(config.getSort());
+                .sorts(config.getSort());  // we copy the sort config directly from the function config
         compositeAggregation.subAggregation(topHitsAgg);
         return compositeAggregation;
     }

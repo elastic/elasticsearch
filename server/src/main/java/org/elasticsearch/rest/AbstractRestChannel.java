@@ -132,7 +132,8 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
-        Map<String, String> parameters = request.getParsedAccept() != null ? request.getParsedAccept().getParameters() : Collections.emptyMap();
+        Map<String, String> parameters = request.getParsedAccept() != null ?
+            request.getParsedAccept().getParameters() : Collections.emptyMap();
         XContentBuilder builder =
             new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
                 includes, excludes, responseContentType.responseContentTypeHeader(parameters));

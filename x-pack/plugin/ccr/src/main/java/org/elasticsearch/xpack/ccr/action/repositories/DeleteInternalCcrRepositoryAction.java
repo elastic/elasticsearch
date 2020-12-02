@@ -12,25 +12,21 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
-public class DeleteInternalCcrRepositoryAction extends ActionType<DeleteInternalCcrRepositoryAction.DeleteInternalCcrRepositoryResponse> {
+public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse.Empty> {
 
     public static final DeleteInternalCcrRepositoryAction INSTANCE = new DeleteInternalCcrRepositoryAction();
     public static final String NAME = "internal:admin/ccr/internal_repository/delete";
 
     private DeleteInternalCcrRepositoryAction() {
-        super(NAME, DeleteInternalCcrRepositoryAction.DeleteInternalCcrRepositoryResponse::new);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
     public static class TransportDeleteInternalRepositoryAction
-        extends TransportAction<DeleteInternalCcrRepositoryRequest, DeleteInternalCcrRepositoryResponse> {
+        extends TransportAction<DeleteInternalCcrRepositoryRequest, ActionResponse.Empty> {
 
         private final RepositoriesService repositoriesService;
 
@@ -43,23 +39,9 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<DeleteInternal
 
         @Override
         protected void doExecute(Task task, DeleteInternalCcrRepositoryRequest request,
-                                 ActionListener<DeleteInternalCcrRepositoryResponse> listener) {
+                                 ActionListener<ActionResponse.Empty> listener) {
             repositoriesService.unregisterInternalRepository(request.getName());
-            listener.onResponse(new DeleteInternalCcrRepositoryResponse());
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
         }
-    }
-
-    public static class DeleteInternalCcrRepositoryResponse extends ActionResponse {
-
-        DeleteInternalCcrRepositoryResponse() {
-            super();
-        }
-
-        DeleteInternalCcrRepositoryResponse(StreamInput streamInput) throws IOException {
-            super(streamInput);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

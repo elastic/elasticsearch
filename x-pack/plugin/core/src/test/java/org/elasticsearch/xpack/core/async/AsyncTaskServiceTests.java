@@ -7,11 +7,15 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -21,7 +25,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.concurrent.ExecutionException;
 
 // TODO: test CRUD operations
 public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
@@ -95,14 +98,55 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), runAsDiffType));
     }
 
-    public void testSettings() throws ExecutionException, InterruptedException {
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        indexService.createIndexIfNecessary(future);
-        future.get();
+    public void testAutoCreateIndex() throws Exception {
+        {
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            indexService.createIndexIfNecessary(future);
+            future.get();
+            assertSettings();
+        }
+        AcknowledgedResponse ack = client().admin().indices().prepareDelete(index).get();
+        assertTrue(ack.isAcknowledged());
+
+        AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
+        AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
+        {
+            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            future.get();
+            assertSettings();
+        }
+        ack = client().admin().indices().prepareDelete(index).get();
+        assertTrue(ack.isAcknowledged());
+        {
+            PlainActionFuture<DeleteResponse> future = PlainActionFuture.newFuture();
+            indexService.deleteResponse(id, future);
+            future.get();
+            assertSettings();
+        }
+        ack = client().admin().indices().prepareDelete(index).get();
+        assertTrue(ack.isAcknowledged());
+        {
+            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            indexService.updateResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            expectThrows(Exception.class, () -> future.get());
+            assertSettings();
+        }
+        ack = client().admin().indices().prepareDelete(index).get();
+        assertTrue(ack.isAcknowledged());
+        {
+            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            indexService.updateExpirationTime("0", 10L, future);
+            expectThrows(Exception.class, () -> future.get());
+            assertSettings();
+        }
+    }
+
+    private void assertSettings() throws IOException {
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
             new GetIndexRequest().indices(index)).actionGet();
         Settings settings = getIndexResponse.getSettings().get(index);
-        assertEquals("1", settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
-        assertEquals("0-1", settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+        Settings expected = AsyncTaskIndexService.settings();
+        assertEquals(expected, settings.filter(key -> expected.hasValue(key)));
     }
 }

@@ -26,7 +26,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -36,9 +35,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,7 +55,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     MaxAggregator(String name,
                     ValuesSourceConfig config,
-                    SearchContext context,
+                    AggregationContext context,
                     Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         // TODO stop expecting nulls here
@@ -105,7 +104,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 throw new CollectionTerminatedException();
             }
         }
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
@@ -114,7 +112,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= maxes.size()) {
                     long from = maxes.size();
-                    maxes = bigArrays.grow(maxes, bucket + 1);
+                    maxes = bigArrays().grow(maxes, bucket + 1);
                     maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
                 }
                 if (values.advanceExact(doc)) {

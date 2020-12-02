@@ -41,7 +41,7 @@ testClusters.all {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
-test {
+tasks.named("test").configure {
   /*
    * We have to disable setting the number of available processors as tests in the
    * same JVM randomize processors and will step on each other if we allow them to
@@ -66,16 +66,18 @@ restResources {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // Commons logging
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // Commons logging
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+  )
+}
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   // PKCS#12 file are not UTF-8
   exclude '**/*.p12'
 }
@@ -127,7 +129,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     versions = ['2', '1']
   }
   for (String version : versions) {
-    Task unzip = task("unzipEs${version}", type: Sync) {
+    TaskProvider<Sync> unzip = tasks.register("unzipEs${version}", Sync) {
       Configuration oldEsDependency = configurations['es' + version]
       dependsOn oldEsDependency
       /* Use a closure here to delay resolution of the dependency until we need
@@ -146,7 +148,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       env 'JAVA_HOME', jdks.legacy.javaHomePath
       args 'oldes.OldElasticsearch',
         baseDir,
-        unzip.temporaryDir,
+        unzip.get().temporaryDir,
         version == '090'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service

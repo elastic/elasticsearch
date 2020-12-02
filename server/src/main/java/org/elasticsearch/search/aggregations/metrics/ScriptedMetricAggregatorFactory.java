@@ -22,13 +22,11 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,13 +73,11 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         Map<String, Object> aggParams = this.aggParams == null ? Map.of() : this.aggParams;
 
-        Script reduceScript = deepCopyScript(this.reduceScript, searchContext, aggParams);
+        Script reduceScript = deepCopyScript(this.reduceScript, aggParams);
 
         return new ScriptedMetricAggregator(
             name,
@@ -94,15 +90,15 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
             combineScript,
             combineScriptParams,
             reduceScript,
-            searchContext,
+            context,
             parent,
             metadata
         );
     }
 
-    private static Script deepCopyScript(Script script, SearchContext context, Map<String, Object> aggParams) {
+    private static Script deepCopyScript(Script script, Map<String, Object> aggParams) {
         if (script != null) {
-            Map<String, Object> params = mergeParams(aggParams, deepCopyParams(script.getParams(), context));
+            Map<String, Object> params = mergeParams(aggParams, deepCopyParams(script.getParams()));
             return new Script(script.getType(), script.getLang(), script.getIdOrCode(), params);
         } else {
             return null;
@@ -110,20 +106,20 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     }
 
     @SuppressWarnings({ "unchecked" })
-    static <T> T deepCopyParams(T original, SearchContext context) {
+    static <T> T deepCopyParams(T original) {
         T clone;
         if (original instanceof Map) {
             Map<?, ?> originalMap = (Map<?, ?>) original;
             Map<Object, Object> clonedMap = new HashMap<>();
             for (Map.Entry<?, ?> e : originalMap.entrySet()) {
-                clonedMap.put(deepCopyParams(e.getKey(), context), deepCopyParams(e.getValue(), context));
+                clonedMap.put(deepCopyParams(e.getKey()), deepCopyParams(e.getValue()));
             }
             clone = (T) clonedMap;
         } else if (original instanceof List) {
             List<?> originalList = (List<?>) original;
             List<Object> clonedList = new ArrayList<>();
             for (Object o : originalList) {
-                clonedList.add(deepCopyParams(o, context));
+                clonedList.add(deepCopyParams(o));
             }
             clone = (T) clonedList;
         } else if (original instanceof String || original instanceof Integer || original instanceof Long || original instanceof Short
@@ -131,8 +127,9 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
             || original instanceof Boolean) {
             clone = original;
         } else {
-            throw new SearchParseException(context.shardTarget(),
-                "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName(), null);
+            throw new IllegalArgumentException(
+                "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName()
+            );
         }
         return clone;
     }

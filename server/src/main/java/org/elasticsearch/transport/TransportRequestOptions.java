@@ -19,18 +19,32 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 public class TransportRequestOptions {
 
+    @Nullable
     private final TimeValue timeout;
     private final Type type;
 
-    private TransportRequestOptions(TimeValue timeout, Type type) {
+    public static TransportRequestOptions timeout(@Nullable TimeValue timeout) {
+        return of(timeout, Type.REG);
+    }
+
+    public static TransportRequestOptions of(@Nullable TimeValue timeout, Type type) {
+        if (timeout == null && type == Type.REG) {
+            return EMPTY;
+        }
+        return new TransportRequestOptions(timeout, type);
+    }
+
+    private TransportRequestOptions(@Nullable TimeValue timeout, Type type) {
         this.timeout = timeout;
         this.type = type;
     }
 
+    @Nullable
     public TimeValue timeout() {
         return this.timeout;
     }
@@ -39,7 +53,7 @@ public class TransportRequestOptions {
         return this.type;
     }
 
-    public static final TransportRequestOptions EMPTY = new TransportRequestOptions.Builder().build();
+    public static final TransportRequestOptions EMPTY = new TransportRequestOptions(null, Type.REG);
 
     public enum Type {
         RECOVERY,
@@ -47,35 +61,5 @@ public class TransportRequestOptions {
         REG,
         STATE,
         PING
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-        private TimeValue timeout;
-        private Type type = Type.REG;
-
-        private Builder() {
-        }
-
-        public Builder withTimeout(long timeout) {
-            return withTimeout(TimeValue.timeValueMillis(timeout));
-        }
-
-        public Builder withTimeout(TimeValue timeout) {
-            this.timeout = timeout;
-            return this;
-        }
-
-        public Builder withType(Type type) {
-            this.type = type;
-            return this;
-        }
-
-        public TransportRequestOptions build() {
-            return new TransportRequestOptions(timeout, type);
-        }
     }
 }

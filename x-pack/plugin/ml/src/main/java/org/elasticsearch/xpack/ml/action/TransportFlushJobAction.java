@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobAction.Request, FlushJobAction.Response> {
 
@@ -27,8 +28,7 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
     }
 
     @Override
-    protected void taskOperation(FlushJobAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<FlushJobAction.Response> listener) {
+    protected void taskOperation(FlushJobAction.Request request, JobTask task, ActionListener<FlushJobAction.Response> listener) {
         FlushJobParams.Builder paramsBuilder = FlushJobParams.builder();
         paramsBuilder.calcInterim(request.getCalcInterim());
         paramsBuilder.waitForNormalization(request.isWaitForNormalization());

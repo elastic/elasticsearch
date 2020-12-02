@@ -23,7 +23,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -31,8 +30,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -52,7 +51,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     MedianAbsoluteDeviationAggregator(String name,
                                       @Nullable ValuesSource valuesSource,
                                       DocValueFormat format,
-                                      SearchContext context,
+                                      AggregationContext context,
                                              Aggregator parent,
                                              Map<String, Object> metadata,
                                              double compression) throws IOException {
@@ -93,14 +92,13 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
 
-                valueSketches = bigArrays.grow(valueSketches, bucket + 1);
+                valueSketches = bigArrays().grow(valueSketches, bucket + 1);
 
                 TDigestState valueSketch = valueSketches.get(bucket);
                 if (valueSketch == null) {

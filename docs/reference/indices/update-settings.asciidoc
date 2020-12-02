@@ -55,7 +55,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `preserve_existing`::
-(Optional, boolean) If `true`, existing index settings remain unchanged.
+(Optional, Boolean) If `true`, existing index settings remain unchanged.
 Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

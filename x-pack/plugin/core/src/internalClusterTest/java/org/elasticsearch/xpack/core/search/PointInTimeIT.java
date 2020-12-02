@@ -35,8 +35,8 @@ import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -65,9 +66,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(LocalStateCompositeXPackPlugin.class);
-        return plugins;
+        return Collections.singleton(LocalStateCompositeXPackPlugin.class);
     }
 
     public void testBasic() {
@@ -131,7 +130,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertNoFailures(resp);
             assertHitCount(resp, numDocs);
             assertNotNull(resp.pointInTimeId());
-            pitId = resp.pointInTimeId();
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
             int moreDocs = randomIntBetween(10, 50);
             for (int i = 0; i < moreDocs; i++) {
                 String id = "more-" + i;
@@ -147,7 +146,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertNoFailures(resp);
             assertHitCount(resp, numDocs);
             assertNotNull(resp.pointInTimeId());
-            pitId = resp.pointInTimeId();
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
         } finally {
             closePointInTime(pitId);
         }
@@ -170,10 +169,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 .get();
             assertNoFailures(resp);
             assertHitCount(resp, numDocs);
-            assertNotNull(resp.pointInTimeId());
-            if (randomBoolean()) {
-                pitId = resp.pointInTimeId();
-            }
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
             final Set<String> dataNodes = StreamSupport.stream(clusterService().state().nodes().getDataNodes().spliterator(), false)
                 .map(e -> e.value.getId()).collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
@@ -192,10 +188,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 .get();
             assertNoFailures(resp);
             assertHitCount(resp, numDocs);
-            assertNotNull(resp.pointInTimeId());
-            if (randomBoolean()) {
-                pitId = resp.pointInTimeId();
-            }
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
             assertBusy(() -> {
                 final Set<String> assignedNodes = clusterService().state().routingTable().allShards().stream()
                     .filter(shr -> shr.index().getName().equals("test") && shr.assignedToNode())
@@ -209,10 +202,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 .get();
             assertNoFailures(resp);
             assertHitCount(resp, numDocs);
-            assertNotNull(resp.pointInTimeId());
-            if (randomBoolean()) {
-                pitId = resp.pointInTimeId();
-            }
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
         } finally {
             closePointInTime(pitId);
         }
@@ -327,6 +317,54 @@ public class PointInTimeIT extends ESIntegTestCase {
                     }
                 }
             }
+        } finally {
+            closePointInTime(pitId);
+        }
+    }
+
+    public void testPartialResults() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final List<String> dataNodes =
+            StreamSupport.stream(internalCluster().clusterService().state().nodes().getDataNodes().spliterator(), false)
+            .map(e -> e.value.getName())
+            .collect(Collectors.toList());
+        final String assignedNodeForIndex1 = randomFrom(dataNodes);
+
+        createIndex("test-1", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", assignedNodeForIndex1)
+            .build());
+        createIndex("test-2", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.exclude._name", assignedNodeForIndex1)
+            .build());
+
+        int numDocs1 = randomIntBetween(10, 50);
+        for (int i = 0; i < numDocs1; i++) {
+            client().prepareIndex(randomFrom("test-1")).setId(Integer.toString(i)).setSource("value", i).get();
+        }
+        int numDocs2 = randomIntBetween(10, 50);
+        for (int i = 0; i < numDocs2; i++) {
+            client().prepareIndex(randomFrom("test-2")).setId(Integer.toString(i)).setSource("value", i).get();
+        }
+        refresh();
+        String pitId = openPointInTime(new String[]{"test-*"}, TimeValue.timeValueMinutes(2));
+        try {
+            SearchResponse resp = client().prepareSearch()
+                .setPreference(null)
+                .setPointInTime(new PointInTimeBuilder(pitId))
+                .get();
+            assertNoFailures(resp);
+            assertHitCount(resp, numDocs1 + numDocs2);
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
+
+            internalCluster().restartNode(assignedNodeForIndex1);
+            resp = client().prepareSearch()
+                .setPreference(null)
+                .setAllowPartialSearchResults(true)
+                .setPointInTime(new PointInTimeBuilder(pitId))
+                .get();
+            assertFailures(resp);
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertHitCount(resp, numDocs2);
         } finally {
             closePointInTime(pitId);
         }

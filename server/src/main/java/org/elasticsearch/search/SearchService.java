@@ -585,7 +585,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
+                searchContext.docIdsToLoad(request.docIds(), request.docIdsSize());
                 try (SearchOperationListenerExecutor executor =
                          new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())) {
                     fetchPhase.execute(searchContext);
@@ -935,13 +935,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
-            AggregationContext aggContext = new ProductionAggregationContext(
-                queryShardContext,
-                context.parsedQuery() == null ? null : context.parsedQuery().query()
-            );
+            AggregationContext aggContext = new ProductionAggregationContext(context, multiBucketConsumerService.create());
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
-                context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
+                context.aggregations(new SearchContextAggregations(factories));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
             }
@@ -985,7 +982,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.scriptFields() != null && source.size() != 0) {
-            int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();
+            int maxAllowedScriptFields = queryShardContext.getIndexSettings().getMaxScriptFields();
             if (source.scriptFields().size() > maxAllowedScriptFields) {
                 throw new IllegalArgumentException(
                         "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxAllowedScriptFields
@@ -1103,7 +1100,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 docIdsToLoad[docsOffset++] = option.getDoc().doc;
             }
         }
-        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+        context.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
     }
 
     private void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
@@ -1178,7 +1175,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             try (canMatchSearcher) {
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias());
+                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
                 final boolean aliasFilterCanMatch = request.getAliasFilter()
                     .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;

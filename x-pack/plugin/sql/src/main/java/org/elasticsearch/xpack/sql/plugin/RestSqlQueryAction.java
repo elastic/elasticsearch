@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -44,6 +46,10 @@ public class RestSqlQueryAction extends BaseRestHandler {
             new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
     }
 
+    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
+        return SqlMediaTypeParser.MEDIA_TYPE_REGISTRY;
+    }
+
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
             throws IOException {
@@ -52,8 +58,12 @@ public class RestSqlQueryAction extends BaseRestHandler {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
 
-        responseMediaType = sqlMediaTypeParser.getMediaType(request, sqlRequest);
-
+        responseMediaType = sqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
+        if (responseMediaType == null) {
+            String msg = String.format(Locale.ROOT, "Invalid response content type: Accept=[%s], Content-Type=[%s], format=[%s]",
+                request.header("Accept"), request.header("Content-Type"), request.param("format"));
+            throw new IllegalArgumentException(msg);
+        }
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
@@ -61,7 +71,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 RestResponse restResponse;
 
                 // XContent branch
-                if (responseMediaType != null && responseMediaType instanceof XContentType) {
+                if (responseMediaType instanceof XContentType) {
                     XContentType type = (XContentType) responseMediaType;
                     XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
                     response.toXContent(builder, request);
@@ -83,9 +93,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
             }
         });
     }
-
-
-
 
     @Override
     protected Set<String> responseParams() {

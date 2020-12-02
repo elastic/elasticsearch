@@ -32,14 +32,16 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongUnaryOperator;
 
 import static java.util.Collections.emptyList;
 
@@ -57,7 +59,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         ValuesSource.Bytes valuesSource,
         DocValueFormat format,
         IncludeExclude.StringFilter filter,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
         long maxDocCount,
@@ -76,7 +78,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         );
         this.valuesSource = valuesSource;
         this.filter = filter;
-        this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override
@@ -130,7 +132,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Arrays.fill(mergeMap, -1);
         long offset = 0;
         for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
-            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, context.bigArrays())) {
+            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, bigArrays())) {
                 filters[owningOrdIdx] = newFilter();
                 List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
                 BytesKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);
@@ -159,9 +161,10 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
          * to save on some redundant work.
          */
         if (keepCount != mergeMap.length) {
-            mergeBuckets(mergeMap, offset);
-            if (deferringCollector != null) {
-                deferringCollector.mergeBuckets(mergeMap);
+            LongUnaryOperator howToMerge = b -> mergeMap[(int) b];
+            rewriteBuckets(offset, howToMerge);
+            if (deferringCollector() != null) {
+                ((BestBucketsDeferringCollector) deferringCollector()).rewriteBuckets(howToMerge);
             }
         }
 

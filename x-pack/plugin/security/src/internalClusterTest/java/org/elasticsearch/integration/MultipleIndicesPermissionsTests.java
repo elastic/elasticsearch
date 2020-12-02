@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -209,11 +208,6 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foo"), is(true));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobar"), is(true));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobarfoo"), is(true));
-
-        final UpgradeStatusResponse upgradeStatusResponse = client.admin().indices().prepareUpgradeStatus(randomFrom("*", "_all", "foo*"))
-                .get();
-        assertThat(upgradeStatusResponse.getIndices().size(), is(3));
-        assertThat(upgradeStatusResponse.getIndices().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
         final IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats(randomFrom("*", "_all", "foo*")).get();
         assertThat(indicesStatsResponse.getIndices().size(), is(3));

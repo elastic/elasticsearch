@@ -149,8 +149,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         long lowerBoundModifiedDate = Instant.now().toEpochMilli();
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
         long upperBoundModifiedDate = Instant.now().toEpochMilli();
 
         // assert version and modified_date
@@ -190,8 +189,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
             new GetLifecycleAction.Request()).get();
@@ -266,8 +264,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
             new GetLifecycleAction.Request()).get();
@@ -356,8 +353,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
                 .actionGet();
@@ -389,8 +385,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         long lowerBoundModifiedDate = Instant.now().toEpochMilli();
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
         long upperBoundModifiedDate = Instant.now().toEpochMilli();
 
         // assert version and modified_date

@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +41,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         builder.register(
             DateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            DateHistogramAggregator::new,
+            DateHistogramAggregator::build,
                 true);
 
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
@@ -82,12 +81,9 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         return minDocCount;
     }
 
-    protected Aggregator doCreateInternal(
-        SearchContext searchContext,
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    @Override
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry()
             .getAggregator(DateHistogramAggregationBuilder.REGISTRY_KEY, config);
         return aggregatorSupplier.build(
@@ -100,7 +96,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             extendedBounds,
             hardBounds,
             config,
-            searchContext,
+            context,
             parent,
             cardinality,
             metadata
@@ -108,10 +104,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, hardBounds,
-            config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
+            config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

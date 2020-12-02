@@ -6,18 +6,18 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
 import java.util.function.LongConsumer;
 
 /** Sorted numeric doc values for geo shapes */
 class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
-    private final MultiGeoShapeValues geoShapeValues;
+    private final GeoShapeValues geoShapeValues;
     protected int precision;
     protected GeoGridTiler tiler;
 
-    protected GeoShapeCellValues(MultiGeoShapeValues geoShapeValues, int precision, GeoGridTiler tiler,
+    protected GeoShapeCellValues(GeoShapeValues geoShapeValues, int precision, GeoGridTiler tiler,
                                  LongConsumer circuitBreakerConsumer) {
         super(circuitBreakerConsumer);
         this.geoShapeValues = geoShapeValues;
@@ -28,8 +28,7 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
     @Override
     public boolean advanceExact(int docId) throws IOException {
         if (geoShapeValues.advanceExact(docId)) {
-            assert geoShapeValues.docValueCount() == 1;
-            int j = advanceValue(geoShapeValues.nextValue());
+            int j = advanceValue(geoShapeValues.value());
             resize(j);
             sort();
             return true;
@@ -59,7 +58,7 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
      * @param target    the geo-shape to encode
      * @return          number of buckets for given shape tiling of <code>target</code>.
      */
-    int advanceValue(MultiGeoShapeValues.GeoShapeValue target) {
+    int advanceValue(GeoShapeValues.GeoShapeValue target) {
         return tiler.setValues(this, target, precision);
     }
 }

@@ -36,14 +36,18 @@ public final class DataStream {
     private final String timeStampField;
     private final List<String> indices;
     private final long generation;
+    private final boolean hidden;
     ClusterHealthStatus dataStreamStatus;
     @Nullable
     String indexTemplate;
     @Nullable
     String ilmPolicyName;
+    @Nullable
+    private final Map<String, Object> metadata;
 
     public DataStream(String name, String timeStampField, List<String> indices, long generation, ClusterHealthStatus dataStreamStatus,
-                      @Nullable String indexTemplate, @Nullable String ilmPolicyName) {
+                      @Nullable String indexTemplate, @Nullable String ilmPolicyName, @Nullable  Map<String, Object> metadata,
+                      boolean hidden) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
@@ -51,6 +55,8 @@ public final class DataStream {
         this.dataStreamStatus = dataStreamStatus;
         this.indexTemplate = indexTemplate;
         this.ilmPolicyName = ilmPolicyName;
+        this.metadata = metadata;
+        this.hidden = hidden;
     }
 
     public String getName() {
@@ -81,6 +87,14 @@ public final class DataStream {
         return ilmPolicyName;
     }
 
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public boolean isHidden() {
+        return hidden;
+    }
+
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -88,6 +102,8 @@ public final class DataStream {
     public static final ParseField STATUS_FIELD = new ParseField("status");
     public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
     public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
+    public static final ParseField METADATA_FIELD = new ParseField("_meta");
+    public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
@@ -101,7 +117,10 @@ public final class DataStream {
             ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
             String indexTemplate = (String) args[5];
             String ilmPolicy = (String) args[6];
-            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy);
+            Map<String, Object> metadata = (Map<String, Object>) args[7];
+            Boolean hidden = (Boolean) args[8];
+            hidden = hidden != null && hidden;
+            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy, metadata, hidden);
         });
 
     static {
@@ -112,6 +131,8 @@ public final class DataStream {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_TEMPLATE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ILM_POLICY_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -129,11 +150,12 @@ public final class DataStream {
             indices.equals(that.indices) &&
             dataStreamStatus == that.dataStreamStatus &&
             Objects.equals(indexTemplate, that.indexTemplate) &&
-            Objects.equals(ilmPolicyName, that.ilmPolicyName);
+            Objects.equals(ilmPolicyName, that.ilmPolicyName) &&
+            Objects.equals(metadata, that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, dataStreamStatus, indexTemplate, ilmPolicyName);
+        return Objects.hash(name, timeStampField, indices, generation, dataStreamStatus, indexTemplate, ilmPolicyName, metadata);
     }
 }

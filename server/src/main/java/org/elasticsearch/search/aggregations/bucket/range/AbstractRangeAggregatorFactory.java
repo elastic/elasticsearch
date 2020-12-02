@@ -27,11 +27,9 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,7 +49,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         builder.register(
             registryKey,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            RangeAggregator::new,
+            RangeAggregator::build,
                 true);
     }
 
@@ -73,31 +71,26 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent, rangeFactory, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new Unmapped<>(name, factories, ranges, keyed, config.format(), context, parent, rangeFactory, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-
         return context.getValuesSourceRegistry()
             .getAggregator(registryKey, config)
             .build(
                 name,
                 factories,
-                (Numeric) config.getValuesSource(),
-                config.format(),
+                config,
                 rangeFactory,
                 ranges,
                 keyed,
-                searchContext,
+                context,
                 parent,
                 cardinality,
                 metadata

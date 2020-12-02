@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
@@ -49,7 +48,7 @@ import static java.util.Arrays.stream;
  * unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  * and configure them to build various versions here.
  */
-public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
+public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
 
     private ProviderFactory providerFactory;
 
@@ -151,11 +150,13 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static List<DistributionProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {
         List<String> projects = new ArrayList<>();
-        projects.addAll(asList("deb", "rpm"));
-        if (bwcVersion.onOrAfter("7.0.0")) {
+        // All active BWC branches publish default and oss variants of rpm and deb packages
+        projects.addAll(asList("deb", "rpm", "oss-deb", "oss-rpm"));
+
+        if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
             projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar", "linux-tar"));
-        } else {
-            projects.addAll(asList("oss-zip", "zip", "oss-deb", "oss-rpm"));
+        } else { // prior to 7.0 we published only a single zip and tar archives for oss and default distributions
+            projects.addAll(asList("oss-zip", "zip", "tar", "oss-tar"));
         }
 
         return projects.stream().map(name -> {

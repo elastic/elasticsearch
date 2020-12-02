@@ -39,16 +39,16 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
@@ -71,7 +71,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         DocValueFormat format,
         BucketCountThresholds bucketCountThresholds,
         IncludeExclude.StringFilter includeExclude,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
@@ -357,7 +357,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 return;
             }
             // we need to fill-in the blanks
-            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                 SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
                 // brute force
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
@@ -447,14 +447,14 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
-        private LongArray subsetSizes = context.bigArrays().newLongArray(1, true);
+        private LongArray subsetSizes = bigArrays().newLongArray(1, true);
 
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
             SignificanceHeuristic significanceHeuristic,
             CardinalityUpperBound cardinality
         ) {
-            backgroundFrequencies = significanceLookup.bytesLookup(context.bigArrays(), cardinality);
+            backgroundFrequencies = significanceLookup.bytesLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
         }
@@ -470,7 +470,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     super.collect(doc, owningBucketOrd);
-                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+                    subsetSizes = bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
                 }
             };

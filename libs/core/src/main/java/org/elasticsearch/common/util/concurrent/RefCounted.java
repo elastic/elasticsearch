@@ -61,7 +61,8 @@ public interface RefCounted {
      * instance is considered as closed and should not be used anymore.
      *
      * @see #incRef
+     *
+     * @return returns {@code true} if the ref count dropped to 0 as a result of calling this method
      */
-    void decRef();
-
+    boolean decRef();
 }

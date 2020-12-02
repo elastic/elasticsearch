@@ -72,7 +72,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -317,22 +317,15 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel,
                                     Task task) throws Exception {
             final RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId());
-            final List<Releasable> toRelease = new ArrayList<>(2);
-            toRelease.add(recoveryRef::close);
             boolean success = false;
             try {
-                // Due to relocation conditions on the shard it could take a while for the hand-off to complete so we disable the recovery
-                // monitor since we don't expect any transport messages from master for the duration of the handoff and activate it again
-                // after the handoff.
-                final Releasable disabledMonitor = recoveryRef.target().disableRecoveryMonitor();
-                toRelease.add(disabledMonitor);
                 recoveryRef.target().handoffPrimaryContext(request.primaryContext(),
-                        ActionListener.runBefore(new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request).map(
-                                v -> TransportResponse.Empty.INSTANCE), () -> Releasables.close(toRelease)));
+                        ActionListener.runBefore(new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request)
+                                .map(v -> TransportResponse.Empty.INSTANCE), recoveryRef::close));
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(toRelease);
+                    recoveryRef.close();
                 }
             }
         }
@@ -436,24 +429,34 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel, Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+            boolean success = false;
+            final Collection<Releasable> releasables = new ArrayList<>(2);
+            RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId());
+            releasables.add(recoveryRef::close);
+            try {
                 final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.CLEAN_FILES, request);
                 if (listener == null) {
                     return;
                 }
-
+                releasables.add(recoveryRef.target().disableRecoveryMonitor());
+                final ActionListener<Void> releasingListener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
                 recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
-                                recoveryRef.target().indexShard().afterCleanFiles(() -> listener.onResponse(null));
+                                recoveryRef.target().indexShard().afterCleanFiles(() -> releasingListener.onResponse(null));
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                listener.onFailure(e);
+                                releasingListener.onFailure(e);
                             }
                         });
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(releasables);
+                }
             }
         }
     }

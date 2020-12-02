@@ -183,10 +183,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         };
     }
 
-    public boolean isRecoveryMonitorEnabled() {
-        return recoveryMonitorEnabled;
-    }
-
     public Store store() {
         ensureRefCount();
         return store;

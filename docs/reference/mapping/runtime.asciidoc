@@ -2,7 +2,7 @@
 == Runtime fields
 Typically, you index data into {es} to promote faster search. However, indexing
 can be slow and requires more disk space, and you have to reindex your data to
-add fields to existing documents. With _runtime fields_ beta[], you can add
+add fields to existing documents. With _runtime fields_, you can add
 fields to documents already indexed to {es} without reindexing your data.
 
 [discrete]
@@ -21,7 +21,7 @@ other field, and {es} sees runtime fields no differently.
 
 Alternatively, you can specify a `runtime_mappings` section in a search request
 to use runtime fields that exist only as part of the query. This
-flexibility allows you to create or overlay field values in `_source` for the
+flexibility allows you to create or shadow field values in `_source` for the
 duration of the query without modifying the field itself.
 
 [discrete]
@@ -38,7 +38,7 @@ Runtime fields are especially useful in the following contexts:
 data
 * Immediately begin working on a new data stream without fully understanding
 the data it contains
-* Overlaying an indexed field with a runtime field to fix a mistake after
+* Shadowing an indexed field with a runtime field to fix a mistake after
 indexing documents
 * Defining fields that are only relevant for a particular context (such as a
 visualization in {kib}) without influencing the underlying schema
@@ -76,18 +76,13 @@ definition. Within that section, you
 original `_source` and the mapped field plus its values (`doc_values`). At
 search time, the script runs and generates values for each scripted field.
 
-The `"runtime"` section supports `boolean`, `date`, `double`, `ip`, `keyword`,
-and `long` data types. Runtime fields with a `type` of `date` can accept the
-<<mapping-date-format,`format`>> parameter exactly as the `date` field type.
+NOTE: You can define a runtime field in the mapping definition without a
+script. {es} will look in `_source` for a field with the same name as the
+runtime field and use values from that field at query time.
 
 Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
 of the `_search` request, but also make the script results available for
 queries and aggregations.
-
-IMPORTANT: Objects are not supported in the `"runtime"` section under the
-mapping definition. If you want to map a runtime field under an object, you
-can
-<<runtime-overlaying-fields,overlay the field value in the search request>>.
 
 The script in the following request extracts the day of the week from the
 `@timestamp` field, which is defined as a `date` data type.
@@ -116,6 +111,15 @@ PUT /my-index
 definition.
 <2> Each runtime has its own field type, just like any other field.
 <3> The script defines the evaluation to calculate at search time.
+
+The `"runtime"` section supports `boolean`, `date`, `double`, `ip`, `keyword`,
+and `long` data types. Runtime fields with a `type` of `date` can accept the
+<<mapping-date-format,`format`>> parameter exactly as the `date` field type.
+
+IMPORTANT: Objects are not supported in the `"runtime"` section under the
+mapping definition. If you want to map a runtime field under an object, you
+can
+<<runtime-shadowing-fields,shadow the field value in the search request>>.
 
 [[runtime-updating-scripts]]
 .Updating runtime scripts
@@ -167,10 +171,17 @@ GET my-index/_search
 // TEST[continued]
 
 [discrete]
-[[runtime-overlaying-fields]]
-==== Overlaying fields in the search request
-You can use the `runtime_mappings` section of the `_search` request to overlay
-field values inside objects by naming the runtime fields with dot notation. For
+[[runtime-shadowing-fields]]
+==== Shadowing fields in the search request
+If you create a runtime field with the same name as a field that
+already exists in the mapping, the runtime field shadows the mapped field. At
+search time, {es} calculates the value of the runtime field and returns it as
+part of the query. Because the runtime field shadows the mapped field, you can
+modify the value returned in search without modifying the mapped field.
+
+Objects are not supported in the `"runtime"` section under the
+mapping definition. However, you can use the `runtime_mappings` section of the
+`_search` request to shadow field values inside objects. For
 example, index the following documents into `my-index`.
 
 [source, console]
@@ -184,10 +195,10 @@ POST my-index/_bulk?refresh=true
 
 In the `runtime_mappings` section of the `_search` request, you can define a
 script that operates on the `name.first` field. The values you specify will
-overlay field values in `_source` for the duration of the query without
+shadow field values in `_source` for the duration of the query without
 modifying the field itself.
 
-The following request evaluates the `name.last` field and overlays the value for
+The following request evaluates the `name.last` field and shadows the value for
 the `name.first` field in the search request based on the script valuation.
 
 [source,console]

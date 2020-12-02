@@ -206,7 +206,7 @@ public final class JobModelSnapshotUpgrader {
         }
 
         FlushAcknowledgement waitFlushToCompletion(String flushId) throws Exception {
-            logger.debug(() -> new ParameterizedMessage("[{}] [{}] waiting for flush [{}]"), jobId, snapshotId, flushId);
+            logger.debug(() -> new ParameterizedMessage("[{}] [{}] waiting for flush [{}]", jobId, snapshotId, flushId));
 
             FlushAcknowledgement flushAcknowledgement;
             try {
@@ -219,7 +219,7 @@ public final class JobModelSnapshotUpgrader {
             } finally {
                 processor.clearAwaitingFlush(flushId);
             }
-            logger.debug(() -> new ParameterizedMessage("[{}] [{}] flush completed [{}]"), jobId, snapshotId, flushId);
+            logger.debug(() -> new ParameterizedMessage("[{}] [{}] flush completed [{}]", jobId, snapshotId, flushId));
             return flushAcknowledgement;
         }
 

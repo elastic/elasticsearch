@@ -29,32 +29,45 @@ public class IndexingPressureTests extends ESTestCase {
 
     private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB").build();
 
-    public void testMemoryBytesMarkedAndReleased() {
+    public void testMemoryBytesAndOpsMarkedAndReleased() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(10, false);
-             Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(50, false);
-             Releasable primary = indexingPressure.markPrimaryOperationStarted(15, true);
-             Releasable primary2 = indexingPressure.markPrimaryOperationStarted(5, false);
-             Releasable replica = indexingPressure.markReplicaOperationStarted(25, true);
-             Releasable replica2 = indexingPressure.markReplicaOperationStarted(10, false)) {
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
+             Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(5, 50, false);
+             Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 15, true);
+             Releasable primary2 = indexingPressure.markPrimaryOperationStarted(1, 5, false);
+             Releasable replica = indexingPressure.markReplicaOperationStarted(3, 25, true);
+             Releasable replica2 = indexingPressure.markReplicaOperationStarted(1, 10, false)) {
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(60, stats.getCurrentCoordinatingBytes());
             assertEquals(20, stats.getCurrentPrimaryBytes());
             assertEquals(80, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(35, stats.getCurrentReplicaBytes());
+
+            assertEquals(6, stats.getTotalCoordinatingOps());
+            assertEquals(3, stats.getTotalPrimaryOps());
+            assertEquals(4, stats.getTotalReplicaOps());
         }
         IndexingPressureStats stats = indexingPressure.stats();
         assertEquals(0, stats.getCurrentCoordinatingBytes());
         assertEquals(0, stats.getCurrentPrimaryBytes());
         assertEquals(0, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
         assertEquals(0, stats.getCurrentReplicaBytes());
+
+        assertEquals(0, stats.getCurrentCoordinatingOps());
+        assertEquals(0, stats.getCurrentPrimaryOps());
+        assertEquals(0, stats.getCurrentReplicaOps());
+
         assertEquals(60, stats.getTotalCoordinatingBytes());
         assertEquals(20, stats.getTotalPrimaryBytes());
         assertEquals(80, stats.getTotalCombinedCoordinatingAndPrimaryBytes());
         assertEquals(35, stats.getTotalReplicaBytes());
+
+        assertEquals(6, stats.getTotalCoordinatingOps());
+        assertEquals(3, stats.getTotalPrimaryOps());
+        assertEquals(4, stats.getTotalReplicaOps());
     }
 
-    public void testAvoidDoubleAccounting() {
+    public void testAvoidDoubleMemoryAccounting() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(10, false);
              Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(15)) {

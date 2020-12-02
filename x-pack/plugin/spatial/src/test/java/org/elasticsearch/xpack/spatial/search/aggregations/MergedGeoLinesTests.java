@@ -18,7 +18,7 @@ public class MergedGeoLinesTests extends ESTestCase {
     public InternalGeoLine randomLine(SortOrder sortOrder, int maxLength, double magicDecimal) {
         String name = randomAlphaOfLength(5);
         int length = randomBoolean() ? maxLength : randomIntBetween(1, maxLength);
-        boolean complete = length < maxLength;
+        boolean complete = length <= maxLength;
         long[] points = new long[length];
         double[] sortValues = new double[length];
         for (int i = 0; i < length; i++) {

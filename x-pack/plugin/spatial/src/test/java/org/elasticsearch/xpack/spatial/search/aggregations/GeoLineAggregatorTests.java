@@ -128,7 +128,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         Map<String, InternalGeoLine> lines = new HashMap<>(1);
         String groupOrd = "0";
         int numPoints = size; // same as size
-        boolean complete = false; // when the number of points are equal to the size, it is still marked as complete=false
+        boolean complete = true; // when the number of points are equal to the size, complete == true
         long[] points = new long[numPoints];
         double[] sortValues = new double[numPoints];
         for (int i = 0; i < numPoints; i++) {
@@ -139,29 +139,11 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             points[i] = lonLat;
             sortValues[i] = i;
         }
-        int lineSize = Math.min(numPoints, size);
-        // re-sort line to be ascending
-        long[] linePoints = Arrays.copyOf(points, lineSize);
-        double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
-        new PathArraySorter(linePoints, lineSorts, SortOrder.ASC).sort();
 
         lines.put(groupOrd, new InternalGeoLine("_name",
-            linePoints, lineSorts, null, complete, true, SortOrder.ASC, size));
-
-        for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
-            int idx1 = randomIntBetween(0, numPoints - 1);
-            int idx2 = randomIntBetween(0, numPoints - 1);
-            final long tmpPoint = points[idx1];
-            points[idx1] = points[idx2];
-            points[idx2] = tmpPoint;
-            final double tmpSortValue = sortValues[idx1];
-            sortValues[idx1] = sortValues[idx2];
-            sortValues[idx2] = tmpSortValue;
-        }
-
+            points, sortValues, null, complete, true, SortOrder.ASC, size));
 
         testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
-            int group = 0;
             for (int i = 0; i < points.length; i++) {
                 int x = (int) (points[i] >> 32);
                 int y = (int) points[i];
@@ -169,7 +151,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                         GeoEncodingUtils.decodeLatitude(y),
                         GeoEncodingUtils.decodeLongitude(x)),
                     new SortedNumericDocValuesField("sort_field", NumericUtils.doubleToSortableLong(sortValues[i])),
-                    new SortedDocValuesField("group_id", new BytesRef(String.valueOf(group)))));
+                    new SortedDocValuesField("group_id", new BytesRef(groupOrd))));
             }
         }, terms -> {
             for (Terms.Bucket bucket : terms.getBuckets()) {
@@ -228,7 +210,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         Map<Integer, double[]> indexedSortValues = new HashMap<>(numGroups);
         for (int groupOrd = 0; groupOrd < numGroups; groupOrd++) {
             int numPoints = randomIntBetween(2, 2 * size);
-            boolean complete = numPoints < size;
+            boolean complete = numPoints <= size;
             long[] points = new long[numPoints];
             double[] sortValues = new double[numPoints];
             for (int i = 0; i < numPoints; i++) {

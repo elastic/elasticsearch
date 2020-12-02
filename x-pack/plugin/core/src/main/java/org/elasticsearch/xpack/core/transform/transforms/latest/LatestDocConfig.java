@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class LatestDocConfig implements Writeable, ToXContentObject {
@@ -74,11 +76,22 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
         return sort;
     }
 
-    public boolean isValid() {
-        return uniqueKey.stream().noneMatch(Strings::isNullOrEmpty);
-    }
-
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (uniqueKey.isEmpty()) {
+            validationException = addValidationError("latest_doc.unique_key must be non-empty", validationException);
+        } else {
+            for (int i = 0; i < uniqueKey.size(); ++i) {
+                if (Strings.isNullOrEmpty(uniqueKey.get(i))) {
+                    validationException =
+                        addValidationError("latest_doc.unique_key[" + i + "] element must be non-empty", validationException);
+                }
+            }
+        }
+
+        if (sort.size() != 1) {
+            validationException = addValidationError("latest_doc.sort must have exactly one element", validationException);
+        }
+
         return validationException;
     }
 
@@ -99,7 +112,7 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
         for (String field : uniqueKey) {
             builder.startObject();
             builder.startObject(field);
-            builder.startObject("terms");
+            builder.startObject(TermsAggregationBuilder.NAME);
             builder.field("field", field);
             builder.endObject();
             builder.endObject();

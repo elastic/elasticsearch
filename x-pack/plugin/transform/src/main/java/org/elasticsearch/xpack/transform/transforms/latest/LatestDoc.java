@@ -65,7 +65,7 @@ public class LatestDoc implements Function {
     public static final int TEST_QUERY_PAGE_SIZE = 50;
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_transform";
-    private static final String LATEST_AGGREGATION_NAME = "_latest";
+    private static final String TOP_HITS_AGGREGATION_NAME = "_top_hits";
     private static final Logger logger = LogManager.getLogger(LatestDoc.class);
 
     private final LatestDocConfig config;
@@ -74,15 +74,12 @@ public class LatestDoc implements Function {
     private final CompositeAggregationBuilder cachedCompositeAggregation;
 
     public LatestDoc(LatestDocConfig config) {
-        if (config.getSort().size() != 1) {
-            throw new ElasticsearchException("sort must specify exactly one sorting field");
-        }
         this.config = config;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(LatestDocConfig config) {
-        assert config.getSort().size() >= 1 && config.getSort().get(0) instanceof FieldSortBuilder;
+        assert config.getSort().size() == 1 && config.getSort().get(0) instanceof FieldSortBuilder;
 
         CompositeAggregationBuilder compositeAggregation;
         try (XContentBuilder builder = jsonBuilder()) {
@@ -96,7 +93,10 @@ public class LatestDoc implements Function {
             throw new RuntimeException(
                 TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "latest_doc"), e);
         }
-        TopHitsAggregationBuilder topHitsAgg = AggregationBuilders.topHits(LATEST_AGGREGATION_NAME).size(1).sort(config.getSort().get(0));
+        TopHitsAggregationBuilder topHitsAgg =
+            AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
+                .size(1)  // we are only interested in the top-1
+                .sorts(config.getSort());
         compositeAggregation.subAggregation(topHitsAgg);
         return compositeAggregation;
     }
@@ -134,7 +134,7 @@ public class LatestDoc implements Function {
         return compositeAgg.getBuckets().stream()
             .map(bucket -> {
                 transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
-                TopHits topHits = bucket.getAggregations().get(LATEST_AGGREGATION_NAME);
+                TopHits topHits = bucket.getAggregations().get(TOP_HITS_AGGREGATION_NAME);
                 assert topHits.getHits().getHits().length == 1;
                 Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 

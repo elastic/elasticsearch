@@ -33,13 +33,13 @@ import java.io.IOException;
  */
 public class DocCountProvider {
 
-    public static final int defaultValue = DocCountFieldMapper.DocCountFieldType.defaultValue;
+    public static final int DEFAULT_VALUE = DocCountFieldMapper.DocCountFieldType.DEFAULT_VALUE;
 
     private PostingsEnum docCountPostings;
 
     public int getDocCount(int doc) throws IOException {
         if (docCountPostings == null) {
-            return defaultValue;
+            return DEFAULT_VALUE;
         }
         if (docCountPostings.docID() < doc) {
             docCountPostings.advance(doc);
@@ -47,7 +47,7 @@ public class DocCountProvider {
         if (docCountPostings.docID() == doc) {
             return docCountPostings.freq();
         } else {
-            return defaultValue;
+            return DEFAULT_VALUE;
         }
     }
 

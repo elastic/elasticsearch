@@ -39,7 +39,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         public static final DocCountFieldType INSTANCE = new DocCountFieldType();
 
-        public static final int defaultValue = 1;
+        public static final int DEFAULT_VALUE = 1;
 
         public DocCountFieldType() {
             super(NAME, false, false, false, TextSearchInfo.NONE,  Collections.emptyMap());
@@ -71,11 +71,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, defaultValue) {
+            return new SourceValueFetcher(name(), context, DEFAULT_VALUE) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if ("".equals(value)) {
-                        return defaultValue;
+                        return DEFAULT_VALUE;
                     } else {
                         return NumberFieldMapper.NumberType.INTEGER.parse(value, false);
                     }

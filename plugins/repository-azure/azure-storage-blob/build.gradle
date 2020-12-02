@@ -1,0 +1,32 @@
+import org.elasticsearch.gradle.JavaClassPublicifier;
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+configurations {
+  originalJar {
+    transitive = false
+  }
+}
+
+dependencies {
+  originalJar "com.azure:azure-storage-blob:${project.parent.versions.azure}"
+  implementation "com.azure:azure-storage-blob:${project.parent.versions.azure}"
+}
+
+String blobsServiceClass = 'com/azure/storage/blob/implementation/BlobsImpl$BlobsService.class'
+
+tasks.create('extractBlobsServiceClass', Copy).configure {
+  from({ zipTree(configurations.originalJar.singleFile) }) {
+    include blobsServiceClass
+  }
+  into project.file('build/original')
+}
+
+tasks.create('makeBlobsServicePublic', JavaClassPublicifier).configure {
+  classFile = blobsServiceClass
+  inputDir = project.layout.buildDirectory.dir('original')
+  outputDir = project.layout.buildDirectory.dir('modified')
+}
+
+sourceSets.main.java.compiledBy(tasks.named('makeBlobsServicePublic')) { myTask -> myTask.outputDir }

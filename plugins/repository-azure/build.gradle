@@ -47,7 +47,7 @@ versions << [
 ]
 
 dependencies {
-  api "com.azure:azure-storage-blob:${versions.azure}"
+  api project(path: 'azure-storage-blob', configuration: 'shadow')
   api "com.azure:azure-storage-blob-batch:12.6.0"
   api "com.azure:azure-storage-common:${versions.azure}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
@@ -140,12 +140,6 @@ tasks.named("thirdPartyAudit").configure {
     'kotlin.reflect.KClass',
     'kotlin.reflect.KDeclarationContainer',
     'kotlin.sequences.Sequence',
-
-    // from com.azure.storage.blob.changefeed
-    'com.azure.storage.internal.avro.implementation.AvroObject',
-    'com.azure.storage.internal.avro.implementation.AvroReader',
-    'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
-    'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
 
     // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
     'com.google.protobuf.ExtensionRegistry',
@@ -305,7 +299,6 @@ tasks.named("thirdPartyAudit").configure {
     'reactor.core.publisher.UnsafeSupport'
   )
 }
-
 boolean useFixture = false
 
 def azureAddress = {

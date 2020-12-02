@@ -20,7 +20,6 @@
 grant {
   // azure client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
-  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.azure.storage.blob.implementation";
   // io.netty.util.concurrent.GlobalEventExecutor.startThread
   permission java.lang.RuntimePermission "setContextClassLoader";
   // Used by jackson bean deserialization

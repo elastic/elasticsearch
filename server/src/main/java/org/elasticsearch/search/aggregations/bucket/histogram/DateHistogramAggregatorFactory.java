@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -86,7 +85,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     }
 
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -101,7 +99,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             extendedBounds,
             hardBounds,
             config,
-            searchContext,
+            context,
             parent,
             cardinality,
             metadata
@@ -109,10 +107,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
-            config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+            config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

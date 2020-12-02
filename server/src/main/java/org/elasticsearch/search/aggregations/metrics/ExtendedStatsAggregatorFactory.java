@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -61,19 +60,16 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new ExtendedStatsAggregator(name, config, searchContext, parent, sigma, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new ExtendedStatsAggregator(name, config, context, parent, sigma, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return aggregatorSupplier.build(name, config, searchContext, parent, sigma, metadata);
+        return aggregatorSupplier.build(name, config, context, parent, sigma, metadata);
     }
 }

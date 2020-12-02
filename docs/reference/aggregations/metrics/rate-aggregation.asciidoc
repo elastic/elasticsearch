@@ -261,6 +261,11 @@ convert the bucket size into the rate. By default the interval of the `date_hist
 `"rate": "quarter"`:: compatible with only with `month`, `quarter` and `year` calendar intervals
 `"rate": "year"`:: compatible with only with `month`, `quarter` and `year` calendar intervals
 
+There is also an additional limitations if the date histogram is not a direct parent of the rate histogram. In this case both rate interval
+and histogram interval have to be in the same group: [`second`, ` minute`, `hour`, `day`, `week`] or [`month`, `quarter`, `year`]. For
+example, if the date histogram is `month` based, only rate intervals of `month`, `quarter` or `year` are supported. If the date histogram
+is `day` based, only  `second`, ` minute`, `hour`, `day`, and `week` rate intervals are supported.
+
 ==== Script
 
 The `rate` aggregation also supports scripting. For example, if we need to adjust out prices before calculating rates, we could use

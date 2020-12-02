@@ -720,6 +720,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return (T) customs.get(type);
     }
 
+    @SuppressWarnings("unchecked")
+    public <T extends Custom> T custom(String type, T defaultValue) {
+        return (T) customs.getOrDefault(type, defaultValue);
+    }
 
     /**
      * Gets the total number of shards from all indices, including replicas and

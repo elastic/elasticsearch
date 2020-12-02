@@ -66,6 +66,13 @@ or
 ./gradlew ':x-pack:plugin:eql:qa:correctness:javaRestTest' --tests "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT.test {<queryNo>}" -Dtests.eql_correctness_debug=true
 ```
 
+#### Preserve data across node restarts
+If you'd like to preserve the restored index and avoid the network download and delay of restoring them on every run of the node,
+you can set the `eql.test.preserve.data` system property, e.g.:
+```shell script
+./gradlew :x-pack:plugin:eql:qa:correctness:javaRestTest -Deql.test.preserve.data=true
+```
+
 ### Run an ES node manually and run the tests against it
 
 If one wants to run an ES node manually (most probably to be able to debug the server), needs to run the following:
@@ -88,7 +95,8 @@ Once the data is loaded, a specific query can be run against the running ES node
 
 #### Preserve data across node restarts
 If you'd like to preserve the restored index and avoid the network download and delay of restoring them on every run of the node,
-you can set the `eql.test.preserve.data` system property, e.g.:
+you can start the node with `--preserve-data`:
+
 ```shell script
-./gradlew :x-pack:plugin:eql:qa:correctness:javaRestTest -Deql.test.preserve.data=true
+./gradlew :x-pack:plugin:eql:qa:correctness:runEqlCorrectnessNode --debug-jvm --preserve-data
 ```

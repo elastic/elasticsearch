@@ -23,15 +23,15 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.function.Function;
 
-public class FieldsLookup {
+public class StoredFieldsLookup {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
 
-    FieldsLookup(Function<String, MappedFieldType> fieldTypeLookup) {
+    StoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup) {
         this.fieldTypeLookup = fieldTypeLookup;
     }
 
-    LeafFieldsLookup getLeafFieldsLookup(LeafReaderContext context) {
-        return new LeafFieldsLookup(fieldTypeLookup, context.reader());
+    LeafStoredFieldsLookup getLeafFieldsLookup(LeafReaderContext context) {
+        return new LeafStoredFieldsLookup(fieldTypeLookup, context.reader());
     }
 }

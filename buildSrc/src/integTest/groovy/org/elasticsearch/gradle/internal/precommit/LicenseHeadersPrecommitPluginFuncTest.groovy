@@ -44,7 +44,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
         assertOutputContains(result.output, "> License header problems were found! Full details: ./build/reports/licenseHeaders/rat.xml")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnknownLicensed.java")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnapprovedLicensed.java")
-        normalizedOutput(result.output).contains("./src/main/java/org/acme/ApacheLicensed.java") == false
+        normalized(result.output).contains("./src/main/java/org/acme/ApacheLicensed.java") == false
     }
 
     def "can filter source files"() {
@@ -137,7 +137,8 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
  """
     }
 
-    private static String packageString(File sourceFile) {
-        (sourceFile.getPath().substring(sourceFile.getPath().indexOf("src/main/java")) - "src/main/java/" - ("/" + sourceFile.getName())).replaceAll("/", ".")
+    private String packageString(File sourceFile) {
+        String normalizedPath = normalized(sourceFile.getPath())
+        (normalizedPath.substring(normalizedPath.indexOf("src/main/java")) - "src/main/java/" - ("/" + sourceFile.getName())).replaceAll("/", ".")
     }
 }

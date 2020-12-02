@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -66,10 +65,8 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException{
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         if (cardinality != CardinalityUpperBound.ONE) {
             throw new IllegalArgumentException(
                 "["
@@ -78,14 +75,12 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
             );
         }
         return aggregatorSupplier
-            .build(name, factories, numBuckets, shardSize, initialBuffer, config, searchContext, parent, metadata);
+            .build(name, factories, numBuckets, shardSize, initialBuffer, config, context, parent, metadata);
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, config,
-            searchContext, parent, metadata);
+            context, parent, metadata);
     }
 }

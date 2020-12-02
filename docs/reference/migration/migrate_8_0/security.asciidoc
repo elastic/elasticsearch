@@ -32,6 +32,7 @@ xpack.security.authc.realms.kerberos.kerb1:
   keytab.path: es.keytab
   remove_realm_name: false
 --------------------------------------------------
+====
 
 [[audit-logs-are-rolled-over-and-archived-by-size]]
 .Audit logs are rolled-over and archived by size.

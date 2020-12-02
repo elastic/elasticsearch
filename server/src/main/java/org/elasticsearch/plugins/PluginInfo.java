@@ -50,8 +50,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_6_8_14;
-
     private final String name;
     private final String description;
     private final String version;
@@ -125,8 +123,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             in.readBoolean();
         }
-        // We don't serialise `isLicensed`
-        isLicensed = false;
+        if (isLicensedPluginsSupported(in.getVersion())) {
+            isLicensed = in.readBoolean();
+        } else {
+            isLicensed = false;
+        }
     }
 
     @Override
@@ -152,7 +153,29 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             out.writeBoolean(false);
         }
-        // We don't serialise `isLicensed`
+        if (isLicensedPluginsSupported(out.getVersion())) {
+            out.writeBoolean(isLicensed);
+        }
+    }
+
+    // We have to create our own Version objects for 7.x because they aren't defined in the Version class.
+    private static final Version V_7_0_0 = Version.fromId(7_00_00_99);
+    private static final Version V_7_11_0 = Version.fromId(7_11_00_99);
+
+    /**
+     * Checks whether licensed plugins are supported in the supplied version. Licensed plugins were
+     * introduced late in the 6.8 and 7.x lifecycle, so it is not possible to simply check whether
+     * the supplied version is higher than a specific version. Rather, the version could fall in
+     * one of two possible ranges.
+     * @param version the version to check
+     * @return whether licensed plugins are supported in the version
+     */
+    private static boolean isLicensedPluginsSupported(Version version) {
+        if (version.onOrAfter(Version.V_6_8_14) && version.before(V_7_0_0)) {
+            return true;
+        }
+
+        return version.onOrAfter(V_7_11_0);
     }
 
     /**
@@ -223,7 +246,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         boolean isLicensed = false;
-        if (esVersion.onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
+        if (isLicensedPluginsSupported(esVersion)) {
             isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
         }
 
@@ -323,9 +346,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether a license must be accepted before this plugin can be installed.
-     *
-     * @return {@code true} if a license must be accepted.
+     * Whether this plugin is subject to the Elastic License.
      */
     public boolean isLicensed() {
         return isLicensed;
@@ -343,6 +364,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("classname", classname);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            builder.field("licensed", isLicensed);
         }
         builder.endObject();
 
@@ -382,6 +404,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix).append("Elasticsearch Version: ").append(elasticsearchVersion).append("\n")
             .append(prefix).append("Java Version: ").append(javaVersion).append("\n")
             .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
+            .append(prefix).append("Licensed: ").append(isLicensed).append("\n")
             .append(prefix).append("Extended Plugins: ").append(extendedPlugins).append("\n")
             .append(prefix).append(" * Classname: ").append(classname);
         return information.toString();

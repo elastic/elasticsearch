@@ -46,7 +46,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
 
   - match:

@@ -2336,6 +2336,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65699")
     public void testUpgradeJobSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 

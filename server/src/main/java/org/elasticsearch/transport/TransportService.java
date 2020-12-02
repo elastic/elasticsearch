@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -74,22 +73,6 @@ public class TransportService extends AbstractLifecycleComponent
         implements ReportingService<TransportInfo>, TransportMessageListener, TransportConnectionListener {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
-
-    private static final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
-    private static final boolean PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS;
-
-    static {
-        final String value = System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
-        if (value == null) {
-            PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS = false;
-        } else if (Boolean.parseBoolean(value)) {
-            PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS = true;
-        } else {
-            throw new IllegalArgumentException("invalid value [" + value + "] for system property ["
-                    + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "]");
-        }
-    }
-
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
@@ -202,13 +185,6 @@ public class TransportService extends AbstractLifecycleComponent
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
                 new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)));
-
-        if (PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS) {
-            logger.warn("transport handshakes from incompatible builds are unsafely permitted on this node; remove system property [" +
-                    PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] to resolve this warning");
-            DeprecationLogger.getLogger(TransportService.class).deprecate("permit_handshake_from_incompatible_builds",
-                "system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] is deprecated and should be removed");
-        }
     }
 
     public RemoteClusterService getRemoteClusterService() {
@@ -528,16 +504,9 @@ public class TransportService extends AbstractLifecycleComponent
             }
 
             if (isIncompatibleBuild(version, buildHash)) {
-                if (PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS) {
-                    logger.warn("remote node [{}] is build [{}] of version [{}] but this node is build [{}] of version [{}] " +
-                                    "which may not be compatible; remove system property [{}] to resolve this warning",
-                            discoveryNode, buildHash, version, Build.CURRENT.hash(), Version.CURRENT,
-                            PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
-                } else {
-                    throw new IllegalArgumentException("remote node [" + discoveryNode + "] is build [" + buildHash +
-                            "] of version [" + version + "] but this node is build [" + Build.CURRENT.hash() +
-                            "] of version [" + Version.CURRENT + "] which has an incompatible wire format");
-                }
+                throw new IllegalArgumentException("remote node [" + discoveryNode + "] is build [" + buildHash +
+                        "] of version [" + version + "] but this node is build [" + Build.CURRENT.hash() +
+                        "] of version [" + Version.CURRENT + "] which has an incompatible wire format");
             }
 
             clusterName = new ClusterName(in);
@@ -1368,6 +1337,15 @@ public class TransportService extends AbstractLifecycleComponent
                 listener.onResponseReceived(requestId, holder);
             }
         }
+    }
+
+    static {
+        // Ensure that this property, introduced and immediately deprecated in 7.11, is not used in 8.x
+        final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
+        if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
+            throw new IllegalArgumentException("system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] must not be set");
+        }
+        assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // we can remove this whole block in v9
     }
 
 }

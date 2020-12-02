@@ -68,7 +68,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         }
 
         if (EnrichPolicy.RANGE_MATCH_TYPES.contains(policyType)) {
-            //range match uses the same processor as simple match
+            // range match uses the same processor as simple match
             policyType = EnrichPolicy.MATCH_TYPE;
         }
 

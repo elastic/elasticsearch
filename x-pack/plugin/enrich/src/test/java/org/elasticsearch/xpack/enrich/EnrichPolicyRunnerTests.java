@@ -279,7 +279,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         IndexResponse indexRequest = client().index(
             new IndexRequest().index(sourceIndex)
                 .id("id")
-                .source("{" + "\"range\":" + "{"+"\"gt\":1,"+"\"lt\":10"+"}," + "\"zipcode\":90210" + "}", XContentType.JSON)
+                .source("{" + "\"range\":" + "{" + "\"gt\":1," + "\"lt\":10" + "}," + "\"zipcode\":90210" + "}", XContentType.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
@@ -1242,7 +1242,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.fields.field2", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.fields.field1", enrichFields, null);
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(sourceIndex),
+            "data.fields.field1",
+            enrichFields,
+            null
+        );
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();

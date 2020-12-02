@@ -73,7 +73,8 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             List.of(SOURCE_INDEX_NAME),
             MATCH_FIELD,
             List.of(DECORATE_FIELDS),
-                null);
+            null
+        );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
@@ -155,14 +156,17 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
     }
 
     public void testIngestDataWithGeoMatchProcessor() {
-        testIngestData(EnrichPolicy.GEO_MATCH_TYPE,
+        testIngestData(
+            EnrichPolicy.GEO_MATCH_TYPE,
             "POLYGON(("
-            + "-122.08592534065245 37.38501746624134,"
-            + "-122.08193421363829 37.38501746624134,"
-            + "-122.08193421363829 37.3879329075567,"
-            + "-122.08592534065245 37.3879329075567,"
-            + "-122.08592534065245 37.38501746624134))",
-            "37.386444, -122.083863", "0.0, -122.083863");
+                + "-122.08592534065245 37.38501746624134,"
+                + "-122.08193421363829 37.38501746624134,"
+                + "-122.08193421363829 37.3879329075567,"
+                + "-122.08592534065245 37.3879329075567,"
+                + "-122.08592534065245 37.38501746624134))",
+            "37.386444, -122.083863",
+            "0.0, -122.083863"
+        );
     }
 
     public void testIngestDataWithDateRangeMatchProcessorWithFormat() {
@@ -171,14 +175,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         // create enrich index
         {
             IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX_NAME);
-            indexRequest.source(
-                Map.of(
-                    matchField,
-                    Map.of("gt", "20200101", "lt", "20201231"),
-                    "zipcode",
-                    "94040"
-                )
-            );
+            indexRequest.source(Map.of(matchField, Map.of("gt", "20200101", "lt", "20201231"), "zipcode", "94040"));
             client().index(indexRequest).actionGet();
             client().admin().indices().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();
         }
@@ -190,7 +187,8 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             List.of(SOURCE_INDEX_NAME),
             matchField,
             List.of(enrichField),
-            "basic_date");
+            "basic_date"
+        );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
@@ -242,7 +240,14 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             client().index(indexRequest).actionGet();
             client().admin().indices().refresh(new RefreshRequest("source-" + i)).actionGet();
 
-            EnrichPolicy enrichPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source-" + i), "key", List.of("value"), null);
+            EnrichPolicy enrichPolicy = new EnrichPolicy(
+                EnrichPolicy.MATCH_TYPE,
+                null,
+                List.of("source-" + i),
+                "key",
+                List.of("value"),
+                null
+            );
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
@@ -285,7 +290,14 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             client().admin().indices().refresh(new RefreshRequest(sourceIndexName)).actionGet();
         }
 
-        EnrichPolicy enrichPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexName), "key", List.of("value"), null);
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(sourceIndexName),
+            "key",
+            List.of("value"),
+            null
+        );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         ExecuteEnrichPolicyAction.Response executeResponse = client().execute(
@@ -340,7 +352,8 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             List.of(SOURCE_INDEX_NAME),
             MATCH_FIELD,
             List.of(DECORATE_FIELDS),
-                null);
+            null
+        );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
@@ -394,26 +407,13 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         // create enrich index
         {
             IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX_NAME);
-            indexRequest.source(
-                Map.of(
-                    matchField,
-                    enrichValue,
-                    "zipcode",
-                    "94040"
-                )
-            );
+            indexRequest.source(Map.of(matchField, enrichValue, "zipcode", "94040"));
             client().index(indexRequest).actionGet();
             client().admin().indices().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();
         }
 
         String policyName = "my-policy";
-        EnrichPolicy enrichPolicy = new EnrichPolicy(
-            type,
-            null,
-            List.of(SOURCE_INDEX_NAME),
-            matchField,
-            List.of(enrichField),
-            null);
+        EnrichPolicy enrichPolicy = new EnrichPolicy(type, null, List.of(SOURCE_INDEX_NAME), matchField, List.of(enrichField), null);
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();

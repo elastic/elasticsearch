@@ -73,8 +73,12 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         this.translogSizeInBytes += translogStats.translogSizeInBytes;
         this.uncommittedOperations += translogStats.uncommittedOperations;
         this.uncommittedSizeInBytes += translogStats.uncommittedSizeInBytes;
-        this.earliestLastModifiedAge =
-            Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
+        if (this.earliestLastModifiedAge == 0) {
+            this.earliestLastModifiedAge = translogStats.earliestLastModifiedAge;
+        } else {
+            this.earliestLastModifiedAge =
+                Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
+        }
     }
 
     public long getTranslogSizeInBytes() {

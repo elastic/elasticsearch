@@ -2828,6 +2828,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             getModelSnapshotsResponse2.snapshots().get(0).getDescription());
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65699")
     public void testUpgradeJobSnapshot() throws Exception {
         String jobId = "test-upgrade-model-snapshot";
         String snapshotId = "1541587919";

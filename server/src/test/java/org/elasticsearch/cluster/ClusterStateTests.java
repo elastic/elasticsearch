@@ -245,7 +245,10 @@ public class ClusterStateTests extends ESTestCase {
             "            \"time\" : 1\n" +
             "          }\n" +
             "        },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -429,7 +432,10 @@ public class ClusterStateTests extends ESTestCase {
             "            \"time\" : 1\n" +
             "          }\n" +
             "        },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -622,7 +628,10 @@ public class ClusterStateTests extends ESTestCase {
             "            \"time\" : 1\n" +
             "          }\n" +
             "        },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -749,7 +758,10 @@ public class ClusterStateTests extends ESTestCase {
             "          \"0\" : [ ]\n" +
             "        },\n" +
             "        \"rollover_info\" : { },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +

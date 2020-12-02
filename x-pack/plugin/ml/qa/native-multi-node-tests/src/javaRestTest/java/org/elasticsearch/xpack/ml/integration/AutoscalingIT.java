@@ -7,19 +7,11 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.reindex.ReindexPlugin;
-import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
-import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
@@ -29,16 +21,11 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
-import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
-import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
@@ -56,38 +43,6 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     private static final long BASIC_REQUIREMENT_MB = 10;
     private static final long NATIVE_PROCESS_OVERHEAD_MB = 30;
     private static final long BASELINE_OVERHEAD_MB = BASIC_REQUIREMENT_MB + NATIVE_PROCESS_OVERHEAD_MB;
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWritableEntries() {
-        List<NamedWriteableRegistry.Entry> entries = super.getNamedWritableEntries();
-        entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new));
-        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class,
-            AutoscalingMetadata.NAME,
-            AutoscalingMetadata.AutoscalingMetadataDiff::new));
-        entries.add(new NamedWriteableRegistry.Entry(
-            AutoscalingDeciderResult.Reason.class,
-            MlScalingReason.NAME,
-            MlScalingReason::new
-        ));
-        return entries;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-            LocalStateMachineLearning.class,
-            Netty4Plugin.class,
-            ReindexPlugin.class,
-            Autoscaling.class,
-            // The monitoring plugin requires script and gsub processors to be loaded
-            IngestCommonPlugin.class,
-            // The monitoring plugin script processor references painless. Include this for script compilation.
-            // This is to reduce log spam
-            MockPainlessScriptEngine.TestPlugin.class,
-            // ILM is required for .ml-state template index settings
-            IndexLifecycle.class,
-            DataStreamsPlugin.class);
-    }
 
     @Override
     protected Settings externalClusterClientSettings() {

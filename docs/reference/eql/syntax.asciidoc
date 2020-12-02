@@ -206,11 +206,11 @@ and  or  not
 
 `and`::
 Returns `true` only if the condition to the left and right _both_ return `true`.
-Otherwise returns `false.
+Otherwise returns `false`.
 
 `or`::
 Returns `true` if one of the conditions to the left or right `true`.
-Otherwise returns `false.
+Otherwise returns `false`.
 
 `not`::
 Returns `true` if the condition to the right is `false`.

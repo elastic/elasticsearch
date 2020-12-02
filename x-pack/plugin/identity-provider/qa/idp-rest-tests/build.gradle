@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
@@ -45,3 +46,9 @@ testClusters.all {
   user username: "idp_admin", password: "idp-password", role: "idp_admin"
   user username: "idp_user", password: "idp-password", role: "idp_user"
 }
+
+// We don't support the IDP in FIPS-140 mode, so no need to run java rest tests
+tasks.named("javaRestTest").configure {
+  onlyIf { BuildParams.inFipsJvm == false }
+}
+

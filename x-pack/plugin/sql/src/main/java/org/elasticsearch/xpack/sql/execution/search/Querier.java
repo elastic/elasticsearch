@@ -191,6 +191,7 @@ public class Querier {
         private final AtomicInteger counter = new AtomicInteger();
         private volatile Schema schema;
 
+        // Note: when updating this value propagate it to the limitations.asciidoc page as well.
         private static final int MAXIMUM_SIZE = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
         private final boolean noLimit;
 
@@ -225,37 +226,39 @@ public class Querier {
                 }
             }
 
-            // 1. consume all pages received
-            if (consumeRowSet(page.rowSet())) {
-
-                Cursor cursor = page.next();
-                // 1a. trigger a next call if there's still data
-                if (cursor != Cursor.EMPTY) {
-                    // trigger a next call
-                    planExecutor.nextPage(cfg, cursor, this);
-                    // make sure to bail out afterwards as we'll get called by a different thread
-                    return;
-                }
-
-                // no more data available, the last thread sends the response
-                // 2. send the in-memory view to the client
-                sendResponse();
+            try {
+                // 1. consume all pages received
+                consumeRowSet(page.rowSet());
+            } catch (SqlIllegalArgumentException siae) {
+                onFailure(siae);
+                return;
             }
+
+            Cursor cursor = page.next();
+            // 1a. trigger a next call if there's still data
+            if (cursor != Cursor.EMPTY) {
+                // trigger a next call
+                planExecutor.nextPage(cfg, cursor, this);
+                // make sure to bail out afterwards as we'll get called by a different thread
+                return;
+            }
+
+            // no more data available, the last thread sends the response
+            // 2. send the in-memory view to the client
+            sendResponse();
         }
 
-        private boolean consumeRowSet(RowSet rowSet) {
+        private void consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
             for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
                 List<Object> row = new ArrayList<>(rrs.columnCount());
                 rrs.forEachResultColumn(row::add);
                 // if the queue overflows and no limit was specified, throw an error
                 if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
-                    onFailure(new SqlIllegalArgumentException(
-                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
-                    return false;
+                    throw new SqlIllegalArgumentException(
+                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE);
                 }
             }
-            return true;
         }
 
         private void sendResponse() {

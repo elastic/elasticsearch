@@ -78,6 +78,7 @@ public class StoreTrustConfigTests extends ESTestCase {
     }
 
     public void testIncorrectPasswordFailsWithMeaningfulMessage() throws Exception {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca1/ca.p12");
         final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], "PKCS12", DEFAULT_ALGORITHM);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));

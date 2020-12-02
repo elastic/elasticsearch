@@ -227,8 +227,8 @@ public class SliceBuilderTests extends ESTestCase {
             }
 
             // numSlices > numShards
-            int numSlices = 100;//randomIntBetween(10, 100);
-            int numShards = 10;//randomIntBetween(1, 9);
+            int numSlices = randomIntBetween(10, 100);
+            int numShards = randomIntBetween(1, 9);
             Map<Integer, AtomicInteger> numSliceMap = new HashMap<>();
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {

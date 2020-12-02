@@ -1208,8 +1208,8 @@ public abstract class Engine implements Closeable {
         protected abstract Searcher acquireSearcherInternal(String source);
 
         /**
-         * Returns a commit id associated with this searcher if it's opened from an index commit; otherwise, return null.
-         * Two searcher with the same commit id must have identical content at the Lucene document level.
+         * Returns a commit id associated with this searcher if it's opened from an index commit; otherwise, return null. Two searchers
+         * with the same commit id must have identical Lucene level indices (i.e., identical segments with same docs using same doc-ids).
          */
         @Nullable
         public String getCommitId() {

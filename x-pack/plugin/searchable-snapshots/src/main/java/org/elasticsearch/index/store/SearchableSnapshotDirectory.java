@@ -328,7 +328,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     /**
-     * Indicate if the cache should be cleared for this directory
+     * Flag the current directory so that cache files associated to it will be evicted when the directory is closed.
      */
     public void clearCacheOnClose() {
         final boolean value = clearCacheOnClose.getAndSet(true);

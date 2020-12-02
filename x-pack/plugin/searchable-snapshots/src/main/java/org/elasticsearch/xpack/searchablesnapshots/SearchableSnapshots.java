@@ -230,7 +230,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public void onIndexModule(IndexModule indexModule) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
-            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener(cacheService.get()));
+            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener());
             indexModule.addIndexEventListener(failShardsListener.get());
         }
     }

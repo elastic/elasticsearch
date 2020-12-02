@@ -388,7 +388,7 @@ public class PersistentCache implements Closeable {
             assert getDocuments() == null : "this method should only be used after loading persistent cache";
             final Term term = buildTerm(cacheFile);
             logger.debug("updating document with term [{}]", term);
-            indexWriter.updateDocument(term, buildDocument(cacheFile, cacheRanges));
+            indexWriter.updateDocument(term, buildDocument(nodePath, cacheFile, cacheRanges));
         }
 
         void updateCacheFile(String cacheFileId, Document cacheFileDocument) throws IOException {
@@ -514,10 +514,11 @@ public class PersistentCache implements Closeable {
         return new Term(CACHE_ID_FIELD, cacheFileUuid);
     }
 
-    private static Document buildDocument(CacheFile cacheFile, SortedSet<Tuple<Long, Long>> cacheRanges) throws IOException {
+    private static Document buildDocument(NodeEnvironment.NodePath nodePath, CacheFile cacheFile, SortedSet<Tuple<Long, Long>> cacheRanges)
+        throws IOException {
         final Document document = new Document();
         document.add(new StringField(CACHE_ID_FIELD, buildId(cacheFile), Field.Store.YES));
-        document.add(new StringField(CACHE_PATH_FIELD, cacheFile.getFile().toString(), Field.Store.YES));
+        document.add(new StringField(CACHE_PATH_FIELD, nodePath.indicesPath.relativize(cacheFile.getFile()).toString(), Field.Store.YES));
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeVInt(cacheRanges.size());
@@ -587,8 +588,10 @@ public class PersistentCache implements Closeable {
                 assert range.v1() < range.v2() : range;
                 assert range.v2() <= getFileLength(document);
                 assert previous == null || previous.v2() < range.v1();
+
                 final boolean added = cacheRanges.add(range);
                 assert added : range + " already exist in " + cacheRanges;
+                previous = range;
             }
         }
         return unmodifiableSortedSet(cacheRanges);

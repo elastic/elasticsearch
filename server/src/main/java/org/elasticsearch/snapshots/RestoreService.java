@@ -271,30 +271,17 @@ public class RestoreService implements ClusterStateApplier {
                     metadataBuilder = Metadata.builder();
                 }
 
-                // set up feature state indices
-                Map<String, List<String>> snapshotFeatureStates = snapshotInfo.featureStates().stream()
-                    .collect(Collectors.toMap(SnapshotFeatureInfo::getPluginName, SnapshotFeatureInfo::getIndices));
+                final Map<String, List<String>> featureStatesToRestore = getFeatureStatesToRestore(request, snapshotInfo, snapshot);
 
-                Map<String, List<String>> featureStatesToRestore = new HashMap<>(snapshotFeatureStates);
-                if (request.featureStates() != null) {
-                    final Set<String> requestedStates = Set.of(request.featureStates());
-                    if (snapshotFeatureStates.keySet().containsAll(requestedStates) == false) {
-                        Set<String> nonExistingRequestedStates = new HashSet<>(requestedStates);
-                        nonExistingRequestedStates.removeAll(snapshotFeatureStates.keySet());
-                        throw new SnapshotRestoreException(snapshot, "requested feature states [" + nonExistingRequestedStates +
-                            "] are not present in snapshot");
-                    }
-                    featureStatesToRestore.keySet().retainAll(requestedStates);
-                } else if (request.includeGlobalState() == false) {
-                    featureStatesToRestore = new HashMap<>();
-                }
+                final Set<String> featureStateIndices = featureStatesToRestore.values().stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
 
-                List<String> requestedIndicesIncludingSystem = Stream.concat(
-                    indicesInSnapshot.stream(), featureStatesToRestore.values().stream().flatMap(Collection::stream))
+                final List<String> requestedIndicesIncludingSystem = Stream.concat(indicesInSnapshot.stream(), featureStateIndices.stream())
                     .distinct()
                     .collect(Collectors.toList());
 
-                Set<Index> systemIndicesToDelete = new HashSet<>();
+                final Set<Index> systemIndicesToDelete = new HashSet<>();
                 final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(requestedIndicesIncludingSystem);
                 for (IndexId indexId : indexIdsInSnapshot) {
                     IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
@@ -308,8 +295,8 @@ public class RestoreService implements ClusterStateApplier {
 
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name
-                // TODO: don't apply to system indices
-                final Map<String, String> indices = renamedIndices(request, requestedIndicesIncludingSystem, dataStreamIndices);
+                final Map<String, String> indices = renamedIndices(request, requestedIndicesIncludingSystem, dataStreamIndices,
+                    featureStateIndices);
 
                 // Now we can start the actual restore process by adding shards to be recovered in the cluster state
                 // and updating cluster metadata (global and index) as needed
@@ -650,6 +637,27 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
+    private Map<String, List<String>> getFeatureStatesToRestore(RestoreSnapshotRequest request, SnapshotInfo snapshotInfo,
+                                                                Snapshot snapshot) {
+        final Map<String, List<String>> snapshotFeatureStates = snapshotInfo.featureStates().stream()
+            .collect(Collectors.toMap(SnapshotFeatureInfo::getPluginName, SnapshotFeatureInfo::getIndices));
+
+        final Map<String, List<String>> featureStatesToRestore = new HashMap<>(snapshotFeatureStates);
+        if (request.featureStates() != null) {
+            final Set<String> requestedStates = Set.of(request.featureStates());
+            if (snapshotFeatureStates.keySet().containsAll(requestedStates) == false) {
+                Set<String> nonExistingRequestedStates = new HashSet<>(requestedStates);
+                nonExistingRequestedStates.removeAll(snapshotFeatureStates.keySet());
+                throw new SnapshotRestoreException(snapshot, "requested feature states [" + nonExistingRequestedStates +
+                    "] are not present in snapshot");
+            }
+            featureStatesToRestore.keySet().retainAll(requestedStates);
+        } else if (request.includeGlobalState() == false) {
+            featureStatesToRestore.clear();
+        }
+        return featureStatesToRestore;
+    }
+
     //visible for testing
     static DataStream updateDataStream(DataStream dataStream, Metadata.Builder metadata, RestoreSnapshotRequest request) {
         String dataStreamName = dataStream.getName();
@@ -923,10 +931,16 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private static Map<String, String> renamedIndices(RestoreSnapshotRequest request, List<String> filteredIndices,
-                                                      Set<String> dataStreamIndices) {
+                                                      Set<String> dataStreamIndices, Set<String> featureIndices) {
         Map<String, String> renamedIndices = new HashMap<>();
         for (String index : filteredIndices) {
-            String renamedIndex = renameIndex(index, request, dataStreamIndices.contains(index));
+            String renamedIndex;
+            if (featureIndices.contains(index)) {
+                // Don't rename system indices
+                renamedIndex = index;
+            } else {
+                renamedIndex = renameIndex(index, request, dataStreamIndices.contains(index));
+            }
             String previousIndex = renamedIndices.put(renamedIndex, index);
             if (previousIndex != null) {
                 throw new SnapshotRestoreException(request.repository(), request.snapshot(),

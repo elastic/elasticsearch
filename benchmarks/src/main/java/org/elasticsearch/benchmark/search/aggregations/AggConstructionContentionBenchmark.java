@@ -5,10 +5,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.index.Index;
@@ -63,11 +65,16 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+/**
+ * Benchmarks the overhead of constructing {@link Aggregator}s in many
+ * parallel threads. Machines with different numbers of cores will see
+ * wildly different results running this from 
+ */
 @Fork(2)
 @Warmup(iterations = 10)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.AverageTime)
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Threads(Threads.MAX)
 public class AggConstructionContentionBenchmark {
@@ -83,14 +90,27 @@ public class AggConstructionContentionBenchmark {
 
     private CircuitBreakerService breakerService;
     private BigArrays bigArrays;
+    private boolean preallocateBreaker;
 
-    @Param({ "noop", "real" })
+    @Param({ "noop", "real", "preallocate" })
     private String breaker;
 
     @Setup
     public void setup() {
-        breakerService = buildBreakerService();
-        bigArrays = new BigArrays(recycler, breakerService, "request");
+        switch (breaker) {
+            case "real":
+                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+                break;
+            case "preallocate":
+                preallocateBreaker = true;
+                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+                break;
+            case "noop":
+                breakerService = new NoneCircuitBreakerService();
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }        bigArrays = new BigArrays(recycler, breakerService, "request");
     }
 
     @Benchmark
@@ -125,22 +145,29 @@ public class AggConstructionContentionBenchmark {
         }
     }
 
-    private CircuitBreakerService buildBreakerService() {
-        switch (breaker) {
-            case "real":
-                return new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
-            case "noop":
-                return new NoneCircuitBreakerService();
-            default:
-                throw new UnsupportedOperationException();
-        }
-    }
-
     private class DummyAggregationContext extends AggregationContext implements Releasable {
         private final Query query = new MatchAllDocsQuery();
-        private final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
-        private final List<Aggregator> releaseMe = new ArrayList<>();
+        private final List<Releasable> releaseMe = new ArrayList<>();
+
+        private final CircuitBreaker breaker;
+        private final MultiBucketConsumer multiBucketConsumer;
+
+        public DummyAggregationContext() {
+            CircuitBreakerService breakerService;
+            if (preallocateBreaker) {
+                PreallocatedCircuitBreakerService preallocated = new PreallocatedCircuitBreakerService(
+                    AggConstructionContentionBenchmark.this.breakerService,
+                    CircuitBreaker.REQUEST,
+                    ByteSizeUnit.MB.toBytes(10)  // We just preallocate a huge chunk to make writing the benchmark simple for now
+                );
+                breakerService = preallocated;
+                releaseMe.add(preallocated);
+            } else {
+                breakerService = AggConstructionContentionBenchmark.this.breakerService;
+            }
+            breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+            multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
+        }
 
         @Override
         public Query query() {

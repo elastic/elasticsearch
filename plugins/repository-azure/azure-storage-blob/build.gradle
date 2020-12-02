@@ -19,7 +19,7 @@ String containersServiceClass = 'com/azure/storage/blob/implementation/Container
 String blockBlobsServiceClass = 'com/azure/storage/blob/implementation/BlockBlobsImpl$BlockBlobsService.class'
 String servicesServiceClass = 'com/azure/storage/blob/implementation/ServicesImpl$ServicesService.class'
 
-tasks.create('extractBlobsServiceClass', Copy).configure {
+tasks.create('extractClientClasses', Copy).configure {
   from({ zipTree(configurations.originalJar.singleFile) }) {
     include blobsServiceClass
     include containersServiceClass
@@ -29,10 +29,14 @@ tasks.create('extractBlobsServiceClass', Copy).configure {
   into project.file('build/original')
 }
 
-tasks.create('makeBlobsServicePublic', JavaClassPublicifier).configure {
+def modifiedOutput = project.layout.buildDirectory.dir('modified')
+def makePublic = tasks.create('makeClientClassesPublic', JavaClassPublicifier)
+makePublic.configure {
+  dependsOn 'extractClientClasses'
   classFiles = [blobsServiceClass, containersServiceClass, blockBlobsServiceClass, servicesServiceClass]
   inputDir = project.layout.buildDirectory.dir('original')
-  outputDir = project.layout.buildDirectory.dir('modified')
+  outputDir = modifiedOutput
 }
 
-sourceSets.main.java.compiledBy(tasks.named('makeBlobsServicePublic')) { myTask -> myTask.outputDir }
+//sourceSets.main.java.compiledBy(makePublic) { myTask -> myTask.outputDir }
+sourceSets.main.output.dir(modifiedOutput, builtBy: makePublic)

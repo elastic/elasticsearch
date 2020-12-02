@@ -110,8 +110,16 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         testAggregator(SortOrder.DESC);
     }
 
-    public void testCompleteForExactNumberOfPointsAsMaxPathSize() throws IOException {
-        int size = 10;
+    public void testComplete() throws IOException {
+        // max size is the same as the number of points
+        testCompleteForSizeAndNumDocuments(10, 10, true);
+        // max size is more than the number of points
+        testCompleteForSizeAndNumDocuments(11, 10, true);
+        // max size is less than the number of points
+        testCompleteForSizeAndNumDocuments(9, 10, false);
+    }
+
+    public void testCompleteForSizeAndNumDocuments(int size, int numPoints, boolean complete) throws IOException {
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
             .setFieldName("value_field")
             .build();
@@ -127,8 +135,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
 
         Map<String, InternalGeoLine> lines = new HashMap<>(1);
         String groupOrd = "0";
-        int numPoints = size; // same as size
-        boolean complete = true; // when the number of points are equal to the size, complete == true
         long[] points = new long[numPoints];
         double[] sortValues = new double[numPoints];
         for (int i = 0; i < numPoints; i++) {
@@ -140,8 +146,14 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             sortValues[i] = i;
         }
 
+        int lineSize = Math.min(numPoints, size);
+        // re-sort line to be ascending
+        long[] linePoints = Arrays.copyOf(points, lineSize);
+        double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
+        new PathArraySorter(linePoints, lineSorts, SortOrder.ASC).sort();
+
         lines.put(groupOrd, new InternalGeoLine("_name",
-            points, sortValues, null, complete, true, SortOrder.ASC, size));
+            linePoints, lineSorts, null, complete, true, SortOrder.ASC, size));
 
         testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
             for (int i = 0; i < points.length; i++) {
@@ -166,7 +178,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 assertArrayEquals(expectedGeoLine.line(), geoLine.line());
             }
         });
-
     }
 
     public void testEmpty() throws IOException {

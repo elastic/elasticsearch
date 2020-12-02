@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -40,7 +41,6 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -134,9 +134,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (clusterAlias.equals(LOCAL_CLUSTER)) {
             return super.nodePlugins(clusterAlias);
         } else {
-            final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-            plugins.add(SearchListenerPlugin.class);
-            return plugins;
+            return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), SearchListenerPlugin.class);
         }
     }
 

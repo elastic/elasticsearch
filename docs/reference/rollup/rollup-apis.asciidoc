@@ -24,22 +24,22 @@ release.
 [[rollup-jobs-endpoint]]
 ==== Jobs
 
-* <<rollup-put-job,Create>> or <<rollup-delete-job,delete {rollup-jobs}>>
-* <<rollup-start-job,Start>> or <<rollup-stop-job,stop {rollup-jobs}>>
-* <<rollup-get-job,Get {rollup-jobs}>>
+* <<rollup-put-job,Create>> or <<rollup-delete-job,delete legacy {rollup-jobs}>>
+* <<rollup-start-job,Start>> or <<rollup-stop-job,stop legacy {rollup-jobs}>>
+* <<rollup-get-job,Get legacy {rollup-jobs}>>
 
 [discrete]
 [[rollup-data-endpoint]]
 ==== Data
 
-* <<rollup-get-rollup-caps,Get rollup capabilities>>
-* <<rollup-get-rollup-index-caps,Get rollup index capabilities>>
+* <<rollup-get-rollup-caps,Get legacy rollup capabilities>>
+* <<rollup-get-rollup-index-caps,Get legacy rollup index capabilities>>
 
 [discrete]
 [[rollup-search-endpoint]]
 ==== Search
 
-* <<rollup-search,Rollup search>>
+* <<rollup-search,Legacy rollup search>>
 
 include::apis/rollup-api.asciidoc[]
 include::apis/put-job.asciidoc[]

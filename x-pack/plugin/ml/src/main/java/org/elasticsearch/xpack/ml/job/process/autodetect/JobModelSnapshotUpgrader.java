@@ -217,17 +217,19 @@ public final class JobModelSnapshotUpgrader {
                             shutdown(null);
                             return;
                         }
-                        submitOperation(() -> {
-                            writeHeader();
-                            process.persistState(
-                                params.modelSnapshot().getTimestamp().getTime(),
-                                params.modelSnapshot().getSnapshotId(),
-                                params.modelSnapshot().getDescription());
-                            return null;
+                        submitOperation(
+                            () -> {
+                                writeHeader();
+                                process.persistState(
+                                    params.modelSnapshot().getTimestamp().getTime(),
+                                    params.modelSnapshot().getSnapshotId(),
+                                    params.modelSnapshot().getDescription());
+                                return null;
+                            },
                             // Execute callback in the UTILITY thread pool, as the current thread in the callback will be one in the
                             // autodetectWorkerExecutor. Trying to run the callback in that executor will cause a dead lock as that
                             // executor has a single processing queue.
-                        }, (aVoid, e) -> threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> shutdown(e)));
+                            (aVoid, e) -> threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> shutdown(e)));
                         logger.info("asked for state to be persisted");
                     },
                     f -> {
@@ -274,18 +276,21 @@ public final class JobModelSnapshotUpgrader {
         }
 
         private void checkProcessIsAlive() {
-            if (!process.isProcessAlive()) {
+            if (process.isProcessAlive() == false) {
                 // Don't log here - it just causes double logging when the exception gets logged
                 throw new ElasticsearchException("[{}] Unexpected death of autodetect: {}", job.getId(), process.readError());
             }
         }
 
         void shutdown(Exception e) {
+            // No point in sending an action to the executor if the process has died
+            if (process.isProcessAlive() == false) {
+                onFinish.accept(e);
+                autodetectWorkerExecutor.shutdown();
+                stateStreamer.cancel();
+                return;
+            }
             autodetectWorkerExecutor.execute(() -> {
-                if (process.isProcessAlive() == false) {
-                    onFinish.accept(e);
-                    return;
-                }
                 try {
                     if (process.isReady()) {
                         process.close();

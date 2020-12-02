@@ -42,8 +42,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  * This is a {@link ESRestTestCase} because the cleanup code in {@link ExternalTestCluster#ensureEstimatedStats()} causes problems
@@ -142,13 +145,19 @@ public class InferenceIngestIT extends ESRestTestCase {
                 Response statsResponse = client().performRequest(new Request("GET",
                     "_ml/trained_models/" + classificationModelId + "/_stats"));
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
-                    TrainedModelStats trainedModelStats = GetTrainedModelsStatsResponse.fromXContent(parser).getTrainedModelStats().get(0);
+                    GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
+                    assertThat(response.getTrainedModelStats(), hasSize(1));
+                    TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
+                    assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
                     assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
                     assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
                 }
                 statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
-                    TrainedModelStats trainedModelStats = GetTrainedModelsStatsResponse.fromXContent(parser).getTrainedModelStats().get(0);
+                    GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
+                    assertThat(response.getTrainedModelStats(), hasSize(1));
+                    TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
+                    assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
                     assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
                     assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
                 }
@@ -202,13 +211,19 @@ public class InferenceIngestIT extends ESRestTestCase {
                 Response statsResponse = client().performRequest(new Request("GET",
                     "_ml/trained_models/" + classificationModelId + "/_stats"));
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
-                    TrainedModelStats trainedModelStats = GetTrainedModelsStatsResponse.fromXContent(parser).getTrainedModelStats().get(0);
+                    GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
+                    assertThat(response.getTrainedModelStats(), hasSize(1));
+                    TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
+                    assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
                     assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
                     assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
                 }
                 statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
-                    TrainedModelStats trainedModelStats = GetTrainedModelsStatsResponse.fromXContent(parser).getTrainedModelStats().get(0);
+                    GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
+                    assertThat(response.getTrainedModelStats(), hasSize(1));
+                    TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
+                    assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
                     assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(15L));
                     assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
                 }

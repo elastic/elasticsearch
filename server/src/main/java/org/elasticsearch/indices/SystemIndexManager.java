@@ -83,9 +83,11 @@ public class SystemIndexManager implements ClusterStateListener {
             return;
         }
 
-        getEligibleDescriptors(state.getMetadata()).stream()
-            .filter(descriptor -> getUpgradeStatus(state, descriptor) == UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
-            .forEach(this::upgradeIndexMetadata);
+        if (isUpgradeInProgress.get() == false) {
+            getEligibleDescriptors(state.getMetadata()).stream()
+                .filter(descriptor -> getUpgradeStatus(state, descriptor) == UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+                .forEach(this::upgradeIndexMetadata);
+        }
     }
 
     /**
@@ -127,8 +129,7 @@ public class SystemIndexManager implements ClusterStateListener {
         // cases, the log levels are DEBUG.
 
         if (indexState.indexState == IndexMetadata.State.CLOSE) {
-            logger.debug(
-                "Index {} is closed. This is likely to prevent some features from functioning correctly", indexDescription);
+            logger.debug("Index {} is closed. This is likely to prevent some features from functioning correctly", indexDescription);
             return UpgradeStatus.CLOSED;
         }
 

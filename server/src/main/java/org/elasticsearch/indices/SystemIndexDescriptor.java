@@ -143,6 +143,15 @@ public class SystemIndexDescriptor {
         if (indexFormat < 0) {
             throw new IllegalArgumentException("Index format cannot be negative");
         }
+
+        Strings.requireNonEmpty(indexPattern, "indexPattern must be supplied");
+
+        if (mappings != null || settings != null) {
+            Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex if mappings or settings are defined");
+            Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey if mappings or settings are defined");
+            Strings.requireNonEmpty(origin, "Must supply origin if mappings or settings are defined");
+        }
+
         this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
 
@@ -240,6 +249,8 @@ public class SystemIndexDescriptor {
         private String versionMetaKey = null;
         private String origin = null;
 
+        private Builder() {}
+
         public Builder setIndexPattern(String indexPattern) {
             this.indexPattern = indexPattern;
             return this;
@@ -271,9 +282,6 @@ public class SystemIndexDescriptor {
         }
 
         public Builder setIndexFormat(int indexFormat) {
-            if (indexFormat < 0) {
-                throw new IllegalArgumentException("indexFormat must be >= 0");
-            }
             this.indexFormat = indexFormat;
             return this;
         }
@@ -290,14 +298,6 @@ public class SystemIndexDescriptor {
 
         public SystemIndexDescriptor build() {
             String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
-
-            Strings.requireNonEmpty(indexPattern, "indexPattern must be supplied");
-
-            if (mappings != null || settings != null) {
-                Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex if mappings or settings are defined");
-                Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey if mappings or settings are defined");
-                Strings.requireNonEmpty(origin, "Must supply origin if mappings or settings are defined");
-            }
 
             return new SystemIndexDescriptor(
                 indexPattern,

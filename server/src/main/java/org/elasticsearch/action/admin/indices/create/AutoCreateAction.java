@@ -193,7 +193,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest.aliases(Set.of(new Alias(aliasName)));
                     }
 
-                    logger.info("Auto-creating system index {}", concreteIndexName);
+                    logger.debug("Auto-creating system index {}", concreteIndexName);
 
                     return updateRequest;
                 }

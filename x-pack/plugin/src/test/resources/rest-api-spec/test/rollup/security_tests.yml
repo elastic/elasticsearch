@@ -135,7 +135,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
   - match:
         jobs.0.stats.documents_processed: 1
@@ -295,7 +295,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
   - match:
         jobs.0.stats.documents_processed: 1

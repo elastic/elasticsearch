@@ -41,7 +41,7 @@ setup:
 "Test basic delete_job":
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
 
   - match:
@@ -86,7 +86,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
   - match:
       jobs: []
@@ -95,7 +95,7 @@ setup:
 "Test delete job twice":
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
 
   - match:
@@ -140,7 +140,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
   - match:
       jobs: []
@@ -149,7 +149,7 @@ setup:
 "Test delete running job":
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
 
   - match:

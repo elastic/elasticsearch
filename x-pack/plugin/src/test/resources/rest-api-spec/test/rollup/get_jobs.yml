@@ -42,7 +42,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
 
   - match:
@@ -84,7 +84,7 @@ setup:
 "Test get with no jobs":
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: "_all"
 
   - length: { jobs: 0 }
@@ -93,7 +93,7 @@ setup:
 "Test get missing job":
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: foo
 
   - match:
@@ -159,7 +159,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      rollup.get_jobs:
+      rollup.get_job:
         id: "_all"
 
   - length: { jobs: 2 }

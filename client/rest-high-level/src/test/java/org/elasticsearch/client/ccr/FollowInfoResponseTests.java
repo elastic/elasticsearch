@@ -80,14 +80,14 @@ public class FollowInfoResponseTests extends AbstractResponseTestCase<FollowInfo
             FollowInfoAction.Response.FollowerInfo serverFollowInfo = serverTestInstance.getFollowInfos().get(i);
             FollowInfoResponse.FollowerInfo clientFollowerInfo = clientInstance.getInfos().get(i);
 
-            assertThat(serverFollowInfo.getRemoteCluster(), equalTo(clientFollowerInfo.getRemoteCluster()));
-            assertThat(serverFollowInfo.getLeaderIndex(), equalTo(clientFollowerInfo.getLeaderIndex()));
-            assertThat(serverFollowInfo.getFollowerIndex(), equalTo(clientFollowerInfo.getFollowerIndex()));
-            assertThat(serverFollowInfo.getStatus().toString().toLowerCase(Locale.ROOT),
-                equalTo(clientFollowerInfo.getStatus().getName().toLowerCase(Locale.ROOT)));
+            assertThat(serverFollowInfo.RemoteCluster(), equalTo(clientFollowerInfo.RemoteCluster()));
+            assertThat(serverFollowInfo.LeaderIndex(), equalTo(clientFollowerInfo.LeaderIndex()));
+            assertThat(serverFollowInfo.FollowerIndex(), equalTo(clientFollowerInfo.FollowerIndex()));
+            assertThat(serverFollowInfo.Status().toString().toLowerCase(Locale.ROOT),
+                equalTo(clientFollowerInfo.Status().getName().toLowerCase(Locale.ROOT)));
 
-            FollowParameters serverParams = serverFollowInfo.getParameters();
-            FollowConfig clientParams = clientFollowerInfo.getParameters();
+            FollowParameters serverParams = serverFollowInfo.Parameters();
+            FollowConfig clientParams = clientFollowerInfo.Parameters();
             if (serverParams != null) {
                 assertThat(serverParams.getMaxReadRequestOperationCount(), equalTo(clientParams.getMaxReadRequestOperationCount()));
                 assertThat(serverParams.getMaxWriteRequestOperationCount(), equalTo(clientParams.getMaxWriteRequestOperationCount()));

@@ -114,7 +114,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
                 FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
                 FollowStatsResponse followStatsResponse =
                     execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
-                List<ShardFollowStats> shardFollowStats = followStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
+                List<ShardFollowStats> shardFollowStats = followStatsResponse.IndicesFollowStats().ShardFollowStats("follower");
                 long followerGlobalCheckpoint = shardFollowStats.stream()
                     .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
                     .max()
@@ -133,12 +133,12 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
                     equalTo(0));
             });
         } catch (Exception e) {
-            IndicesFollowStats followStats = ccrClient.getCcrStats(new CcrStatsRequest(), RequestOptions.DEFAULT).getIndicesFollowStats();
+            IndicesFollowStats followStats = ccrClient.getCcrStats(new CcrStatsRequest(), RequestOptions.DEFAULT).IndicesFollowStats();
             for (Map.Entry<String, List<ShardFollowStats>> entry : followStats.getShardFollowStats().entrySet()) {
                 for (ShardFollowStats shardFollowStats : entry.getValue()) {
-                    if (shardFollowStats.getFatalException() != null) {
-                        logger.warn(new ParameterizedMessage("fatal shard follow exception {}", shardFollowStats.getShardId()),
-                            shardFollowStats.getFatalException());
+                    if (shardFollowStats.FatalException() != null) {
+                        logger.warn(new ParameterizedMessage("fatal shard follow exception {}", shardFollowStats.ShardId()),
+                            shardFollowStats.FatalException());
                     }
                 }
             }
@@ -158,7 +158,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
             FollowStatsResponse followStatsResponse =
                 execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
-            List<ShardFollowStats> shardFollowStats = followStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
+            List<ShardFollowStats> shardFollowStats = followStatsResponse.IndicesFollowStats().getShardFollowStats("follower");
             long followerGlobalCheckpoint = shardFollowStats.stream()
                 .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
                 .max()
@@ -273,8 +273,8 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertBusy(() -> {
             CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
             CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
-            assertThat(ccrStatsResponse.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
-            assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
+            assertThat(ccrStatsResponse.AutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(ccrStatsResponse.IndicesFollowStats().ShardFollowStats("copy-logs-20200101"), notNullValue());
         });
         assertThat(indexExists("copy-logs-20200101"), is(true));
         assertThat(
@@ -288,9 +288,9 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(getAutoFollowPatternResponse.getPatterns().size(), equalTo(1));
         GetAutoFollowPatternResponse.Pattern pattern = getAutoFollowPatternResponse.getPatterns().get("pattern1");
         assertThat(pattern, notNullValue());
-        assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.getRemoteCluster()));
-        assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexPatterns()));
-        assertThat(pattern.getFollowIndexNamePattern(), equalTo(putAutoFollowPatternRequest.getFollowIndexNamePattern()));
+        assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.RemoteCluster()));
+        assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.LeaderIndexPatterns()));
+        assertThat(pattern.getFollowIndexNamePattern(), equalTo(putAutoFollowPatternRequest.FollowIndexNamePattern()));
         assertThat(pattern.getSettings(), equalTo(autoFollowerPatternSettings));
 
         // Cleanup:

@@ -59,7 +59,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
         randomizeRequest(putFollowRequest);
         Request result = CcrRequestConverters.putFollow(putFollowRequest);
         assertThat(result.getMethod(), equalTo(HttpPut.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/" + putFollowRequest.getFollowerIndex() + "/_ccr/follow"));
+        assertThat(result.getEndpoint(), equalTo("/" + putFollowRequest.FollowerIndex() + "/_ccr/follow"));
         if (putFollowRequest.waitForActiveShards() != null && putFollowRequest.waitForActiveShards() != ActiveShardCount.DEFAULT) {
             String expectedValue = putFollowRequest.waitForActiveShards().toString().toLowerCase(Locale.ROOT);
             assertThat(result.getParameters().get("wait_for_active_shards"), equalTo(expectedValue));
@@ -82,7 +82,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
         ResumeFollowRequest resumeFollowRequest = new ResumeFollowRequest(randomAlphaOfLength(4));
         Request result = CcrRequestConverters.resumeFollow(resumeFollowRequest);
         assertThat(result.getMethod(), equalTo(HttpPost.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/" + resumeFollowRequest.getFollowerIndex() + "/_ccr/resume_follow"));
+        assertThat(result.getEndpoint(), equalTo("/" + resumeFollowRequest.FollowerIndex() + "/_ccr/resume_follow"));
         assertThat(result.getParameters().size(), equalTo(0));
         RequestConvertersTests.assertToXContentBody(resumeFollowRequest, result.getEntity());
     }
@@ -91,7 +91,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
         UnfollowRequest pauseFollowRequest = new UnfollowRequest(randomAlphaOfLength(4));
         Request result = CcrRequestConverters.unfollow(pauseFollowRequest);
         assertThat(result.getMethod(), equalTo(HttpPost.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/" + pauseFollowRequest.getFollowerIndex() + "/_ccr/unfollow"));
+        assertThat(result.getEndpoint(), equalTo("/" + pauseFollowRequest.FollowerIndex() + "/_ccr/unfollow"));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }
@@ -120,7 +120,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
         Request result = CcrRequestConverters.putAutoFollowPattern(putAutoFollowPatternRequest);
         assertThat(result.getMethod(), equalTo(HttpPut.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + putAutoFollowPatternRequest.getName()));
+        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + putAutoFollowPatternRequest.Name()));
         assertThat(result.getParameters().size(), equalTo(0));
         RequestConvertersTests.assertToXContentBody(putAutoFollowPatternRequest, result.getEntity());
     }
@@ -130,7 +130,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
         Request result = CcrRequestConverters.deleteAutoFollowPattern(deleteAutoFollowPatternRequest);
         assertThat(result.getMethod(), equalTo(HttpDelete.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + deleteAutoFollowPatternRequest.getName()));
+        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + deleteAutoFollowPatternRequest.Name()));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }
@@ -140,7 +140,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
         Request result = CcrRequestConverters.getAutoFollowPattern(deleteAutoFollowPatternRequest);
         assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + deleteAutoFollowPatternRequest.getName()));
+        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + deleteAutoFollowPatternRequest.Name()));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }
@@ -150,7 +150,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
         Request result = CcrRequestConverters.pauseAutoFollowPattern(pauseAutoFollowPatternRequest);
         assertThat(result.getMethod(), equalTo(HttpPost.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + pauseAutoFollowPatternRequest.getName() + "/pause"));
+        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + pauseAutoFollowPatternRequest.Name() + "/pause"));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }
@@ -160,7 +160,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
         Request result = CcrRequestConverters.resumeAutoFollowPattern(resumeAutoFollowPatternRequest);
         assertThat(result.getMethod(), equalTo(HttpPost.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + resumeAutoFollowPatternRequest.getName() + "/resume"));
+        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + resumeAutoFollowPatternRequest.Name() + "/resume"));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }
@@ -178,7 +178,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
         FollowStatsRequest followStatsRequest = new FollowStatsRequest(randomAlphaOfLength(4));
         Request result = CcrRequestConverters.getFollowStats(followStatsRequest);
         assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/" + followStatsRequest.getFollowerIndex() + "/_ccr/stats"));
+        assertThat(result.getEndpoint(), equalTo("/" + followStatsRequest.FollowerIndex() + "/_ccr/stats"));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }
@@ -187,7 +187,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
         FollowInfoRequest followInfoRequest = new FollowInfoRequest(randomAlphaOfLength(4));
         Request result = CcrRequestConverters.getFollowInfo(followInfoRequest);
         assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/" + followInfoRequest.getFollowerIndex() + "/_ccr/info"));
+        assertThat(result.getEndpoint(), equalTo("/" + followInfoRequest.FollowerIndex() + "/_ccr/info"));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }

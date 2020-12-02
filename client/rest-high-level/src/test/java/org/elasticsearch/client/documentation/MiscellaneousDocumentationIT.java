@@ -58,10 +58,10 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             MainResponse response = client.info(RequestOptions.DEFAULT);
             //end::main-execute
             //tag::main-response
-            String clusterName = response.getClusterName();
-            String clusterUuid = response.getClusterUuid();
-            String nodeName = response.getNodeName();
-            MainResponse.Version version = response.getVersion();
+            String clusterName = response.ClusterName();
+            String clusterUuid = response.ClusterUuid();
+            String nodeName = response.NodeName();
+            MainResponse.Version version = response.Version();
             String buildDate = version.getBuildDate();
             String buildFlavor = version.getBuildFlavor();
             String buildHash = version.getBuildHash();
@@ -108,15 +108,15 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             //end::x-pack-info-execute
 
             //tag::x-pack-info-response
-            BuildInfo build = response.getBuildInfo();                 // <1>
-            LicenseInfo license = response.getLicenseInfo();           // <2>
+            BuildInfo build = response.BuildInfo();                 // <1>
+            LicenseInfo license = response.LicenseInfo();           // <2>
             assertThat(license.getExpiryDate(), is(greaterThan(Instant.now().toEpochMilli())));  // <3>
-            FeatureSetsInfo features = response.getFeatureSetsInfo();  // <4>
+            FeatureSetsInfo features = response.FeatureSetsInfo();  // <4>
             //end::x-pack-info-response
 
-            assertNotNull(response.getBuildInfo());
-            assertNotNull(response.getLicenseInfo());
-            assertNotNull(response.getFeatureSetsInfo());
+            assertNotNull(response.BuildInfo());
+            assertNotNull(response.LicenseInfo());
+            assertNotNull(response.FeatureSetsInfo());
         }
         {
             XPackInfoRequest request = new XPackInfoRequest();

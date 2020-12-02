@@ -54,20 +54,20 @@ public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearc
 
     @Override
     protected void assertInstances(org.elasticsearch.action.main.MainResponse serverTestInstance, MainResponse clientInstance) {
-        assertThat(serverTestInstance.getClusterName().value(), equalTo(clientInstance.getClusterName()));
-        assertThat(serverTestInstance.getClusterUuid(), equalTo(clientInstance.getClusterUuid()));
-        assertThat(serverTestInstance.getNodeName(), equalTo(clientInstance.getNodeName()));
-        assertThat("You Know, for Search", equalTo(clientInstance.getTagline()));
+        assertThat(serverTestInstance.ClusterName().value(), equalTo(clientInstance.ClusterName()));
+        assertThat(serverTestInstance.ClusterUuid(), equalTo(clientInstance.ClusterUuid()));
+        assertThat(serverTestInstance.NodeName(), equalTo(clientInstance.NodeName()));
+        assertThat("You Know, for Search", equalTo(clientInstance.Tagline()));
 
-        assertThat(serverTestInstance.getBuild().hash(), equalTo(clientInstance.getVersion().getBuildHash()));
-        assertThat(serverTestInstance.getVersion().toString(), equalTo(clientInstance.getVersion().getNumber()));
-        assertThat(serverTestInstance.getBuild().date(), equalTo(clientInstance.getVersion().getBuildDate()));
-        assertThat(serverTestInstance.getBuild().flavor().displayName(), equalTo(clientInstance.getVersion().getBuildFlavor()));
-        assertThat(serverTestInstance.getBuild().type().displayName(), equalTo(clientInstance.getVersion().getBuildType()));
-        assertThat(serverTestInstance.getVersion().luceneVersion.toString(), equalTo(clientInstance.getVersion().getLuceneVersion()));
-        assertThat(serverTestInstance.getVersion().minimumIndexCompatibilityVersion().toString(),
-            equalTo(clientInstance.getVersion().getMinimumIndexCompatibilityVersion()));
-        assertThat(serverTestInstance.getVersion().minimumCompatibilityVersion().toString(),
-            equalTo(clientInstance.getVersion().getMinimumWireCompatibilityVersion()));
+        assertThat(serverTestInstance.Build().hash(), equalTo(clientInstance.Version().getBuildHash()));
+        assertThat(serverTestInstance.Version().toString(), equalTo(clientInstance.Version().getNumber()));
+        assertThat(serverTestInstance.Build().date(), equalTo(clientInstance.Version().getBuildDate()));
+        assertThat(serverTestInstance.Build().flavor().displayName(), equalTo(clientInstance.Version().getBuildFlavor()));
+        assertThat(serverTestInstance.Build().type().displayName(), equalTo(clientInstance.Version().getBuildType()));
+        assertThat(serverTestInstance.Version().luceneVersion.toString(), equalTo(clientInstance.Version().getLuceneVersion()));
+        assertThat(serverTestInstance.Version().minimumIndexCompatibilityVersion().toString(),
+            equalTo(clientInstance.Version().getMinimumIndexCompatibilityVersion()));
+        assertThat(serverTestInstance.Version().minimumCompatibilityVersion().toString(),
+            equalTo(clientInstance.Version().getMinimumWireCompatibilityVersion()));
     }
 }

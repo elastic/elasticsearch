@@ -77,9 +77,9 @@ public class PutFollowRequestTests extends AbstractRequestTestCase<PutFollowRequ
 
     @Override
     protected void assertInstances(PutFollowAction.Request serverInstance, PutFollowRequest clientTestInstance) {
-        assertThat(serverInstance.getRemoteCluster(), equalTo(clientTestInstance.getRemoteCluster()));
-        assertThat(serverInstance.getLeaderIndex(), equalTo(clientTestInstance.getLeaderIndex()));
-        assertThat(serverInstance.getFollowerIndex(), equalTo(clientTestInstance.getFollowerIndex()));
+        assertThat(serverInstance.getRemoteCluster(), equalTo(clientTestInstance.RemoteCluster()));
+        assertThat(serverInstance.getLeaderIndex(), equalTo(clientTestInstance.LeaderIndex()));
+        assertThat(serverInstance.getFollowerIndex(), equalTo(clientTestInstance.FollowerIndex()));
         assertFollowConfig(serverInstance.getParameters(), clientTestInstance);
     }
 

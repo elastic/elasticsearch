@@ -99,26 +99,26 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             AsyncSearchResponse response = it.next();
             while (it.hasNext()) {
                 response = it.next();
-                assertNotNull(response.getSearchResponse());
-                if (response.getSearchResponse().getSuccessfulShards() > 0) {
-                    assertNotNull(response.getSearchResponse().getAggregations());
-                    assertNotNull(response.getSearchResponse().getAggregations().get("max"));
-                    assertNotNull(response.getSearchResponse().getAggregations().get("min"));
-                    InternalMax max = response.getSearchResponse().getAggregations().get("max");
-                    InternalMin min = response.getSearchResponse().getAggregations().get("min");
+                assertNotNull(response.SearchResponse());
+                if (response.SearchResponse().getSuccessfulShards() > 0) {
+                    assertNotNull(response.SearchResponse().getAggregations());
+                    assertNotNull(response.SearchResponse().getAggregations().get("max"));
+                    assertNotNull(response.SearchResponse().getAggregations().get("min"));
+                    InternalMax max = response.SearchResponse().getAggregations().get("max");
+                    InternalMin min = response.SearchResponse().getAggregations().get("min");
                     assertThat((float) min.getValue(), greaterThanOrEqualTo(minMetric));
                     assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
                 }
             }
             if (numFailures == numShards) {
-                assertNotNull(response.getFailure());
+                assertNotNull(response.Failure());
             } else {
-                assertNotNull(response.getSearchResponse());
-                assertNotNull(response.getSearchResponse().getAggregations());
-                assertNotNull(response.getSearchResponse().getAggregations().get("max"));
-                assertNotNull(response.getSearchResponse().getAggregations().get("min"));
-                InternalMax max = response.getSearchResponse().getAggregations().get("max");
-                InternalMin min = response.getSearchResponse().getAggregations().get("min");
+                assertNotNull(response.SearchResponse());
+                assertNotNull(response.SearchResponse().getAggregations());
+                assertNotNull(response.SearchResponse().getAggregations().get("max"));
+                assertNotNull(response.SearchResponse().getAggregations().get("min"));
+                InternalMax max = response.SearchResponse().getAggregations().get("max");
+                InternalMin min = response.SearchResponse().getAggregations().get("min");
                 if (numFailures == 0) {
                     assertThat((float) min.getValue(), equalTo(minMetric));
                     assertThat((float) max.getValue(), equalTo(maxMetric));
@@ -127,8 +127,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                     assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
                 }
             }
-            deleteAsyncSearch(response.getId());
-            ensureTaskRemoval(response.getId());
+            deleteAsyncSearch(response.Id());
+            ensureTaskRemoval(response.Id());
         }
     }
 
@@ -142,11 +142,11 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             AsyncSearchResponse response = it.next();
             while (it.hasNext()) {
                 response = it.next();
-                assertNotNull(response.getSearchResponse());
-                if (response.getSearchResponse().getSuccessfulShards() > 0) {
-                    assertNotNull(response.getSearchResponse().getAggregations());
-                    assertNotNull(response.getSearchResponse().getAggregations().get("terms"));
-                    StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
+                assertNotNull(response.SearchResponse());
+                if (response.SearchResponse().getSuccessfulShards() > 0) {
+                    assertNotNull(response.SearchResponse().getAggregations());
+                    assertNotNull(response.SearchResponse().getAggregations().get("terms"));
+                    StringTerms terms = response.SearchResponse().getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), greaterThanOrEqualTo(0));
                     assertThat(terms.getBuckets().size(), lessThanOrEqualTo(numKeywords));
                     for (InternalTerms.Bucket<?> bucket : terms.getBuckets()) {
@@ -156,12 +156,12 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 }
             }
             if (numFailures == numShards) {
-                assertNotNull(response.getFailure());
+                assertNotNull(response.Failure());
             } else {
-                assertNotNull(response.getSearchResponse());
-                assertNotNull(response.getSearchResponse().getAggregations());
-                assertNotNull(response.getSearchResponse().getAggregations().get("terms"));
-                StringTerms terms = response.getSearchResponse().getAggregations().get("terms");
+                assertNotNull(response.SearchResponse());
+                assertNotNull(response.SearchResponse().getAggregations());
+                assertNotNull(response.SearchResponse().getAggregations().get("terms"));
+                StringTerms terms = response.SearchResponse().getAggregations().get("terms");
                 assertThat(terms.getBuckets().size(), greaterThanOrEqualTo(0));
                 assertThat(terms.getBuckets().size(), lessThanOrEqualTo(numKeywords));
                 for (InternalTerms.Bucket<?> bucket : terms.getBuckets()) {
@@ -173,8 +173,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                     }
                 }
             }
-            deleteAsyncSearch(response.getId());
-            ensureTaskRemoval(response.getId());
+            deleteAsyncSearch(response.Id());
+            ensureTaskRemoval(response.Id());
         }
     }
 
@@ -191,19 +191,19 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         restartTaskNode(initial.getId(), indexName);
 
         AsyncSearchResponse response = getAsyncSearch(initial.getId());
-        assertNotNull(response.getSearchResponse());
+        assertNotNull(response.SearchResponse());
         assertFalse(response.isRunning());
         assertFalse(response.isPartial());
 
         AsyncStatusResponse statusResponse = getAsyncStatus(initial.getId());
         assertFalse(statusResponse.isRunning());
         assertFalse(statusResponse.isPartial());
-        assertEquals(numShards, statusResponse.getTotalShards());
-        assertEquals(numShards, statusResponse.getSuccessfulShards());
-        assertEquals(RestStatus.OK, statusResponse.getCompletionStatus());
+        assertEquals(numShards, statusresponse.TotalShards());
+        assertEquals(numShards, statusresponse.SuccessfulShards());
+        assertEquals(RestStatus.OK, statusresponse.CompletionStatus());
 
-        deleteAsyncSearch(response.getId());
-        ensureTaskRemoval(response.getId());
+        deleteAsyncSearch(response.Id());
+        ensureTaskRemoval(response.Id());
     }
 
     public void testDeleteCancelRunningTask() throws Exception {
@@ -222,10 +222,10 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         try (SearchResponseIterator it =
                  assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
             AsyncSearchResponse response = it.next();
-            deleteAsyncSearch(response.getId());
+            deleteAsyncSearch(response.Id());
             it.close();
-            ensureTaskCompletion(response.getId());
-            ensureTaskRemoval(response.getId());
+            ensureTaskCompletion(response.Id());
+            ensureTaskRemoval(response.Id());
         }
     }
 
@@ -238,18 +238,18 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskCompletion(initial.getId());
         AsyncSearchResponse response = getAsyncSearch(initial.getId());
         assertFalse(response.isRunning());
-        assertNotNull(response.getFailure());
+        assertNotNull(response.Failure());
         assertTrue(response.isPartial());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getShardFailures().length, equalTo(numShards));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getShardFailures().length, equalTo(numShards));
 
         AsyncStatusResponse statusResponse = getAsyncStatus(initial.getId());
         assertFalse(statusResponse.isRunning());
         assertTrue(statusResponse.isPartial());
-        assertEquals(numShards, statusResponse.getTotalShards());
-        assertEquals(0, statusResponse.getSuccessfulShards());
-        assertEquals(numShards, statusResponse.getFailedShards());
-        assertThat(statusResponse.getCompletionStatus().getStatus(), greaterThanOrEqualTo(400));
+        assertEquals(numShards, statusresponse.TotalShards());
+        assertEquals(0, statusresponse.SuccessfulShards());
+        assertEquals(numShards, statusresponse.FailedShards());
+        assertThat(statusresponse.CompletionStatus().getStatus(), greaterThanOrEqualTo(400));
 
         deleteAsyncSearch(initial.getId());
         ensureTaskRemoval(initial.getId());
@@ -277,17 +277,17 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest("invalid-*");
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        assertNotNull(response.SearchResponse());
         assertFalse(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(0));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(0));
 
         request = new SubmitAsyncSearchRequest("invalid");
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         response = submitAsyncSearch(request);
-        assertNull(response.getSearchResponse());
-        assertNotNull(response.getFailure());
+        assertNull(response.SearchResponse());
+        assertNotNull(response.Failure());
         assertFalse(response.isRunning());
-        Exception exc = response.getFailure();
+        Exception exc = response.Failure();
         assertThat(exc.getMessage(), containsString("error while executing search"));
         assertThat(exc.getCause().getMessage(), containsString("no such index"));
     }
@@ -299,28 +299,28 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         );
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        assertNotNull(response.SearchResponse());
         assertTrue(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId());
-        assertNotNull(response.getSearchResponse());
+        response = getAsyncSearch(response.Id());
+        assertNotNull(response.SearchResponse());
         assertTrue(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
 
-        AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+        AsyncStatusResponse statusResponse = getAsyncStatus(response.Id());
         assertTrue(statusResponse.isRunning());
-        assertEquals(numShards, statusResponse.getTotalShards());
-        assertEquals(0, statusResponse.getSuccessfulShards());
-        assertEquals(0, statusResponse.getSkippedShards());
-        assertEquals(0, statusResponse.getFailedShards());
+        assertEquals(numShards, statusresponse.TotalShards());
+        assertEquals(0, statusresponse.SuccessfulShards());
+        assertEquals(0, statusresponse.SkippedShards());
+        assertEquals(0, statusresponse.FailedShards());
 
-        deleteAsyncSearch(response.getId());
-        ensureTaskRemoval(response.getId());
+        deleteAsyncSearch(response.Id());
+        ensureTaskRemoval(response.Id());
     }
 
     public void testUpdateRunningKeepAlive() throws Exception {
@@ -330,44 +330,44 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         long now = System.currentTimeMillis();
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        assertNotNull(response.SearchResponse());
         assertTrue(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
-        assertThat(response.getExpirationTime(), greaterThan(now));
-        long expirationTime = response.getExpirationTime();
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.ExpirationTime(), greaterThan(now));
+        long expirationTime = response.ExpirationTime();
 
-        response = getAsyncSearch(response.getId());
-        assertNotNull(response.getSearchResponse());
+        response = getAsyncSearch(response.Id());
+        assertNotNull(response.SearchResponse());
         assertTrue(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
-        assertThat(response.getExpirationTime(), greaterThan(expirationTime));
+        response = getAsyncSearch(response.Id(), TimeValue.timeValueDays(10));
+        assertThat(response.ExpirationTime(), greaterThan(expirationTime));
 
         assertTrue(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
 
-        AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+        AsyncStatusResponse statusResponse = getAsyncStatus(response.Id());
         assertTrue(statusResponse.isRunning());
         assertTrue(statusResponse.isPartial());
-        assertThat(statusResponse.getExpirationTime(), greaterThan(expirationTime));
-        assertThat(statusResponse.getStartTime(), lessThan(statusResponse.getExpirationTime()));
-        assertEquals(numShards, statusResponse.getTotalShards());
-        assertEquals(0, statusResponse.getSuccessfulShards());
-        assertEquals(0, statusResponse.getFailedShards());
-        assertEquals(0, statusResponse.getSkippedShards());
-        assertEquals(null, statusResponse.getCompletionStatus());
+        assertThat(statusresponse.ExpirationTime(), greaterThan(expirationTime));
+        assertThat(statusresponse.StartTime(), lessThan(statusresponse.ExpirationTime()));
+        assertEquals(numShards, statusresponse.TotalShards());
+        assertEquals(0, statusresponse.SuccessfulShards());
+        assertEquals(0, statusresponse.FailedShards());
+        assertEquals(0, statusresponse.SkippedShards());
+        assertEquals(null, statusresponse.CompletionStatus());
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
-        assertThat(response.getExpirationTime(), lessThan(expirationTime));
-        ensureTaskNotRunning(response.getId());
-        ensureTaskRemoval(response.getId());
+        response = getAsyncSearch(response.Id(), TimeValue.timeValueMillis(1));
+        assertThat(response.ExpirationTime(), lessThan(expirationTime));
+        ensureTaskNotRunning(response.Id());
+        ensureTaskRemoval(response.Id());
     }
 
     public void testUpdateStoreKeepAlive() throws Exception {
@@ -376,33 +376,33 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
         request.setKeepOnCompletion(true);
         AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        assertNotNull(response.SearchResponse());
         assertFalse(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
-        assertThat(response.getExpirationTime(), greaterThan(now));
-        long expirationTime = response.getExpirationTime();
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.ExpirationTime(), greaterThan(now));
+        long expirationTime = response.ExpirationTime();
 
-        response = getAsyncSearch(response.getId());
-        assertNotNull(response.getSearchResponse());
+        response = getAsyncSearch(response.Id());
+        assertNotNull(response.SearchResponse());
         assertFalse(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
-        assertThat(response.getExpirationTime(), greaterThan(expirationTime));
+        response = getAsyncSearch(response.Id(), TimeValue.timeValueDays(10));
+        assertThat(response.ExpirationTime(), greaterThan(expirationTime));
 
         assertFalse(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
-        assertThat(response.getExpirationTime(), lessThan(expirationTime));
-        ensureTaskNotRunning(response.getId());
-        ensureTaskRemoval(response.getId());
+        response = getAsyncSearch(response.Id(), TimeValue.timeValueMillis(1));
+        assertThat(response.ExpirationTime(), lessThan(expirationTime));
+        ensureTaskNotRunning(response.Id());
+        ensureTaskRemoval(response.Id());
     }
 
     public void testRemoveAsyncIndex() throws Exception {
@@ -412,17 +412,17 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         long now = System.currentTimeMillis();
 
         AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        assertNotNull(response.SearchResponse());
         assertFalse(response.isRunning());
-        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
-        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
-        assertThat(response.getExpirationTime(), greaterThan(now));
+        assertThat(response.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getSuccessfulShards(), equalTo(numShards));
+        assertThat(response.SearchResponse().getFailedShards(), equalTo(0));
+        assertThat(response.ExpirationTime(), greaterThan(now));
 
         // remove the async search index
         client().admin().indices().prepareDelete(XPackPlugin.ASYNC_RESULTS_INDEX).get();
 
-        Exception exc = expectThrows(Exception.class, () -> getAsyncSearch(response.getId()));
+        Exception exc = expectThrows(Exception.class, () -> getAsyncSearch(response.Id()));
         Throwable cause = exc instanceof ExecutionException ?
             ExceptionsHelper.unwrapCause(exc.getCause()) : ExceptionsHelper.unwrapCause(exc);
         assertThat(ExceptionsHelper.status(cause).getStatus(), equalTo(404));
@@ -459,8 +459,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertFalse(response.isRunning());
         assertTrue(response.isPartial());
         assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        assertNotNull(response.getFailure());
-        ensureTaskNotRunning(response.getId());
+        assertNotNull(response.Failure());
+        ensureTaskNotRunning(response.Id());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63948")
@@ -469,7 +469,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
         request.setKeepOnCompletion(true);
         AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
+        assertNotNull(response.SearchResponse());
         assertFalse(response.isRunning());
 
         List<Thread> threads = new ArrayList<>();
@@ -480,7 +480,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 for (int j = 0; j < 10; j++) {
                     try {
                         latch.await();
-                        getAsyncSearch(response.getId(), TimeValue.timeValueMinutes(10));
+                        getAsyncSearch(response.Id(), TimeValue.timeValueMinutes(10));
                     } catch (Exception exc) {
                         exceptions.add(exc);
                     }

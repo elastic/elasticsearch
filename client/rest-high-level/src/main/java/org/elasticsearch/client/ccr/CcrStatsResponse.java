@@ -54,11 +54,11 @@ public final class CcrStatsResponse {
         this.indicesFollowStats = indicesFollowStats;
     }
 
-    public AutoFollowStats getAutoFollowStats() {
+    public AutoFollowStats AutoFollowStats() {
         return autoFollowStats;
     }
 
-    public IndicesFollowStats getIndicesFollowStats() {
+    public IndicesFollowStats IndicesFollowStats() {
         return indicesFollowStats;
     }
 }

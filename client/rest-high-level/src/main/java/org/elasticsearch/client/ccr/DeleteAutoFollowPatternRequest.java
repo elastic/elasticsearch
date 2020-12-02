@@ -31,7 +31,7 @@ public final class DeleteAutoFollowPatternRequest implements Validatable {
         this.name = Objects.requireNonNull(name);
     }
 
-    public String getName() {
+    public String Name() {
         return name;
     }
 }

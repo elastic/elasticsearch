@@ -84,7 +84,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         createLeaderIndex("transactions-201901", leaderIndexSettings);
         assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(2L));
+            assertThat(autoFollowStats.NumberOfSuccessfulFollowIndices(), equalTo(2L));
             assertTrue(ESIntegTestCase.indexExists("copy-transactions-201901", followerClient()));
         });
 
@@ -102,7 +102,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         createLeaderIndex("logs-201901", leaderIndexSettings);
         assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.NumberOfSuccessfulFollowIndices(), equalTo(1L));
 
             assertTrue(ESIntegTestCase.indexExists("copy-logs-201901", followerClient()));
 
@@ -264,11 +264,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
             assertThat(followInfoResponse.getFollowInfos().size(), equalTo(1));
             FollowerInfo followerInfo = followInfoResponse.getFollowInfos().get(0);
-            assertThat(followerInfo.getFollowerIndex(), equalTo("copy-logs-201901"));
-            assertThat(followerInfo.getRemoteCluster(), equalTo("leader_cluster"));
-            assertThat(followerInfo.getLeaderIndex(), equalTo("logs-201901"));
+            assertThat(followerInfo.FollowerIndex(), equalTo("copy-logs-201901"));
+            assertThat(followerInfo.RemoteCluster(), equalTo("leader_cluster"));
+            assertThat(followerInfo.LeaderIndex(), equalTo("logs-201901"));
 
-            FollowParameters followParameters = followerInfo.getParameters();
+            FollowParameters followParameters = followerInfo.Parameters();
             assertThat(followParameters, notNullValue());
             if (request.getParameters().getMaxWriteBufferCount() != null) {
                 assertThat(followParameters.getMaxWriteBufferCount(), equalTo(request.getParameters().getMaxWriteBufferCount()));
@@ -320,26 +320,26 @@ public class AutoFollowIT extends CcrIntegTestCase {
         createLeaderIndex("logs-201701", leaderIndexSettings);
         assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
-            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
-            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+            assertThat(autoFollowStats.NumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.NumberOfFailedFollowIndices(), equalTo(0L));
+            assertThat(autoFollowStats.NumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
         });
         assertTrue(ESIntegTestCase.indexExists("copy-logs-201701", followerClient()));
 
         createLeaderIndex("logs-201801", leaderIndexSettings);
         assertLongBusy(() -> {
             AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
-            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(1L));
-            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+            assertThat(autoFollowStats.NumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.NumberOfFailedFollowIndices(), greaterThanOrEqualTo(1L));
+            assertThat(autoFollowStats.NumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
 
-            assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(2));
-            ElasticsearchException autoFollowError1 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern1:logs-201801").v2();
+            assertThat(autoFollowStats.RecentAutoFollowErrors().size(), equalTo(2));
+            ElasticsearchException autoFollowError1 = autoFollowStats.RecentAutoFollowErrors().get("my-pattern1:logs-201801").v2();
             assertThat(autoFollowError1, notNullValue());
             assertThat(autoFollowError1.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern1] " +
                 "matches with other patterns [my-pattern2]"));
 
-            ElasticsearchException autoFollowError2 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern2:logs-201801").v2();
+            ElasticsearchException autoFollowError2 = autoFollowStats.RecentAutoFollowErrors().get("my-pattern2:logs-201801").v2();
             assertThat(autoFollowError2, notNullValue());
             assertThat(autoFollowError2.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern2] " +
                 "matches with other patterns [my-pattern1]"));
@@ -361,16 +361,16 @@ public class AutoFollowIT extends CcrIntegTestCase {
         putAutoFollowPatterns("test-pattern", new String[]{"test-*", "tests-*"});
         assertLongBusy(() -> {
             final AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(1));
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
+            assertThat(autoFollowStats.AutoFollowedClusters().size(), equalTo(1));
+            assertThat(autoFollowStats.NumberOfSuccessfulFollowIndices(), equalTo(0L));
         });
 
         // index created in the remote cluster are auto followed
         createLeaderIndex("test-new-index-is-auto-followed", leaderIndexSettings);
         assertLongBusy(() -> {
             final AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(1));
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.AutoFollowedClusters().size(), equalTo(1));
+            assertThat(autoFollowStats.NumberOfSuccessfulFollowIndices(), equalTo(1L));
             assertTrue(ESIntegTestCase.indexExists("copy-test-new-index-is-auto-followed", followerClient()));
         });
         ensureFollowerGreen("copy-test-new-index-is-auto-followed");

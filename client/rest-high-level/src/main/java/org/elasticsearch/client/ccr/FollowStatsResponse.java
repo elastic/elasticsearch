@@ -33,7 +33,7 @@ public final class FollowStatsResponse {
         this.indicesFollowStats = indicesFollowStats;
     }
 
-    public IndicesFollowStats getIndicesFollowStats() {
+    public IndicesFollowStats IndicesFollowStats() {
         return indicesFollowStats;
     }
 }

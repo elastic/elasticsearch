@@ -63,7 +63,7 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
         int skippedShards = 0;
         int failedShards = 0;
         RestStatus completionStatus = null;
-        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
+        SearchResponse searchResponse = asyncSearchResponse.SearchResponse();
         if (searchResponse != null) {
             totalShards = searchResponse.getTotalShards();
             successfulShards = searchResponse.getSuccessfulShards();
@@ -74,17 +74,17 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
             if (searchResponse != null) {
                 completionStatus = searchResponse.status();
             } else {
-                Exception failure = asyncSearchResponse.getFailure();
+                Exception failure = asyncSearchResponse.Failure();
                 if (failure != null) {
                     completionStatus = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure));
                 }
             }
         }
         return new AsyncStatusResponse(
-            asyncSearchResponse.getId(),
+            asyncSearchResponse.Id(),
             asyncSearchResponse.isRunning(),
             asyncSearchResponse.isPartial(),
-            asyncSearchResponse.getStartTime(),
+            asyncSearchResponse.StartTime(),
             expirationTimeMillis,
             totalShards,
             successfulShards,

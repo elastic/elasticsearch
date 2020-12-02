@@ -40,20 +40,20 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         MainResponse info = highLevelClient().info(RequestOptions.DEFAULT);
         // compare with what the low level client outputs
         Map<String, Object> infoAsMap = entityAsMap(adminClient().performRequest(new Request(HttpGet.METHOD_NAME, "/")));
-        assertEquals(infoAsMap.get("cluster_name"), info.getClusterName());
-        assertEquals(infoAsMap.get("cluster_uuid"), info.getClusterUuid());
+        assertEquals(infoAsMap.get("cluster_name"), info.ClusterName());
+        assertEquals(infoAsMap.get("cluster_uuid"), info.ClusterUuid());
 
         // only check node name existence, might be a different one from what was hit by low level client in multi-node cluster
-        assertNotNull(info.getNodeName());
+        assertNotNull(info.NodeName());
         @SuppressWarnings("unchecked")
         Map<String, Object> versionMap = (Map<String, Object>) infoAsMap.get("version");
-        assertEquals(versionMap.get("build_flavor"), info.getVersion().getBuildFlavor());
-        assertEquals(versionMap.get("build_type"), info.getVersion().getBuildType());
-        assertEquals(versionMap.get("build_hash"), info.getVersion().getBuildHash());
-        assertEquals(versionMap.get("build_date"), info.getVersion().getBuildDate());
-        assertEquals(versionMap.get("build_snapshot"), info.getVersion().isSnapshot());
-        assertTrue(versionMap.get("number").toString().startsWith(info.getVersion().getNumber()));
-        assertEquals(versionMap.get("lucene_version"), info.getVersion().getLuceneVersion());
+        assertEquals(versionMap.get("build_flavor"), info.Version().getBuildFlavor());
+        assertEquals(versionMap.get("build_type"), info.Version().getBuildType());
+        assertEquals(versionMap.get("build_hash"), info.Version().getBuildHash());
+        assertEquals(versionMap.get("build_date"), info.Version().getBuildDate());
+        assertEquals(versionMap.get("build_snapshot"), info.Version().isSnapshot());
+        assertTrue(versionMap.get("number").toString().startsWith(info.Version().getNumber()));
+        assertEquals(versionMap.get("lucene_version"), info.Version().getLuceneVersion());
     }
 
     public void testXPackInfo() throws Exception {
@@ -65,7 +65,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
 
         MainResponse mainResponse = highLevelClient().info(RequestOptions.DEFAULT);
 
-        assertEquals(mainResponse.getVersion().getBuildHash(), info.getBuildInfo().getHash());
+        assertEquals(mainResponse.Version().getBuildHash(), info.getBuildInfo().getHash());
 
         assertEquals("trial", info.getLicenseInfo().getType());
         assertEquals("trial", info.getLicenseInfo().getMode());

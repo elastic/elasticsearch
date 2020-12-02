@@ -31,7 +31,7 @@ public final class UnfollowRequest implements Validatable {
         this.followerIndex = Objects.requireNonNull(followerIndex);
     }
 
-    public String getFollowerIndex() {
+    public String FollowerIndex() {
         return followerIndex;
     }
 }

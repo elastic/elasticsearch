@@ -113,25 +113,25 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     @Override
     protected void assertFromXContent(InternalStringStats aggregation, ParsedAggregation parsedAggregation) throws IOException {
         ParsedStringStats parsed = (ParsedStringStats) parsedAggregation;
-        assertThat(parsed.getName(), equalTo(aggregation.getName()));
+        assertThat(parsed.Name(), equalTo(aggregation.getName()));
         if (aggregation.getCount() == 0) {
-            assertThat(parsed.getCount(), equalTo(0L));
-            assertThat(parsed.getMinLength(), equalTo(0));
-            assertThat(parsed.getMaxLength(), equalTo(0));
-            assertThat(parsed.getAvgLength(), equalTo(0d));
-            assertThat(parsed.getEntropy(), equalTo(0d));
-            assertThat(parsed.getDistribution(), nullValue());
+            assertThat(parsed.Count(), equalTo(0L));
+            assertThat(parsed.MinLength(), equalTo(0));
+            assertThat(parsed.MaxLength(), equalTo(0));
+            assertThat(parsed.AvgLength(), equalTo(0d));
+            assertThat(parsed.Entropy(), equalTo(0d));
+            assertThat(parsed.Distribution(), nullValue());
             return;
         }
-        assertThat(parsed.getCount(), equalTo(aggregation.getCount()));
-        assertThat(parsed.getMinLength(), equalTo(aggregation.getMinLength()));
-        assertThat(parsed.getMaxLength(), equalTo(aggregation.getMaxLength()));
-        assertThat(parsed.getAvgLength(), equalTo(aggregation.getAvgLength()));
-        assertThat(parsed.getEntropy(), equalTo(aggregation.getEntropy()));
+        assertThat(parsed.Count(), equalTo(aggregation.getCount()));
+        assertThat(parsed.MinLength(), equalTo(aggregation.getMinLength()));
+        assertThat(parsed.MaxLength(), equalTo(aggregation.getMaxLength()));
+        assertThat(parsed.AvgLength(), equalTo(aggregation.getAvgLength()));
+        assertThat(parsed.Entropy(), equalTo(aggregation.getEntropy()));
         if (aggregation.getShowDistribution()) {
-            assertThat(parsed.getDistribution(), equalTo(aggregation.getDistribution()));
+            assertThat(parsed.Distribution(), equalTo(aggregation.getDistribution()));
         } else {
-            assertThat(parsed.getDistribution(), nullValue());
+            assertThat(parsed.Distribution(), nullValue());
         }
     }
 

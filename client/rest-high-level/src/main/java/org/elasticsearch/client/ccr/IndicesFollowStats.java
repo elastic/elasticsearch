@@ -79,7 +79,7 @@ public final class IndicesFollowStats {
         return shardFollowStats.get(index);
     }
 
-    public Map<String, List<ShardFollowStats>> getShardFollowStats() {
+    public Map<String, List<ShardFollowStats>> ShardFollowStats() {
         return shardFollowStats;
     }
 
@@ -298,119 +298,119 @@ public final class IndicesFollowStats {
             this.fatalException = fatalException;
         }
 
-        public String getRemoteCluster() {
+        public String RemoteCluster() {
             return remoteCluster;
         }
 
-        public String getLeaderIndex() {
+        public String LeaderIndex() {
             return leaderIndex;
         }
 
-        public String getFollowerIndex() {
+        public String FollowerIndex() {
             return followerIndex;
         }
 
-        public int getShardId() {
+        public int ShardId() {
             return shardId;
         }
 
-        public long getLeaderGlobalCheckpoint() {
+        public long LeaderGlobalCheckpoint() {
             return leaderGlobalCheckpoint;
         }
 
-        public long getLeaderMaxSeqNo() {
+        public long LeaderMaxSeqNo() {
             return leaderMaxSeqNo;
         }
 
-        public long getFollowerGlobalCheckpoint() {
+        public long FollowerGlobalCheckpoint() {
             return followerGlobalCheckpoint;
         }
 
-        public long getFollowerMaxSeqNo() {
+        public long FollowerMaxSeqNo() {
             return followerMaxSeqNo;
         }
 
-        public long getLastRequestedSeqNo() {
+        public long LastRequestedSeqNo() {
             return lastRequestedSeqNo;
         }
 
-        public int getOutstandingReadRequests() {
+        public int OutstandingReadRequests() {
             return outstandingReadRequests;
         }
 
-        public int getOutstandingWriteRequests() {
+        public int OutstandingWriteRequests() {
             return outstandingWriteRequests;
         }
 
-        public int getWriteBufferOperationCount() {
+        public int WriteBufferOperationCount() {
             return writeBufferOperationCount;
         }
 
-        public long getWriteBufferSizeInBytes() {
+        public long WriteBufferSizeInBytes() {
             return writeBufferSizeInBytes;
         }
 
-        public long getFollowerMappingVersion() {
+        public long FollowerMappingVersion() {
             return followerMappingVersion;
         }
 
-        public long getFollowerSettingsVersion() {
+        public long FollowerSettingsVersion() {
             return followerSettingsVersion;
         }
 
-        public long getFollowerAliasesVersion() {
+        public long FollowerAliasesVersion() {
             return followerAliasesVersion;
         }
 
-        public long getTotalReadTimeMillis() {
+        public long TotalReadTimeMillis() {
             return totalReadTimeMillis;
         }
 
-        public long getTotalReadRemoteExecTimeMillis() {
+        public long TotalReadRemoteExecTimeMillis() {
             return totalReadRemoteExecTimeMillis;
         }
 
-        public long getSuccessfulReadRequests() {
+        public long SuccessfulReadRequests() {
             return successfulReadRequests;
         }
 
-        public long getFailedReadRequests() {
+        public long FailedReadRequests() {
             return failedReadRequests;
         }
 
-        public long getOperationsReads() {
+        public long OperationsReads() {
             return operationsReads;
         }
 
-        public long getBytesRead() {
+        public long BytesRead() {
             return bytesRead;
         }
 
-        public long getTotalWriteTimeMillis() {
+        public long TotalWriteTimeMillis() {
             return totalWriteTimeMillis;
         }
 
-        public long getSuccessfulWriteRequests() {
+        public long SuccessfulWriteRequests() {
             return successfulWriteRequests;
         }
 
-        public long getFailedWriteRequests() {
+        public long FailedWriteRequests() {
             return failedWriteRequests;
         }
 
-        public long getOperationWritten() {
+        public long OperationWritten() {
             return operationWritten;
         }
 
-        public long getTimeSinceLastReadMillis() {
+        public long TimeSinceLastReadMillis() {
             return timeSinceLastReadMillis;
         }
 
-        public NavigableMap<Long, Tuple<Integer, ElasticsearchException>> getReadExceptions() {
+        public NavigableMap<Long, Tuple<Integer, ElasticsearchException>> ReadExceptions() {
             return readExceptions;
         }
 
-        public ElasticsearchException getFatalException() {
+        public ElasticsearchException FatalException() {
             return fatalException;
         }
     }

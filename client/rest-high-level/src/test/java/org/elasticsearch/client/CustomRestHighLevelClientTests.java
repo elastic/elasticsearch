@@ -91,10 +91,10 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         String nodeName = randomAlphaOfLengthBetween(1, 10);
 
         MainResponse response = restHighLevelClient.custom(request, optionsForNodeName(nodeName));
-        assertEquals(nodeName, response.getNodeName());
+        assertEquals(nodeName, response.NodeName());
 
         response = restHighLevelClient.customAndParse(request, optionsForNodeName(nodeName));
-        assertEquals(nodeName, response.getNodeName());
+        assertEquals(nodeName, response.NodeName());
     }
 
     public void testCustomEndpointAsync() throws Exception {
@@ -103,11 +103,11 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
 
         PlainActionFuture<MainResponse> future = PlainActionFuture.newFuture();
         restHighLevelClient.customAsync(request, optionsForNodeName(nodeName), future);
-        assertEquals(nodeName, future.get().getNodeName());
+        assertEquals(nodeName, future.get().NodeName());
 
         future = PlainActionFuture.newFuture();
         restHighLevelClient.customAndParseAsync(request, optionsForNodeName(nodeName), future);
-        assertEquals(nodeName, future.get().getNodeName());
+        assertEquals(nodeName, future.get().NodeName());
     }
 
     private static RequestOptions optionsForNodeName(String nodeName) {

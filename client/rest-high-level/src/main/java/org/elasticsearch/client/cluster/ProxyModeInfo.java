@@ -49,19 +49,19 @@ public class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
         return NAME;
     }
 
-    public String getAddress() {
+    public String Address() {
         return address;
     }
 
-    public String getServerName() {
+    public String ServerName() {
         return serverName;
     }
 
-    public int getMaxSocketConnections() {
+    public int MaxSocketConnections() {
         return maxSocketConnections;
     }
 
-    public int getNumSocketsConnected() {
+    public int NumSocketsConnected() {
         return numSocketsConnected;
     }
 

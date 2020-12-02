@@ -59,15 +59,15 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         return builder;
     }
 
-    public String getRemoteCluster() {
+    public String RemoteCluster() {
         return remoteCluster;
     }
 
-    public String getLeaderIndex() {
+    public String LeaderIndex() {
         return leaderIndex;
     }
 
-    public String getFollowerIndex() {
+    public String FollowerIndex() {
         return followerIndex;
     }
 

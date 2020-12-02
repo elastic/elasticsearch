@@ -42,7 +42,7 @@ public final class ResumeFollowRequest extends FollowConfig implements Validatab
         return builder;
     }
 
-    public String getFollowerIndex() {
+    public String FollowerIndex() {
         return followerIndex;
     }
 

@@ -95,15 +95,15 @@ public final class RemoteConnectionInfo {
         return modeInfo.isConnected();
     }
 
-    public String getClusterAlias() {
+    public String ClusterAlias() {
         return clusterAlias;
     }
 
-    public ModeInfo getModeInfo() {
+    public ModeInfo ModeInfo() {
         return modeInfo;
     }
 
-    public String getInitialConnectionTimeoutString() {
+    public String InitialConnectionTimeoutString() {
         return initialConnectionTimeoutString;
     }
 

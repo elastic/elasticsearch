@@ -57,18 +57,18 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
     @Override
     protected void assertInstances(org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse serverTestInstance,
                                    RemoteInfoResponse clientInstance) {
-        assertThat(clientInstance.getInfos().size(), equalTo(serverTestInstance.getInfos().size()));
+        assertThat(clientInstance.Infos().size(), equalTo(serverTestInstance.getInfos().size()));
         Map<String, RemoteConnectionInfo> serverInfos = serverTestInstance.getInfos().stream()
                 .collect(toMap(RemoteConnectionInfo::getClusterAlias, identity()));
-        for (org.elasticsearch.client.cluster.RemoteConnectionInfo clientRemoteInfo : clientInstance.getInfos()) {
+        for (org.elasticsearch.client.cluster.RemoteConnectionInfo clientRemoteInfo : clientInstance.Infos()) {
             RemoteConnectionInfo serverRemoteInfo = serverInfos.get(clientRemoteInfo.getClusterAlias());
-            assertThat(clientRemoteInfo.getClusterAlias(), equalTo(serverRemoteInfo.getClusterAlias()));
+            assertThat(clientRemoteInfo.getClusterAlias(), equalTo(serverRemoteInfo.ClusterAlias()));
             assertThat(clientRemoteInfo.getInitialConnectionTimeoutString(),
-                equalTo(serverRemoteInfo.getInitialConnectionTimeout().toString()));
+                equalTo(serverRemoteInfo.InitialConnectionTimeout().toString()));
             assertThat(clientRemoteInfo.isConnected(), equalTo(serverRemoteInfo.isConnected()));
             assertThat(clientRemoteInfo.isSkipUnavailable(), equalTo(serverRemoteInfo.isSkipUnavailable()));
-            assertThat(clientRemoteInfo.getModeInfo().isConnected(), equalTo(serverRemoteInfo.getModeInfo().isConnected()));
-            assertThat(clientRemoteInfo.getModeInfo().modeName(), equalTo(serverRemoteInfo.getModeInfo().modeName()));
+            assertThat(clientRemoteInfo.getModeInfo().isConnected(), equalTo(serverRemoteInfo.ModeInfo().isConnected()));
+            assertThat(clientRemoteInfo.getModeInfo().modeName(), equalTo(serverRemoteInfo.ModeInfo().modeName()));
             if (clientRemoteInfo.getModeInfo().modeName().equals(SniffModeInfo.NAME)) {
                 SniffModeInfo clientModeInfo =
                         (SniffModeInfo) clientRemoteInfo.getModeInfo();
@@ -82,10 +82,10 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
                         (ProxyModeInfo) clientRemoteInfo.getModeInfo();
                 ProxyConnectionStrategy.ProxyModeInfo serverModeInfo =
                         (ProxyConnectionStrategy.ProxyModeInfo) serverRemoteInfo.getModeInfo();
-                assertThat(clientModeInfo.getAddress(), equalTo(serverModeInfo.getAddress()));
-                assertThat(clientModeInfo.getServerName(), equalTo(serverModeInfo.getServerName()));
-                assertThat(clientModeInfo.getMaxSocketConnections(), equalTo(serverModeInfo.getMaxSocketConnections()));
-                assertThat(clientModeInfo.getNumSocketsConnected(), equalTo(serverModeInfo.getNumSocketsConnected()));
+                assertThat(clientModeInfo.Address(), equalTo(serverModeInfo.getAddress()));
+                assertThat(clientModeInfo.ServerName(), equalTo(serverModeInfo.getServerName()));
+                assertThat(clientModeInfo.MaxSocketConnections(), equalTo(serverModeInfo.getMaxSocketConnections()));
+                assertThat(clientModeInfo.NumSocketsConnected(), equalTo(serverModeInfo.getNumSocketsConnected()));
             } else {
                 fail("impossible case");
             }

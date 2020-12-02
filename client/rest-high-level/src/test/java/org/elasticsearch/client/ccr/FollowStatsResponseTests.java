@@ -53,7 +53,7 @@ public class FollowStatsResponseTests extends AbstractResponseTestCase<FollowSta
 
     @Override
     protected void assertInstances(FollowStatsAction.StatsResponses serverTestInstance, FollowStatsResponse clientInstance) {
-        IndicesFollowStats newIndicesFollowStats = clientInstance.getIndicesFollowStats();
+        IndicesFollowStats newIndicesFollowStats = clientInstance.IndicesFollowStats();
 
         // sort by index name, then shard ID
         final Map<String, Map<Integer, FollowStatsAction.StatsResponse>> expectedIndicesFollowStats = new TreeMap<>();
@@ -72,50 +72,50 @@ public class FollowStatsResponseTests extends AbstractResponseTestCase<FollowSta
             assertThat(newStats.size(), equalTo(expectedStats.size()));
             for (int i = 0; i < newStats.size(); i++) {
                 ShardFollowStats actualShardFollowStats = newStats.get(i);
-                ShardFollowNodeTaskStatus expectedShardFollowStats = expectedStats.get(actualShardFollowStats.getShardId()).status();
+                ShardFollowNodeTaskStatus expectedShardFollowStats = expectedStats.get(actualShardFollowStats.ShardId()).status();
 
-                assertThat(actualShardFollowStats.getRemoteCluster(), equalTo(expectedShardFollowStats.getRemoteCluster()));
-                assertThat(actualShardFollowStats.getLeaderIndex(), equalTo(expectedShardFollowStats.leaderIndex()));
-                assertThat(actualShardFollowStats.getFollowerIndex(), equalTo(expectedShardFollowStats.followerIndex()));
-                assertThat(actualShardFollowStats.getShardId(), equalTo(expectedShardFollowStats.getShardId()));
-                assertThat(actualShardFollowStats.getLeaderGlobalCheckpoint(),
+                assertThat(actualShardFollowStats.RemoteCluster(), equalTo(expectedShardFollowStats.getRemoteCluster()));
+                assertThat(actualShardFollowStats.LeaderIndex(), equalTo(expectedShardFollowStats.leaderIndex()));
+                assertThat(actualShardFollowStats.FollowerIndex(), equalTo(expectedShardFollowStats.followerIndex()));
+                assertThat(actualShardFollowStats.ShardId(), equalTo(expectedShardFollowStats.getShardId()));
+                assertThat(actualShardFollowStats.LeaderGlobalCheckpoint(),
                     equalTo(expectedShardFollowStats.leaderGlobalCheckpoint()));
-                assertThat(actualShardFollowStats.getLeaderMaxSeqNo(), equalTo(expectedShardFollowStats.leaderMaxSeqNo()));
-                assertThat(actualShardFollowStats.getFollowerGlobalCheckpoint(),
+                assertThat(actualShardFollowStats.LeaderMaxSeqNo(), equalTo(expectedShardFollowStats.leaderMaxSeqNo()));
+                assertThat(actualShardFollowStats.FollowerGlobalCheckpoint(),
                     equalTo(expectedShardFollowStats.followerGlobalCheckpoint()));
-                assertThat(actualShardFollowStats.getLastRequestedSeqNo(), equalTo(expectedShardFollowStats.lastRequestedSeqNo()));
-                assertThat(actualShardFollowStats.getOutstandingReadRequests(),
+                assertThat(actualShardFollowStats.LastRequestedSeqNo(), equalTo(expectedShardFollowStats.lastRequestedSeqNo()));
+                assertThat(actualShardFollowStats.OutstandingReadRequests(),
                     equalTo(expectedShardFollowStats.outstandingReadRequests()));
-                assertThat(actualShardFollowStats.getOutstandingWriteRequests(),
+                assertThat(actualShardFollowStats.OutstandingWriteRequests(),
                     equalTo(expectedShardFollowStats.outstandingWriteRequests()));
-                assertThat(actualShardFollowStats.getWriteBufferOperationCount(),
+                assertThat(actualShardFollowStats.WriteBufferOperationCount(),
                     equalTo(expectedShardFollowStats.writeBufferOperationCount()));
-                assertThat(actualShardFollowStats.getFollowerMappingVersion(),
+                assertThat(actualShardFollowStats.FollowerMappingVersion(),
                     equalTo(expectedShardFollowStats.followerMappingVersion()));
-                assertThat(actualShardFollowStats.getFollowerSettingsVersion(),
+                assertThat(actualShardFollowStats.FollowerSettingsVersion(),
                     equalTo(expectedShardFollowStats.followerSettingsVersion()));
-                assertThat(actualShardFollowStats.getFollowerAliasesVersion(),
+                assertThat(actualShardFollowStats.FollowerAliasesVersion(),
                         equalTo(expectedShardFollowStats.followerAliasesVersion()));
-                assertThat(actualShardFollowStats.getTotalReadTimeMillis(),
+                assertThat(actualShardFollowStats.TotalReadTimeMillis(),
                     equalTo(expectedShardFollowStats.totalReadTimeMillis()));
-                assertThat(actualShardFollowStats.getSuccessfulReadRequests(),
+                assertThat(actualShardFollowStats.SuccessfulReadRequests(),
                     equalTo(expectedShardFollowStats.successfulReadRequests()));
-                assertThat(actualShardFollowStats.getFailedReadRequests(), equalTo(expectedShardFollowStats.failedReadRequests()));
-                assertThat(actualShardFollowStats.getOperationsReads(), equalTo(expectedShardFollowStats.operationsReads()));
-                assertThat(actualShardFollowStats.getBytesRead(), equalTo(expectedShardFollowStats.bytesRead()));
-                assertThat(actualShardFollowStats.getTotalWriteTimeMillis(),
+                assertThat(actualShardFollowStats.FailedReadRequests(), equalTo(expectedShardFollowStats.failedReadRequests()));
+                assertThat(actualShardFollowStats.OperationsReads(), equalTo(expectedShardFollowStats.operationsReads()));
+                assertThat(actualShardFollowStats.BytesRead(), equalTo(expectedShardFollowStats.bytesRead()));
+                assertThat(actualShardFollowStats.TotalWriteTimeMillis(),
                     equalTo(expectedShardFollowStats.totalWriteTimeMillis()));
-                assertThat(actualShardFollowStats.getSuccessfulWriteRequests(),
+                assertThat(actualShardFollowStats.SuccessfulWriteRequests(),
                     equalTo(expectedShardFollowStats.successfulWriteRequests()));
-                assertThat(actualShardFollowStats.getFailedWriteRequests(),
+                assertThat(actualShardFollowStats.FailedWriteRequests(),
                     equalTo(expectedShardFollowStats.failedWriteRequests()));
-                assertThat(actualShardFollowStats.getOperationWritten(), equalTo(expectedShardFollowStats.operationWritten()));
-                assertThat(actualShardFollowStats.getReadExceptions().size(),
+                assertThat(actualShardFollowStats.OperationWritten(), equalTo(expectedShardFollowStats.operationWritten()));
+                assertThat(actualShardFollowStats.ReadExceptions().size(),
                     equalTo(expectedShardFollowStats.readExceptions().size()));
-                assertThat(actualShardFollowStats.getReadExceptions().keySet(),
+                assertThat(actualShardFollowStats.ReadExceptions().keySet(),
                     equalTo(expectedShardFollowStats.readExceptions().keySet()));
                 for (final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry :
-                    actualShardFollowStats.getReadExceptions().entrySet()) {
+                    actualShardFollowStats.ReadExceptions().entrySet()) {
                     final Tuple<Integer, ElasticsearchException> expectedTuple =
                         expectedShardFollowStats.readExceptions().get(entry.getKey());
                     assertThat(entry.getValue().v1(), equalTo(expectedTuple.v1()));
@@ -128,7 +128,7 @@ public class FollowStatsResponseTests extends AbstractResponseTestCase<FollowSta
                         anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
                     assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.getCause().getMessage()));
                 }
-                assertThat(actualShardFollowStats.getTimeSinceLastReadMillis(),
+                assertThat(actualShardFollowStats.TimeSinceLastReadMillis(),
                     equalTo(expectedShardFollowStats.timeSinceLastReadMillis()));
             }
         }

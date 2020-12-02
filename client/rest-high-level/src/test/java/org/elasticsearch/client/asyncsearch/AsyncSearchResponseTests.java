@@ -60,24 +60,24 @@ public class AsyncSearchResponseTests
     @Override
     protected void assertInstances(org.elasticsearch.xpack.core.search.action.AsyncSearchResponse expected, AsyncSearchResponse parsed) {
         assertNotSame(parsed, expected);
-        assertEquals(expected.getId(), parsed.getId());
+        assertEquals(expected.Id(), parsed.Id());
         assertEquals(expected.isRunning(), parsed.isRunning());
         assertEquals(expected.isPartial(), parsed.isPartial());
-        assertEquals(expected.getStartTime(), parsed.getStartTime());
-        assertEquals(expected.getExpirationTime(), parsed.getExpirationTime());
+        assertEquals(expected.StartTime(), parsed.StartTime());
+        assertEquals(expected.ExpirationTime(), parsed.ExpirationTime());
         // we cannot directly compare error since Exceptions are wrapped differently on parsing, but we can check original message
-        if (expected.getFailure() != null) {
-            assertThat(parsed.getFailure().getMessage(), containsString(expected.getFailure().getMessage()));
+        if (expected.Failure() != null) {
+            assertThat(parsed.Failure().getMessage(), containsString(expected.Failure().getMessage()));
         } else {
-            assertNull(parsed.getFailure());
+            assertNull(parsed.Failure());
         }
         // we don't need to check the complete parsed search response since this is done elsewhere
         // only spot-check some randomized properties for equality here
-        if (expected.getSearchResponse() != null) {
-            assertEquals(expected.getSearchResponse().getTook(), parsed.getSearchResponse().getTook());
-            assertEquals(expected.getSearchResponse().getScrollId(), parsed.getSearchResponse().getScrollId());
+        if (expected.SearchResponse() != null) {
+            assertEquals(expected.SearchResponse().getTook(), parsed.SearchResponse().getTook());
+            assertEquals(expected.SearchResponse().getScrollId(), parsed.SearchResponse().getScrollId());
         } else {
-            assertNull(parsed.getSearchResponse());
+            assertNull(parsed.SearchResponse());
         }
     }
 }

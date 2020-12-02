@@ -798,9 +798,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::ccr-get-stats-response
         IndicesFollowStats indicesFollowStats =
-            response.getIndicesFollowStats(); // <1>
+            response.IndicesFollowStats(); // <1>
         AutoFollowStats autoFollowStats =
-            response.getAutoFollowStats(); // <2>
+            response.AutoFollowStats(); // <2>
         // end::ccr-get-stats-response
 
         // tag::ccr-get-stats-execute-listener
@@ -809,9 +809,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
                 @Override
                 public void onResponse(CcrStatsResponse response) { // <1>
                     IndicesFollowStats indicesFollowStats =
-                        response.getIndicesFollowStats();
+                        response.IndicesFollowStats();
                     AutoFollowStats autoFollowStats =
-                        response.getAutoFollowStats();
+                        response.AutoFollowStats();
                 }
 
                 @Override
@@ -863,7 +863,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::ccr-get-follow-stats-response
         IndicesFollowStats indicesFollowStats =
-            response.getIndicesFollowStats(); // <1>
+            response.IndicesFollowStats(); // <1>
         // end::ccr-get-follow-stats-response
 
         // tag::ccr-get-follow-stats-execute-listener
@@ -872,7 +872,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
                 @Override
                 public void onResponse(FollowStatsResponse response) { // <1>
                     IndicesFollowStats indicesFollowStats =
-                        response.getIndicesFollowStats();
+                        response.IndicesFollowStats();
                 }
 
                 @Override

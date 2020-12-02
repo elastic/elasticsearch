@@ -107,9 +107,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
             Thread thread = new Thread(() -> task.addCompletionListener(new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse resp) {
-                    assertThat(numShards + numSkippedShards, equalTo(resp.getSearchResponse().getTotalShards()));
-                    assertThat(numSkippedShards, equalTo(resp.getSearchResponse().getSkippedShards()));
-                    assertThat(0, equalTo(resp.getSearchResponse().getFailedShards()));
+                    assertThat(numShards + numSkippedShards, equalTo(resp.SearchResponse().getTotalShards()));
+                    assertThat(numSkippedShards, equalTo(resp.SearchResponse().getSkippedShards()));
+                    assertThat(0, equalTo(resp.SearchResponse().getFailedShards()));
                     latch.countDown();
                 }
 
@@ -134,8 +134,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             Thread thread = new Thread(() -> task.addCompletionListener(new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse resp) {
-                    assertNull(resp.getSearchResponse());
-                    assertNotNull(resp.getFailure());
+                    assertNull(resp.SearchResponse());
+                    assertNotNull(resp.Failure());
                     assertTrue(resp.isPartial());
                     latch.countDown();
                 }
@@ -181,7 +181,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         assertEquals(0, response.get().getSearchResponse().getTotalShards());
         assertEquals(0, response.get().getSearchResponse().getSuccessfulShards());
         assertEquals(0, response.get().getSearchResponse().getFailedShards());
-        Exception failure = asyncSearchResponse.getFailure();
+        Exception failure = asyncSearchResponse.Failure();
         assertThat(failure, instanceOf(ElasticsearchException.class));
         assertEquals("Async search: error while reducing partial results", failure.getMessage());
         assertEquals(1, failure.getSuppressed().length);
@@ -377,22 +377,22 @@ public class AsyncSearchTaskTests extends ESTestCase {
             Thread thread = new Thread(() -> task.addCompletionListener(new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse resp) {
-                    assertThat(resp.getSearchResponse().getTotalShards(), equalTo(expectedTotalShards));
-                    assertThat(resp.getSearchResponse().getSuccessfulShards(), equalTo(expectedSuccessfulShards));
-                    assertThat(resp.getSearchResponse().getSkippedShards(), equalTo(expectedSkippedShards));
-                    assertThat(resp.getSearchResponse().getFailedShards(), equalTo(expectedShardFailures));
+                    assertThat(resp.SearchResponse().getTotalShards(), equalTo(expectedTotalShards));
+                    assertThat(resp.SearchResponse().getSuccessfulShards(), equalTo(expectedSuccessfulShards));
+                    assertThat(resp.SearchResponse().getSkippedShards(), equalTo(expectedSkippedShards));
+                    assertThat(resp.SearchResponse().getFailedShards(), equalTo(expectedShardFailures));
                     assertThat(resp.isPartial(), equalTo(isPartial));
                     if (expectedShardFailures > 0) {
-                        assertThat(resp.getSearchResponse().getShardFailures().length, equalTo(expectedShardFailures));
-                        for (ShardSearchFailure failure : resp.getSearchResponse().getShardFailures()) {
+                        assertThat(resp.SearchResponse().getShardFailures().length, equalTo(expectedShardFailures));
+                        for (ShardSearchFailure failure : resp.SearchResponse().getShardFailures()) {
                             assertThat(failure.getCause(), instanceOf(IOException.class));
                             assertThat(failure.getCause().getMessage(), equalTo("boum"));
                         }
                     }
                     if (totalFailureExpected) {
-                        assertNotNull(resp.getFailure());
+                        assertNotNull(resp.Failure());
                     } else {
-                        assertNull(resp.getFailure());
+                        assertNull(resp.Failure());
                     }
                     latch.countDown();
                 }

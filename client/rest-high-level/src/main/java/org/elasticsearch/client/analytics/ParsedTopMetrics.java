@@ -49,7 +49,7 @@ public class ParsedTopMetrics extends ParsedAggregation {
     /**
      * The list of top metrics, in sorted order.
      */
-    public List<TopMetrics> getTopMetrics() {
+    public List<TopMetrics> TopMetrics() {
         return topMetrics;
     }
 
@@ -96,14 +96,14 @@ public class ParsedTopMetrics extends ParsedAggregation {
         /**
          * The sort key for these top metrics.
          */
-        public List<Object> getSort() {
+        public List<Object> Sort() {
             return sort;
         }
 
         /**
          * The top metric values returned by the aggregation.
          */
-        public Map<String, Object> getMetrics() {
+        public Map<String, Object> Metrics() {
             return metrics;
         }
 

@@ -47,15 +47,15 @@ public class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
         return NAME;
     }
 
-    public List<String> getSeedNodes() {
+    public List<String> SeedNodes() {
         return seedNodes;
     }
 
-    public int getMaxConnectionsPerCluster() {
+    public int MaxConnectionsPerCluster() {
         return maxConnectionsPerCluster;
     }
 
-    public int getNumNodesConnected() {
+    public int NumNodesConnected() {
         return numNodesConnected;
     }
 

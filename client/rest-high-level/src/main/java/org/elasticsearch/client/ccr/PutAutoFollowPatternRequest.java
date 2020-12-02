@@ -44,19 +44,19 @@ public final class PutAutoFollowPatternRequest extends FollowConfig implements V
         this.leaderIndexPatterns = Objects.requireNonNull(leaderIndexPatterns);
     }
 
-    public String getName() {
+    public String Name() {
         return name;
     }
 
-    public String getRemoteCluster() {
+    public String RemoteCluster() {
         return remoteCluster;
     }
 
-    public List<String> getLeaderIndexPatterns() {
+    public List<String> LeaderIndexPatterns() {
         return leaderIndexPatterns;
     }
 
-    public String getFollowIndexNamePattern() {
+    public String FollowIndexNamePattern() {
         return followIndexNamePattern;
     }
 

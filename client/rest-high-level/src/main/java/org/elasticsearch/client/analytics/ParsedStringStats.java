@@ -67,28 +67,28 @@ public class ParsedStringStats extends ParsedAggregation {
     /**
      * The number of non-empty fields counted.
      */
-    public long getCount() {
+    public long Count() {
         return count;
     }
 
     /**
      * The length of the shortest term.
      */
-    public int getMinLength() {
+    public int MinLength() {
         return minLength;
     }
 
     /**
      * The length of the longest term.
      */
-    public int getMaxLength() {
+    public int MaxLength() {
         return maxLength;
     }
 
     /**
      * The average length computed over all terms.
      */
-    public double getAvgLength() {
+    public double AvgLength() {
         return avgLength;
     }
 
@@ -100,7 +100,7 @@ public class ParsedStringStats extends ParsedAggregation {
      * properties of a data set, such as diversity, similarity,
      * randomness etc.
      */
-    public double getEntropy() {
+    public double Entropy() {
         return entropy;
     }
 
@@ -108,12 +108,12 @@ public class ParsedStringStats extends ParsedAggregation {
      * The probability distribution for all characters. {@code null} unless
      * explicitly requested with {@link StringStatsAggregationBuilder#showDistribution(boolean)}.
      */
-    public Map<String, Double> getDistribution() {
+    public Map<String, Double> Distribution() {
         return distribution;
     }
 
     @Override
-    public String getType() {
+    public String Type() {
         return StringStatsAggregationBuilder.NAME;
     }
 

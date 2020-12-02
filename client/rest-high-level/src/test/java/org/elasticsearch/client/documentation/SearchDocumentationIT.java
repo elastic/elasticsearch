@@ -1367,22 +1367,22 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
             // tag::count-response-1
-            long count = countResponse.getCount();
+            long count = countResponse.Count();
             RestStatus status = countResponse.status();
             Boolean terminatedEarly = countResponse.isTerminatedEarly();
             // end::count-response-1
 
             // tag::count-response-2
-            int totalShards = countResponse.getTotalShards();
-            int skippedShards = countResponse.getSkippedShards();
-            int successfulShards = countResponse.getSuccessfulShards();
-            int failedShards = countResponse.getFailedShards();
-            for (ShardSearchFailure failure : countResponse.getShardFailures()) {
+            int totalShards = countResponse.TotalShards();
+            int skippedShards = countResponse.SkippedShards();
+            int successfulShards = countResponse.SuccessfulShards();
+            int failedShards = countResponse.FailedShards();
+            for (ShardSearchFailure failure : countResponse.ShardFailures()) {
                 // failures should be handled here
             }
             // end::count-response-2
             assertNotNull(countResponse);
-            assertEquals(4, countResponse.getCount());
+            assertEquals(4, countResponse.Count());
         }
     }
 

@@ -38,7 +38,7 @@ public class GetAsyncSearchRequest implements Validatable {
         this.id = id;
     }
 
-    public String getId() {
+    public String Id() {
         return this.id;
     }
 
@@ -72,13 +72,13 @@ public class GetAsyncSearchRequest implements Validatable {
             return false;
         }
         GetAsyncSearchRequest request = (GetAsyncSearchRequest) o;
-        return Objects.equals(getId(), request.getId())
+        return Objects.equals(Id(), request.Id())
                 && Objects.equals(getKeepAlive(), request.getKeepAlive())
                 && Objects.equals(getWaitForCompletion(), request.getWaitForCompletion());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getId(), getKeepAlive(), getWaitForCompletion());
+        return Objects.hash(Id(), getKeepAlive(), getWaitForCompletion());
     }
 }

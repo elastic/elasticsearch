@@ -32,7 +32,7 @@ public class DeleteAsyncSearchRequest implements Validatable {
         this.id = id;
 }
 
-    public String getId() {
+    public String Id() {
         return this.id;
     }
 
@@ -45,11 +45,11 @@ public class DeleteAsyncSearchRequest implements Validatable {
             return false;
         }
         DeleteAsyncSearchRequest request = (DeleteAsyncSearchRequest) o;
-        return Objects.equals(getId(), request.getId());
+        return Objects.equals(Id(), request.Id());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getId());
+        return Objects.hash(Id());
     }
 }

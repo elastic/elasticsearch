@@ -95,8 +95,8 @@ class JdbcHttpClient {
 
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
-        SqlVersion version = SqlVersion.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version);
+        SqlVersion version = SqlVersion.fromString(mainResponse.Version());
+        return new InfoResponse(mainResponse.ClusterName(), version);
     }
 
     private void checkServerVersion() throws SQLException {

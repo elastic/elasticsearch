@@ -37,10 +37,10 @@ public class TransportFollowInfoActionTests extends ESTestCase {
 
         List<FollowerInfo> result = TransportFollowInfoAction.getFollowInfos(concreteIndices, state);
         assertThat(result.size(), equalTo(2));
-        assertThat(result.get(0).getFollowerIndex(), equalTo("follower1"));
-        assertThat(result.get(0).getStatus(), equalTo(Response.Status.ACTIVE));
-        assertThat(result.get(1).getFollowerIndex(), equalTo("follower3"));
-        assertThat(result.get(1).getStatus(), equalTo(Response.Status.PAUSED));
+        assertThat(result.get(0).FollowerIndex(), equalTo("follower1"));
+        assertThat(result.get(0).Status(), equalTo(Response.Status.ACTIVE));
+        assertThat(result.get(1).FollowerIndex(), equalTo("follower3"));
+        assertThat(result.get(1).Status(), equalTo(Response.Status.PAUSED));
     }
 
     private static ClusterState createCS(String[] indices, boolean[] followerIndices, boolean[] statuses) {

@@ -81,7 +81,7 @@ final class AsyncSearchRequestConverters {
     static Request getAsyncSearch(GetAsyncSearchRequest asyncSearchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_async_search")
-                .addPathPart(asyncSearchRequest.getId())
+                .addPathPart(asyncSearchRequest.Id())
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new RequestConverters.Params();
@@ -98,7 +98,7 @@ final class AsyncSearchRequestConverters {
     static Request deleteAsyncSearch(DeleteAsyncSearchRequest deleteAsyncSearchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_async_search")
-                .addPathPart(deleteAsyncSearchRequest.getId())
+                .addPathPart(deleteAsyncSearchRequest.Id())
                 .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
     }

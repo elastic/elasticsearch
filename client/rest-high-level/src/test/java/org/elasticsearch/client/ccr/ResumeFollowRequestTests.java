@@ -75,7 +75,7 @@ public class ResumeFollowRequestTests extends AbstractRequestTestCase<ResumeFoll
 
     @Override
     protected void assertInstances(ResumeFollowAction.Request serverInstance, ResumeFollowRequest clientTestInstance) {
-        assertThat(serverInstance.getFollowerIndex(), equalTo(clientTestInstance.getFollowerIndex()));
+        assertThat(serverInstance.getFollowerIndex(), equalTo(clientTestInstance.FollowerIndex()));
         assertFollowConfig(serverInstance.getParameters(), clientTestInstance);
     }
 

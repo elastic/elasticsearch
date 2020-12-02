@@ -102,15 +102,15 @@ public class ParsedInference extends ParsedAggregation {
         return value;
     }
 
-    public List<FeatureImportance> getFeatureImportance() {
+    public List<FeatureImportance> FeatureImportance() {
         return featureImportance;
     }
 
-    public List<TopClassEntry> getTopClasses() {
+    public List<TopClassEntry> TopClasses() {
         return topClasses;
     }
 
-    public String getWarning() {
+    public String Warning() {
         return warning;
     }
 
@@ -131,7 +131,7 @@ public class ParsedInference extends ParsedAggregation {
     }
 
     @Override
-    public String getType() {
+    public String Type() {
         return InferencePipelineAggregationBuilder.NAME;
     }
 }

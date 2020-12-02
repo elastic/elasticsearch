@@ -115,23 +115,23 @@ public final class AutoFollowStats {
         this.autoFollowedClusters = autoFollowedClusters;
     }
 
-    public long getNumberOfFailedFollowIndices() {
+    public long NumberOfFailedFollowIndices() {
         return numberOfFailedFollowIndices;
     }
 
-    public long getNumberOfFailedRemoteClusterStateRequests() {
+    public long NumberOfFailedRemoteClusterStateRequests() {
         return numberOfFailedRemoteClusterStateRequests;
     }
 
-    public long getNumberOfSuccessfulFollowIndices() {
+    public long NumberOfSuccessfulFollowIndices() {
         return numberOfSuccessfulFollowIndices;
     }
 
-    public NavigableMap<String, Tuple<Long, ElasticsearchException>> getRecentAutoFollowErrors() {
+    public NavigableMap<String, Tuple<Long, ElasticsearchException>> RecentAutoFollowErrors() {
         return recentAutoFollowErrors;
     }
 
-    public NavigableMap<String, AutoFollowedCluster> getAutoFollowedClusters() {
+    public NavigableMap<String, AutoFollowedCluster> AutoFollowedClusters() {
         return autoFollowedClusters;
     }
 

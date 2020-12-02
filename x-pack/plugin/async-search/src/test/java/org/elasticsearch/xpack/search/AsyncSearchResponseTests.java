@@ -128,13 +128,13 @@ public class AsyncSearchResponseTests extends ESTestCase {
     }
 
     static void assertEqualResponses(AsyncSearchResponse expected, AsyncSearchResponse actual) {
-        assertEquals(expected.getId(), actual.getId());
+        assertEquals(expected.Id(), actual.getId());
         assertEquals(expected.status(), actual.status());
-        assertEquals(expected.getFailure() == null, actual.getFailure() == null);
+        assertEquals(expected.Failure() == null, actual.getFailure() == null);
         assertEquals(expected.isRunning(), actual.isRunning());
         assertEquals(expected.isPartial(), actual.isPartial());
-        assertEquals(expected.getStartTime(), actual.getStartTime());
-        assertEquals(expected.getExpirationTime(), actual.getExpirationTime());
+        assertEquals(expected.StartTime(), actual.getStartTime());
+        assertEquals(expected.ExpirationTime(), actual.getExpirationTime());
     }
 
     public void testToXContent() throws IOException {

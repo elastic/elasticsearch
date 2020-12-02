@@ -57,23 +57,23 @@ public class MainResponse {
         this.tagline = tagline;
     }
 
-    public String getNodeName() {
+    public String NodeName() {
         return nodeName;
     }
 
-    public Version getVersion() {
+    public Version Version() {
         return version;
     }
 
-    public String getClusterName() {
+    public String ClusterName() {
         return clusterName;
     }
 
-    public String getClusterUuid() {
+    public String ClusterUuid() {
         return clusterUuid;
     }
 
-    public String getTagline() {
+    public String Tagline() {
         return tagline;
     }
 

@@ -188,7 +188,7 @@ public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(searchSource, indices);
         submitRequest.setKeepOnCompletion(true);
         AsyncSearchResponse submitResponse = client.asyncSearch().submit(submitRequest, RequestOptions.DEFAULT);
-        String id = submitResponse.getId();
+        String id = submitResponse.Id();
 
         // tag::asyncsearch-delete-request
         DeleteAsyncSearchRequest request = new DeleteAsyncSearchRequest(id);

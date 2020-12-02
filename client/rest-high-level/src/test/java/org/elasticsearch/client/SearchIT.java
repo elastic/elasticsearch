@@ -1308,21 +1308,21 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         CountRequest countRequest = new CountRequest("index");
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(5, countResponse.getCount());
+        assertEquals(5, countResponse.Count());
     }
 
     public void testCountMultipleIndicesNoQuery() throws IOException {
         CountRequest countRequest = new CountRequest("index", "index1");
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(7, countResponse.getCount());
+        assertEquals(7, countResponse.Count());
     }
 
     public void testCountAllIndicesNoQuery() throws IOException {
         CountRequest countRequest = new CountRequest();
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(12, countResponse.getCount());
+        assertEquals(12, countResponse.Count());
     }
 
     public void testCountOneIndexMatchQuery() throws IOException {
@@ -1330,7 +1330,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("num", 10)));
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(1, countResponse.getCount());
+        assertEquals(1, countResponse.Count());
     }
 
     public void testCountMultipleIndicesMatchQueryUsingConstructor() throws IOException {
@@ -1344,7 +1344,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(3, countResponse.getCount());
+        assertEquals(3, countResponse.Count());
 
     }
 
@@ -1357,7 +1357,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(3, countResponse.getCount());
+        assertEquals(3, countResponse.Count());
     }
 
     public void testCountAllIndicesMatchQuery() throws IOException {
@@ -1366,7 +1366,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(3, countResponse.getCount());
+        assertEquals(3, countResponse.Count());
     }
 
     public void testSearchWithBasicLicensedQuery() throws IOException {
@@ -1382,10 +1382,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     private static void assertCountHeader(CountResponse countResponse) {
-        assertEquals(0, countResponse.getSkippedShards());
-        assertEquals(0, countResponse.getFailedShards());
-        assertThat(countResponse.getTotalShards(), greaterThan(0));
-        assertEquals(countResponse.getTotalShards(), countResponse.getSuccessfulShards());
-        assertEquals(0, countResponse.getShardFailures().length);
+        assertEquals(0, countResponse.SkippedShards());
+        assertEquals(0, countResponse.FailedShards());
+        assertThat(countResponse.TotalShards(), greaterThan(0));
+        assertEquals(countResponse.TotalShards(), countResponse.SuccessfulShards());
+        assertEquals(0, countResponse.ShardFailures().length);
     }
 }

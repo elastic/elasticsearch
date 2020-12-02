@@ -55,7 +55,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         assertFalse(asyncSearchResponse.isRunning());
         assertTrue(asyncSearchResponse.isPartial());
-        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
+        SearchResponse searchResponse = asyncSearchResponse.SearchResponse();
         assertEquals(10, searchResponse.getTotalShards());
         assertEquals(10, searchResponse.getSuccessfulShards());
         assertEquals(0, searchResponse.getFailedShards());
@@ -65,12 +65,12 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
         StringTerms terms = searchResponse.getAggregations().get("text");
         assertEquals(1, terms.getBuckets().size());
         assertEquals(10, terms.getBucketByKey("value").getDocCount());
-        assertNotNull(asyncSearchResponse.getFailure());
-        assertThat(asyncSearchResponse.getFailure(), CoreMatchers.instanceOf(ElasticsearchStatusException.class));
-        ElasticsearchStatusException statusException = (ElasticsearchStatusException) asyncSearchResponse.getFailure();
+        assertNotNull(asyncSearchResponse.Failure());
+        assertThat(asyncSearchResponse.Failure(), CoreMatchers.instanceOf(ElasticsearchStatusException.class));
+        ElasticsearchStatusException statusException = (ElasticsearchStatusException) asyncSearchResponse.Failure();
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, statusException.status());
-        assertThat(asyncSearchResponse.getFailure().getCause(), CoreMatchers.instanceOf(SearchPhaseExecutionException.class));
-        SearchPhaseExecutionException phaseExecutionException = (SearchPhaseExecutionException) asyncSearchResponse.getFailure().getCause();
+        assertThat(asyncSearchResponse.Failure().getCause(), CoreMatchers.instanceOf(SearchPhaseExecutionException.class));
+        SearchPhaseExecutionException phaseExecutionException = (SearchPhaseExecutionException) asyncSearchResponse.Failure().getCause();
         assertEquals("fetch", phaseExecutionException.getPhaseName());
         assertEquals("boom", phaseExecutionException.getCause().getMessage());
         assertEquals(10, phaseExecutionException.shardFailures().length);
@@ -98,8 +98,8 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         assertFalse(asyncSearchResponse.isRunning());
         assertFalse(asyncSearchResponse.isPartial());
-        assertNull(asyncSearchResponse.getFailure());
-        SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
+        assertNull(asyncSearchResponse.Failure());
+        SearchResponse searchResponse = asyncSearchResponse.SearchResponse();
         assertEquals(10, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(5, searchResponse.getFailedShards());

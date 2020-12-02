@@ -91,11 +91,11 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
 
     @Override
     protected MainResponse mutateInstance(MainResponse mutateInstance) {
-        String clusterUuid = mutateInstance.getClusterUuid();
-        Build build = mutateInstance.getBuild();
-        Version version = mutateInstance.getVersion();
-        String nodeName = mutateInstance.getNodeName();
-        ClusterName clusterName = mutateInstance.getClusterName();
+        String clusterUuid = mutateInstance.ClusterUuid();
+        Build build = mutateInstance.Build();
+        Version version = mutateInstance.Version();
+        String nodeName = mutateInstance.NodeName();
+        ClusterName clusterName = mutateInstance.ClusterName();
         switch (randomIntBetween(0, 4)) {
             case 0:
                 clusterUuid = clusterUuid + randomAlphaOfLength(5);

@@ -106,10 +106,10 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                         + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp) +  "\""
                     + "},"
                     + "\"ccr_auto_follow_stats\":{"
-                        + "\"number_of_failed_follow_indices\":" + autoFollowStats.getNumberOfFailedFollowIndices() + ","
+                        + "\"number_of_failed_follow_indices\":" + autoFollowStats.NumberOfFailedFollowIndices() + ","
                         + "\"number_of_failed_remote_cluster_state_requests\":" +
-                        autoFollowStats.getNumberOfFailedRemoteClusterStateRequests() + ","
-                        + "\"number_of_successful_follow_indices\":" + autoFollowStats.getNumberOfSuccessfulFollowIndices() + ","
+                        autoFollowStats.NumberOfFailedRemoteClusterStateRequests() + ","
+                        + "\"number_of_successful_follow_indices\":" + autoFollowStats.NumberOfSuccessfulFollowIndices() + ","
                         + "\"recent_auto_follow_errors\":["
                             + "{"
                                 + "\"leader_index\":\"" + recentAutoFollowExceptions.keySet().iterator().next() + "\","

@@ -74,7 +74,7 @@ public class AsyncSearchResponse implements ToXContentObject  {
      * Returns the id of the async search request or null if the response is not stored in the cluster.
      */
     @Nullable
-    public String getId() {
+    public String Id() {
         return id;
     }
 
@@ -84,14 +84,14 @@ public class AsyncSearchResponse implements ToXContentObject  {
      * See {@link #isPartial()} to determine whether the response contains partial or complete
      * results.
      */
-    public SearchResponse getSearchResponse() {
+    public SearchResponse SearchResponse() {
         return searchResponse;
     }
 
     /**
      * Returns the failure reason or null if the query is running or has completed normally.
      */
-    public ElasticsearchException getFailure() {
+    public ElasticsearchException Failure() {
         return error;
     }
 
@@ -118,14 +118,14 @@ public class AsyncSearchResponse implements ToXContentObject  {
     /**
      * When this response was created as a timestamp in milliseconds since epoch.
      */
-    public long getStartTime() {
+    public long StartTime() {
         return startTimeMillis;
     }
 
     /**
      * When this response will expired as a timestamp in milliseconds since epoch.
      */
-    public long getExpirationTime() {
+    public long ExpirationTime() {
         return expirationTimeMillis;
     }
 

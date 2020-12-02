@@ -153,7 +153,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             LoggingDeprecationHandler.INSTANCE,
             new BytesArray(EntityUtils.toByteArray(resp.getEntity())),
             XContentType.JSON));
-        return searchResponse.getSearchResponse().getHits().getHits();
+        return searchResponse.SearchResponse().getHits().getHits();
     }
 
     public void testAuthorizationOfPointInTime() throws Exception {

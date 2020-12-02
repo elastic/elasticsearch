@@ -69,16 +69,16 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
     protected void assertEqualInstances(AutoFollowStats expectedInstance, AutoFollowStats newInstance) {
         assertNotSame(expectedInstance, newInstance);
 
-        assertThat(newInstance.getNumberOfFailedRemoteClusterStateRequests(),
-            equalTo(expectedInstance.getNumberOfFailedRemoteClusterStateRequests()));
-        assertThat(newInstance.getNumberOfFailedFollowIndices(), equalTo(expectedInstance.getNumberOfFailedFollowIndices()));
-        assertThat(newInstance.getNumberOfSuccessfulFollowIndices(), equalTo(expectedInstance.getNumberOfSuccessfulFollowIndices()));
+        assertThat(newInstance.NumberOfFailedRemoteClusterStateRequests(),
+            equalTo(expectedInstance.NumberOfFailedRemoteClusterStateRequests()));
+        assertThat(newInstance.NumberOfFailedFollowIndices(), equalTo(expectedInstance.NumberOfFailedFollowIndices()));
+        assertThat(newInstance.NumberOfSuccessfulFollowIndices(), equalTo(expectedInstance.NumberOfSuccessfulFollowIndices()));
 
-        assertThat(newInstance.getRecentAutoFollowErrors().size(), equalTo(expectedInstance.getRecentAutoFollowErrors().size()));
-        assertThat(newInstance.getRecentAutoFollowErrors().keySet(), equalTo(expectedInstance.getRecentAutoFollowErrors().keySet()));
-        for (final Map.Entry<String, Tuple<Long, ElasticsearchException>> entry : newInstance.getRecentAutoFollowErrors().entrySet()) {
+        assertThat(newInstance.RecentAutoFollowErrors().size(), equalTo(expectedInstance.RecentAutoFollowErrors().size()));
+        assertThat(newInstance.RecentAutoFollowErrors().keySet(), equalTo(expectedInstance.RecentAutoFollowErrors().keySet()));
+        for (final Map.Entry<String, Tuple<Long, ElasticsearchException>> entry : newInstance.RecentAutoFollowErrors().entrySet()) {
             // x-content loses the exception
-            final Tuple<Long, ElasticsearchException> expected = expectedInstance.getRecentAutoFollowErrors().get(entry.getKey());
+            final Tuple<Long, ElasticsearchException> expected = expectedInstance.RecentAutoFollowErrors().get(entry.getKey());
             assertThat(entry.getValue().v1(), equalTo(expected.v1()));
             assertThat(entry.getValue().v2().getMessage(), containsString(expected.v2().getMessage()));
             assertNotNull(entry.getValue().v2().getCause());
@@ -88,7 +88,7 @@ public class AutoFollowStatsTests extends AbstractSerializingTestCase<AutoFollow
             assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.v2().getCause().getMessage()));
         }
 
-        assertThat(newInstance.getAutoFollowedClusters(), equalTo(expectedInstance.getAutoFollowedClusters()));
+        assertThat(newInstance.AutoFollowedClusters(), equalTo(expectedInstance.AutoFollowedClusters()));
     }
 
     @Override

@@ -69,11 +69,11 @@ public class CountResponseTests extends ESTestCase {
 
     private void toXContent(CountResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field(CountResponse.COUNT.getPreferredName(), response.getCount());
+        builder.field(CountResponse.COUNT.getPreferredName(), response.Count());
         if (response.isTerminatedEarly() != null) {
             builder.field(CountResponse.TERMINATED_EARLY.getPreferredName(), response.isTerminatedEarly());
         }
-        toXContent(response.getShardStats(), builder, ToXContent.EMPTY_PARAMS);
+        toXContent(response.ShardStats(), builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
     }
 
@@ -97,17 +97,17 @@ public class CountResponseTests extends ESTestCase {
     }
 
     private void assertEqualInstances(CountResponse expectedInstance, CountResponse newInstance) {
-        assertEquals(expectedInstance.getCount(), newInstance.getCount());
+        assertEquals(expectedInstance.Count(), newInstance.Count());
         assertEquals(expectedInstance.status(), newInstance.status());
         assertEquals(expectedInstance.isTerminatedEarly(), newInstance.isTerminatedEarly());
-        assertEquals(expectedInstance.getTotalShards(), newInstance.getTotalShards());
-        assertEquals(expectedInstance.getFailedShards(), newInstance.getFailedShards());
-        assertEquals(expectedInstance.getSkippedShards(), newInstance.getSkippedShards());
-        assertEquals(expectedInstance.getSuccessfulShards(), newInstance.getSuccessfulShards());
-        assertEquals(expectedInstance.getShardFailures().length, newInstance.getShardFailures().length);
+        assertEquals(expectedInstance.TotalShards(), newInstance.TotalShards());
+        assertEquals(expectedInstance.FailedShards(), newInstance.FailedShards());
+        assertEquals(expectedInstance.SkippedShards(), newInstance.SkippedShards());
+        assertEquals(expectedInstance.SuccessfulShards(), newInstance.SuccessfulShards());
+        assertEquals(expectedInstance.ShardFailures().length, newInstance.ShardFailures().length);
 
-        ShardSearchFailure[] expectedFailures = expectedInstance.getShardFailures();
-        ShardSearchFailure[] newFailures = newInstance.getShardFailures();
+        ShardSearchFailure[] expectedFailures = expectedInstance.ShardFailures();
+        ShardSearchFailure[] newFailures = newInstance.ShardFailures();
 
         for (int i = 0; i < newFailures.length; i++) {
             ShardSearchFailure parsedFailure = newFailures[i];

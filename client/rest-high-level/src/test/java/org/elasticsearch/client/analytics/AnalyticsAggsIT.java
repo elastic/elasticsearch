@@ -51,15 +51,15 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
         search.source().aggregation(new StringStatsAggregationBuilder("test").field("message.keyword").showDistribution(true));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedStringStats stats = response.getAggregations().get("test");
-        assertThat(stats.getCount(), equalTo(2L));
-        assertThat(stats.getMinLength(), equalTo(10));
-        assertThat(stats.getMaxLength(), equalTo(24));
-        assertThat(stats.getAvgLength(), equalTo(17.0));
-        assertThat(stats.getEntropy(), closeTo(4, .1));
-        assertThat(stats.getDistribution(), aMapWithSize(18));
-        assertThat(stats.getDistribution(), hasEntry(equalTo("o"), closeTo(.09, .005)));
-        assertThat(stats.getDistribution(), hasEntry(equalTo("r"), closeTo(.12, .005)));
-        assertThat(stats.getDistribution(), hasEntry(equalTo("t"), closeTo(.09, .005)));
+        assertThat(stats.Count(), equalTo(2L));
+        assertThat(stats.MinLength(), equalTo(10));
+        assertThat(stats.MaxLength(), equalTo(24));
+        assertThat(stats.AvgLength(), equalTo(17.0));
+        assertThat(stats.Entropy(), closeTo(4, .1));
+        assertThat(stats.Distribution(), aMapWithSize(18));
+        assertThat(stats.Distribution(), hasEntry(equalTo("o"), closeTo(.09, .005)));
+        assertThat(stats.Distribution(), hasEntry(equalTo("r"), closeTo(.12, .005)));
+        assertThat(stats.Distribution(), hasEntry(equalTo("t"), closeTo(.09, .005)));
     }
 
     public void testTopMetricsDoubleMetric() throws IOException {
@@ -69,8 +69,8 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
                 "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
-        assertThat(top.getTopMetrics(), hasSize(1));
-        ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
+        assertThat(top.TopMetrics(), hasSize(1));
+        ParsedTopMetrics.TopMetrics metric = top.TopMetrics().get(0);
         assertThat(metric.getSort(), equalTo(singletonList(2)));
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", 3.0)));
     }
@@ -82,8 +82,8 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
                 "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
-        assertThat(top.getTopMetrics(), hasSize(1));
-        ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
+        assertThat(top.TopMetrics(), hasSize(1));
+        ParsedTopMetrics.TopMetrics metric = top.TopMetrics().get(0);
         assertThat(metric.getSort(), equalTo(singletonList(2)));
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", 3)));
     }
@@ -95,8 +95,8 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
                 "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
-        assertThat(top.getTopMetrics(), hasSize(1));
-        ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
+        assertThat(top.TopMetrics(), hasSize(1));
+        ParsedTopMetrics.TopMetrics metric = top.TopMetrics().get(0);
         assertThat(metric.getSort(), equalTo(singletonList(2)));
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", "2020-01-02T01:01:00.000Z")));
     }
@@ -108,8 +108,8 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
                 "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v", "m"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
-        assertThat(top.getTopMetrics(), hasSize(1));
-        ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
+        assertThat(top.TopMetrics(), hasSize(1));
+        ParsedTopMetrics.TopMetrics metric = top.TopMetrics().get(0);
         assertThat(metric.getSort(), equalTo(singletonList(2)));
         assertThat(metric.getMetrics(), hasEntry("v", 3.0));
         assertThat(metric.getMetrics(), hasEntry("m", 13.0));
@@ -122,11 +122,11 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
                 "test", new FieldSortBuilder("s").order(SortOrder.DESC), 2, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
-        assertThat(top.getTopMetrics(), hasSize(2));
-        ParsedTopMetrics.TopMetrics metric = top.getTopMetrics().get(0);
+        assertThat(top.TopMetrics(), hasSize(2));
+        ParsedTopMetrics.TopMetrics metric = top.TopMetrics().get(0);
         assertThat(metric.getSort(), equalTo(singletonList(2)));
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", 3.0)));
-        metric = top.getTopMetrics().get(1);
+        metric = top.TopMetrics().get(1);
         assertThat(metric.getSort(), equalTo(singletonList(1)));
         assertThat(metric.getMetrics(), equalTo(singletonMap("v", 2.0)));
     }

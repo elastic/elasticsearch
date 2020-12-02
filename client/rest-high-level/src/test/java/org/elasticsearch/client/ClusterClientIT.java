@@ -342,15 +342,15 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response, notNullValue());
         assertThat(response.getInfos().size(), equalTo(1));
         RemoteConnectionInfo info = response.getInfos().get(0);
-        assertThat(info.getClusterAlias(), equalTo(clusterAlias));
-        assertThat(info.getInitialConnectionTimeoutString(), equalTo(initialConnectionTimeout.toString()));
+        assertThat(info.ClusterAlias(), equalTo(clusterAlias));
+        assertThat(info.InitialConnectionTimeoutString(), equalTo(initialConnectionTimeout.toString()));
         assertThat(info.isSkipUnavailable(), equalTo(skipUnavailable));
-        assertThat(info.getModeInfo().modeName(), equalTo(SniffModeInfo.NAME));
-        assertThat(info.getModeInfo().isConnected(), equalTo(true));
+        assertThat(info.ModeInfo().modeName(), equalTo(SniffModeInfo.NAME));
+        assertThat(info.ModeInfo().isConnected(), equalTo(true));
         SniffModeInfo sniffModeInfo = (SniffModeInfo) info.getModeInfo();
-        assertThat(sniffModeInfo.getMaxConnectionsPerCluster(), equalTo(connectionsPerCluster));
-        assertThat(sniffModeInfo.getNumNodesConnected(), equalTo(1));
-        assertThat(sniffModeInfo.getSeedNodes(), equalTo(seeds));
+        assertThat(sniffModeInfo.MaxConnectionsPerCluster(), equalTo(connectionsPerCluster));
+        assertThat(sniffModeInfo.NumNodesConnected(), equalTo(1));
+        assertThat(sniffModeInfo.SeedNodes(), equalTo(seeds));
     }
 
     public void testComponentTemplates() throws Exception {

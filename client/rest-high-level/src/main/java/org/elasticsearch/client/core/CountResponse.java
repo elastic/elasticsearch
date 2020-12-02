@@ -50,49 +50,49 @@ public final class CountResponse {
         this.shardStats = shardStats;
     }
 
-    public ShardStats getShardStats() {
+    public ShardStats ShardStats() {
         return shardStats;
     }
 
     /**
      * Number of documents matching request.
      */
-    public long getCount() {
+    public long Count() {
         return count;
     }
 
     /**
      * The total number of shards the search was executed on.
      */
-    public int getTotalShards() {
+    public int TotalShards() {
         return shardStats.totalShards;
     }
 
     /**
      * The successful number of shards the search was executed on.
      */
-    public int getSuccessfulShards() {
+    public int SuccessfulShards() {
         return shardStats.successfulShards;
     }
 
     /**
      * The number of shards skipped due to pre-filtering
      */
-    public int getSkippedShards() {
+    public int SkippedShards() {
         return shardStats.skippedShards;
     }
 
     /**
      * The failed number of shards the search was executed on.
      */
-    public int getFailedShards() {
+    public int FailedShards() {
         return shardStats.shardFailures.length;
     }
 
     /**
      * The failures that occurred during the search.
      */
-    public ShardSearchFailure[] getShardFailures() {
+    public ShardSearchFailure[] ShardFailures() {
         return shardStats.shardFailures;
     }
 

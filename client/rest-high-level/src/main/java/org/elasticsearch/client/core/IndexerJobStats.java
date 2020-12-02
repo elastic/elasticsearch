@@ -70,63 +70,63 @@ public abstract class IndexerJobStats {
     /**
      * The number of pages read from the input indices
      */
-    public long getNumPages() {
+    public long NumPages() {
         return numPages;
     }
 
     /**
      * The number of documents read from the input indices
      */
-    public long getNumDocuments() {
+    public long NumDocuments() {
         return numInputDocuments;
     }
 
     /**
      * Number of times that the job woke up to write documents
      */
-    public long getNumInvocations() {
+    public long NumInvocations() {
         return numInvocations;
     }
 
     /**
      * Number of documents written
      */
-    public long getOutputDocuments() {
+    public long OutputDocuments() {
         return numOuputDocuments;
     }
 
     /**
      * Number of index failures that have occurred
      */
-    public long getIndexFailures() {
+    public long IndexFailures() {
         return indexFailures;
     }
 
     /**
      * Number of failures that have occurred
      */
-    public long getSearchFailures() {
+    public long SearchFailures() {
         return searchFailures;
     }
 
     /**
      * Returns the time spent indexing (cumulative) in milliseconds
      */
-    public long getIndexTime() {
+    public long IndexTime() {
         return indexTime;
     }
 
     /**
      * Returns the time spent searching (cumulative) in milliseconds
      */
-    public long getSearchTime() {
+    public long SearchTime() {
         return searchTime;
     }
 
     /**
      * Returns the time spent processing (cumulative) in milliseconds
      */
-    public long getProcessingTime() {
+    public long ProcessingTime() {
         return processingTime;
     }
 
@@ -134,21 +134,21 @@ public abstract class IndexerJobStats {
      * Returns the total number of indexing requests that have been processed
      * (Note: this is not the number of _documents_ that have been indexed)
      */
-    public long getIndexTotal() {
+    public long IndexTotal() {
         return indexTotal;
     }
 
     /**
      * Returns the total number of search requests that have been made
      */
-    public long getSearchTotal() {
+    public long SearchTotal() {
         return searchTotal;
     }
 
     /**
      * Returns the total number of processing runs that have been made
      */
-    public long getProcessingTotal() {
+    public long ProcessingTotal() {
         return processingTotal;
     }
 

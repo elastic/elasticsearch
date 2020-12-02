@@ -103,30 +103,30 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         InferenceResults result = agg.getInferenceResult();
         if (result instanceof WarningInferenceResults) {
             WarningInferenceResults warning = (WarningInferenceResults) result;
-            assertEquals(warning.getWarning(), parsed.getWarning());
+            assertEquals(warning.getWarning(), parsed.Warning());
         } else if (result instanceof RegressionInferenceResults) {
             RegressionInferenceResults regression = (RegressionInferenceResults) result;
-            assertEquals(regression.value(), parsed.getValue());
+            assertEquals(regression.value(), parsed.Value());
             List<RegressionFeatureImportance> featureImportance = regression.getFeatureImportance();
             if (featureImportance.isEmpty()) {
                 featureImportance = null;
             }
-            assertEquals(featureImportance, parsed.getFeatureImportance());
+            assertEquals(featureImportance, parsed.FeatureImportance());
         } else if (result instanceof ClassificationInferenceResults) {
             ClassificationInferenceResults classification = (ClassificationInferenceResults) result;
-            assertEquals(classification.predictedValue(), parsed.getValue());
+            assertEquals(classification.predictedValue(), parsed.Value());
 
             List<ClassificationFeatureImportance> featureImportance = classification.getFeatureImportance();
             if (featureImportance.isEmpty()) {
                 featureImportance = null;
             }
-            assertEquals(featureImportance, parsed.getFeatureImportance());
+            assertEquals(featureImportance, parsed.FeatureImportance());
 
             List<TopClassEntry> topClasses = classification.getTopClasses();
             if (topClasses.isEmpty()) {
                 topClasses = null;
             }
-            assertEquals(topClasses, parsed.getTopClasses());
+            assertEquals(topClasses, parsed.TopClasses());
         }
     }
 

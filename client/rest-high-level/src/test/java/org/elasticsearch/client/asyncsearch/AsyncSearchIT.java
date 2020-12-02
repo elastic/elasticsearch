@@ -38,18 +38,18 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(sourceBuilder, index);
         submitRequest.setKeepOnCompletion(true);
         AsyncSearchResponse submitResponse = highLevelClient().asyncSearch().submit(submitRequest, RequestOptions.DEFAULT);
-        assertNotNull(submitResponse.getId());
+        assertNotNull(submitResponse.Id());
         assertFalse(submitResponse.isPartial());
-        assertTrue(submitResponse.getStartTime() > 0);
-        assertTrue(submitResponse.getExpirationTime() > 0);
-        assertNotNull(submitResponse.getSearchResponse());
+        assertTrue(submitResponse.StartTime() > 0);
+        assertTrue(submitResponse.ExpirationTime() > 0);
+        assertNotNull(submitResponse.SearchResponse());
         if (submitResponse.isRunning() == false) {
             assertFalse(submitResponse.isPartial());
         } else {
             assertTrue(submitResponse.isPartial());
         }
 
-        GetAsyncSearchRequest getRequest = new GetAsyncSearchRequest(submitResponse.getId());
+        GetAsyncSearchRequest getRequest = new GetAsyncSearchRequest(submitResponse.Id());
         AsyncSearchResponse getResponse = highLevelClient().asyncSearch().get(getRequest, RequestOptions.DEFAULT);
         while (getResponse.isRunning()) {
             getResponse = highLevelClient().asyncSearch().get(getRequest, RequestOptions.DEFAULT);
@@ -57,11 +57,11 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
 
         assertFalse(getResponse.isRunning());
         assertFalse(getResponse.isPartial());
-        assertTrue(getResponse.getStartTime() > 0);
-        assertTrue(getResponse.getExpirationTime() > 0);
-        assertNotNull(getResponse.getSearchResponse());
+        assertTrue(getResponse.StartTime() > 0);
+        assertTrue(getResponse.ExpirationTime() > 0);
+        assertNotNull(getResponse.SearchResponse());
 
-        DeleteAsyncSearchRequest deleteRequest = new DeleteAsyncSearchRequest(submitResponse.getId());
+        DeleteAsyncSearchRequest deleteRequest = new DeleteAsyncSearchRequest(submitResponse.Id());
         AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().delete(deleteRequest,
                 RequestOptions.DEFAULT);
         assertNotNull(deleteAsyncSearchResponse);

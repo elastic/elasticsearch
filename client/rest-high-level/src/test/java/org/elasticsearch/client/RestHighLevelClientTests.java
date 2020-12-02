@@ -217,21 +217,21 @@ public class RestHighLevelClientTests extends ESTestCase {
             "clusterName", "clusterUuid", "You Know, for Search");
         mockResponse((ToXContentFragment) (builder, params) -> {
             // taken from the server side MainResponse
-            builder.field("name", testInfo.getNodeName());
-            builder.field("cluster_name", testInfo.getClusterName());
-            builder.field("cluster_uuid", testInfo.getClusterUuid());
+            builder.field("name", testInfo.NodeName());
+            builder.field("cluster_name", testInfo.ClusterName());
+            builder.field("cluster_uuid", testInfo.ClusterUuid());
             builder.startObject("version")
-                .field("number", testInfo.getVersion().getNumber())
-                .field("build_flavor", testInfo.getVersion().getBuildFlavor())
-                .field("build_type", testInfo.getVersion().getBuildType())
-                .field("build_hash", testInfo.getVersion().getBuildHash())
-                .field("build_date", testInfo.getVersion().getBuildDate())
-                .field("build_snapshot", testInfo.getVersion().isSnapshot())
-                .field("lucene_version", testInfo.getVersion().getLuceneVersion())
-                .field("minimum_wire_compatibility_version", testInfo.getVersion().getMinimumWireCompatibilityVersion())
-                .field("minimum_index_compatibility_version", testInfo.getVersion().getMinimumIndexCompatibilityVersion())
+                .field("number", testInfo.Version().getNumber())
+                .field("build_flavor", testInfo.Version().getBuildFlavor())
+                .field("build_type", testInfo.Version().getBuildType())
+                .field("build_hash", testInfo.Version().getBuildHash())
+                .field("build_date", testInfo.Version().getBuildDate())
+                .field("build_snapshot", testInfo.Version().isSnapshot())
+                .field("lucene_version", testInfo.Version().getLuceneVersion())
+                .field("minimum_wire_compatibility_version", testInfo.Version().getMinimumWireCompatibilityVersion())
+                .field("minimum_index_compatibility_version", testInfo.Version().getMinimumIndexCompatibilityVersion())
                 .endObject();
-            builder.field("tagline", testInfo.getTagline());
+            builder.field("tagline", testInfo.Tagline());
             return builder;
         });
         MainResponse receivedInfo = restHighLevelClient.info(RequestOptions.DEFAULT);

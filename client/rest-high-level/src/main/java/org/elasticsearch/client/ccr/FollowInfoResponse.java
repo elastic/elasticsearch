@@ -110,23 +110,23 @@ public final class FollowInfoResponse {
             this.parameters = parameters;
         }
 
-        public String getFollowerIndex() {
+        public String FollowerIndex() {
             return followerIndex;
         }
 
-        public String getRemoteCluster() {
+        public String RemoteCluster() {
             return remoteCluster;
         }
 
-        public String getLeaderIndex() {
+        public String LeaderIndex() {
             return leaderIndex;
         }
 
-        public Status getStatus() {
+        public Status Status() {
             return status;
         }
 
-        public FollowConfig getParameters() {
+        public FollowConfig Parameters() {
             return parameters;
         }
 

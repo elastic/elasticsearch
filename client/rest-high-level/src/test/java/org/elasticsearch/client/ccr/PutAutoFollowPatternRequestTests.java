@@ -83,10 +83,10 @@ public class PutAutoFollowPatternRequestTests extends AbstractRequestTestCase<
 
     @Override
     protected void assertInstances(PutAutoFollowPatternAction.Request serverInstance, PutAutoFollowPatternRequest clientTestInstance) {
-        assertThat(serverInstance.getName(), equalTo(clientTestInstance.getName()));
-        assertThat(serverInstance.getRemoteCluster(), equalTo(clientTestInstance.getRemoteCluster()));
-        assertThat(serverInstance.getLeaderIndexPatterns(), equalTo(clientTestInstance.getLeaderIndexPatterns()));
-        assertThat(serverInstance.getFollowIndexNamePattern(), equalTo(clientTestInstance.getFollowIndexNamePattern()));
+        assertThat(serverInstance.getName(), equalTo(clientTestInstance.Name()));
+        assertThat(serverInstance.getRemoteCluster(), equalTo(clientTestInstance.RemoteCluster()));
+        assertThat(serverInstance.getLeaderIndexPatterns(), equalTo(clientTestInstance.LeaderIndexPatterns()));
+        assertThat(serverInstance.getFollowIndexNamePattern(), equalTo(clientTestInstance.FollowIndexNamePattern()));
         assertFollowConfig(serverInstance.getParameters(), clientTestInstance);
     }
 

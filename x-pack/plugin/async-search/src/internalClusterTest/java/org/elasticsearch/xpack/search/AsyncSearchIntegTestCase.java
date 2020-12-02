@@ -248,9 +248,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         final AsyncSearchResponse initial = client().execute(SubmitAsyncSearchAction.INSTANCE, request).get();
         assertTrue(initial.isPartial());
         assertThat(initial.status(), equalTo(RestStatus.OK));
-        assertThat(initial.getSearchResponse().getTotalShards(), equalTo(numShards));
-        assertThat(initial.getSearchResponse().getSuccessfulShards(), equalTo(0));
-        assertThat(initial.getSearchResponse().getShardFailures().length, equalTo(0));
+        assertThat(initial.SearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(initial.SearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(initial.SearchResponse().getShardFailures().length, equalTo(0));
 
         return new SearchResponseIterator() {
             private AsyncSearchResponse response = initial;
@@ -284,32 +284,32 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 if (newResponse.isRunning()) {
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertTrue(newResponse.isPartial());
-                    assertNull(newResponse.getFailure());
-                    assertNotNull(newResponse.getSearchResponse());
-                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
-                    assertThat(newResponse.getSearchResponse().getShardFailures().length, lessThanOrEqualTo(numFailures));
+                    assertNull(newResponse.Failure());
+                    assertNotNull(newResponse.SearchResponse());
+                    assertThat(newResponse.SearchResponse().getTotalShards(), equalTo(numShards));
+                    assertThat(newResponse.SearchResponse().getShardFailures().length, lessThanOrEqualTo(numFailures));
                 } else if (numFailures == numShards) {
                     assertThat(newResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-                    assertNotNull(newResponse.getFailure());
+                    assertNotNull(newResponse.Failure());
                     assertTrue(newResponse.isPartial());
-                    assertNotNull(newResponse.getSearchResponse());
-                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
-                    assertThat(newResponse.getSearchResponse().getSuccessfulShards(), equalTo(0));
-                    assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
-                    assertNull(newResponse.getSearchResponse().getAggregations());
-                    assertNotNull(newResponse.getSearchResponse().getHits().getTotalHits());
-                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(0L));
-                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().relation,
+                    assertNotNull(newResponse.SearchResponse());
+                    assertThat(newResponse.SearchResponse().getTotalShards(), equalTo(numShards));
+                    assertThat(newResponse.SearchResponse().getSuccessfulShards(), equalTo(0));
+                    assertThat(newResponse.SearchResponse().getShardFailures().length, equalTo(numFailures));
+                    assertNull(newResponse.SearchResponse().getAggregations());
+                    assertNotNull(newResponse.SearchResponse().getHits().getTotalHits());
+                    assertThat(newResponse.SearchResponse().getHits().getTotalHits().value, equalTo(0L));
+                    assertThat(newResponse.SearchResponse().getHits().getTotalHits().relation,
                         equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
                 } else {
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
-                    assertNotNull(newResponse.getSearchResponse());
+                    assertNotNull(newResponse.SearchResponse());
                     assertFalse(newResponse.isPartial());
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
-                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
-                    assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
-                    assertThat(newResponse.getSearchResponse().getSuccessfulShards(),
-                        equalTo(numShards - newResponse.getSearchResponse().getShardFailures().length));
+                    assertThat(newResponse.SearchResponse().getTotalShards(), equalTo(numShards));
+                    assertThat(newResponse.SearchResponse().getShardFailures().length, equalTo(numFailures));
+                    assertThat(newResponse.SearchResponse().getSuccessfulShards(),
+                        equalTo(numShards - newResponse.SearchResponse().getShardFailures().length));
                 }
                 return response = newResponse;
             }

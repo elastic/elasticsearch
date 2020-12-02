@@ -38,7 +38,7 @@ public final class RemoteInfoResponse {
         this.infos = List.copyOf(infos);
     }
 
-    public List<RemoteConnectionInfo> getInfos() {
+    public List<RemoteConnectionInfo> Infos() {
         return infos;
     }
 

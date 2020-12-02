@@ -309,9 +309,9 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     protected void assertFromXContent(InternalTopMetrics aggregation, ParsedAggregation parsedAggregation) throws IOException {
         ParsedTopMetrics parsed = (ParsedTopMetrics) parsedAggregation;
         assertThat(parsed.getName(), equalTo(aggregation.getName()));
-        assertThat(parsed.getTopMetrics(), hasSize(aggregation.getTopMetrics().size()));
-        for (int i = 0; i < parsed.getTopMetrics().size(); i++) {
-            ParsedTopMetrics.TopMetrics parsedTop = parsed.getTopMetrics().get(i);
+        assertThat(parsed.TopMetrics(), hasSize(aggregation.getTopMetrics().size()));
+        for (int i = 0; i < parsed.TopMetrics().size(); i++) {
+            ParsedTopMetrics.TopMetrics parsedTop = parsed.TopMetrics().get(i);
             InternalTopMetrics.TopMetric internalTop = aggregation.getTopMetrics().get(i);
             Object expectedSort = internalTop.getSortFormat() == DocValueFormat.RAW ?
                     internalTop.getSortValue().getKey() : internalTop.getSortValue().format(internalTop.getSortFormat());

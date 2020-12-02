@@ -150,7 +150,7 @@ public class AzureStorageService {
         // as RequestRetryOptions expects a value >= 1.
         // See https://github.com/Azure/azure-sdk-for-java/issues/17590 for a proposal
         // to fix this issue.
-        timeout = Math.max(1, timeout);
+        timeout = timeout == -1 ? Integer.MAX_VALUE : Math.max(1, timeout);
         return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
             azureStorageSettings.getMaxRetries(), timeout,
             null, null, secondaryHost);

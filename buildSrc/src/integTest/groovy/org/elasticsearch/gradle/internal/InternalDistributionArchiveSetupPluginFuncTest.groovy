@@ -161,7 +161,6 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         file("producer-tar/build/install/snapshot-2.0.txt").exists()
     }
 
-    @Unroll
     def "builds extracted distribution via extractedAssemble"() {
         given:
         file('someFile.txt') << "some content"

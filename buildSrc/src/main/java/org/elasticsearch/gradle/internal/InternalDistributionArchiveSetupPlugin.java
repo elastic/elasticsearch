@@ -21,10 +21,8 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.EmptyDirTask;
 import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.AbstractCopyTask;
@@ -90,12 +88,11 @@ public class InternalDistributionArchiveSetupPlugin implements InternalPlugin {
                 extractedConfiguration.setCanBeResolved(false);
                 extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
-                sub.getTasks().register("extractedAssemble", new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        task.dependsOn(extractedConfiguration.getAllArtifacts().getBuildDependencies());
-                    }
-                });
+                sub.getTasks().register("extractedAssemble", task ->
+                        // We keep extracted configuration resolvable false to keep
+                        // resolveAllDependencies simple so we rely only on its build dependencies here.
+                        task.dependsOn(extractedConfiguration.getAllArtifacts().getBuildDependencies())
+                );
             });
         });
         project.getExtensions().add("distribution_archives", container);

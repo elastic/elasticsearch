@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -164,7 +165,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         }
 
         static void waitSearchStarted() throws InterruptedException {
-            startedLatch.get().await();
+            assertTrue(startedLatch.get().await(60, TimeUnit.SECONDS));
         }
 
         @Override
@@ -176,7 +177,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                     final CountDownLatch latch = queryLatch.get();
                     if (latch != null) {
                         try {
-                            latch.await();
+                            assertTrue(latch.await(60, TimeUnit.SECONDS));
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }

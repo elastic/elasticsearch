@@ -41,7 +41,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -357,7 +356,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CancellableNodesRequest parentRequest = new CancellableNodesRequest("parent");
         final Task parentTask = taskManager.register("test", "test", parentRequest);
         final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false).getTaskId();
-        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test", new TestTransportChannel(null));
+        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test");
         CancellableNodesRequest childRequest = new CancellableNodesRequest("child");
         childRequest.setParentTask(parentTaskId);
         CancellableTestNodesAction testAction = new CancellableTestNodesAction("internal:testAction", threadPool, testNodes[1]

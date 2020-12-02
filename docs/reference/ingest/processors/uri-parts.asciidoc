@@ -6,9 +6,8 @@
 <titleabbrev>URI Parts</titleabbrev>
 ++++
 
-The URI parts processor parses a text field containing a Uniform Resource
-Identifier (URI) and writes its components to the specified field.
-Components that may be extracted from the URI include domain, path, fragment,
+Parses a Uniform Resource Identifier (URI) string and extracts its components as
+an object. This URI object includes properties for the URI's domain, path, fragment,
 port, query, scheme, user info, username, and password.
 
 [[uri-parts-options]]
@@ -16,15 +15,13 @@ port, query, scheme, user info, username, and password.
 [options="header"]
 |======
 | Name               | Required  | Default | Description
-| `field`            | yes       | -       | The field in the input document
-containing text that may be parsed as a URI.
-| `target_field`     | no        | `url`   | Field under which the components
-of the parsed URI should be written.
-| `keep_original`    | no        | true    | If true, the unparsed contents of
-`field` will be copied to `<target_field>.original`.
-| `remove_if_successful` | no    | false   | If `true` and the processor
-successfully parses the contents of `field` as a URI, then `field` will be
-removed from the document.
+| `field`            | yes       | -       | Field containing the URI string.
+| `target_field`     | no        | `url`   | Output field for the URI object.
+| `keep_original`    | no        | true    | If `true`, the processor copies the
+unparsed URI to `<target_field>.original`.
+| `remove_if_successful` | no    | false   | If `true`, the processor removes
+the `field` after parsing the URI string. If parsing fails, the processor does not
+remove the `field`.
 
 include::common-options.asciidoc[]
 |======

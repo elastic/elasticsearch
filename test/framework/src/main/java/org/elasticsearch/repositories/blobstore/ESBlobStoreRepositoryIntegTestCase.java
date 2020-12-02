@@ -287,6 +287,10 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     public void testSnapshotAndRestore() throws Exception {
+        testSnapshotAndRestore(randomBoolean());
+    }
+
+    protected void testSnapshotAndRestore(boolean recreateRepositoryBeforeRestore) throws Exception {
         final String repoName = randomRepositoryName();
         final Settings repoSettings = repositorySettings(repoName);
         createRepository(repoName, repoSettings, randomBoolean());
@@ -337,7 +341,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertAcked(client().admin().indices().prepareClose(closeIndices.toArray(new String[closeIndices.size()])));
         }
 
-        if (randomBoolean()) {
+        if (recreateRepositoryBeforeRestore) {
             deleteRepository(repoName);
             createRepository(repoName, repoSettings, randomBoolean());
         }

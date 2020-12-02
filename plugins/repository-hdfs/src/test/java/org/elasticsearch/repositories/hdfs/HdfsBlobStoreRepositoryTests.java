@@ -48,6 +48,12 @@ public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTest
     }
 
     @Override
+    public void testSnapshotAndRestore() throws Exception {
+        // the HDFS mockup doesn't preserve the repository contents after removing the repository
+        testSnapshotAndRestore(false);
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(HdfsPlugin.class);
     }

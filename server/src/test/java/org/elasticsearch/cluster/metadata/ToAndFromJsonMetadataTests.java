@@ -301,7 +301,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "          \"0\" : [ ]\n" +
             "        },\n" +
             "        \"rollover_info\" : { },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -464,7 +467,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"time\" : 1\n" +
             "          }\n" +
             "        },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -570,7 +576,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"time\" : 1\n" +
             "          }\n" +
             "        },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +

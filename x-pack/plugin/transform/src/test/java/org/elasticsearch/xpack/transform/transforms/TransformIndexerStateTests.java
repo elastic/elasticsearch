@@ -25,6 +25,7 @@ import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -88,6 +89,7 @@ public class TransformIndexerStateTests extends ESTestCase {
 
     private Client client;
     private ThreadPool threadPool;
+    private String executorName;
     private TransformAuditor auditor;
     private TransformConfigManager transformConfigManager;
 
@@ -234,7 +236,9 @@ public class TransformIndexerStateTests extends ESTestCase {
         auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
         client = new NoOpClient(getTestName());
-        threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
+        // we need "generic" as part of the name, because it is asserted
+        executorName = ThreadPool.Names.GENERIC + "-" + getTestName();
+        threadPool = new TestThreadPool(executorName, new ScalingExecutorBuilder(executorName, 4, 10, TimeValue.timeValueSeconds(30)));
     }
 
     @After
@@ -268,7 +272,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 stateRef,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -294,7 +298,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 state,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -324,7 +328,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 state,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -355,7 +359,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 state,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -399,7 +403,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 state,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -471,7 +475,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             state,
             null,
             threadPool,
-            ThreadPool.Names.GENERIC,
+            executorName,
             auditor,
             new TransformIndexerStats(),
             context
@@ -532,7 +536,7 @@ public class TransformIndexerStateTests extends ESTestCase {
     ) {
         // we need to simulate that this is called from the task, which offloads it to the generic threadpool
         CountDownLatch latch = new CountDownLatch(1);
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.executor(executorName).execute(() -> {
             indexer.setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
             latch.countDown();
         });

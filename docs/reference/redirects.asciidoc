@@ -13,6 +13,11 @@ See <<node-name,Node name setting>>.
 
 See <<cluster-name,Cluster name setting>>.
 
+[role="exclude",id="heap-size"]
+=== Heap size settings
+
+See <<heap-size-settings>>.
+
 [role="exclude",id="ccr-remedy-follower-index"]
 === Leader index retaining operations for replication
 
@@ -607,6 +612,11 @@ See <<snapshot-restore>>.
 
 See <<snapshots-repository-plugins>>.
 
+[role="exclude",id="_changing_index_settings_during_restore"]
+==== Change index settings during restore
+
+See <<change-index-settings-during-restore>>.
+
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
 
@@ -811,6 +821,66 @@ This page was deleted.
 === {ilm-init} actions
 
 See <<ilm-actions>>.
+
+[role="exclude",id="ilm-allocate-action"]
+==== Allocate action
+
+See <<ilm-allocate>>.
+
+[role="exclude",id="ilm-delete-action"]
+==== Delete action
+
+See <<ilm-delete>>.
+
+[role="exclude",id="ilm-forcemerge-action"]
+==== Force merge action
+
+See <<ilm-forcemerge>>.
+
+[role="exclude",id="ilm-freeze-action"]
+==== Freeze action
+
+See <<ilm-freeze>>.
+
+[role="exclude",id="ilm-migrate-action"]
+==== Migrate action
+
+See <<ilm-migrate>>.
+
+[role="exclude",id="ilm-readonly-action"]
+==== Read only action
+
+See <<ilm-readonly>>.
+
+[role="exclude",id="ilm-rollover-action"]
+==== Rollover action
+
+See <<ilm-rollover>>.
+
+[role="exclude",id="ilm-searchable-snapshot-action"]
+==== Searchable snapshot action
+
+See <<ilm-searchable-snapshot>>.
+
+[role="exclude",id="ilm-set-priority-action"]
+==== Set priority action
+
+See <<ilm-set-priority>>.
+
+[role="exclude",id="ilm-shrink-action"]
+==== Shrink action
+
+See <<ilm-shrink>>.
+
+[role="exclude",id="ilm-unfollow-action"]
+==== Unfollow action
+
+See <<ilm-unfollow>>.
+
+[role="exclude",id="ilm-wait-for-snapshot-action"]
+==== Wait for snapshot action
+
+See <<ilm-wait-for-snapshot>>.
 
 [role="exclude",id="ilm-policy-definition"]
 === {ilm-init} policy definition
@@ -1192,9 +1262,9 @@ See <<wildcard-field-type>>.
 [role="exclude",id="searchable-snapshots-api-clear-cache"]
 === Clear cache API
 
-We have removed documentation for this API. This a low-level API used to get
-information about snapshot-backed indices. We plan to remove or drastically
-change this API as part of a future release.
+We have removed documentation for this API. This a low-level API used to clear
+the searchable snapshot cache. We plan to remove or drastically change this API
+as part of a future release.
 
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 
@@ -1202,7 +1272,7 @@ For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 === Searchable snapshot statistics API
 
 We have removed documentation for this API. This a low-level API used to get
-information about snapshot-backed indices. We plan to remove or drastically
+information about searchable snapshot indices. We plan to remove or drastically
 change this API as part of a future release.
 
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
@@ -1211,7 +1281,7 @@ For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
 === Searchable snapshot repository statistics API
 
 We have removed documentation for this API. This a low-level API used to get
-information about snapshot-backed indices. We plan to remove or drastically
+information about searchable snapshot indices. We plan to remove or drastically
 change this API as part of a future release.
 
 For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
@@ -1231,3 +1301,45 @@ See <<elasticsearch-croneval-parameters>>.
 
 The autoscaling decision API has been renamed to capacity,
 see <<autoscaling-get-autoscaling-capacity>>.
+
+[role="exclude",id="caching-heavy-aggregations"]
+=== Caching heavy aggregations
+
+See <<agg-caches>>.
+
+[role="exclude",id="returning-only-agg-results"]
+=== Returning only aggregation results
+
+See <<return-only-agg-results>>.
+
+[role="exclude",id="agg-metadata"]
+=== Aggregation metadata
+
+See <<add-metadata-to-an-agg>>.
+
+[role="exclude",id="returning-aggregation-type"]
+=== Returning the type of the aggregation
+
+See <<return-agg-type>>.
+
+[role="exclude",id="indexing-aggregation-results"]
+=== Indexing aggregation results with transforms
+
+See <<transforms>>.
+
+[role="exclude",id="search-aggregations-matrix"]
+=== Matrix aggregations
+
+See <<search-aggregations-matrix-stats-aggregation>>.
+
+[role="exclude",id="search-aggregations-pipeline-movavg-aggregation"]
+=== Moving average aggregation
+
+The moving average aggregation has been removed. Use the
+<<search-aggregations-pipeline-movfn-aggregation,moving function aggregation>>
+instead.
+
+[role="exclude",id="fielddata"]
+=== `fielddata` mapping parameter
+
+See <<fielddata-mapping-param>>.

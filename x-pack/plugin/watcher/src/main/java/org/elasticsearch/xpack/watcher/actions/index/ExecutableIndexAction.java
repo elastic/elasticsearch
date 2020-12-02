@@ -83,6 +83,9 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
         indexRequest.index(getField(actionId, ctx.id().watchId(), "index", data, INDEX_FIELD, action.index));
         indexRequest.id(getField(actionId, ctx.id().watchId(), "id",data, ID_FIELD, action.docId));
+        if (action.opType != null) {
+            indexRequest.opType(action.opType);
+        }
 
         data = addTimestampToDocument(data, ctx.executionTime());
         BytesReference bytesReference;
@@ -128,6 +131,9 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
             indexRequest.id(getField(actionId, ctx.id().watchId(), "id",doc, ID_FIELD, action.docId));
+            if (action.opType != null) {
+                indexRequest.opType(action.opType);
+            }
 
             doc = addTimestampToDocument(doc, ctx.executionTime());
             try (XContentBuilder builder = jsonBuilder()) {

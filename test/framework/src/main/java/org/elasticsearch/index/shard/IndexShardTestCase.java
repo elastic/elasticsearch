@@ -123,7 +123,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state) {
+        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
 
         }
 
@@ -367,6 +367,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             storeProvider = is -> createStore(is, shardPath);
         }
         final Store store = storeProvider.apply(indexSettings);
+        if (indexReaderWrapper == null && randomBoolean()) {
+            indexReaderWrapper = EngineTestCase.randomReaderWrapper();
+        }
         boolean success = false;
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);

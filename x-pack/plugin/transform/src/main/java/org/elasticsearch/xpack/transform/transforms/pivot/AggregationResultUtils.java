@@ -13,12 +13,14 @@ import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
@@ -27,7 +29,9 @@ import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
@@ -58,6 +62,15 @@ public final class AggregationResultUtils {
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
+    private static final Map<String, BucketKeyExtractor> BUCKET_KEY_EXTRACTOR_MAP;
+    private static final BucketKeyExtractor DEFAULT_BUCKET_KEY_EXTRACTOR = new DefaultBucketKeyExtractor();
+    static {
+        Map<String, BucketKeyExtractor> tempMap = new HashMap<>();
+        tempMap.put(GeoTileGroupSource.class.getName(), new GeoTileBucketKeyExtractor());
+
+        BUCKET_KEY_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
+    }
+
     /**
      * Extracts aggregation results from a composite aggregation and puts it into a map.
      *
@@ -86,8 +99,13 @@ public final class AggregationResultUtils {
 
             groups.getGroups().forEach((destinationFieldName, singleGroupSource) -> {
                 Object value = bucket.getKey().get(destinationFieldName);
+
                 idGen.add(destinationFieldName, value);
-                updateDocument(document, destinationFieldName, singleGroupSource.transformBucketKey(value));
+                updateDocument(
+                    document,
+                    destinationFieldName,
+                    getBucketKeyExtractor(singleGroupSource).value(value, fieldTypeMap.get(destinationFieldName))
+                );
             });
 
             List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());
@@ -108,6 +126,10 @@ public final class AggregationResultUtils {
 
             return document;
         });
+    }
+
+    static BucketKeyExtractor getBucketKeyExtractor(SingleGroupSource groupSource) {
+        return BUCKET_KEY_EXTRACTOR_MAP.getOrDefault(groupSource.getClass().getName(), DEFAULT_BUCKET_KEY_EXTRACTOR);
     }
 
     static AggValueExtractor getExtractor(Aggregation aggregation) {
@@ -180,6 +202,21 @@ public final class AggregationResultUtils {
         AggregationExtractionException(String msg, Object... args) {
             super(msg, args);
         }
+    }
+
+    /**
+     * Extract the bucket key and transform it for indexing.
+     */
+    interface BucketKeyExtractor {
+
+        /**
+         * Take the bucket key and return it in the format for the index, taking the mapped type into account.
+         *
+         * @param key The bucket key for this group source
+         * @param type the mapping type of the destination field
+         * @return the transformed bucket key for indexing
+         */
+        Object value(Object key, String type);
     }
 
     interface AggValueExtractor {
@@ -345,4 +382,40 @@ public final class AggregationResultUtils {
         }
     }
 
+    static class GeoTileBucketKeyExtractor implements BucketKeyExtractor {
+
+        @Override
+        public Object value(Object key, String type) {
+            assert key instanceof String;
+            Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
+            final Map<String, Object> geoShape = new HashMap<>();
+            geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
+            geoShape.put(
+                ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                Collections.singletonList(
+                    Arrays.asList(
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() },
+                        new Double[] { rectangle.getMinLon(), rectangle.getMinLat() },
+                        new Double[] { rectangle.getMinLon(), rectangle.getMaxLat() },
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMaxLat() },
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() }
+                    )
+                )
+            );
+            return geoShape;
+        }
+
+    }
+
+    static class DefaultBucketKeyExtractor implements BucketKeyExtractor {
+
+        @Override
+        public Object value(Object key, String type) {
+            if (isNumericType(type) && key instanceof Double) {
+                return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
+            }
+            return key;
+        }
+
+    }
 }

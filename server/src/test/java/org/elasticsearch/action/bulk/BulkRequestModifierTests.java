@@ -35,9 +35,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class BulkRequestModifierTests extends ESTestCase {
 
@@ -140,9 +140,8 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         BulkRequest bulkRequest = modifier.getBulkRequest();
         assertThat(bulkRequest, Matchers.sameInstance(originalBulkRequest));
-        @SuppressWarnings("unchecked")
-        ActionListener<BulkResponse> actionListener = mock(ActionListener.class);
-        assertThat(modifier.wrapActionListenerIfNeeded(1L, actionListener).getClass().isAnonymousClass(), is(true));
+        ActionListener<BulkResponse> actionListener = ActionListener.wrap(() -> {});
+        assertThat(modifier.wrapActionListenerIfNeeded(1L, actionListener), instanceOf(ActionListener.MappedActionListener.class));
     }
 
     private static class CaptureActionListener implements ActionListener<BulkResponse> {

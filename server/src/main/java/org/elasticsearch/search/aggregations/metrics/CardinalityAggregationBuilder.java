@@ -137,6 +137,7 @@ public final class CardinalityAggregationBuilder
                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         CardinalityAggregatorSupplier aggregatorSupplier =
             context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         return new CardinalityAggregatorFactory(name, config, precisionThreshold, context, parent,
                                                 subFactoriesBuilder, metadata, aggregatorSupplier);
     }

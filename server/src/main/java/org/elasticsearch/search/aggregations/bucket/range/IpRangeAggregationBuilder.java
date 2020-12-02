@@ -384,6 +384,9 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     protected ValuesSourceAggregatorFactory innerBuild(
             AggregationContext context, ValuesSourceConfig config,
             AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        IpRangeAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         if(this.ranges.size() == 0){
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
@@ -391,9 +394,6 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         for (Range range : this.ranges) {
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
-
-        IpRangeAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         return new BinaryRangeAggregatorFactory(name, config, ranges,
                 keyed, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);

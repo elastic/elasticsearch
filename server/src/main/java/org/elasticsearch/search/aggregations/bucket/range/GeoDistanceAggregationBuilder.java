@@ -438,13 +438,14 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
+        GeoDistanceAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         Range[] ranges = this.ranges.toArray(new Range[this.range().size()]);
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
 
-        GeoDistanceAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new GeoDistanceRangeAggregatorFactory(name, config, origin, ranges, unit, distanceType, keyed, context, parent,
                 subFactoriesBuilder, metadata, aggregatorSupplier);
     }

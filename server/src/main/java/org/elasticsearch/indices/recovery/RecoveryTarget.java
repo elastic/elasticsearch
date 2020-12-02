@@ -156,7 +156,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
     public long lastAccessTime() {
-        return lastAccessTime;
+        if (recoveryMonitorEnabled) {
+            return lastAccessTime;
+        }
+        return System.nanoTime();
     }
 
     /** sets the lasAccessTime flag to now */
@@ -166,8 +169,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     /**
      * Set flag to signal to {@link org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryMonitor} that it must not cancel this
-     * recovery temporarily. This is used by the primary relocation mechanism to avoid recovery failure in case a long running relocation
-     * condition was added to the shard via {@link IndexShard#addCleanFilesDependency()}.
+     * recovery temporarily. This is used by the recovery clean files step to avoid recovery failure in case a long running condition was
+     * added to the shard via {@link IndexShard#addCleanFilesDependency()}.
      *
      * @return releasable that once closed will re-enable liveness checks by the recovery monitor
      */

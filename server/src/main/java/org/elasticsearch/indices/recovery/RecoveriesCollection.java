@@ -275,20 +275,16 @@ public class RecoveriesCollection {
                 logger.trace("[monitor] no status found for [{}], shutting down", recoveryId);
                 return;
             }
-            if (status.isRecoveryMonitorEnabled()) {
-                long accessTime = status.lastAccessTime();
-                if (accessTime == lastSeenAccessTime) {
-                    String message = "no activity after [" + checkInterval + "]";
-                    failRecovery(recoveryId,
-                            new RecoveryFailedException(status.state(), message, new ElasticsearchTimeoutException(message)),
-                            true // to be safe, we don't know what go stuck
-                    );
-                    return;
-                }
-                lastSeenAccessTime = accessTime;
-            } else {
-                lastSeenAccessTime = System.nanoTime();
+            long accessTime = status.lastAccessTime();
+            if (accessTime == lastSeenAccessTime) {
+                String message = "no activity after [" + checkInterval + "]";
+                failRecovery(recoveryId,
+                        new RecoveryFailedException(status.state(), message, new ElasticsearchTimeoutException(message)),
+                        true // to be safe, we don't know what go stuck
+                );
+                return;
             }
+            lastSeenAccessTime = accessTime;
             logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", recoveryId, lastSeenAccessTime);
             threadPool.schedule(this, checkInterval, ThreadPool.Names.GENERIC);
         }

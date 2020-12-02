@@ -371,6 +371,11 @@ public final class RemoteClusterConnection implements TransportConnectionListene
         public Version getVersion() {
             return proxyConnection.getVersion();
         }
+
+        @Override
+        public Object getCacheKey() {
+            return proxyConnection.getCacheKey();
+        }
     }
 
     Transport.Connection getConnection() {

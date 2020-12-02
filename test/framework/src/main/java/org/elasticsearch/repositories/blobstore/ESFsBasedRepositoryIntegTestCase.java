@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,18 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.fs;
+package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,35 +37,22 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
+public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreRepositoryIntegTestCase {
 
     @Override
     protected String repositoryType() {
         return FsRepository.TYPE;
     }
 
-    @Override
-    protected Settings repositorySettings() {
-        final Settings.Builder settings = Settings.builder();
-        settings.put(super.repositorySettings());
-        settings.put("location", randomRepoPath());
-        if (randomBoolean()) {
-            long size = 1 << randomInt(10);
-            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
-        }
-        return settings.build();
-    }
-
     public void testMissingDirectoriesNotCreatedInReadonlyRepository() throws IOException, InterruptedException {
-        final String repoName = randomName();
+        final String repoName = randomRepositoryName();
         final Path repoPath = randomRepoPath();
 
-        logger.info("--> creating repository {} at {}", repoName, repoPath);
-
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder()
-            .put("location", repoPath)
-            .put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        final Settings repoSettings = Settings.builder()
+                .put(repositorySettings(repoName))
+                .put("location", repoPath)
+                .build();
+        createRepository(repoName, repoSettings, randomBoolean());
 
         final String indexName = randomName();
         int docCount = iterations(10, 1000);
@@ -91,8 +76,7 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
         }
         assertFalse(Files.exists(deletedPath));
 
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder()
-            .put("location", repoPath).put("readonly", true)));
+        createRepository(repoName, Settings.builder().put(repoSettings).put("readonly", true).build(), randomBoolean());
 
         final ElasticsearchException exception = expectThrows(ElasticsearchException.class, () ->
             client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get());
@@ -102,25 +86,34 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
     }
 
     public void testReadOnly() throws Exception {
-        Path tempDir = createTempDir();
-        Path path = tempDir.resolve("bar");
+        final String repoName = randomRepositoryName();
+        final Path repoPath = randomRepoPath();
+        final Settings repoSettings = Settings.builder()
+                .put(repositorySettings(repoName))
+                .put("readonly", true)
+                .put(FsRepository.LOCATION_SETTING.getKey(), repoPath)
+                .put(BlobStoreRepository.BUFFER_SIZE_SETTING.getKey(), String.valueOf(randomIntBetween(1, 8) * 1024) + "kb")
+                .build();
+        createRepository(repoName, repoSettings, false);
 
-        try (FsBlobStore store = new FsBlobStore(randomIntBetween(1, 8) * 1024, path, true)) {
-            assertFalse(Files.exists(path));
+        try (BlobStore store = newBlobStore(repoName)) {
+            assertFalse(Files.exists(repoPath));
             BlobPath blobPath = BlobPath.cleanPath().add("foo");
             store.blobContainer(blobPath);
-            Path storePath = store.path();
+            Path storePath = repoPath;
             for (String d : blobPath) {
                 storePath = storePath.resolve(d);
             }
             assertFalse(Files.exists(storePath));
         }
 
-        try (FsBlobStore store = new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false)) {
-            assertTrue(Files.exists(path));
+        createRepository(repoName, Settings.builder().put(repoSettings).put("readonly", false).build(), false);
+
+        try (BlobStore store = newBlobStore(repoName)) {
+            assertTrue(Files.exists(repoPath));
             BlobPath blobPath = BlobPath.cleanPath().add("foo");
             BlobContainer container = store.blobContainer(blobPath);
-            Path storePath = store.path();
+            Path storePath = repoPath;
             for (String d : blobPath) {
                 storePath = storePath.resolve(d);
             }

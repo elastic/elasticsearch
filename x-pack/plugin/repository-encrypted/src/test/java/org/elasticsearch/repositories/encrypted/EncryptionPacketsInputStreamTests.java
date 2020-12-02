@@ -111,13 +111,13 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
     public void testPacketSizeMultipleOfAESBlockSize() throws Exception {
         int packetSize = 1 + Randomness.get().nextInt(8);
         testEncryptPacketWise(
-            1 + Randomness.get().nextInt(packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES),
-            packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES,
+            1 + Randomness.get().nextInt(packetSize * EncryptedRepository.AES_BLOCK_LENGTH_IN_BYTES),
+            packetSize * EncryptedRepository.AES_BLOCK_LENGTH_IN_BYTES,
             new DefaultBufferedReadAllStrategy()
         );
         testEncryptPacketWise(
-            packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES + Randomness.get().nextInt(8192),
-            packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES,
+            packetSize * EncryptedRepository.AES_BLOCK_LENGTH_IN_BYTES + Randomness.get().nextInt(8192),
+            packetSize * EncryptedRepository.AES_BLOCK_LENGTH_IN_BYTES,
             new DefaultBufferedReadAllStrategy()
         );
     }

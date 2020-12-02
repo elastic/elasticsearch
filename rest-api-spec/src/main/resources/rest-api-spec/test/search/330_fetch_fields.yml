@@ -295,3 +295,110 @@ setup:
   - is_true: hits.hits.0._id
   - match: { hits.hits.0.fields.count: [2] }
   - is_false: hits.hits.0.fields.count_without_dv
+---
+Test unmapped field:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support isn't yet backported
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 dynamic: false
+                 properties:
+                    f1:
+                       type: keyword
+                    f2:
+                       type: object
+                       enabled: false
+                    f3:
+                       type: object
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              f1: some text
+              f2:
+                 a: foo
+                 b: bar
+              f3:
+                 c: baz
+              f4: some other text
+  -  do:
+        search:
+           index: test
+           body:
+              fields:
+              - f1
+              - { "field" : "f4", "include_unmapped" : true }
+  -  match:
+        hits.hits.0.fields.f1: 
+        - some text
+  -  match:
+        hits.hits.0.fields.f4:
+        - some other text
+  -  do:
+        search:
+           index: test
+           body:
+              fields:
+              - { "field" : "f*", "include_unmapped" : true }
+  -  match:
+        hits.hits.0.fields.f1: 
+        - some text
+  -  match:
+        hits.hits.0.fields.f2\.a:
+        - foo
+  -  match:
+        hits.hits.0.fields.f2\.b:
+        - bar
+  -  match:
+        hits.hits.0.fields.f3\.c:
+        - baz
+  -  match:
+        hits.hits.0.fields.f4:
+        - some other text
+---
+Test unmapped fields inside disabled objects:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support isn't yet backported
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                    f1:
+                       type: object
+                       enabled: false
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              f1: 
+                 - some text
+                 - a: b
+                 -
+                   - 1
+                   - 2
+                   - 3
+  -  do:
+        search:
+           index: test
+           body:
+              fields: [ { "field" : "*", "include_unmapped" : true } ]
+  -  match:
+        hits.hits.0.fields.f1:
+        - 1
+        - 2
+        - 3
+        - some text
+  -  match:
+        hits.hits.0.fields.f1\.a:
+        - b

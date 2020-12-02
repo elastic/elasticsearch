@@ -649,8 +649,8 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are
-supported:
+Defines how to aggregate the grouped data. The following aggregations are 
+currently supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
@@ -672,16 +672,12 @@ supported:
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
-
-IMPORTANT: {transforms-cap} support a subset of the functionality in
-aggregations. See <<transform-limitations>>.
-
 --
 end::pivot-aggs[]
 
 tag::pivot-group-by[]
-Defines how to group the data. More than one grouping can be defined
-  per pivot. The following groupings are supported:
+Defines how to group the data. More than one grouping can be defined per pivot. 
+The following groupings are currently supported:
 +
 --
 * <<_date_histogram,Date histogram>>

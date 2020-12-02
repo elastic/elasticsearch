@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.transform.transforms.Function;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * {@link Function.ChangeCollector} implementation for the latest_doc function.
+ */
 class LatestDocChangeCollector implements Function.ChangeCollector {
 
     private final String synchronizationField;
@@ -25,16 +28,20 @@ class LatestDocChangeCollector implements Function.ChangeCollector {
 
     @Override
     public SearchSourceBuilder buildChangesQuery(SearchSourceBuilder searchSourceBuilder, Map<String, Object> position, int pageSize) {
+        // This method is never called because "queryForChanges()" method returns "false".
         throw new UnsupportedOperationException();
     }
 
     @Override
     public Map<String, Object> processSearchResponse(SearchResponse searchResponse) {
+        // This method is never called because "queryForChanges()" method returns "false".
         throw new UnsupportedOperationException();
     }
 
     @Override
     public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp) {
+        // We are only interested in documents that were created in the timeline of the current checkpoint.
+        // Older documents cannot influence the transform results as we require the sort field values to change monotonically over time.
         return QueryBuilders.rangeQuery(synchronizationField)
             .gte(lastCheckpointTimestamp)
             .lt(nextCheckpointTimestamp)
@@ -43,15 +50,18 @@ class LatestDocChangeCollector implements Function.ChangeCollector {
 
     @Override
     public void clear() {
+        // This object is stateless so there is no internal state to clear
     }
 
     @Override
     public boolean isOptimized() {
+        // Change collection is optimized as we never process a document more than once.
         return true;
     }
 
     @Override
     public boolean queryForChanges() {
+        // Calculating latest_doc does not require elaborate change detection mechanism that is used in pivot.
         return false;
     }
 }

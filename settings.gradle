@@ -1,7 +1,6 @@
 import org.elasticsearch.gradle.Version
 
-String dirName = rootProject.projectDir.name
-rootProject.name = dirName
+rootProject.name = "elasticsearch"
 
 List projects = [
   'build-tools',
@@ -88,7 +87,7 @@ include projects.toArray(new String[0])
 project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
 
 // look for extra plugins for elasticsearch
-File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
+File extraProjects = new File(rootProject.projectDir.parentFile, "${rootProject.projectDir.name}-extra")
 if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {
     addSubProjects('', extraProjectDir)

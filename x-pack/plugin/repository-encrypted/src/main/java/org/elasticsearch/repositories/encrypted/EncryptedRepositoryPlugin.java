@@ -53,7 +53,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
             ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED = null;
         } else {
             throw new IllegalArgumentException(
-                    "expected es.encrypted_repository_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
+                "expected es.encrypted_repository_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
             );
         }
     }
@@ -97,8 +97,8 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         }
         final Map<String, SecureString> repositoryPasswordsMap = Map.copyOf(repositoryPasswordsMapBuilder);
 
-        if (false == Build.CURRENT.isSnapshot() && (ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == null ||
-                ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == false)) {
+        if (false == Build.CURRENT.isSnapshot()
+            && (ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == null || ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == false)) {
             return Map.of();
         }
 
@@ -117,17 +117,17 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                 }
                 if (REPOSITORY_TYPE_NAME.equals(delegateType)) {
                     throw new IllegalArgumentException(
-                            "Cannot encrypt an already encrypted repository. ["
-                                    + DELEGATE_TYPE_SETTING.getKey()
-                                    + "] must not be equal to ["
-                                    + REPOSITORY_TYPE_NAME
-                                    + "]"
+                        "Cannot encrypt an already encrypted repository. ["
+                            + DELEGATE_TYPE_SETTING.getKey()
+                            + "] must not be equal to ["
+                            + REPOSITORY_TYPE_NAME
+                            + "]"
                     );
                 }
                 final Repository.Factory factory = typeLookup.apply(delegateType);
                 if (null == factory || false == SUPPORTED_ENCRYPTED_TYPE_NAMES.contains(delegateType)) {
                     throw new IllegalArgumentException(
-                            "Unsupported delegate repository type [" + delegateType + "] for setting [" + DELEGATE_TYPE_SETTING.getKey() + "]"
+                        "Unsupported delegate repository type [" + delegateType + "] for setting [" + DELEGATE_TYPE_SETTING.getKey() + "]"
                     );
                 }
                 final String repositoryPasswordName = PASSWORD_NAME_SETTING.get(metadata.settings());
@@ -137,38 +137,38 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                 final SecureString repositoryPassword = repositoryPasswordsMap.get(repositoryPasswordName);
                 if (repositoryPassword == null) {
                     throw new IllegalArgumentException(
-                            "Secure setting ["
-                                    + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryPasswordName).getKey()
-                                    + "] must be set"
+                        "Secure setting ["
+                            + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryPasswordName).getKey()
+                            + "] must be set"
                     );
                 }
                 final Repository delegatedRepository = factory.create(
-                        new RepositoryMetadata(metadata.name(), delegateType, metadata.settings())
+                    new RepositoryMetadata(metadata.name(), delegateType, metadata.settings())
                 );
                 if (false == (delegatedRepository instanceof BlobStoreRepository) || delegatedRepository instanceof EncryptedRepository) {
                     throw new IllegalArgumentException("Unsupported delegate repository type [" + DELEGATE_TYPE_SETTING.getKey() + "]");
                 }
                 if (false == getLicenseState().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
                     logger.warn(
-                            new ParameterizedMessage(
-                                    "Encrypted snapshots are not allowed for the currently installed license [{}]."
-                                            + " Snapshots to the [{}] encrypted repository are not permitted."
-                                            + " All the other operations, including restore, work without restrictions.",
-                                    getLicenseState().getOperationMode().description(),
-                                    metadata.name()
-                            ),
-                            LicenseUtils.newComplianceException("encrypted snapshots")
+                        new ParameterizedMessage(
+                            "Encrypted snapshots are not allowed for the currently installed license [{}]."
+                                + " Snapshots to the [{}] encrypted repository are not permitted."
+                                + " All the other operations, including restore, work without restrictions.",
+                            getLicenseState().getOperationMode().description(),
+                            metadata.name()
+                        ),
+                        LicenseUtils.newComplianceException("encrypted snapshots")
                     );
                 }
                 return createEncryptedRepository(
-                        metadata,
-                        registry,
-                        clusterService,
-                        bigArrays,
-                        recoverySettings,
-                        (BlobStoreRepository) delegatedRepository,
-                        () -> getLicenseState(),
-                        repositoryPassword
+                    metadata,
+                    registry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    (BlobStoreRepository) delegatedRepository,
+                    () -> getLicenseState(),
+                    repositoryPassword
                 );
             }
         });

@@ -2460,10 +2460,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Deque<Runnable> afterCleanFilesActions = new LinkedList<>();
 
     /**
-     * Creates a {@link Runnable} that must be executed before primary relocation to this shard can complete by a call to
-     * {@link #activateThrottling()}.
+     * Creates a {@link Runnable} that must be executed before the clean files step in peer recovery can complete.
      *
-     * @return runnable that must be executed before the clean files step in peer recovery finishes
+     * @return runnable that must be executed during the clean files step in peer recovery
      */
     public Runnable addCleanFilesDependency() {
         logger.trace("adding clean files dependency for [{}]", shardRouting);

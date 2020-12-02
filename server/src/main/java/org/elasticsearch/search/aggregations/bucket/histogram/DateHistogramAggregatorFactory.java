@@ -84,6 +84,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         return minDocCount;
     }
 
+    @Override
     protected Aggregator doCreateInternal(
         Aggregator parent,
         CardinalityUpperBound cardinality,

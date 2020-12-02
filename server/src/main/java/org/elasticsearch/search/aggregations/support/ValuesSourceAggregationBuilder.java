@@ -352,6 +352,16 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
         ValuesSourceAggregatorFactory factory;
 
+        /*
+        The inner builder implementation is responsible for validating the
+        ValuesSourceType mapping, typically by checking if an aggregation
+        supplier has been registered for that type on this aggregation, and
+        throw IllegalArgumentException if the mapping is not valid.  Note
+        that we need to throw from here because
+        AbstractAggregationBuilder#build, which called this, will attempt to
+        register the agg usage next, and if the usage is invalid that will fail
+        with a weird error.
+        */
         factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }

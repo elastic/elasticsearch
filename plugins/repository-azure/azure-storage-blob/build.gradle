@@ -15,16 +15,22 @@ dependencies {
 }
 
 String blobsServiceClass = 'com/azure/storage/blob/implementation/BlobsImpl$BlobsService.class'
+String containersServiceClass = 'com/azure/storage/blob/implementation/ContainersImpl$ContainersService.class'
+String blockBlobsServiceClass = 'com/azure/storage/blob/implementation/BlockBlobsImpl$BlockBlobsService.class'
+String servicesServiceClass = 'com/azure/storage/blob/implementation/ServicesImpl$ServicesService.class'
 
 tasks.create('extractBlobsServiceClass', Copy).configure {
   from({ zipTree(configurations.originalJar.singleFile) }) {
     include blobsServiceClass
+    include containersServiceClass
+    include blockBlobsServiceClass
+    include servicesServiceClass
   }
   into project.file('build/original')
 }
 
 tasks.create('makeBlobsServicePublic', JavaClassPublicifier).configure {
-  classFile = blobsServiceClass
+  classFiles = [blobsServiceClass, containersServiceClass, blockBlobsServiceClass, servicesServiceClass]
   inputDir = project.layout.buildDirectory.dir('original')
   outputDir = project.layout.buildDirectory.dir('modified')
 }

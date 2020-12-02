@@ -33,6 +33,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 
@@ -41,7 +43,7 @@ import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
  */
 public class JavaClassPublicifier extends DefaultTask {
 
-    private String classFile;
+    private List<String> classFiles;
     private DirectoryProperty inputDir;
     private DirectoryProperty outputDir;
 
@@ -51,12 +53,12 @@ public class JavaClassPublicifier extends DefaultTask {
     }
 
     @Input
-    public String getClassFile() {
-        return classFile;
+    public List<String> getClassFiles() {
+        return classFiles;
     }
 
-    public void setClassFile(String classFile) {
-        this.classFile = classFile;
+    public void setClassFiles(List<String> classFiles) {
+        this.classFiles = classFiles;
     }
 
     @InputDirectory
@@ -71,20 +73,22 @@ public class JavaClassPublicifier extends DefaultTask {
 
     @TaskAction
     public void adapt() throws IOException {
-        final ClassNode classNode;
-        try (InputStream is = Files.newInputStream(inputDir.get().file(classFile).getAsFile().toPath())) {
-            ClassReader classReader = new ClassReader(is);
-            classNode = new ClassNode();
-            classReader.accept(classNode, ClassReader.EXPAND_FRAMES);
+        for (String classFile : classFiles) {
+            final ClassNode classNode;
+            try (InputStream is = Files.newInputStream(inputDir.get().file(classFile).getAsFile().toPath())) {
+                ClassReader classReader = new ClassReader(is);
+                classNode = new ClassNode();
+                classReader.accept(classNode, ClassReader.EXPAND_FRAMES);
+            }
+
+            classNode.access |= ACC_PUBLIC;
+
+            ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+            classNode.accept(classWriter);
+
+            File outputFile = outputDir.get().file(classFile).getAsFile();
+            outputFile.getParentFile().mkdirs();
+            Files.write(outputFile.toPath(), classWriter.toByteArray());
         }
-
-        classNode.access |= ACC_PUBLIC;
-
-        ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        classNode.accept(classWriter);
-
-        File outputFile = outputDir.get().file(classFile).getAsFile();
-        outputFile.getParentFile().mkdirs();
-        Files.write(outputFile.toPath(), classWriter.toByteArray());
     }
 }

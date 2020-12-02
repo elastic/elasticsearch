@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -45,7 +44,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // we don't want extra empty dirs in snapshot cache root dirs
 public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testCacheIndexWriter() throws Exception {
@@ -190,14 +188,5 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         assertTrue(cacheFiles.stream().allMatch(Files::exists));
         PersistentCache.cleanUp(nodeSettings, nodeEnvironment);
         assertTrue(cacheFiles.stream().noneMatch(Files::exists));
-    }
-
-    private static CacheKey randomCacheKey() {
-        return new CacheKey(
-            new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
-            new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
-            new ShardId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), randomAlphaOfLength(5).toLowerCase(Locale.ROOT), randomInt(10)),
-            randomAlphaOfLength(5).toLowerCase(Locale.ROOT)
-        );
     }
 }

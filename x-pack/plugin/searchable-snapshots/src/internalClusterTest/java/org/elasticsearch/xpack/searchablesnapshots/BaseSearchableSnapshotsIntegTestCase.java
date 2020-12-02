@@ -24,7 +24,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
@@ -47,7 +46,6 @@ import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TY
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.SuppressFileSystems("*")
 public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {

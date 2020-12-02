@@ -429,34 +429,28 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel, Task task) throws Exception {
-            boolean success = false;
-            final Collection<Releasable> releasables = new ArrayList<>(2);
-            RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId());
-            releasables.add(recoveryRef::close);
-            try {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.CLEAN_FILES, request);
                 if (listener == null) {
                     return;
                 }
-                releasables.add(recoveryRef.target().disableRecoveryMonitor());
-                final ActionListener<Void> releasingListener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
+
                 recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
-                                recoveryRef.target().indexShard().afterCleanFiles(() -> releasingListener.onResponse(null));
+                                Releasable reenableMonitor = recoveryRef.target().disableRecoveryMonitor();
+                                recoveryRef.target().indexShard().afterCleanFiles(() -> {
+                                    reenableMonitor.close();
+                                    listener.onResponse(null);
+                                });
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                releasingListener.onFailure(e);
+                                listener.onFailure(e);
                             }
                         });
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(releasables);
-                }
             }
         }
     }

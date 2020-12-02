@@ -3,7 +3,7 @@
 === Transport changes
 
 //tag::notable-breaking-changes[]
-.Several `tranport` settings have been replaced.
+.Several `transport` settings have been replaced.
 [%collapsible]
 ====
 *Details* +

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -81,7 +82,7 @@ public class Pivot implements Function {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
                 // todo: change to ValidationException
                 listener.onFailure(
-                    new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST)
+                    new ElasticsearchStatusException("Unsupported aggregation type [{}]", RestStatus.BAD_REQUEST, agg.getType())
                 );
                 return;
             }
@@ -103,9 +104,7 @@ public class Pivot implements Function {
             if (response.status() != RestStatus.OK) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Unexpected status from response of test query: " + response.status(),
-                        response.status()
-                    )
+                        "Unexpected status from response of test query: {}", response.status(), response.status())
                 );
                 return;
             }
@@ -193,7 +192,7 @@ public class Pivot implements Function {
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
-        logger.trace("Search request: {}", searchRequest);
+        logger.trace(() -> new ParameterizedMessage("Search request: {}", searchRequest));
         return searchRequest;
     }
 

@@ -189,7 +189,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
         // exactly one function must be defined
         if ((this.pivotConfig == null) == (this.latestDocConfig == null)) {
-            throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_NO_TRANSFORM);
+            throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT);
         }
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");

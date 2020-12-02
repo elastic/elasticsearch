@@ -95,7 +95,7 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
             if (theOnlySort instanceof FieldSortBuilder == false) {
                 validationException =
                     addValidationError(
-                        "latest_doc.sort[0] must be of type FieldSortBuilder, was: " + theOnlySort.getClass().getSimpleName(),
+                        "latest_doc.sort[0] must be sorting based on a document field, was: " + theOnlySort.getWriteableName(),
                         validationException);
             }
         }

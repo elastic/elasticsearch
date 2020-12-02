@@ -190,9 +190,7 @@ public class LatestDoc implements Function {
             if (response.status() != RestStatus.OK) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Unexpected status from response of test query: " + response.status(),
-                        response.status()
-                    )
+                        "Unexpected status from response of test query: {}", response.status(), response.status())
                 );
                 return;
             }

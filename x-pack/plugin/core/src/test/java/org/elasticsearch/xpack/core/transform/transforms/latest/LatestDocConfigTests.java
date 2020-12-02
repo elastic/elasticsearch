@@ -151,7 +151,7 @@ public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<L
         LatestDocConfig config = createLatestDocConfigFromString(json, false);
         assertThat(
             config.validate(null).validationErrors(),
-            contains("latest_doc.sort[0] must be of type FieldSortBuilder, was: ScriptSortBuilder"));
+            contains("latest_doc.sort[0] must be sorting based on a document field, was: _script"));
     }
 
     public void testToCompositeAggXContent() throws IOException {

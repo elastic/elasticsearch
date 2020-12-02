@@ -73,16 +73,8 @@ public class DateFormatTests extends ESTestCase {
         String format = "YYYY-ww";
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
-        ZonedDateTime dateTime = javaFunction.apply("2019-33");
-        assertThat(dateTime, equalTo(ZonedDateTime.of(2019,8,12,0,0,0,0,timezone)));
-    }
-
-    public void testParseWeekBasedYear() {
-        String format = "YYYY";
-        ZoneId timezone = DateUtils.of("Europe/Amsterdam");
-        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
-        ZonedDateTime dateTime = javaFunction.apply("2019");
-        assertThat(dateTime, equalTo(ZonedDateTime.of(2018,12,31,0,0,0,0,timezone)));
+        ZonedDateTime dateTime = javaFunction.apply("2020-33");
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2020,8,10,0,0,0,0,timezone)));
     }
 
     public void testParseWeekBasedWithLocale() {

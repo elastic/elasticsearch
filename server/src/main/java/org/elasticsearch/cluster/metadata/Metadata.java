@@ -1482,11 +1482,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
                     String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
-                   Set<String> conflicts =
-                       indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
+                    Set<String> conflicts =
+                        indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
                             .keySet().stream()
                             .filter(s -> s.substring(prefix.length()).matches("[0-9]+"))
-                            .filter(s ->IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
+                            .filter(s -> IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
                             .collect(Collectors.toSet());
 
                     if (conflicts.size() > 0) {

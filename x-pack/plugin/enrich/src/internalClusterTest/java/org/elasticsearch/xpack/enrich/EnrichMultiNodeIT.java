@@ -76,8 +76,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
                 null,
                 List.of(SOURCE_INDEX_NAME),
                 MATCH_FIELD,
-                List.of(DECORATE_FIELDS)
-            );
+                List.of(DECORATE_FIELDS),
+                    null);
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
@@ -207,8 +207,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             null,
             List.of(SOURCE_INDEX_NAME),
             MATCH_FIELD,
-            List.of(DECORATE_FIELDS)
-        );
+            List.of(DECORATE_FIELDS),
+                null);
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         final ActionFuture<ExecuteEnrichPolicyAction.Response> policyExecuteFuture = client().execute(

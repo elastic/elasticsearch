@@ -125,7 +125,7 @@ public class EnrichPolicyRunner implements Runnable {
             @Override
             public void onResponse(GetIndexResponse getIndexResponse) {
                 validateMappings(getIndexResponse);
-                prepareAndCreateEnrichIndex();
+                prepareAndCreateEnrichIndex(getIndexResponse);
             }
 
             @Override
@@ -240,13 +240,21 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
+    @SuppressWarnings("unchecked")
+    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy, GetIndexResponse getIndexResponse) {
         // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
         final String keyType;
         final CheckedFunction<XContentBuilder, XContentBuilder, IOException> matchFieldMapping;
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
             matchFieldMapping = (builder) -> builder.field("type", "keyword").field("doc_values", false);
             // No need to also configure index_options, because keyword type defaults to 'docs'.
+        } else if (EnrichPolicy.RANGE_MATCH_TYPES.contains(policy.getType())) {
+            matchFieldMapping = (builder) -> {
+                if (policy.getFormat() != null && policy.getType().startsWith("date")) {
+                    builder.field("format", policy.getFormat());
+                }
+                return builder.field("type", policy.getType().replace("_match", ""));
+            };
         } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
             matchFieldMapping = (builder) -> builder.field("type", "geo_shape");
         } else {
@@ -291,7 +299,7 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void prepareAndCreateEnrichIndex() {
+    private void prepareAndCreateEnrichIndex(GetIndexResponse getIndexResponse) {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
@@ -303,7 +311,7 @@ public class EnrichPolicyRunner implements Runnable {
             .put("index.warmer.enabled", false)
             .build();
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
-        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy));
+        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy, getIndexResponse));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         enrichOriginClient().admin().indices().create(createEnrichIndexRequest, new ActionListener<>() {
             @Override

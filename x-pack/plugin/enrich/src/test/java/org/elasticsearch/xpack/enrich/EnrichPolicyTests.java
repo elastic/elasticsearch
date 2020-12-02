@@ -65,8 +65,8 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
                     .map(s -> s.toLowerCase(Locale.ROOT))
                     .collect(Collectors.toList()),
                 randomAlphaOfLength(4),
-                Arrays.asList(generateRandomStringArray(8, 4, false, false))
-            );
+                Arrays.asList(generateRandomStringArray(8, 4, false, false)),
+                    null);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

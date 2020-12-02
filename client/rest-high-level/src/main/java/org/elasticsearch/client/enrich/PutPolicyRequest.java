@@ -41,8 +41,13 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
     private final List<String> indices;
     private final String matchField;
     private final List<String> enrichFields;
+    private final String format;
 
     public PutPolicyRequest(String name, String type, List<String> indices, String matchField, List<String> enrichFields) {
+        this(name, type, indices, matchField, enrichFields, null);
+    }
+
+    public PutPolicyRequest(String name, String type, List<String> indices, String matchField, List<String> enrichFields, String format) {
         if (Strings.hasLength(name) == false) {
             throw new IllegalArgumentException("name must be a non-null and non-empty string");
         }
@@ -64,6 +69,7 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
         this.indices = indices;
         this.matchField = matchField;
         this.enrichFields = enrichFields;
+        this.format = format;
     }
 
     public String getName() {
@@ -72,6 +78,10 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
 
     public String getType() {
         return type;
+    }
+
+    public String getFormat() {
+        return format;
     }
 
     public BytesReference getQuery() {
@@ -113,6 +123,10 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
                 }
                 builder.field(NamedPolicy.MATCH_FIELD_FIELD.getPreferredName(), matchField);
                 builder.field(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
+
+                if (format != null) {
+                    builder.field(NamedPolicy.FORMAT_FIELD.getPreferredName(), format);
+                }
             }
             builder.endObject();
         }
@@ -130,12 +144,13 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
             Objects.equals(query, that.query) &&
             Objects.equals(indices, that.indices) &&
             Objects.equals(matchField, that.matchField) &&
-            Objects.equals(enrichFields, that.enrichFields);
+            Objects.equals(enrichFields, that.enrichFields) &&
+            Objects.equals(format, that.format);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, query, indices, matchField, enrichFields);
+        return Objects.hash(name, type, query, indices, matchField, enrichFields, format);
     }
 
     private static BytesReference xContentToBytes(ToXContentObject object) throws IOException {

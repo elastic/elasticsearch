@@ -85,8 +85,8 @@ public final class EnrichStore {
                 policy.getIndices(),
                 policy.getMatchField(),
                 policy.getEnrichFields(),
-                Version.CURRENT
-            );
+                Version.CURRENT,
+                policy.getFormat());
         } else {
             finalPolicy = policy;
         }

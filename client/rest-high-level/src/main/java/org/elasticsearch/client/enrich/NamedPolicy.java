@@ -35,6 +35,7 @@ public final class NamedPolicy {
     static final ParseField INDICES_FIELD = new ParseField("indices");
     static final ParseField MATCH_FIELD_FIELD = new ParseField("match_field");
     static final ParseField ENRICH_FIELDS_FIELD = new ParseField("enrich_fields");
+    static final ParseField FORMAT_FIELD = new ParseField("format");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<NamedPolicy, String> PARSER = new ConstructingObjectParser<>(
@@ -46,7 +47,8 @@ public final class NamedPolicy {
             (BytesReference) args[1],
             (List<String>) args[2],
             (String) args[3],
-            (List<String>) args[4]
+            (List<String>) args[4],
+            (String) args[5]
         )
     );
 
@@ -64,6 +66,7 @@ public final class NamedPolicy {
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), MATCH_FIELD_FIELD);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_FIELDS_FIELD);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), MATCH_FIELD_FIELD);
     }
 
     public static NamedPolicy fromXContent(XContentParser parser) throws IOException {
@@ -93,14 +96,17 @@ public final class NamedPolicy {
     private final List<String> indices;
     private final String matchField;
     private final List<String> enrichFields;
+    private final String format;
 
-    NamedPolicy(String type, String name, BytesReference query, List<String> indices, String matchField, List<String> enrichFields) {
+    NamedPolicy(String type, String name, BytesReference query, List<String> indices, String matchField, List<String> enrichFields,
+                String format) {
         this.type = type;
         this.name = name;
         this.query = query;
         this.indices = indices;
         this.matchField = matchField;
         this.enrichFields = enrichFields;
+        this.format = format;
     }
 
     public String getType() {
@@ -109,6 +115,10 @@ public final class NamedPolicy {
 
     public String getName() {
         return name;
+    }
+
+    public String getFormat() {
+        return format;
     }
 
     public BytesReference getQuery() {

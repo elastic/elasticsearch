@@ -67,6 +67,11 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
 
+        if (EnrichPolicy.RANGE_MATCH_TYPES.contains(policyType)) {
+            //range match uses the same processor as simple match
+            policyType = EnrichPolicy.MATCH_TYPE;
+        }
+
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
                 return new MatchProcessor(

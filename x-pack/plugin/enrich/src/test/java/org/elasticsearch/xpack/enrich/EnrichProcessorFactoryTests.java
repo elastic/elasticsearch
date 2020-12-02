@@ -42,7 +42,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testCreateProcessorInstance() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues, null);
         try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService);
             factory.metadata = createMetadata("majestic", policy);
@@ -151,7 +151,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testUnsupportedPolicy() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy("unsupported", null, List.of("source_index"), "my_key", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy("unsupported", null, List.of("source_index"), "my_key", enrichValues, null);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
         factory.metadata = createMetadata("majestic", policy);
 
@@ -170,7 +170,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testCompactEnrichValuesFormat() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues, null);
         try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService);
             factory.metadata = createMetadata("majestic", policy);
@@ -190,7 +190,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testNoTargetField() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues, null);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
         factory.metadata = createMetadata("majestic", policy);
 
@@ -204,7 +204,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testIllegalMaxMatches() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues, null);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
         factory.metadata = createMetadata("majestic", policy);
 

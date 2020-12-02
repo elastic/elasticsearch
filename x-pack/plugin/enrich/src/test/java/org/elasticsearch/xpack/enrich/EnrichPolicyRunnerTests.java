@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MapperService;
@@ -121,7 +121,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
 
         List<String> enrichFields = List.of("field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields, null);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -178,6 +178,178 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
+    public void testRunnerIpRangeMatchType() throws Exception {
+        final String sourceIndex = "source-index";
+        IndexResponse indexRequest = client().index(
+            new IndexRequest().index(sourceIndex)
+                .id("id")
+                .source("{" + "\"network\":" + "\"8.8.8.0/24\"," + "\"zipcode\":90210" + "}", XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        SearchResponse sourceSearchResponse = client().search(
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
+        ).actionGet();
+        assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+        assertNotNull(sourceDocMap);
+        assertThat(sourceDocMap.get("network"), is(equalTo("8.8.8.0/24")));
+        assertThat(sourceDocMap.get("zipcode"), is(equalTo(90210)));
+
+        List<String> enrichFields = List.of("zipcode");
+        EnrichPolicy policy = new EnrichPolicy("ip_range_match", null, List.of(sourceIndex), "network", enrichFields, null);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        // Validate Index definition
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        assertThat(enrichIndex.getIndices().length, equalTo(1));
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+
+        // Validate Mapping
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> field1 = (Map<?, ?>) properties.get("network");
+        assertNotNull(field1);
+        assertThat(field1.get("type"), is(equalTo("ip_range")));
+        assertNull(field1.get("doc_values"));
+
+        // Validate document structure
+        SearchResponse enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
+        ).actionGet();
+
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(2)));
+        assertThat(enrichDocument.get("network"), is(equalTo("8.8.8.0/24")));
+        assertThat(enrichDocument.get("zipcode"), is(equalTo(90210)));
+
+        // Validate segments
+        validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
+    public void testRunnerIntegerRangeMatchType() throws Exception {
+        testNumberRangeMatchType("integer");
+    }
+
+    public void testRunnerLongRangeMatchType() throws Exception {
+        testNumberRangeMatchType("long");
+    }
+
+    public void testRunnerFloatRangeMatchType() throws Exception {
+        testNumberRangeMatchType("float");
+    }
+
+    public void testRunnerDoubleRangeMatchType() throws Exception {
+        testNumberRangeMatchType("double");
+    }
+
+    public void testRunnerDateRangeMatchType() throws Exception {
+        testNumberRangeMatchType("date");
+    }
+
+    private void testNumberRangeMatchType(String rangeType) throws Exception {
+        final String sourceIndex = "source-index";
+        IndexResponse indexRequest = client().index(
+            new IndexRequest().index(sourceIndex)
+                .id("id")
+                .source("{" + "\"range\":" + "{"+"\"gt\":1,"+"\"lt\":10"+"}," + "\"zipcode\":90210" + "}", XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        SearchResponse sourceSearchResponse = client().search(
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
+        ).actionGet();
+        assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+        assertNotNull(sourceDocMap);
+        assertThat(sourceDocMap.get("range"), is(equalTo(Map.of("lt", 10, "gt", 1))));
+        assertThat(sourceDocMap.get("zipcode"), is(equalTo(90210)));
+
+        List<String> enrichFields = List.of("zipcode");
+        EnrichPolicy policy = new EnrichPolicy(rangeType + "_range_match", null, List.of(sourceIndex), "range", enrichFields, null);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        // Validate Index definition
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        assertThat(enrichIndex.getIndices().length, equalTo(1));
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+
+        // Validate Mapping
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> field1 = (Map<?, ?>) properties.get("range");
+        assertNotNull(field1);
+        assertThat(field1.get("type"), is(equalTo(rangeType + "_range")));
+        assertNull(field1.get("doc_values"));
+
+        // Validate document structure
+        SearchResponse enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
+        ).actionGet();
+
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(2)));
+        assertThat(enrichDocument.get("range"), is(equalTo(Map.of("lt", 10, "gt", 1))));
+        assertThat(enrichDocument.get("zipcode"), is(equalTo(90210)));
+
+        // Validate segments
+        validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
     public void testRunnerGeoMatchType() throws Exception {
         final String sourceIndex = "source-index";
         IndexResponse indexRequest = client().index(
@@ -198,7 +370,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(sourceDocMap.get("zipcode"), is(equalTo(90210)));
 
         List<String> enrichFields = List.of("zipcode");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.GEO_MATCH_TYPE, null, List.of(sourceIndex), "location", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.GEO_MATCH_TYPE, null, List.of(sourceIndex), "location", enrichFields, null);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -300,7 +472,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String sourceIndexPattern = baseSourceName + "*";
         List<String> enrichFields = List.of("idx", "field1", "field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields, null);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -412,7 +584,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String sourceIndexPattern = baseSourceName + "*";
         List<String> enrichFields = List.of("idx", "field1", "field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields, null);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -522,7 +694,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String sourceIndexPattern = baseSourceName + "*";
         List<String> enrichFields = List.of("idx", "field1", "field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields, null);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -582,7 +754,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final String sourceIndex = "source-index";
 
         List<String> enrichFields = List.of("field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields, null);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -609,7 +781,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertTrue(createResponse.isAcknowledged());
 
         List<String> enrichFields = List.of("field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields, null);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -669,7 +841,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("field2");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "nesting.key", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "nesting.key", enrichFields, null);
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -732,7 +904,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("nesting.field2", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "key", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "key", enrichFields, null);
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -821,7 +993,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.field2", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.field1", enrichFields, null);
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -939,7 +1111,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.field2", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.field1", enrichFields, null);
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -1070,7 +1242,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.fields.field2", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.fields.field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.fields.field1", enrichFields, null);
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -1186,7 +1358,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.field2", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "data.field1", enrichFields, null);
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -1279,7 +1451,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
 
         List<String> enrichFields = List.of("field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields, null);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();

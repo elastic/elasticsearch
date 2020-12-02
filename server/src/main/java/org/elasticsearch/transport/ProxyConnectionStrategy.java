@@ -123,19 +123,18 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
         this.clusterNameValidator = (newConnection, actualProfile, listener) ->
-            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true,
-                ActionListener.map(listener, resp -> {
-                    ClusterName remote = resp.getClusterName();
-                    if (remoteClusterName.compareAndSet(null, remote)) {
-                        return null;
-                    } else {
-                        if (remoteClusterName.get().equals(remote) == false) {
-                            DiscoveryNode node = newConnection.getNode();
-                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
-                        }
-                        return null;
+            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, listener.map(resp -> {
+                ClusterName remote = resp.getClusterName();
+                if (remoteClusterName.compareAndSet(null, remote)) {
+                    return null;
+                } else {
+                    if (remoteClusterName.get().equals(remote) == false) {
+                        DiscoveryNode node = newConnection.getNode();
+                        throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
                     }
-                }));
+                    return null;
+                }
+            }));
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {

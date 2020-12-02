@@ -72,7 +72,7 @@ PUT my_index/_doc/2
       "values" : [0.1, 0.25, 0.35, 0.4, 0.45, 0.5],
       "counts" : [8, 17, 8, 7, 6, 2]
    },
-  "_doc_count_": 62 <1>
+  "_doc_count": 62 <1>
 }
 --------------------------------------------------
 <1> Field `_doc_count` must be a positive integer storing the number of documents aggregated to produce each histogram.

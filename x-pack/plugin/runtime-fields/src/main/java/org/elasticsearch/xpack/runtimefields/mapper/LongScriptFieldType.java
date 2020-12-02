@@ -36,6 +36,9 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
         @Override
         protected AbstractScriptFieldType<?> buildFieldType() {
+            if (script.get() == null) {
+                return new LongScriptFieldType(name, LongFieldScript.PARSE_FROM_SOURCE, this);
+            }
             LongFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), LongFieldScript.CONTEXT);
             return new LongScriptFieldType(name, factory, this);
         }

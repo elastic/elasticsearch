@@ -150,9 +150,44 @@
       search:
         index: test
         body:
-          fields: ["flat*"]
+          fields: [ "flat*" ]
 
   - match:  { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - length: { hits.hits.0.fields: 1 }
   - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+---
+"Test fields option on flattened object field with include_unmapped":
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support isn't yet backported
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          flattened:
+            some_field: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flat*", "include_unmapped" : true } ]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 2 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+  - match:  { hits.hits.0.fields.flattened\.some_field: [ "some_value" ] }

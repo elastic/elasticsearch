@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -32,7 +32,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
 
     private final List<String> waitingAnalyticsJobs;
     private final List<String> waitingAnomalyJobs;
-    private final AutoscalingDeciderConfiguration passedConfiguration;
+    private final Settings passedConfiguration;
     private final Long largestWaitingAnalyticsJob;
     private final Long largestWaitingAnomalyJob;
     private final AutoscalingCapacity currentMlCapacity;
@@ -41,7 +41,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     public MlScalingReason(StreamInput in) throws IOException {
         this.waitingAnalyticsJobs = in.readStringList();
         this.waitingAnomalyJobs = in.readStringList();
-        this.passedConfiguration = in.readNamedWriteable(AutoscalingDeciderConfiguration.class);
+        this.passedConfiguration = Settings.readSettingsFromStream(in);;
         this.currentMlCapacity = new AutoscalingCapacity(in);
         this.largestWaitingAnalyticsJob = in.readOptionalVLong();
         this.largestWaitingAnomalyJob = in.readOptionalVLong();
@@ -50,7 +50,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
 
     MlScalingReason(List<String> waitingAnalyticsJobs,
                     List<String> waitingAnomalyJobs,
-                    AutoscalingDeciderConfiguration passedConfiguration,
+                    Settings passedConfiguration,
                     Long largestWaitingAnalyticsJob,
                     Long largestWaitingAnomalyJob,
                     AutoscalingCapacity currentMlCapacity,
@@ -107,7 +107,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(this.waitingAnalyticsJobs);
         out.writeStringCollection(this.waitingAnomalyJobs);
-        out.writeNamedWriteable(this.passedConfiguration);
+        Settings.writeSettingsToStream(this.passedConfiguration, out);
         this.currentMlCapacity.writeTo(out);
         out.writeOptionalVLong(largestWaitingAnalyticsJob);
         out.writeOptionalVLong(largestWaitingAnomalyJob);
@@ -135,7 +135,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     static class Builder {
         private List<String> waitingAnalyticsJobs = Collections.emptyList();
         private List<String> waitingAnomalyJobs = Collections.emptyList();
-        private AutoscalingDeciderConfiguration passedConfiguration;
+        private Settings passedConfiguration;
         private Long largestWaitingAnalyticsJob;
         private Long largestWaitingAnomalyJob;
         private AutoscalingCapacity currentMlCapacity;
@@ -151,7 +151,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
             return this;
         }
 
-        public Builder setPassedConfiguration(AutoscalingDeciderConfiguration passedConfiguration) {
+        public Builder setPassedConfiguration(Settings passedConfiguration) {
             this.passedConfiguration = passedConfiguration;
             return this;
         }

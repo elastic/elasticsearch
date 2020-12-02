@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -179,6 +180,8 @@ public abstract class PipelineAggregationBuilder
                     }
                 } else if (parent instanceof AutoDateHistogramAggregationBuilder) {
                     // Nothing to check
+                } else if (parent instanceof TermsAggregationBuilder) {
+                    //TODO: what should be checked?
                 } else {
                     addValidationError(
                             type + " aggregation [" + name + "] must have a histogram, date_histogram or auto_date_histogram as parent");

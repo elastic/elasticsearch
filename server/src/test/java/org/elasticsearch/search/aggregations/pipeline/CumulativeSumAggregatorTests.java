@@ -75,6 +75,16 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
 
     private static final List<Integer> datasetValues = Arrays.asList(1,2,3,4,5,6,7,8,9,10);
 
+    //TODO: implement
+    public void testTermsLong() throws IOException {
+    }
+
+    public void testTermsDouble() throws IOException {
+    }
+
+    public void testTermsString() throws IOException {
+    }
+
     public void testSimple() throws IOException {
         Query query = new MatchAllDocsQuery();
 

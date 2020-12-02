@@ -6,6 +6,10 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.xpack.autoscaling.Autoscaling;
+import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -72,6 +76,8 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
+import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -107,6 +113,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return Arrays.asList(
             LocalStateCompositeXPackPlugin.class,
             Netty4Plugin.class,
+            Autoscaling.class,
+            ReindexPlugin.class,
             // The monitoring plugin requires script and gsub processors to be loaded
             IngestCommonPlugin.class,
             // The monitoring plugin script processor references painless. Include this for script compilation.
@@ -236,18 +244,25 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATAFEED_TASK_NAME,
-                    StartDatafeedAction.DatafeedParams::new));
+                StartDatafeedAction.DatafeedParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 StartDataFrameAnalyticsAction.TaskParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_TASK_NAME,
-                    OpenJobAction.JobParams::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
-                SnapshotUpgradeTaskParams::new));
+                OpenJobAction.JobParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameAnalyticsTaskState.NAME,
                 DataFrameAnalyticsTaskState::new));
             entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class,
+                AutoscalingMetadata.NAME,
+                AutoscalingMetadata.AutoscalingMetadataDiff::new));
+            entries.add(new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                MlScalingReason.NAME,
+                MlScalingReason::new
+            ));
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);

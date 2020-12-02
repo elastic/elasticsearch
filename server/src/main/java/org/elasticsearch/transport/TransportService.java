@@ -490,8 +490,6 @@ public class TransportService extends AbstractLifecycleComponent
 
     public static class HandshakeResponse extends TransportResponse {
 
-        private static final Version BUILD_HASH_HANDSHAKE_VERSION = Version.V_8_0_0;
-
         private final Version version;
 
         @Nullable // if version < BUILD_HASH_HANDSHAKE_VERSION
@@ -510,60 +508,47 @@ public class TransportService extends AbstractLifecycleComponent
 
         public HandshakeResponse(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(BUILD_HASH_HANDSHAKE_VERSION)) {
-                // the first two fields need only VInts and raw (ASCII) characters, so we cross our fingers and hope that they appear
-                // on the wire as we expect them to even if this turns out to be an incompatible build
-                version = Version.readVersion(in);
-                buildHash = in.readString();
+            // the first two fields need only VInts and raw (ASCII) characters, so we cross our fingers and hope that they appear
+            // on the wire as we expect them to even if this turns out to be an incompatible build
+            version = Version.readVersion(in);
+            buildHash = in.readString();
 
-                try {
-                    // If the remote node is incompatible then make an effort to identify it anyway, so we can mention it in the exception
-                    // message, but recognise that this may fail
-                    discoveryNode = new DiscoveryNode(in);
-                } catch (Exception e) {
-                    if (isIncompatibleBuild(version, buildHash)) {
-                        throw new IllegalArgumentException("unidentifiable remote node is build [" + buildHash +
-                                "] of version [" + version + "] but this node is build [" + Build.CURRENT.hash() +
-                                "] of version [" + Version.CURRENT + "] which has an incompatible wire format", e);
-                    } else {
-                        throw e;
-                    }
-                }
-
+            try {
+                // If the remote node is incompatible then make an effort to identify it anyway, so we can mention it in the exception
+                // message, but recognise that this may fail
+                discoveryNode = new DiscoveryNode(in);
+            } catch (Exception e) {
                 if (isIncompatibleBuild(version, buildHash)) {
-                    if (PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS) {
-                        logger.warn("remote node [{}] is build [{}] of version [{}] but this node is build [{}] of version [{}] " +
-                                        "which may not be compatible; remove system property [{}] to resolve this warning",
-                                discoveryNode, buildHash, version, Build.CURRENT.hash(), Version.CURRENT,
-                                PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
-                    } else {
-                        throw new IllegalArgumentException("remote node [" + discoveryNode + "] is build [" + buildHash +
-                                "] of version [" + version + "] but this node is build [" + Build.CURRENT.hash() +
-                                "] of version [" + Version.CURRENT + "] which has an incompatible wire format");
-                    }
+                    throw new IllegalArgumentException("unidentifiable remote node is build [" + buildHash +
+                            "] of version [" + version + "] but this node is build [" + Build.CURRENT.hash() +
+                            "] of version [" + Version.CURRENT + "] which has an incompatible wire format", e);
+                } else {
+                    throw e;
                 }
-
-                clusterName = new ClusterName(in);
-            } else {
-                discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
-                clusterName = new ClusterName(in);
-                version = Version.readVersion(in);
-                buildHash = null;
             }
+
+            if (isIncompatibleBuild(version, buildHash)) {
+                if (PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS) {
+                    logger.warn("remote node [{}] is build [{}] of version [{}] but this node is build [{}] of version [{}] " +
+                                    "which may not be compatible; remove system property [{}] to resolve this warning",
+                            discoveryNode, buildHash, version, Build.CURRENT.hash(), Version.CURRENT,
+                            PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
+                } else {
+                    throw new IllegalArgumentException("remote node [" + discoveryNode + "] is build [" + buildHash +
+                            "] of version [" + version + "] but this node is build [" + Build.CURRENT.hash() +
+                            "] of version [" + Version.CURRENT + "] which has an incompatible wire format");
+                }
+            }
+
+            clusterName = new ClusterName(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(BUILD_HASH_HANDSHAKE_VERSION)) {
-                Version.writeVersion(version, out);
-                out.writeString(buildHash);
-                discoveryNode.writeTo(out);
-                clusterName.writeTo(out);
-            } else {
-                out.writeOptionalWriteable(discoveryNode);
-                clusterName.writeTo(out);
-                Version.writeVersion(version, out);
-            }
+            Version.writeVersion(version, out);
+            out.writeString(buildHash);
+            discoveryNode.writeTo(out);
+            clusterName.writeTo(out);
         }
 
         public Version getVersion() {

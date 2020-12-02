@@ -89,10 +89,9 @@ public class InternalDistributionArchiveSetupPlugin implements InternalPlugin {
                 extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
                 sub.getTasks().register("extractedAssemble", task ->
-                        // We keep extracted configuration resolvable false to keep
-                        // resolveAllDependencies simple so we rely only on its build dependencies here.
-                        task.dependsOn(extractedConfiguration.getAllArtifacts().getBuildDependencies())
-                );
+                // We keep extracted configuration resolvable false to keep
+                // resolveAllDependencies simple so we rely only on its build dependencies here.
+                task.dependsOn(extractedConfiguration.getAllArtifacts().getBuildDependencies()));
             });
         });
         project.getExtensions().add("distribution_archives", container);

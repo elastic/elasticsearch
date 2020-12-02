@@ -216,11 +216,7 @@ public class JobSnapshotUpgraderResultProcessor {
                     flushAcknowledgement.getId()
                 )
             );
-            // Commit previous writes here, effectively continuing
-            // the flush from the C++ autodetect process right
-            // through to the data store
-            Exception exception = null;
-            flushListener.acknowledgeFlush(flushAcknowledgement, exception);
+            flushListener.acknowledgeFlush(flushAcknowledgement, null);
         }
     }
 

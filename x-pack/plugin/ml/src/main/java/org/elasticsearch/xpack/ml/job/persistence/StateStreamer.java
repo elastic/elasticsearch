@@ -36,15 +36,9 @@ public class StateStreamer {
 
     private final Client client;
     private volatile boolean isCancelled;
-    private final boolean failOnMissing;
 
     public StateStreamer(Client client) {
-        this(client, false);
-    }
-
-    public StateStreamer(Client client, boolean failOnMissing) {
         this.client = Objects.requireNonNull(client);
-        this.failOnMissing = failOnMissing;
     }
 
     /**
@@ -84,14 +78,6 @@ public class StateStreamer {
                 if (stateResponse.getHits().getHits().length == 0) {
                     LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
                             modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
-                    if (failOnMissing) {
-                        throw ExceptionsHelper.badRequestException(
-                            "Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                            modelSnapshot.getSnapshotDocCount(),
-                            jobId,
-                            modelSnapshot.getSnapshotId(),
-                            stateDocId);
-                    }
                     break;
                 }
                 writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);

@@ -62,11 +62,6 @@ When a user's role enables <<document-level-security,document level security>> f
 in the role definition. The `has_child` and `has_parent` queries can be used in
 the search API with document level security enabled.
 * <<date-math,Date math>> expressions cannot contain `now` in <<ranges-on-dates,range queries with date fields>>
-* Any query that makes remote calls to fetch query data isn't supported,
-including the following queries:
-** `terms` query with terms lookup
-** `geo_shape` query with indexed shapes
-** `percolate` query
 * If suggesters are specified and document level security is enabled, the specified suggesters are ignored.
 * A search request cannot be profiled if document level security is enabled.
 

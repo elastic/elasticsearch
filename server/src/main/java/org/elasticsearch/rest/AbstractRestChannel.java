@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -131,9 +132,10 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
+        Map<String, String> parameters = request.getParsedAccept() != null ? request.getParsedAccept().getParameters() : Collections.emptyMap();
         XContentBuilder builder =
             new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
-                includes, excludes, responseContentType.responseContentTypeHeader(request.getParsedAccept().getParameters()));
+                includes, excludes, responseContentType.responseContentTypeHeader(parameters));
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests.randomHitExtractor;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class QuerierTests extends ESTestCase {
 
@@ -228,9 +226,8 @@ public class QuerierTests extends ESTestCase {
             }
         };
 
-        Cursor.Page page = mock(Cursor.Page.class);
-        when(page.rowSet()).thenReturn(new TestResultRowSet<NamedWriteable>(List.of(randomHitExtractor(0)), new BitSet(), dataSize));
-        when(page.next()).thenReturn(Cursor.EMPTY);
+        Cursor.Page page = new Cursor.Page(new TestResultRowSet<NamedWriteable>(List.of(randomHitExtractor(0)), new BitSet(), dataSize),
+            Cursor.EMPTY);
 
         AtomicInteger responses = new AtomicInteger();
         AtomicInteger failures = new AtomicInteger();

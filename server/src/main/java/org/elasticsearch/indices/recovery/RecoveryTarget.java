@@ -256,7 +256,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
             }
-            listener.onRecoveryDone(state());
+            listener.onRecoveryDone(state(), indexShard.getTimestampMillisRange());
         }
     }
 

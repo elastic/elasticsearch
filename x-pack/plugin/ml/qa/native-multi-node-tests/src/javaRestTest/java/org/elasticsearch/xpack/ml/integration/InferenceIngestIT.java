@@ -10,6 +10,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsResponse;
+import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,7 +19,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ExternalTestCluster;
@@ -38,6 +42,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * This is a {@link ESRestTestCase} because the cleanup code in {@link ExternalTestCluster#ensureEstimatedStats()} causes problems
@@ -135,13 +141,17 @@ public class InferenceIngestIT extends ESRestTestCase {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
                     "_ml/trained_models/" + classificationModelId + "/_stats"));
-                String response = EntityUtils.toString(statsResponse.getEntity());
-                assertThat(response, containsString("\"inference_count\":10"));
-                assertThat(response, containsString("\"cache_miss_count\":30"));
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
+                    TrainedModelStats trainedModelStats = GetTrainedModelsStatsResponse.fromXContent(parser).getTrainedModelStats().get(0);
+                    assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
+                    assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
+                }
                 statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
-                response = EntityUtils.toString(statsResponse.getEntity());
-                assertThat(response, containsString("\"inference_count\":10"));
-                assertThat(response, containsString("\"cache_miss_count\":30"));
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
+                    TrainedModelStats trainedModelStats = GetTrainedModelsStatsResponse.fromXContent(parser).getTrainedModelStats().get(0);
+                    assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
+                    assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
+                }
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
                 fail(ex.getMessage());
@@ -191,18 +201,17 @@ public class InferenceIngestIT extends ESRestTestCase {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
                     "_ml/trained_models/" + classificationModelId + "/_stats"));
-                String response = EntityUtils.toString(statsResponse.getEntity());
-                assertThat(response, containsString("\"inference_count\":10"));
-                assertThat(response, containsString("\"cache_miss_count\":3"));
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
+                    TrainedModelStats trainedModelStats = GetTrainedModelsStatsResponse.fromXContent(parser).getTrainedModelStats().get(0);
+                    assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
+                    assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
+                }
                 statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
-                response = EntityUtils.toString(statsResponse.getEntity());
-                assertThat(response, containsString("\"inference_count\":15"));
-                assertThat(response, containsString("\"cache_miss_count\":3"));
-                // can get both
-                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/_stats"));
-                String entityString = EntityUtils.toString(statsResponse.getEntity());
-                assertThat(entityString, containsString("\"inference_count\":15"));
-                assertThat(entityString, containsString("\"inference_count\":10"));
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
+                    TrainedModelStats trainedModelStats = GetTrainedModelsStatsResponse.fromXContent(parser).getTrainedModelStats().get(0);
+                    assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(15L));
+                    assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
+                }
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
                 fail(ex.getMessage());

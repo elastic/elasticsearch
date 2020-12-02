@@ -122,7 +122,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                 if (false == (delegatedRepository instanceof BlobStoreRepository) || delegatedRepository instanceof EncryptedRepository) {
                     throw new IllegalArgumentException("Unsupported delegate repository type [" + DELEGATE_TYPE_SETTING.getKey() + "]");
                 }
-                if (false == getLicenseState().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+                if (false == getLicenseState().checkFeature(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
                     logger.warn(
                         new ParameterizedMessage(
                             "Encrypted snapshots are not allowed for the currently installed license [{}]."

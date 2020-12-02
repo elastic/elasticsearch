@@ -61,6 +61,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class LatestDoc implements Function {
 
+    public static final int DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = 5000;
     public static final int TEST_QUERY_PAGE_SIZE = 50;
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_transform";
@@ -102,7 +103,7 @@ public class LatestDoc implements Function {
 
     @Override
     public int getInitialPageSize() {
-        return 5000;
+        return DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE;
     }
 
     private SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {

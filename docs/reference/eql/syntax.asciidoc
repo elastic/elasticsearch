@@ -771,3 +771,126 @@ three double quotes (`"""`) instead.
 *** {eql-ref}/pipes.html#sort[`sort`]
 *** {eql-ref}/pipes.html#unique[`unique`]
 *** {eql-ref}/pipes.html#unique-count[`unique_count`]
+
+[discrete]
+[[eql-how-sequence-queries-handle-matches]]
+==== How sequence queries handle matches
+
+<<eql-sequences,Sequence queries>> don't find all potential matches for a
+sequence. This approach would be too slow and costly for large event data sets.
+Instead, a sequence query handles pending sequence matches as a
+{wikipedia}/Finite-state_machine[state machine]:
+
+* Each event item in the sequence query is a state in the machine.
+* Only one pending sequence can be in each state at a time.
+* If two pending sequences are in the same state at the same time, the most
+recent sequence overwrites the older one.
+* If the query includes <<eql-by-keyword,`by` fields>>, the query uses a
+separate state machine for each unique `by` field value.
+
+.*Example* 
+[%collapsible]
+====
+A data set contains the following `process` events in ascending chronological
+order:
+
+[source,js]
+----
+{ "index" : { "_id" : "1" } }
+{ "user": { "name": "root" }, "process": { "name": "whoami" }, ...}
+{ "index" : { "_id" : "2" } }
+{ "user": { "name": "root" }, "process": { "name": "whoami" }, ...}
+{ "index" : { "_id" : "3" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "hostname" }, ...}
+{ "index" : { "_id" : "4" } }
+{ "user": { "name": "root" }, "process": { "name": "hostname" }, ...}
+{ "index" : { "_id" : "5" } }
+{ "user": { "name": "root" }, "process": { "name": "hostname" }, ...}
+{ "index" : { "_id" : "6" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "whoami" }, ...}
+{ "index" : { "_id" : "7" } }
+{ "user": { "name": "root" }, "process": { "name": "whoami" }, ...}
+{ "index" : { "_id" : "8" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "hostname" }, ...}
+{ "index" : { "_id" : "9" } }
+{ "user": { "name": "root" }, "process": { "name": "ifconfig" }, ...}
+{ "index" : { "_id" : "10" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "ifconfig" }, ...}
+{ "index" : { "_id" : "11" } }
+{ "user": { "name": "root" }, "process": { "name": "ifconfig" }, ...}
+----
+// NOTCONSOLE
+
+An EQL sequence query searches the data set:
+
+[source,eql]
+----
+sequence by user.name
+  [process where process.name == "whoami"]
+  [process where process.name == "hostname"]
+  [process where process.name == "ifconfig"]
+----
+
+The query's event items correspond to the following states:
+
+* State A:  `[process where process.name == "whoami"]`
+* State B:  `[process where process.name == "hostname"]`
+* Complete: `[process where process.name == "ifconfig"]`
+
+To find matching sequences, the query uses separate state machines for each
+unique `user.name` value. Pending sequence matches move through each machine's
+states as follows:
+
+[source,txt]
+----
+{ "index" : { "_id" : "1" } }
+{ "user": { "name": "root" }, "process": { "name": "whoami" }, ...}
+// Creates sequence [1] in state A for the "root" user.
+
+{ "index" : { "_id" : "2" } }
+{ "user": { "name": "root" }, "process": { "name": "whoami" }, ...}
+// Creates sequence [2] in state A for "root", overwriting sequence [1].
+
+{ "index" : { "_id" : "3" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "hostname" }, ...}
+// Nothing happens. This event doesn't match state A for the "elkbee" user.
+
+{ "index" : { "_id" : "4" } }
+{ "user": { "name": "root" }, "process": { "name": "hostname" }, ...}
+// Sequence [2, 4] moves to state B for "root".
+// State A for "root" is now empty.
+
+{ "index" : { "_id" : "5" } }
+{ "user": { "name": "root" }, "process": { "name": "hostname" }, ...}
+// Nothing happens. State A is empty for "root".
+
+{ "index" : { "_id" : "6" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "whoami" }, ...}
+// Creates sequence [6] in state A for "elkbee".
+
+{ "index" : { "_id" : "7" } }
+{ "user": { "name": "root" }, "process": { "name": "whoami" }, ...}
+// Creates sequence [7] in state A for "root".
+// Sequence [2, 4] remains in state B for "root".
+
+{ "index" : { "_id" : "8" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "hostname" }, ...}
+// Sequence [6, 8] moves to state B for "elkbee".
+// State A for "elkbee" is now empty.
+
+{ "index" : { "_id" : "9" } }
+{ "user": { "name": "root" }, "process": { "name": "ifconfig" }, ...}
+// Sequence [2, 4, 9] is complete for "root".
+// State B for "root" is now empty.
+// Sequence [7] remains in state A.
+
+{ "index" : { "_id" : "10" } }
+{ "user": { "name": "elkbee" }, "process": { "name": "ifconfig" }, ...}
+// Sequence [6, 8, 10] is complete for "elkbee".
+// State A and B for "elkbee" are now empty.
+
+{ "index" : { "_id" : "11" } }
+{ "user": { "name": "root" }, "process": { "name": "ifconfig" }, ...}
+// Nothing happens. State B for "root" is empty.
+----
+====

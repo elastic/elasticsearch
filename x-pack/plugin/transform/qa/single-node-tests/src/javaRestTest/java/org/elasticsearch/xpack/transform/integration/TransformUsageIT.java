@@ -104,7 +104,7 @@ public class TransformUsageIT extends TransformRestTestCase {
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
             for (String statName : PROVIDED_STATS) {
                 // the trigger count can be off: e.g. if the scheduler kicked in before usage has been called,
-                // or if the the scheduler triggered later, but state hasn't been persisted (by design)
+                // or if the scheduler triggered later, but state hasn't been persisted (by design)
                 // however, we know that as we have 2 transforms, the trigger count must be greater or equal to 2
                 if (statName.equals(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())) {
                     assertThat(

@@ -27,6 +27,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
@@ -47,6 +48,7 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
@@ -205,8 +207,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot completion listener
      */
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        createSnapshot(request,
-            ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure));
+        createSnapshot(request, ActionListener.wrap(snapshot -> addListener(snapshot, listener.map(Tuple::v2)), listener::onFailure));
     }
 
     /**
@@ -276,10 +277,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 newEntry = SnapshotsInProgress.startedEntry(
                         new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
                         indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, userMeta, version);
-                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
-                newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                        SnapshotsInProgress.of(List.copyOf(newEntries))).build();
+                        SnapshotsInProgress.of(CollectionUtils.appendToCopy(runningSnapshots, newEntry))).build();
             }
 
             @Override
@@ -377,10 +376,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         repositoryData.resolveIndices(matchingIndices),
                         threadPool.absoluteTimeInMillis(), repositoryData.getGenId(),
                         minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null));
-                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
-                newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                        SnapshotsInProgress.of(List.copyOf(newEntries))).build();
+                        SnapshotsInProgress.of(CollectionUtils.appendToCopy(runningSnapshots, newEntry))).build();
             }
 
             @Override
@@ -610,8 +607,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param state   current cluster state
      */
     private static void validate(String repositoryName, String snapshotName, ClusterState state) {
-        RepositoriesMetadata repositoriesMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE);
-        if (repositoriesMetadata == null || repositoriesMetadata.repository(repositoryName) == null) {
+        RepositoriesMetadata repositoriesMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        if (repositoriesMetadata.repository(repositoryName) == null) {
             throw new RepositoryMissingException(repositoryName);
         }
         validate(repositoryName, snapshotName);
@@ -2633,21 +2630,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private class UpdateSnapshotStatusAction
-            extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
+            extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, ActionResponse.Empty> {
         UpdateSnapshotStatusAction(TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver) {
             super(UPDATE_SNAPSHOT_STATUS_ACTION_NAME, false, transportService, clusterService, threadPool,
                     actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver,
-                    in -> UpdateIndexShardSnapshotStatusResponse.INSTANCE, ThreadPool.Names.SAME
+                    in -> ActionResponse.Empty.INSTANCE, ThreadPool.Names.SAME
             );
         }
 
         @Override
         protected void masterOperation(Task task, UpdateIndexShardSnapshotStatusRequest request, ClusterState state,
-                                       ActionListener<UpdateIndexShardSnapshotStatusResponse> listener) {
+                                       ActionListener<ActionResponse.Empty> listener) {
             innerUpdateSnapshotState(new ShardSnapshotUpdate(request.snapshot(), request.shardId(), request.status()),
-                    ActionListener.delegateFailure(listener, (l, v) -> l.onResponse(UpdateIndexShardSnapshotStatusResponse.INSTANCE)));
+                    listener.map(v -> ActionResponse.Empty.INSTANCE));
         }
 
         @Override

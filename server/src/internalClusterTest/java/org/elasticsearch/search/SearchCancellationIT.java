@@ -44,7 +44,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.lookup.LeafFieldsLookup;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
@@ -67,6 +67,7 @@ import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -311,12 +312,12 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .build());
         indexTestData();
         Thread searchThread = new Thread(() -> {
-            expectThrows(Exception.class, () -> {
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                 client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
-                    .setAllowPartialSearchResults(false).setSize(1000).get();
-            });
+                    .setAllowPartialSearchResults(false).setSize(1000).get());
+            assertThat(e.getMessage(), containsString("Partial shards failure"));
         });
         searchThread.start();
         try {
@@ -385,7 +386,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 if (runnable != null) {
                     runnable.run();
                 }
-                LeafFieldsLookup fieldsLookup = (LeafFieldsLookup) params.get("_fields");
+                LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
                 LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {

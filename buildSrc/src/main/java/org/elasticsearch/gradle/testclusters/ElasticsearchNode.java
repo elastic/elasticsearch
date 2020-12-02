@@ -127,7 +127,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
-
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -167,6 +166,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String transportPort = "0";
     private Path confPathData;
     private String keystorePassword = "";
+    private boolean preserveDataDir = false;
 
     ElasticsearchNode(
         String path,
@@ -422,6 +422,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    @Input
+    public boolean isPreserveDataDir() {
+        return preserveDataDir;
+    }
+
+    @Override
+    public void setPreserveDataDir(boolean preserveDataDir) {
+        this.preserveDataDir = preserveDataDir;
+    }
+
+    @Override
     public void freeze() {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
@@ -453,7 +464,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 logToProcessStdout("Configuring working directory: " + workingDir);
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
-                    fileSystemOperations.delete(d -> d.delete(workingDir));
+                    if (preserveDataDir) {
+                        Files.list(workingDir)
+                            .filter(path -> path.equals(confPathData) == false)
+                            .forEach(path -> fileSystemOperations.delete(d -> d.delete(path)));
+                    } else {
+                        fileSystemOperations.delete(d -> d.delete(workingDir));
+                    }
                 }
                 isWorkingDirConfigured = true;
             }

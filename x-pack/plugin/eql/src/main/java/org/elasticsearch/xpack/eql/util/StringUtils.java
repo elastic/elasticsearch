@@ -18,11 +18,13 @@ public final class StringUtils {
     public static LikePattern toLikePattern(String s) {
         // pick a character that is guaranteed not to be in the string, because it isn't allowed to escape itself
         char escape = 1;
+        String escapeString = Character.toString(escape);
 
         // replace wildcards with % and escape special characters
-        String likeString = s.replace("%", escape + "%")
-            .replace("_", escape + "_")
-            .replace("*", "%");
+        String likeString = s.replace("%", escapeString + "%")
+            .replace("_", escapeString + "_")
+            .replace("*", "%")
+            .replace("?", "_");
 
         return new LikePattern(likeString, escape);
     }

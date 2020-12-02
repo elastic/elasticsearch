@@ -68,7 +68,7 @@ syntax>> or wildcards (`*`).
 `rollup_index`::
 (Required, string)
 New index that stores the rollup results. Cannot be an existing index,
-<<data-streams,data stream>>, or <<indices-aliases,index alias>>.
+a <<data-streams,data stream>>, or a <<indices-aliases,index alias>>.
 +
 The request creates this index with
 <<index-modules-blocks,`index.blocks.write`>> set to `true`.  If the `<index>`

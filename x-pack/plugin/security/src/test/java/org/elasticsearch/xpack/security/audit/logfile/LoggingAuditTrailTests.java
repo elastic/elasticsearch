@@ -913,18 +913,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         PutUserRequest putUserRequest = new PutUserRequest();
         String username = randomFrom(randomAlphaOfLength(3), customAnonymousUsername, AnonymousUser.DEFAULT_ANONYMOUS_USERNAME,
                 UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME);
-        final String realmName;
-        if (AnonymousUser.DEFAULT_ANONYMOUS_USERNAME.equals(username) || customAnonymousUsername.equals(username)) {
-            if (false == AnonymousUser.ROLES_SETTING.get(settings).isEmpty()) {
-                realmName = null;
-            } else {
-                realmName = ReservedRealm.NAME;
-            }
-        } else if (reservedRealmEnabled && (UsernamesField.ELASTIC_NAME.equals(username) || UsernamesField.KIBANA_NAME.equals(username))) {
-            realmName = ReservedRealm.NAME;
-        } else {
-            realmName = NativeRealmSettings.NAME;
-        }
         putUserRequest.username(username);
         putUserRequest.roles(randomFrom(randomArray(4, String[]::new, () -> randomAlphaOfLength(8)), null));
         putUserRequest.fullName(randomFrom(randomAlphaOfLength(8), null));
@@ -948,12 +936,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         StringBuilder putUserAuditEventStringBuilder = new StringBuilder();
         putUserAuditEventStringBuilder.append("\"put\":{\"user\":{\"name\":");
         putUserAuditEventStringBuilder.append("\"" + putUserRequest.username() + "\"");
-        putUserAuditEventStringBuilder.append(",\"realm\":");
-        if (realmName == null) {
-            putUserAuditEventStringBuilder.append("null");
-        } else {
-            putUserAuditEventStringBuilder.append("\"").append(realmName).append("\"");
-        }
         putUserAuditEventStringBuilder.append(",\"enabled\":");
         putUserAuditEventStringBuilder.append(putUserRequest.enabled());
         putUserAuditEventStringBuilder.append(",\"role_names\":");
@@ -1006,13 +988,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedEnableUserAuditEventString = output.get(1);
         StringBuilder enableUserStringBuilder = new StringBuilder();
-        enableUserStringBuilder.append("\"enable\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
-        if (realmName == null) {
-            enableUserStringBuilder.append("null");
-        } else {
-            enableUserStringBuilder.append("\"").append(realmName).append("\"");
-        }
-        enableUserStringBuilder.append("}}");
+        enableUserStringBuilder.append("\"enable\":{\"user\":{\"name\":\"").append(username).append("\"}}");
         String expectedEnableUserAuditEventString = enableUserStringBuilder.toString();
         assertThat(generatedEnableUserAuditEventString, containsString(expectedEnableUserAuditEventString));
         generatedEnableUserAuditEventString = generatedEnableUserAuditEventString.replace(", " + expectedEnableUserAuditEventString, "");
@@ -1037,13 +1013,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedDisableUserAuditEventString = output.get(1);
         StringBuilder disableUserStringBuilder = new StringBuilder();
-        disableUserStringBuilder.append("\"disable\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
-        if (realmName == null) {
-            disableUserStringBuilder.append("null");
-        } else {
-            disableUserStringBuilder.append("\"").append(realmName).append("\"");
-        }
-        disableUserStringBuilder.append("}}");
+        disableUserStringBuilder.append("\"disable\":{\"user\":{\"name\":\"").append(username).append("\"}}");
         String expectedDisableUserAuditEventString = disableUserStringBuilder.toString();
         assertThat(generatedDisableUserAuditEventString, containsString(expectedDisableUserAuditEventString));
         generatedDisableUserAuditEventString = generatedDisableUserAuditEventString.replace(", " + expectedDisableUserAuditEventString, "");
@@ -1067,13 +1037,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedChangePasswordAuditEventString = output.get(1);
         StringBuilder changePasswordStringBuilder = new StringBuilder();
-        changePasswordStringBuilder.append("\"change\":{\"password\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
-        if (realmName == null) {
-            changePasswordStringBuilder.append("null");
-        } else {
-            changePasswordStringBuilder.append("\"").append(realmName).append("\"");
-        }
-        changePasswordStringBuilder.append("}}}");
+        changePasswordStringBuilder.append("\"change\":{\"password\":{\"user\":{\"name\":\"").append(username).append("\"}}}");
         String expectedChangePasswordAuditEventString = changePasswordStringBuilder.toString();
         assertThat(generatedChangePasswordAuditEventString, containsString(expectedChangePasswordAuditEventString));
         generatedChangePasswordAuditEventString =
@@ -1098,13 +1062,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedDeleteUserAuditEventString = output.get(1);
         StringBuilder deleteUserStringBuilder = new StringBuilder();
-        deleteUserStringBuilder.append("\"delete\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
-        if (realmName == null) {
-            deleteUserStringBuilder.append("null");
-        } else {
-            deleteUserStringBuilder.append("\"").append(realmName).append("\"");
-        }
-        deleteUserStringBuilder.append("}}");
+        deleteUserStringBuilder.append("\"delete\":{\"user\":{\"name\":\"").append(username).append("\"}}");
         String expectedDeleteUserAuditEventString = deleteUserStringBuilder.toString();
         assertThat(generatedDeleteUserAuditEventString, containsString(expectedDeleteUserAuditEventString));
         generatedDeleteUserAuditEventString =

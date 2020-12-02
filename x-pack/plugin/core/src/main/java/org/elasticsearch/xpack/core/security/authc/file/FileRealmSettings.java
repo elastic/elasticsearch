@@ -14,7 +14,7 @@ import java.util.Set;
 
 public final class FileRealmSettings {
     public static final String TYPE = "file";
-    public static final String NAME = "default_file";
+    public static final String DEFAULT_NAME = "default_file";
 
     private FileRealmSettings() {}
 

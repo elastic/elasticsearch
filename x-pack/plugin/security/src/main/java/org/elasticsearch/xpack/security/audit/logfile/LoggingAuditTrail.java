@@ -67,19 +67,15 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -227,7 +223,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private final Logger logger;
     private final ThreadContext threadContext;
-    final Function<String, String> inferRealmNameFromUsername;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
@@ -249,17 +244,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
-        this.inferRealmNameFromUsername = (username) -> {
-            if (username == null) {
-                return null;
-            } else if (AnonymousUser.isAnonymousEnabled(settings) && AnonymousUser.isAnonymousUsername(username, settings)) {
-                return null;
-            } else if (ClientReservedRealm.isReserved(username, settings)) {
-                return ReservedRealm.NAME;
-            } else {
-                return NativeRealmSettings.NAME;
-            }
-        };
         this.entryCommonFields = new EntryCommonFields(settings, null);
         this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
@@ -861,7 +845,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject()
                     .startObject("user")
                     .field("name", putUserRequest.username())
-                    .field("realm", inferRealmNameFromUsername.apply(putUserRequest.username()))
                     .field("enabled", putUserRequest.enabled())
                     .array("role_names", putUserRequest.roles());
                     if (putUserRequest.fullName() != null) {
@@ -892,8 +875,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .startObject("password")
                     .startObject("user")
                     .field("name", changePasswordRequest.username())
-                    // it's nice for consistency to show the name of the realm, when possible
-                    .field("realm", inferRealmNameFromUsername.apply(changePasswordRequest.username()))
                     .endObject() // user
                     .endObject() // password
                     .endObject();
@@ -969,7 +950,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject()
                     .startObject("user")
                     .field("name", setEnabledRequest.username())
-                    .field("realm", inferRealmNameFromUsername.apply(setEnabledRequest.username()))
                     .endObject() // user
                     .endObject();
             if (setEnabledRequest.enabled() != null && setEnabledRequest.enabled()) {
@@ -1095,7 +1075,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject()
                     .startObject("user")
                         .field("name", deleteUserRequest.username())
-                        .field("realm", inferRealmNameFromUsername.apply(deleteUserRequest.username()))
                     .endObject() // user
                     .endObject();
             logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));

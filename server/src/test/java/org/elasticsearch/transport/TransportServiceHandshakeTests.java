@@ -235,7 +235,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         handleB.transportInterceptor.setModifyBuildHash(true);
         TransportSerializationException ex = expectThrows(TransportSerializationException.class, () -> {
             try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, TestProfiles.LIGHT_PROFILE)) {
-                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
+                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, fut.map(x -> null)));
             }
         });
         assertThat(

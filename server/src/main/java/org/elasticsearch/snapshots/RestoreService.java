@@ -81,6 +81,7 @@ import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -271,24 +272,26 @@ public class RestoreService implements ClusterStateApplier {
                 }
 
                 // set up feature state indices
-                Set<String> requestedFeatureStateIndexes = new HashSet<>();
-                Set<String> nonRequestedFeatureStateIndexes = new HashSet<>();
+                Map<String, List<String>> snapshotFeatureStates = snapshotInfo.featureStates().stream()
+                    .collect(Collectors.toMap(SnapshotFeatureInfo::getPluginName, SnapshotFeatureInfo::getIndices));
 
-                Set<String> requestedFeatureStates = Set.of(request.featureStates());
-                if (request.includeGlobalState() == false) {
-                    for (SnapshotFeatureInfo snapshotFeatureInfo : snapshotInfo.featureStates()) {
-                        if (requestedFeatureStates.contains(snapshotFeatureInfo.getPluginName())) {
-                            requestedFeatureStateIndexes.addAll(snapshotFeatureInfo.getIndices());
-                        } else {
-                            nonRequestedFeatureStateIndexes.addAll(snapshotFeatureInfo.getIndices());
-                        }
+                Map<String, List<String>> featureStatesToRestore = new HashMap<>(snapshotFeatureStates);
+                if (request.featureStates() != null) {
+                    final Set<String> requestedStates = Set.of(request.featureStates());
+                    if (snapshotFeatureStates.keySet().containsAll(requestedStates) == false) {
+                        Set<String> nonExistingRequestedStates = new HashSet<>(requestedStates);
+                        nonExistingRequestedStates.removeAll(snapshotFeatureStates.keySet());
+                        throw new SnapshotRestoreException(snapshot, "requested feature states [" + nonExistingRequestedStates +
+                            "] are not present in snapshot");
                     }
+                    featureStatesToRestore.keySet().retainAll(requestedStates);
+                } else if (request.includeGlobalState() == false) {
+                    featureStatesToRestore = new HashMap<>();
                 }
 
                 List<String> requestedIndicesIncludingSystem = Stream.concat(
-                    indicesInSnapshot.stream(), requestedFeatureStateIndexes.stream())
+                    indicesInSnapshot.stream(), featureStatesToRestore.values().stream().flatMap(Collection::stream))
                     .distinct()
-                    .filter(index -> nonRequestedFeatureStateIndexes.contains(index) == false)
                     .collect(Collectors.toList());
 
                 Set<Index> systemIndicesToDelete = new HashSet<>();

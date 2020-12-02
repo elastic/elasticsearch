@@ -169,6 +169,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             .put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)).put("refresh_interval", 10, TimeUnit.SECONDS)));
         assertAcked(prepareCreate(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME, 2, Settings.builder()
             .put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)).put("refresh_interval", 10, TimeUnit.SECONDS)));
+        // And one regular index
+        final String regularIndex = "test-idx";
+        indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
 
         ensureGreen();
 
@@ -192,9 +195,13 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
         assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
-        // restore indices by feature
+        // Delete the regular index so we can restore it
+        assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
+
+        // restore indices by feature, with only the regular index named explicitly
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
+            .setIndices(regularIndex)
             .setFeatureStates("SystemIndexTestPlugin")
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));

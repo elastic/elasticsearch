@@ -54,7 +54,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private String[] featureStates = Strings.EMPTY_ARRAY;
+    private String[] featureStates;
     private String renamePattern;
     private String renameReplacement;
     private boolean waitForCompletion;
@@ -88,7 +88,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
-            featureStates = in.readStringArray();
+            featureStates = in.readOptionalStringArray();
         }
         renamePattern = in.readOptionalString();
         renameReplacement = in.readOptionalString();
@@ -109,7 +109,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
-            out.writeStringArray(featureStates);
+            out.writeOptionalStringArray(featureStates);
         }
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
@@ -133,9 +133,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (indices == null) {
             validationException = addValidationError("indices are missing", validationException);
-        }
-        if (featureStates == null) {
-            validationException = addValidationError("featureStates are missing", validationException);
         }
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is missing", validationException);
@@ -462,6 +459,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     /**
      * @return Which plugin states should be included in the snapshot
      */
+    @Nullable
     public String[] featureStates() {
         return featureStates;
     }

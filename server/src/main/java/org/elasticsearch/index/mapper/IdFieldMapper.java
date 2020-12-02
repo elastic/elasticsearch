@@ -91,7 +91,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
             NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             NESTED_FIELD_TYPE.setStored(true);
             NESTED_FIELD_TYPE.setOmitNorms(true);
-            NESTED_FIELD_TYPE.setStored(false);
             NESTED_FIELD_TYPE.freeze();
         }
     }

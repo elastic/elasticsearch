@@ -532,8 +532,7 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.allocationId, equalTo(allocationId));
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
-            assertThat(deserialized.timestampMillisRange, version.onOrAfter(ShardLongFieldRange.LONG_FIELD_RANGE_VERSION_INTRODUCED) ?
-                    equalTo(timestampMillisRange) : sameInstance(ShardLongFieldRange.UNKNOWN));
+            assertThat(deserialized.timestampMillisRange, equalTo(timestampMillisRange));
         }
     }
 

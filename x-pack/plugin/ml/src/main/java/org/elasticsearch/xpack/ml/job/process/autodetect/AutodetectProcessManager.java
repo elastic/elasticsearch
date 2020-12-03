@@ -742,10 +742,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
             processByAllocation.remove(allocationId);
         } catch (Exception e) {
-            // If the close failed because the process has explicitly been killed by us then just pass on that exception
-            if (e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
-                throw e;
-            }
+            throwException(e);
             logger.warn("[" + jobId + "] Exception closing autodetect process", e);
             setJobState(jobTask, JobState.FAILED, e.getMessage());
             throw ExceptionsHelper.serverError("Exception closing autodetect process", e);
@@ -761,6 +758,16 @@ public class AutodetectProcessManager implements ClusterStateListener {
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobId), e);
         }
+    }
+    
+    //Resolves PMD code smell "An instanceof check is being performed on the caught exception.  Create a separate catch clause for this exception type."
+    public void throwException(ElasticsearchStatusException e) throws ElasticsearchStatusException{
+
+        // If the close failed because the process has explicitly been killed by us then just pass on that exception
+        if (e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
+            throw e;
+        }
+        
     }
 
     int numberOfOpenJobs() {

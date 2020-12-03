@@ -17,6 +17,8 @@ dependencies {
   compileOnly project(path: ':plugins:transport-nio')
 
   testImplementation project(path: xpackModule('monitoring'))
+  testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
 
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')

@@ -1,7 +1,6 @@
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.TestDistribution
 
 // Common config when running with a FIPS-140 runtime JVM
 if (BuildParams.inFipsJvm) {
@@ -14,7 +13,7 @@ if (BuildParams.inFipsJvm) {
     def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2')
     def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')
 
-    pluginManager.withPlugin('java') {
+    pluginManager.withPlugin('java-base') {
       TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
       fipsResourcesTask.configure {
         outputDir = fipsResourcesDir
@@ -44,7 +43,7 @@ if (BuildParams.inFipsJvm) {
           }
         }
         testClusters.all {
-          setTestDistribution("default")
+          setTestDistribution(TestDistribution.DEFAULT)
           extraConfigFile "fips_java.security", fipsSecurity
           extraConfigFile "fips_java.policy", fipsPolicy
           extraConfigFile "cacerts.bcfks", fipsTrustStore

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -92,9 +93,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * the given {@link Entry} to the invoking instance.
      */
     public SnapshotDeletionsInProgress withAddedEntry(Entry entry) {
-        List<Entry> entries = new ArrayList<>(getEntries());
-        entries.add(entry);
-        return SnapshotDeletionsInProgress.of(entries);
+        return SnapshotDeletionsInProgress.of(CollectionUtils.appendToCopy(getEntries(), entry));
     }
 
     /**

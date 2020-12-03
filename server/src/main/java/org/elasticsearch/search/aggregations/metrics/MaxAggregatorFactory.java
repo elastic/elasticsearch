@@ -35,6 +35,8 @@ import java.util.Map;
 
 class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final MetricAggregatorSupplier aggregatorSupplier;
+
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             MaxAggregationBuilder.REGISTRY_KEY,
@@ -45,8 +47,10 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     MaxAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metadata) throws IOException {
+                         Map<String, Object> metadata,
+                         MetricAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
@@ -60,8 +64,7 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(MaxAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(name, config, context, parent, metadata);
     }
 }

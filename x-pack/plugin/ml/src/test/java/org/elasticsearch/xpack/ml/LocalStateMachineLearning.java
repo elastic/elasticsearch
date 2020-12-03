@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -38,13 +39,18 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
         MachineLearning plugin = new MachineLearning(settings, configPath){
-
             @Override
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();
             }
         };
         plugin.setCircuitBreaker(new NoopCircuitBreaker(TRAINED_MODEL_CIRCUIT_BREAKER_NAME));
+        plugins.add(new Autoscaling(settings) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
+        });
         plugins.add(plugin);
         plugins.add(new Monitoring(settings) {
             @Override

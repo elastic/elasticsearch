@@ -102,9 +102,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     private void assertTotalWatchCount(int expectedWatches) throws Exception {
         assertBusy(() -> {
             refreshAllIndices();
-            final Request countRequest = new Request("POST", "/.watches/_count");
-            countRequest.setOptions(expectWarnings("this request accesses system indices: [.watches], but in a future major " +
-                "version, direct access to system indices will be prevented by default"));
+            final Request countRequest = new Request("POST", "/_watcher/_query/watches");
             ObjectPath path = ObjectPath.createFromResponse(client().performRequest(countRequest));
             int count = path.evaluate("count");
             assertThat(count, is(expectedWatches));

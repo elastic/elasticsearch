@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -119,7 +120,6 @@ public class AzureStorageService {
 
     // non-static, package private for testing
     RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
-        int timeout = Math.toIntExact(azureStorageSettings.getTimeout().getSeconds());
         String connectString = azureStorageSettings.getConnectString();
         StorageConnectionString storageConnectionString = StorageConnectionString.create(connectString, null);
         String primaryUri = storageConnectionString.getBlobEndpoint().getPrimaryUri();
@@ -150,9 +150,10 @@ public class AzureStorageService {
         // as RequestRetryOptions expects a value >= 1.
         // See https://github.com/Azure/azure-sdk-for-java/issues/17590 for a proposal
         // to fix this issue.
-        timeout = timeout == -1 ? Integer.MAX_VALUE : Math.max(1, timeout);
+        TimeValue configuredTimeout = azureStorageSettings.getTimeout();
+        int timeout = configuredTimeout.duration() == -1 ? Integer.MAX_VALUE : Math.max(1, Math.toIntExact(configuredTimeout.getSeconds()));
         return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
-            azureStorageSettings.getMaxRetries(), null,
+            azureStorageSettings.getMaxRetries(), timeout,
             null, null, secondaryHost);
     }
 

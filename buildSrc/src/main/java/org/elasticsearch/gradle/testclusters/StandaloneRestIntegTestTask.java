@@ -102,6 +102,10 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
         return Collections.unmodifiableList(locks);
     }
 
+    /**
+     * TODO Rene: These dependsOn overrides need to be removed as they don't play well with task avoidance api
+     * and likely cause misusage and errors when passing non Task objects here
+     * */
     @Override
     public Task dependsOn(Object... dependencies) {
         super.dependsOn(dependencies);

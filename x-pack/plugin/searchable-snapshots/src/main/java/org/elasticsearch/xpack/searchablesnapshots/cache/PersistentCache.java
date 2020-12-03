@@ -140,7 +140,7 @@ public class PersistentCache implements Closeable {
                 final NodeEnvironment.NodePath nodePath = writer.nodePath();
                 logger.debug("loading persistent cache on data path [{}]", nodePath);
 
-                for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(writer.nodePath())) {
+                for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(nodePath)) {
                     for (ShardId shardId : nodeEnvironment.findAllShardIds(new Index("_unknown_", indexUUID))) {
                         final Path shardDataPath = writer.nodePath().resolve(shardId);
                         final Path shardCachePath = getShardCachePath(new ShardPath(false, shardDataPath, shardDataPath, shardId));

@@ -200,7 +200,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         for (XContentType type : XContentType.values()) {
             // BIG_DECIMAL
             // ignore json and yaml, they parse floating point numbers as floats/doubles
-            if (type == XContentType.JSON || type == XContentType.YAML) {
+            if (type == XContentType.JSON || type == XContentType.YAML || type == XContentType.VND_JSON || type == XContentType.VND_YAML) {
                 continue;
             }
             XContentBuilder xContent = XContentFactory.contentBuilder(type);

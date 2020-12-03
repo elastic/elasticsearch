@@ -151,8 +151,8 @@ public enum XContentType implements MediaType {
 
         @Override
         public String queryParameter() {
-            return "json";
-        }
+            return "vnd_json";
+        } // another hack..
 
         @Override
         public XContent xContent() {
@@ -179,7 +179,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public String queryParameter() {
-            return "smile";
+            return "vnd_smile";
         }
 
         @Override
@@ -205,7 +205,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public String queryParameter() {
-            return "yaml";
+            return "vnd_yaml";
         }
 
         @Override
@@ -231,7 +231,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public String queryParameter() {
-            return "cbor";
+            return "vnd_cbor";
         }
 
         @Override

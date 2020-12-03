@@ -63,7 +63,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
         final RestResponse restResponse = listener.buildResponse(response);
 
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json"));//dropping charset as it was not on a request
         assertThat(restResponse.content(), equalTo(new BytesArray("{\"foo\": \"bar\"}")));
     }
 

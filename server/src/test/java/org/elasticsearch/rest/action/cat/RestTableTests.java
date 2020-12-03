@@ -37,6 +37,7 @@ import static org.elasticsearch.rest.action.cat.RestTable.buildDisplayHeaders;
 import static org.elasticsearch.rest.action.cat.RestTable.buildResponse;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -269,8 +270,9 @@ public class RestTableTests extends ESTestCase {
             public void sendResponse(RestResponse response) {
             }
         });
-
-        assertThat(response.contentType(), equalTo(mediaType));
+        String actualWithoutWhitespaces = mediaType.replaceAll("\\s+","");
+        String expectedWithoutWhitespaces = response.contentType().replaceAll("\\s+","");
+        assertThat(expectedWithoutWhitespaces, equalToIgnoringCase(actualWithoutWhitespaces));
         return response;
     }
 

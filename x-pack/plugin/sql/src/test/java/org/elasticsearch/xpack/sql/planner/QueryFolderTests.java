@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
@@ -27,9 +28,10 @@ import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -449,7 +451,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertEquals(2, ee.output().size());
-        assertEquals(Arrays.asList("1", "MAX(int)"), Expressions.names(ee.output()));
+        assertEquals(asList("1", "MAX(int)"), Expressions.names(ee.output()));
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 containsString("\"max\":{\"field\":\"int\""));
 
@@ -457,7 +459,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         ee = (EsQueryExec) p;
         assertEquals(2, ee.output().size());
-        assertEquals(Arrays.asList("1", "count(*)"), Expressions.names(ee.output()));
+        assertEquals(asList("1", "count(*)"), Expressions.names(ee.output()));
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 containsString("\"terms\":{\"field\":\"int\""));
     }
@@ -495,13 +497,33 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertEquals(3, ee.output().size());
-        assertEquals(Arrays.asList("bool", "'A'", "'B'"), Expressions.names(ee.output()));
+        assertEquals(asList("bool", "'A'", "'B'"), Expressions.names(ee.output()));
         String q = ee.toString().replaceAll("\\s+", "");
         assertThat(q, containsString("\"query\":{\"terms\":{\"keyword\":[\"A\",\"B\"]"));
         String a = ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", "");
         assertThat(a, containsString("\"terms\":{\"field\":\"bool\""));
         assertThat(a, containsString("\"terms\":{\"field\":\"keyword\""));
         assertThat(a, containsString("{\"avg\":{\"field\":\"int\"}"));
+    }
+    
+    public void testPivotHasSameQueryAsGroupBy() {
+        List<String> aggregations = asList("FIRST(int)", "LAST(int)", "COUNT(int)", "AVG(int)", 
+            "MIN(int)", "MAX(int)", "SUM(int)", "PERCENTILE(int, 0)", "PERCENTILE_RANK(int, 0)", 
+            "SUM_OF_SQUARES(int)", "STDDEV_POP(int)", "STDDEV_SAMP(int)", "VAR_SAMP(int)", "VAR_POP(int)", 
+            "SKEWNESS(int)", "MAD(int)", "KURTOSIS(int)");
+        for (String aggregationStr : aggregations) {
+            PhysicalPlan pivotPlan = plan("SELECT * FROM (SELECT some.dotted.field, bool, keyword, int FROM test) " +
+                "PIVOT(" + aggregationStr + " FOR keyword IN ('A', 'B'))");
+            PhysicalPlan groupByPlan = plan("SELECT some.dotted.field, bool, keyword, " + aggregationStr + " " +
+                "FROM test WHERE keyword IN ('A', 'B') GROUP BY some.dotted.field, bool, keyword");
+            assertEquals(EsQueryExec.class, pivotPlan.getClass());
+            assertEquals(EsQueryExec.class, groupByPlan.getClass());
+            QueryContainer pivotQueryContainer = ((EsQueryExec) pivotPlan).queryContainer();
+            QueryContainer groupByQueryContainer = ((EsQueryExec) groupByPlan).queryContainer();
+            assertEquals(pivotQueryContainer.query(), groupByQueryContainer.query());
+            assertEquals(pivotQueryContainer.aggs(), groupByQueryContainer.aggs());
+            assertEquals(pivotPlan.toString(), groupByPlan.toString());
+        }
     }
 
     private static String randomOrderByAndLimit(int noOfSelectArgs) {

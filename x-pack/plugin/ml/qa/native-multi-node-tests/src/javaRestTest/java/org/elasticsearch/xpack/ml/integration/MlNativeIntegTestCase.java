@@ -131,6 +131,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(
             XPackClientPlugin.class,
+            Autoscaling.class,
+            MachineLearning.class,
             Netty4Plugin.class,
             ReindexPlugin.class,
             // ILM is required for .ml-state template index settings
@@ -154,6 +156,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        builder.put(Autoscaling.AUTOSCALING_ENABLED_SETTING.getKey(), true);
         builder.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put("xpack.security.transport.ssl.enabled", true);

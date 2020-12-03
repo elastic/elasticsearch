@@ -185,7 +185,21 @@ public class QuerierTests extends ESTestCase {
         assertEquals(expected.subList(0, queueSize), results);
     }
 
-    public Tuple<Integer, Integer> runLocalAggSorterWithNoLimit(int dataSize) {
+    public void testFullQueueSortingOnLocalSort() {
+        Tuple<Integer, Integer> actions = runLocalAggSorterWithNoLimit(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS);
+
+        assertEquals("Exactly one response expected", 1, actions.v1().intValue());
+        assertEquals("No failures expected", 0, actions.v2().intValue());
+    }
+
+    public void testQueueOverflowSortingOnLocalSort() {
+        Tuple<Integer, Integer> actions = runLocalAggSorterWithNoLimit(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 2);
+
+        assertEquals("No response expected", 0, actions.v1().intValue());
+        assertEquals("Exactly one failure expected", 1, actions.v2().intValue());
+    }
+
+    Tuple<Integer, Integer> runLocalAggSorterWithNoLimit(int dataSize) {
         class TestResultRowSet<E extends NamedWriteable> extends ResultRowSet<E> implements SchemaRowSet {
 
             private int rowCounter = 0;
@@ -250,19 +264,5 @@ public class QuerierTests extends ESTestCase {
         localSorter.onResponse(page);
 
         return new Tuple<>(responses.get(), failures.get());
-    }
-
-    public void testFullQueueSortingOnLocalSort() {
-        Tuple<Integer, Integer> actions = runLocalAggSorterWithNoLimit(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS);
-
-        assertEquals("Exactly one response expected", 1, actions.v1().intValue());
-        assertEquals("No failures expected", 0, actions.v2().intValue());
-    }
-
-    public void testQueueOverflowSortingOnLocalSort() {
-        Tuple<Integer, Integer> actions = runLocalAggSorterWithNoLimit(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 2);
-
-        assertEquals("No response expected", 0, actions.v1().intValue());
-        assertEquals("Exactly one failure expected", 1, actions.v2().intValue());
     }
 }

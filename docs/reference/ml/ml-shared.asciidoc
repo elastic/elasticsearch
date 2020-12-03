@@ -108,6 +108,23 @@ tag::assignment-explanation-dfanalytics[]
 Contains messages relating to the selection of a node.
 end::assignment-explanation-dfanalytics[]
 
+tag::assignment-memory-basis[]
+Where should the memory requirement used for deciding which node the job
+will run on come from? The possible values are:
++
+--
+* `model_memory_limit`: The job's memory requirement will be calculated on
+the basis that its model memory will grow to the `model_memory_limit`
+specified in the `analysis_limits` of its config.
+* `current_model_bytes`: The job's memory requirement will be calculated on
+the basis that its current model memory size is a good reflection of what
+it will be in the future.
+* `peak_model_bytes`: The job's memory requirement will be calculated on
+the basis that its peak model memory size is a good reflection of what
+the model size will be in the future.
+--
+end::assignment-memory-basis[]
+
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the
 model. The default value is a randomized value between 3 to 4 hours, which

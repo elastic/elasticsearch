@@ -359,9 +359,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether a license must be accepted before this plugin can be installed.
-     *
-     * @return {@code true} if a license must be accepted.
+     * Whether this plugin is subject to the Elastic License.
      */
     public boolean isLicensed() {
         return isLicensed;

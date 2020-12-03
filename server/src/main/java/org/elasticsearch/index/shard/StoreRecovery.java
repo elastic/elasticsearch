@@ -490,8 +490,7 @@ final class StoreRecovery {
             // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
             if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
-                repository.getRepositoryData(ActionListener.map(
-                    indexIdListener, repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
+                repository.getRepositoryData(indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
             } else {
                 indexIdListener.onResponse(indexId);
             }

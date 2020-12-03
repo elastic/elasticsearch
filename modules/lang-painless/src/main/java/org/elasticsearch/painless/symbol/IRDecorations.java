@@ -145,9 +145,9 @@ public class IRDecorations {
         }
     }
 
-    public static class IRDEncoding extends IRDecoration<String> {
+    public static class IRDDefReferenceEncoding extends IRDecoration<String> {
 
-        public IRDEncoding(String value) {
+        public IRDDefReferenceEncoding(String value) {
             super(value);
         }
     }

@@ -124,7 +124,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstructor;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDDeclarationType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDDepth;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDEncoding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDDefReferenceEncoding;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDField;
@@ -608,8 +608,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(irDeclarationNode.getLocation());
 
-        Variable variable = writeScope.defineVariable(
-                irDeclarationNode.getDecorationValue(IRDDeclarationType.class), irDeclarationNode.getDecorationValue(IRDName.class));
+        Class<?> variableType = irDeclarationNode.getDecorationValue(IRDDeclarationType.class);
+        String variableName = irDeclarationNode.getDecorationValue(IRDName.class);
+        Variable variable = writeScope.defineVariable(variableType, variableName);
 
         if (irDeclarationNode.getExpressionNode() == null) {
             Class<?> sort = variable.getType();
@@ -694,8 +695,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeStatementOffset(irCatchNode.getLocation());
 
-        Variable variable = writeScope.defineVariable(
-                irCatchNode.getDecorationValue(IRDExceptionType.class), irCatchNode.getDecorationValue(IRDSymbol.class));
+        Class<?> exceptionType = irCatchNode.getDecorationValue(IRDExceptionType.class);
+        String exceptionName = irCatchNode.getDecorationValue(IRDSymbol.class);
+        Variable variable = writeScope.defineVariable(exceptionType, exceptionName);
 
         Label jump = new Label();
 
@@ -1570,7 +1572,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 DefInterfaceReferenceNode defInterfaceReferenceNode = (DefInterfaceReferenceNode)irArgumentNode;
                 List<String> captureNames =
                         defInterfaceReferenceNode.getDecorationValueOrDefault(IRDCaptureNames.class, Collections.emptyList());
-                boostrapArguments.add(defInterfaceReferenceNode.getDecorationValue(IRDEncoding.class));
+                boostrapArguments.add(defInterfaceReferenceNode.getDecorationValue(IRDDefReferenceEncoding.class));
 
                 // the encoding uses a char to indicate the number of captures
                 // where the value is the number of current arguments plus the
@@ -1593,12 +1595,12 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
         }
 
+        String methodName = irInvokeCallDefNode.getDecorationValue(IRDName.class);
         Type methodType = Type.getMethodType(MethodWriter.getType(
                 irInvokeCallDefNode.getDecorationValue(IRDExpressionType.class)), asmParameterTypes);
 
         boostrapArguments.add(0, defCallRecipe.toString());
-        methodWriter.invokeDefCall(
-                irInvokeCallDefNode.getDecorationValue(IRDName.class), methodType, DefBootstrap.METHOD_CALL, boostrapArguments.toArray());
+        methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.METHOD_CALL, boostrapArguments.toArray());
     }
 
     @Override

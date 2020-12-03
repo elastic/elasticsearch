@@ -2336,7 +2336,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65699")
     public void testUpgradeJobSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -2376,7 +2375,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 // end::upgrade-job-model-snapshot-execute
                 fail("upgrade model snapshot should not have succeeded.");
             } catch (ElasticsearchException ex) {
-                assertThat(ex.getMessage(), containsString("Expected persisted state but no state exists"));
+                assertThat(ex.getMessage(), containsString("Unexpected state [failed] while waiting for to be assigned to a node"));
             }
             UpgradeJobModelSnapshotResponse response = new UpgradeJobModelSnapshotResponse(true, "");
 

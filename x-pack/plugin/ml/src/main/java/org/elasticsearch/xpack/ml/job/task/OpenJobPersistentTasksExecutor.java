@@ -229,6 +229,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 assert datafeeds.size() <= 1;
                 if (datafeeds.isEmpty()) {
                     listener.onResponse(false);
+                    return;
                 }
 
                 String datafeedId = datafeeds.iterator().next();

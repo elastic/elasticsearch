@@ -1159,7 +1159,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
         if (getVersion().getMajor() >= 7) {
-            baseConfig.put("indices.breaker.total.use_real_memory", "false");
+            baseConfig.put("breaker.parent.total.use_real_memory", "false");
         }
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
         baseConfig.put("discovery.initial_state_timeout", "0s");

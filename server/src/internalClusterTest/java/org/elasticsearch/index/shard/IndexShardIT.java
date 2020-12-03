@@ -594,7 +594,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         checkAccountingBreaker();
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("indices.breaker.total.limit", "1kb")).get();
+                .setTransientSettings(Settings.builder().put("breaker.parent.total.limit", "1kb")).get();
 
         // Test that we're now above the parent limit due to the segments
         Exception e = expectThrows(Exception.class,
@@ -606,7 +606,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
-                        .putNull("indices.breaker.total.limit")
+                        .putNull("breaker.parent.total.limit")
                         .putNull("network.breaker.inflight_requests.overhead")).get();
 
         // Test that deleting the index causes the breaker to correctly be decremented

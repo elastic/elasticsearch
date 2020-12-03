@@ -14,7 +14,7 @@ live cluster with the <<cluster-update-settings,cluster-update-settings>> API.
 
 The parent-level breaker can be configured with the following settings:
 
-`indices.breaker.total.use_real_memory`::
+`breaker.parent.total.use_real_memory`::
     (<<static-cluster-setting,Static>>)
     Determines whether the parent breaker should take real
     memory usage into account (`true`) or only consider the amount that is
@@ -22,10 +22,10 @@ The parent-level breaker can be configured with the following settings:
 
 [[indices-breaker-total-limit]]
 // tag::indices-breaker-total-limit-tag[]
-`indices.breaker.total.limit` {ess-icon}::
+`breaker.parent.total.limit` {ess-icon}::
     (<<dynamic-cluster-setting,Dynamic>>)
     Starting limit for overall parent breaker. Defaults to 70% of JVM heap if
-    `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory`
+    `breaker.parent.total.use_real_memory` is `false`. If `breaker.parent.total.use_real_memory`
     is `true`, defaults to 95% of the JVM heap.
 // end::indices-breaker-total-limit-tag[]
 
@@ -62,14 +62,14 @@ request) from exceeding a certain amount of memory.
 
 [[request-breaker-limit]]
 // tag::request-breaker-limit-tag[]
-`indices.breaker.request.limit` {ess-icon}::
+`breaker.request.limit` {ess-icon}::
     (<<dynamic-cluster-setting,Dynamic>>)
     Limit for request breaker, defaults to 60% of JVM heap.
 // end::request-breaker-limit-tag[]
 
 [[request-breaker-overhead]]
 // tag::request-breaker-overhead-tag[]
-`indices.breaker.request.overhead` {ess-icon}::
+`breaker.request.overhead` {ess-icon}::
     (<<dynamic-cluster-setting,Dynamic>>)
     A constant that all request estimations are multiplied with to determine a
     final estimation. Defaults to `1`.
@@ -103,12 +103,12 @@ The accounting circuit breaker allows Elasticsearch to limit the memory
 usage of things held in memory that are not released when a request is
 completed. This includes things like the Lucene segment memory.
 
-`indices.breaker.accounting.limit`::
+`ibreaker.memory.accounting.limit`::
     (<<dynamic-cluster-setting,Dynamic>>)
     Limit for accounting breaker, defaults to 100% of JVM heap. This means that it is bound
     by the limit configured for the parent circuit breaker.
 
-`indices.breaker.accounting.overhead`::
+`breaker.memory.accounting.overhead`::
     (<<dynamic-cluster-setting,Dynamic>>)
     A constant that all accounting estimations are multiplied with to determine a
     final estimation. Defaults to 1

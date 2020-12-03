@@ -44,7 +44,6 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
@@ -892,7 +891,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
         reaper.unregister(toString());
-
         esProcess = null;
         // Clean up the ports file in case this is started again.
         try {
@@ -1028,18 +1026,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         if (foundNettyLeaks) {
-            final ExtraPropertiesExtension extension = project.getExtensions().getExtraProperties();
-            if (extension.has("netty_leak_tests_enabled") && (Boolean) extension.get("netty_leak_tests_enabled")) {
-                throw new TestClustersException(
-                    "Found Netty ByteBuf leaks in node logs. In order to temporarily mute this check, set "
-                        + "\"netty_leak_tests_enabled\" to false in the root level build.gradle file"
-                );
-            } else {
-                LOGGER.error(
-                    "Found Netty ByteBuf leaks in node logs but not failing tests because \"netty_leak_tests_enabled\" is set to "
-                        + "false."
-                );
-            }
+            throw new TestClustersException("Found Netty ByteBuf leaks in node logs.");
         }
     }
 

@@ -28,7 +28,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 
 /**
- * Custom field that allow storing an integer value as a term frequency in lucene.
+ * Custom field that allows storing an integer value as a term frequency in lucene.
  */
 public final class CustomTermFreqField extends Field {
 
@@ -44,10 +44,6 @@ public final class CustomTermFreqField extends Field {
   public CustomTermFreqField(String fieldName, CharSequence term, int fieldValue) {
     super(fieldName, term, FIELD_TYPE);
     this.fieldValue = fieldValue;
-  }
-
-  public CustomTermFreqField(String fieldName, int fieldValue) {
-    this(fieldName, fieldName, fieldValue);
   }
 
   public void setFieldValue(int fieldValue) {

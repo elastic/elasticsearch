@@ -8,7 +8,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_watcher/_query_watches",
+          "path":"/_watcher/_query/watches",
           "methods":[
             "GET",
             "POST"

@@ -10,7 +10,7 @@ Retrieves all registered watches.
 [[watcher-api-query-watches-request]]
 ==== {api-request-title}
 
-`GET /_watcher/_query_watches`
+`GET /_watcher/_query/watches`
 
 [[watcher-api-query-watches-prereqs]]
 ==== {api-prereq-title}
@@ -65,7 +65,7 @@ The following example list all stored watches:
 
 [source,console]
 --------------------------------------------------
-GET /_watcher/_query_watches
+GET /_watcher/_query/watches
 --------------------------------------------------
 // TEST[setup:my_active_watch]
 

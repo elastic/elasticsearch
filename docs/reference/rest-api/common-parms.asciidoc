@@ -209,22 +209,24 @@ tag::expand-wildcards[]
 `expand_wildcards`::
 +
 --
-(Optional, string) Controls what kind of indices that wildcard expressions can
-expand to. Multiple values are accepted when separated by a comma, as in
-`open,hidden`. Valid values are:
+(Optional, string)
+Type of index that wildcard expressions can match. If the request can target
+data streams, this argument also determines whether wildcard expressions match
+hidden data streams. Supports comma-separated values, such as `open,hidden`.
+Valid values are:
 
 `all`::
-Expand to open and closed indices, including <<hidden-indices,hidden indices>>.
+Match any data stream or index, including <<hidden-indices,hidden>> ones.
 
 `open`::
-Expand only to open indices.
+Match non-hidden data streams and open, non-hidden indices.
 
 `closed`::
-Expand only to closed indices.
+Match closed indices.
 
 `hidden`::
-Expansion of wildcards will include hidden indices.
-Must be combined with `open`, `closed`, or both.
+Match hidden data streams and hidden indices. Must be combined with `open`,
+`closed`, or both.
 
 `none`::
 Wildcard expressions are not accepted.

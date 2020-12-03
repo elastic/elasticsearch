@@ -857,7 +857,8 @@ states as follows:
 
 { "index" : { "_id" : "4" } }
 { "user": { "name": "root" }, "process": { "name": "hostname" }, ...}
-// Sequence [2, 4] moves to state B for "root".
+// Sequence [2] moves out of state A for "root". State B for "root" now contains [2, 4]
+
 // State A for "root" is now empty.
 
 { "index" : { "_id" : "5" } }

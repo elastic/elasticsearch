@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.XContentUtils;
@@ -120,12 +121,12 @@ public class XContentSource implements ToXContent {
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {
-        return new XContentSource(in.readBytesReference(), in.readEnum(XContentType.class));
+        return new XContentSource(in.readBytesReference(), XContentHelper.readFromWire(in));
     }
 
     public static void writeTo(XContentSource source, StreamOutput out) throws IOException {
         out.writeBytesReference(source.bytes);
-        out.writeEnum(source.contentType);
+        XContentHelper.writeTo(out, source.contentType);
     }
 
     private Object data() {

@@ -20,12 +20,14 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.BufferedInputStream;
@@ -452,5 +454,27 @@ public class XContentHelper {
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
         return BytesReference.bytes(builder);
+    }
+
+    public static XContentType readFromWire(org.elasticsearch.common.io.stream.StreamInput in) throws IOException {
+//        int ordinal = in.readVInt();// have to be reading int, value can be either 0-4 or 0-7
+//
+//
+//        XContentType[] values = XContentType.values();
+//        if (ordinal < 0 || ordinal >= values.length) {
+//            throw new IOException("Unknown " + XContentType.class.getSimpleName() + " ordinal [" + ordinal + "]");
+//        }
+//        return values[ordinal];
+        return in.readEnum(XContentType.class);
+
+
+    }
+
+    public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeVInt(xContentType.ordinal() % 4);
+        } else {
+            out.writeVInt(xContentType.ordinal());
+        }
     }
 }

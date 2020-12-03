@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -63,7 +64,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
+        xContentType = XContentHelper.readFromWire(in);
     }
 
     @Override
@@ -101,7 +102,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
-        out.writeEnum(xContentType);
+        XContentHelper.writeTo(out, xContentType);
     }
 
     @Override

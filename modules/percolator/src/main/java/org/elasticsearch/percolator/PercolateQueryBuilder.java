@@ -226,7 +226,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         documents = in.readList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
-            documentXContentType = in.readEnum(XContentType.class);
+            documentXContentType = XContentHelper.readFromWire(in);
         } else {
             documentXContentType = null;
         }
@@ -272,7 +272,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeBytesReference(document);
         }
         if (documents.isEmpty() == false) {
-            out.writeEnum(documentXContentType);
+            XContentHelper.writeTo(out, documentXContentType);
         }
     }
 

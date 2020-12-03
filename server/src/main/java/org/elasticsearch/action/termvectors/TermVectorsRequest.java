@@ -143,7 +143,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
-            xContentType = in.readEnum(XContentType.class);
+            xContentType = XContentHelper.readFromWire(in);
         }
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -493,7 +493,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            out.writeEnum(xContentType);
+            XContentHelper.writeTo(out, xContentType);
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

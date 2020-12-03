@@ -117,7 +117,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
+        return new PipelineConfiguration(in.readString(), in.readBytesReference(), XContentHelper.readFromWire(in));
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -133,7 +133,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        out.writeEnum(xContentType);
+        XContentHelper.writeTo(out, xContentType);
     }
 
     @Override

@@ -37,11 +37,13 @@ import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -223,9 +225,9 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         List<String> afterWarningHeaders= getWarningHeaders(response.getHeaders());
 
-        assertTrue(afterWarningHeaders.size() == 1);
-        assertTrue(afterWarningHeaders.stream().anyMatch(v ->v.contains("Your license will expire in [6] days. " +
-            "Contact your administrator or update your license for continued use of features")));
+        assertThat(afterWarningHeaders, Matchers.hasSize(1));
+        assertThat(afterWarningHeaders.get(0), Matchers.containsString("Your license will expire in [6] days. " +
+            "Contact your administrator or update your license for continued use of features"));
 
         newExpirationDate = now + 300000;
         setLicensingExpirationDate(mode, newExpirationDate);
@@ -234,9 +236,9 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         afterWarningHeaders= getWarningHeaders(response.getHeaders());
 
-        assertTrue(afterWarningHeaders.size() == 1);
-        assertTrue(afterWarningHeaders.stream().anyMatch(v ->v.contains("Your license expires today. " +
-            "Contact your administrator or update your license for continued use of features")));
+        assertThat(afterWarningHeaders, Matchers.hasSize(1));
+        assertThat(afterWarningHeaders.get(0), Matchers.containsString("Your license expires today. " +
+            "Contact your administrator or update your license for continued use of features"));
 
         newExpirationDate = now - 300000;
         setLicensingExpirationDate(mode, newExpirationDate);
@@ -245,12 +247,12 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         afterWarningHeaders= getWarningHeaders(response.getHeaders());
 
-        assertTrue(afterWarningHeaders.size() == 1);
+        assertThat(afterWarningHeaders, Matchers.hasSize(1));
         long finalNewExpirationDate = newExpirationDate;
         String expiredMessage = String.format(Locale.ROOT, "Your license expired on [%s]. ",
             LicenseService.DATE_FORMATTER.formatMillis(finalNewExpirationDate));
-        assertTrue(afterWarningHeaders.stream().anyMatch(v ->v.contains(expiredMessage +
-            "Contact your administrator or update your license for continued use of features")));
+        assertThat(afterWarningHeaders.get(0), Matchers.containsString(expiredMessage +
+            "Contact your administrator or update your license for continued use of features"));
     }
 
     public void testWarningHeaderAuthenticationFailed() throws Exception {
@@ -271,7 +273,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         } catch (ResponseException e) {
             headers = e.getResponse().getHeaders();
             List<String> afterWarningHeaders= getWarningHeaders(e.getResponse().getHeaders());
-            assertTrue(afterWarningHeaders.size() == 0);
+            assertThat(afterWarningHeaders, Matchers.hasSize(0));
         }
         assertTrue(headers != null && headers.length == 3);
     }

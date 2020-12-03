@@ -74,10 +74,12 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ParsedDocument doc = defaultMapper.parse(source(b -> {
             b.field("field1", "value1");
             b.field("field2", "value2");
+            b.startObject("object").field("field3", "value3").endObject();
         }));
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("field2"), nullValue());
+        assertThat(doc.rootDoc().get("object.field3"), nullValue());
     }
 
 

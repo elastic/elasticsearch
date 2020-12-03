@@ -939,7 +939,8 @@ final class DocumentParser {
 
         @Override
         protected void parseCreateField(ParseContext context) throws IOException {
-            //field defined as runtime field, don't index anything
+            //field defined as runtime field, don't index anything but skip over any possible children
+            context.parser().skipChildren();
         }
 
         @Override

@@ -14,9 +14,6 @@ setup:
             properties:
               timestamp:
                 type: date
-              location:
-                type: object
-                enabled: false
 
   - do:
       bulk:

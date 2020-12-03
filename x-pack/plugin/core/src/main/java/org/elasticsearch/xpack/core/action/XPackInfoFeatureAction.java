@@ -47,6 +47,7 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final XPackInfoFeatureAction DATA_STREAMS = new XPackInfoFeatureAction(XPackField.DATA_STREAMS);
     public static final XPackInfoFeatureAction DATA_TIERS = new XPackInfoFeatureAction(XPackField.DATA_TIERS);
     public static final XPackInfoFeatureAction AGGREGATE_METRIC = new XPackInfoFeatureAction(XPackField.AGGREGATE_METRIC);
+    public static final XPackInfoFeatureAction OPERATOR_PRIVILEGES = new XPackInfoFeatureAction(XPackField.OPERATOR_PRIVILEGES);
 
     public static final List<XPackInfoFeatureAction> ALL;
     static {
@@ -54,7 +55,7 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
         actions.addAll(Arrays.asList(
             SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
             TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, ENRICH, DATA_STREAMS, SEARCHABLE_SNAPSHOTS, DATA_TIERS,
-            AGGREGATE_METRIC
+            AGGREGATE_METRIC, OPERATOR_PRIVILEGES
         ));
         ALL = Collections.unmodifiableList(actions);
     }

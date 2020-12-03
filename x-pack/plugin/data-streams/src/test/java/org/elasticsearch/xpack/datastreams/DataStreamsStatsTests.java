@@ -285,8 +285,9 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     private DataStreamsStatsAction.Response getDataStreamsStats(boolean includeHidden) throws Exception {
         DataStreamsStatsAction.Request request = new DataStreamsStatsAction.Request();
         if (includeHidden) {
-            request.indicesOptions(new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-                EnumSet.of(IndicesOptions.WildcardStates.HIDDEN)));
+            request.indicesOptions(
+                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
+            );
         }
         return client().execute(DataStreamsStatsAction.INSTANCE, request).get();
     }

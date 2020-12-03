@@ -41,7 +41,7 @@ public class DocCountFieldTypeTests extends FieldTypeTestCase {
 
     public void testExistsQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.existsQuery(randomMockShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.existsQuery(randomMockShardContext()));
         assertEquals("Field [_doc_count] of type [_doc_count] does not support exists queries", e.getMessage());
     }
 

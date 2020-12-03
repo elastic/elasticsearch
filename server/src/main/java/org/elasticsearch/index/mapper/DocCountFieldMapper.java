@@ -57,7 +57,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
+            throw new QueryShardException(context, "Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
         }
 
         @Override

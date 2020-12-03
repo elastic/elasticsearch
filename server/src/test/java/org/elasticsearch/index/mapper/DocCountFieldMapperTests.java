@@ -66,4 +66,10 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 100.23))));
         assertThat(e.getCause().getMessage(), containsString("100.23 cannot be converted to Integer without data loss"));
     }
+
+    public void testInvalidDocument_ArrayDocCount() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array(CONTENT_TYPE, 10, 20, 30))));
+        assertThat(e.getCause().getMessage(), containsString("100.23 cannot be converted to Integer without data loss"));
+    }
 }

@@ -152,7 +152,7 @@ public class AzureStorageService {
         // to fix this issue.
         timeout = timeout == -1 ? Integer.MAX_VALUE : Math.max(1, timeout);
         return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
-            azureStorageSettings.getMaxRetries(), timeout,
+            azureStorageSettings.getMaxRetries(), null,
             null, null, secondaryHost);
     }
 

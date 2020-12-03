@@ -39,6 +39,7 @@ public class OperatorOnlyRegistry {
         }
     }
 
+    @FunctionalInterface
     public interface OperatorPrivilegesViolation {
         String message();
     }

@@ -1077,5 +1077,5 @@ end::wait_for_active_shards[]
 tag::wait_for_completion[]
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.
-Defaults to `true`.
+Defaults to `false`.
 end::wait_for_completion[]

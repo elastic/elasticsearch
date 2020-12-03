@@ -122,11 +122,11 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     final List<String> miniHDFSArgs = []
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
-    if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
+    if (name.equals('secureHdfsFixture') || name.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options
-    if (fixtureName.equals('haHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
+    if (name.equals('haHdfsFixture') || name.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Dha-nameservice=ha-hdfs")
     }
 
@@ -135,7 +135,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     miniHDFSArgs.add(baseDir)
 
     // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
-    if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
+    if (name.equals('secureHdfsFixture') || name.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
       miniHDFSArgs.add(
         project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
@@ -147,7 +147,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 
   // TODO: The task configuration block has side effects that require it currently to be always executed.
   // Otherwise tests start failing. Therefore we enforce the task creation for now.
-  tsk.get()
+//  tsk.get()
 }
 
 Set disabledIntegTestTaskNames = []

@@ -253,7 +253,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::put-user-password-request
-            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            char[] password = new char[]{'t', 'e', 's', 't', '-', 'u','s','e','r','-','p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example", Collections.singletonList("superuser"));
             PutUserRequest request = PutUserRequest.withPassword(user, password, true, RefreshPolicy.NONE);
             //end::put-user-password-request
@@ -272,7 +272,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             byte[] salt = new byte[32];
             // no need for secure random in a test; it could block and would not be reproducible anyway
             random().nextBytes(salt);
-            char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            char[] password = new char[]{'t', 'e', 's', 't', '-', 'u','s','e','r','-','p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
             User user = new User("example2", Collections.singletonList("superuser"));
 
             //tag::put-user-hash-request

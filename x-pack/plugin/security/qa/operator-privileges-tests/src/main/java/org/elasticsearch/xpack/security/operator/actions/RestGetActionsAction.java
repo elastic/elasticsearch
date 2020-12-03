@@ -28,7 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetActionsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_test/get_actions"));
+        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_test/get_actions"));
     }
 
     @Override

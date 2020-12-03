@@ -16,8 +16,6 @@ import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 
-import java.util.Map;
-
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -72,7 +70,7 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
     }
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyAction() {
-        final Client client = client().filterWithHeader(Map.of(
+        final Client client = client().filterWithHeader(org.elasticsearch.common.collect.Map.of(
             "Authorization",
             basicAuthHeaderValue(OPERATOR_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
@@ -80,7 +78,7 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
     }
 
     public void testOperatorUserIsStillSubjectToRoleLimits() {
-        final Client client = client().filterWithHeader(Map.of(
+        final Client client = client().filterWithHeader(org.elasticsearch.common.collect.Map.of(
             "Authorization",
             basicAuthHeaderValue(OPERATOR_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
         final GetUsersRequest getUsersRequest = new GetUsersRequest();

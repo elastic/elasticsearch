@@ -40,8 +40,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;

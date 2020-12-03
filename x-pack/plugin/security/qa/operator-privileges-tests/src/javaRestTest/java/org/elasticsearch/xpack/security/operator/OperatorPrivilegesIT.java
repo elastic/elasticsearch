@@ -80,7 +80,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
-        Set<String> allActions = Set.copyOf((List<String>) response.get("actions"));
+        Set<String> allActions = org.elasticsearch.common.collect.Set.copyOf((List<String>) response.get("actions"));
         final HashSet<String> labelledActions = new HashSet<>(OperatorOnlyRegistry.SIMPLE_ACTIONS);
         labelledActions.addAll(Constants.NON_OPERATOR_ACTIONS);
 

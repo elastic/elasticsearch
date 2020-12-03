@@ -61,7 +61,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -359,20 +358,20 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testPercolateQueryWithIndexedDocWithFLS() {
         assertAcked(client().admin().indices().prepareCreate("query_index")
-                .setMapping("query", "type=percolator", "field2", "type=text")
+                .addMapping("type1", "query", "type=percolator", "field2", "type=text")
         );
         assertAcked(client().admin().indices().prepareCreate("doc_index")
-                .setMapping("field2", "type=text", "field1", "type=text")
+                .addMapping("type1", "field2", "type=text", "field1", "type=text")
         );
-        client().prepareIndex("query_index").setId("1")
+        client().prepareIndex("query_index", "type1", "1")
                 .setSource("{\"query\": {\"match\": {\"field2\": \"bonsai tree\"}}}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("doc_index").setId("1")
+        client().prepareIndex("doc_index", "type1", "1")
                 .setSource("{\"field1\": \"value1\", \"field2\": \"A new bonsai tree in the office\"}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        QueryBuilder percolateQuery = new PercolateQueryBuilder("query", "doc_index", "1", null, null, null);
+        QueryBuilder percolateQuery = new PercolateQueryBuilder("query", "doc_index", "type1", "1", null, null, null);
         // user7 sees everything
         SearchResponse result = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
@@ -415,25 +414,25 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGeoQueryWithIndexedShapeWithFLS() {
         assertAcked(client().admin().indices().prepareCreate("search_index")
-                .setMapping("field", "type=shape", "other", "type=shape")
+                .addMapping("type1", "field", "type=shape", "other", "type=shape")
         );
         assertAcked(client().admin().indices().prepareCreate("shape_index")
-                .setMapping("field", "type=shape", "other", "type=shape")
+                .addMapping("type1", "field", "type=shape", "other", "type=shape")
         );
-        client().prepareIndex("search_index").setId("1")
+        client().prepareIndex("search_index", "type1", "1")
                 .setSource("{\"field\": {\"type\": \"point\", \"coordinates\":[1, 1]}}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("search_index").setId("2")
+        client().prepareIndex("search_index", "type1", "2")
                 .setSource("{\"other\": {\"type\": \"point\", \"coordinates\":[1, 1]}}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("shape_index").setId("1")
+        client().prepareIndex("shape_index", "type1", "1")
                 .setSource("{\"field\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}, " +
                                 "\"field2\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("shape_index").setId("2")
+        client().prepareIndex("shape_index", "type1", "2")
                 .setSource("{\"other\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
@@ -491,27 +490,27 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testTermsLookupOnIndexWithFLS() {
         assertAcked(client().admin().indices().prepareCreate("search_index")
-                .setMapping("field", "type=keyword", "other", "type=text")
+                .addMapping("type1", "field", "type=keyword", "other", "type=text")
         );
         assertAcked(client().admin().indices().prepareCreate("lookup_index")
-                .setMapping("field", "type=keyword", "other", "type=text")
+                .addMapping("type1", "field", "type=keyword", "other", "type=text")
         );
-        client().prepareIndex("search_index").setId("1").setSource("field",
-                List.of("value1", "value2"))
+        client().prepareIndex("search_index", "type1", "1").setSource("field",
+                Arrays.asList("value1", "value2"))
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        client().prepareIndex("search_index").setId("2").setSource("field",
-                "value1", "other", List.of("value1", "value2"))
+        client().prepareIndex("search_index", "type1", "2").setSource("field",
+                "value1", "other", Arrays.asList("value1", "value2"))
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        client().prepareIndex("search_index").setId("3").setSource("field",
-                "value3", "other", List.of("value1", "value2"))
+        client().prepareIndex("search_index", "type1", "3").setSource("field",
+                "value3", "other", Arrays.asList("value1", "value2"))
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        client().prepareIndex("lookup_index").setId("1").setSource("field", List.of("value1", "value2"))
+        client().prepareIndex("lookup_index", "type1", "1").setSource("field", Arrays.asList("value1", "value2"))
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        client().prepareIndex("lookup_index").setId("2").setSource("other", "value2", "field", "value2")
+        client().prepareIndex("lookup_index", "type1", "2").setSource("other", "value2", "field", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -646,16 +645,16 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testRealtimeGetApi() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
+                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
                 .setSettings(Settings.builder().put("refresh_interval", "-1").build())
         );
         final boolean realtime = true;
         final boolean refresh = false;
 
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
         // do a realtime get beforehand to flip an internal translog flag so that subsequent realtime gets are
         // served from the translog (this first one is NOT, it internally forces a refresh of the index)
-        client().prepareGet("test", "1")
+        client().prepareGet("test", "type1", "1")
                 .setRealtime(realtime)
                 .setRefresh(refresh)
                 .get();
@@ -663,10 +662,13 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // updates don't change the doc visibility for users
         // but updates populate the translog and the FLS filter must apply to the translog operations too
         if (randomBoolean()) {
-            client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
+            client().prepareIndex("test", "type1", "1")
+                    .setSource("field1", "value1", "field2", "value2", "field3", "value3")
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
         } else {
-            client().prepareUpdate("test", "1").setDoc(Map.of("field3", "value3"))
+            Map<String, Object> doc = new HashMap<>();
+            doc.put("field3", "value3");
+            client().prepareUpdate("test", "type1", "1").setDoc(doc)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
         }
 
@@ -676,7 +678,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         if (randomBoolean()) {
             getResponse = client()
                     .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                    .prepareGet("test", "1")
+                    .prepareGet("test", "type1", "1")
                     .setRealtime(realtime)
                     .setRefresh(refresh)
                     .get();
@@ -687,7 +689,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             mgetResponse = client()
                     .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .prepareMultiGet()
-                    .add("test", "1")
+                    .add("test", "type1", "1")
                     .setRealtime(realtime)
                     .setRefresh(refresh)
                     .get();
@@ -699,7 +701,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         if (randomBoolean()) {
             getResponse = client()
                     .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                    .prepareGet("test", "1")
+                    .prepareGet("test", "type1", "1")
                     .setRealtime(realtime)
                     .setRefresh(refresh)
                     .get();
@@ -710,7 +712,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             mgetResponse = client()
                     .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .prepareMultiGet()
-                    .add("test", "1")
+                    .add("test", "type1", "1")
                     .setRealtime(realtime)
                     .setRefresh(refresh)
                     .get();

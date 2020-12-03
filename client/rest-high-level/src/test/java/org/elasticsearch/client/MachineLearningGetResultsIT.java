@@ -165,7 +165,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
                 " \"retain\":false }", XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
-        // Also index one that contains 'assignment_memory_source', which was added in 7.11
+        // Also index one that contains 'memory_assignment_basis', which was added in 7.11
         {
             IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
             indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541587929000, " +
@@ -173,7 +173,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
                 "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
                 "\"model_bytes\":51722, \"peak_model_bytes\":61322, \"model_bytes_exceeded\":10762, \"model_bytes_memory_limit\":40960," +
                 "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
-                "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"assignment_memory_source\":\"model_memory_limit\"," +
+                "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"assignment_memory_basis\":\"model_memory_limit\"," +
                 " \"log_time\":1541587929000, \"timestamp\":1519930800000},\"latest_record_time_stamp\":1519931700000," +
                 "\"latest_result_time_stamp\":1519930800000, \"retain\":false }", XContentType.JSON);
             bulkRequest.add(indexRequest);
@@ -273,7 +273,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
             assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemoryBasis(),
-                equalTo(ModelSizeStats.AssignmentMemoryBasis.fromString("model_memory_limit")));
+                equalTo(ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT));
 
             assertThat(response.snapshots().get(2).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(2).getSnapshotId(), equalTo("1541588919"));
@@ -373,7 +373,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(2).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
             assertThat(response.snapshots().get(2).getModelSizeStats().getAssignmentMemoryBasis(),
-                equalTo(ModelSizeStats.AssignmentMemoryBasis.fromString("model_memory_limit")));
+                equalTo(ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT));
 
             assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541588919"));
@@ -605,7 +605,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
             assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemoryBasis(),
-                equalTo(ModelSizeStats.AssignmentMemoryBasis.fromString("model_memory_limit")));
+                equalTo(ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT));
 
             assertThat(response.snapshots().get(2).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(2).getSnapshotId(), equalTo("1541588919"));

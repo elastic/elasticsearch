@@ -56,7 +56,7 @@ public class ModelSizeStats implements ToXContentObject {
     public static final ParseField TOTAL_PARTITION_FIELD_COUNT_FIELD = new ParseField("total_partition_field_count");
     public static final ParseField BUCKET_ALLOCATION_FAILURES_COUNT_FIELD = new ParseField("bucket_allocation_failures_count");
     public static final ParseField MEMORY_STATUS_FIELD = new ParseField("memory_status");
-    public static final ParseField ASSIGNMENT_MEMORY_BASISE_FIELD = new ParseField("assignment_memory_basis");
+    public static final ParseField ASSIGNMENT_MEMORY_BASIS_FIELD = new ParseField("assignment_memory_basis");
     public static final ParseField CATEGORIZED_DOC_COUNT_FIELD = new ParseField("categorized_doc_count");
     public static final ParseField TOTAL_CATEGORY_COUNT_FIELD = new ParseField("total_category_count");
     public static final ParseField FREQUENT_CATEGORY_COUNT_FIELD = new ParseField("frequent_category_count");
@@ -82,7 +82,7 @@ public class ModelSizeStats implements ToXContentObject {
         PARSER.declareLong(Builder::setTotalPartitionFieldCount, TOTAL_PARTITION_FIELD_COUNT_FIELD);
         PARSER.declareField(Builder::setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
         PARSER.declareField(Builder::setAssignmentMemoryBasis,
-            p -> AssignmentMemoryBasis.fromString(p.text()), ASSIGNMENT_MEMORY_BASISE_FIELD, ValueType.STRING);
+            p -> AssignmentMemoryBasis.fromString(p.text()), ASSIGNMENT_MEMORY_BASIS_FIELD, ValueType.STRING);
         PARSER.declareLong(Builder::setCategorizedDocCount, CATEGORIZED_DOC_COUNT_FIELD);
         PARSER.declareLong(Builder::setTotalCategoryCount, TOTAL_CATEGORY_COUNT_FIELD);
         PARSER.declareLong(Builder::setFrequentCategoryCount, FREQUENT_CATEGORY_COUNT_FIELD);
@@ -231,7 +231,7 @@ public class ModelSizeStats implements ToXContentObject {
         builder.field(BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName(), bucketAllocationFailuresCount);
         builder.field(MEMORY_STATUS_FIELD.getPreferredName(), memoryStatus);
         if (assignmentMemoryBasis != null) {
-            builder.field(ASSIGNMENT_MEMORY_BASISE_FIELD.getPreferredName(), assignmentMemoryBasis);
+            builder.field(ASSIGNMENT_MEMORY_BASIS_FIELD.getPreferredName(), assignmentMemoryBasis);
         }
         builder.field(CATEGORIZED_DOC_COUNT_FIELD.getPreferredName(), categorizedDocCount);
         builder.field(TOTAL_CATEGORY_COUNT_FIELD.getPreferredName(), totalCategoryCount);

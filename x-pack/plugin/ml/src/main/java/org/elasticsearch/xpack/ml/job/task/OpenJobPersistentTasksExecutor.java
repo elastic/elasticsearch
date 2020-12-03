@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -206,13 +208,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 if (hasRunningDatafeed) {
                     // This job has a running datafeed attached to it.
                     // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
-                    String modelSnapshotId = params.getJob().getModelSnapshotId() == null ?
-                        ModelSnapshot.EMPTY_SNAPSHOT_ID : params.getJob().getModelSnapshotId();
-                    logger.info("[{}] job has running datafeed task; performing recovery", jobTask.getJobId());
-                    revertToSnapshot(jobTask.getJobId(), modelSnapshotId, ActionListener.wrap(
-                        response -> openJob(jobTask),
-                        jobTask::markAsFailed
-                    ));
+                    revertToCurrentSnapshot(jobTask.getJobId(), ActionListener.wrap(response -> openJob(jobTask), jobTask::markAsFailed));
                 } else {
                     openJob(jobTask);
                 }
@@ -243,11 +239,28 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         datafeedConfigProvider.findDatafeedsForJobIds(Collections.singleton(jobId), datafeedListener);
     }
 
-    private void revertToSnapshot(String jobId, String modelSnapshotId, ActionListener<RevertModelSnapshotAction.Response> listener) {
-        RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(jobId, modelSnapshotId);
-        request.setForce(true);
-        request.setDeleteInterveningResults(true);
-        executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, listener);
+    private void revertToCurrentSnapshot(String jobId, ActionListener<RevertModelSnapshotAction.Response> listener) {
+        logger.info("[{}] job has running datafeed task; performing recovery", jobId);
+
+        ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(
+            jobResponse -> {
+                List<Job> jobPage = jobResponse.getResponse().results();
+                // We requested a single concrete job so if it didn't exist we would get an error
+                assert jobPage.size() == 1;
+
+                String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
+                RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(jobId,
+                    jobSnapshotId == null ? ModelSnapshot.EMPTY_SNAPSHOT_ID : jobSnapshotId);
+                request.setForce(true);
+                request.setDeleteInterveningResults(true);
+                executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, listener);
+            },
+            error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobId))
+        );
+
+        // We need to refetch the job in order to learn what is its current model snapshot
+        // as the one that exists in the task params is outdated.
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, new GetJobsAction.Request(jobId), jobListener);
     }
 
     private void openJob(JobTask jobTask) {

@@ -23,6 +23,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -31,11 +32,13 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.JobSnapshotUpgraderResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTask;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -48,7 +51,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public final class JobModelSnapshotUpgrader {
-
+    private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
     private static final Logger logger = LogManager.getLogger(JobModelSnapshotUpgrader.class);
 
     private final SnapshotUpgradeTask task;
@@ -97,7 +100,9 @@ public final class JobModelSnapshotUpgrader {
             params,
             autodetectExecutorService,
             (reason) -> {
-                setTaskToFailed(reason, ActionListener.wrap(t -> {}, f -> {}));
+                setTaskToFailed(reason, ActionListener.wrap(t -> {
+                }, f -> {
+                }));
                 try {
                     nativeStorageProvider.cleanupLocalTmpStorage(task.getDescription());
                 } catch (IOException e) {
@@ -200,6 +205,24 @@ public final class JobModelSnapshotUpgrader {
             process.writeRecord(record);
         }
 
+        FlushAcknowledgement waitFlushToCompletion(String flushId) throws Exception {
+            logger.debug(() -> new ParameterizedMessage("[{}] [{}] waiting for flush [{}]", jobId, snapshotId, flushId));
+
+            FlushAcknowledgement flushAcknowledgement;
+            try {
+                flushAcknowledgement = processor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
+                while (flushAcknowledgement == null) {
+                    checkProcessIsAlive();
+                    checkResultsProcessorIsAlive();
+                    flushAcknowledgement = processor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
+                }
+            } finally {
+                processor.clearAwaitingFlush(flushId);
+            }
+            logger.debug(() -> new ParameterizedMessage("[{}] [{}] flush completed [{}]", jobId, snapshotId, flushId));
+            return flushAcknowledgement;
+        }
+
         void restoreState() {
             try {
                 process.restoreState(stateStreamer, params.modelSnapshot());
@@ -209,6 +232,31 @@ public final class JobModelSnapshotUpgrader {
                     ActionListener.wrap(t -> shutdown(e), f -> shutdown(e)));
                 return;
             }
+            submitOperation(() -> {
+                String flushId = process.flushJob(FlushJobParams.builder().waitForNormalization(false).build());
+                return waitFlushToCompletion(flushId);
+            }, (aVoid, e) -> {
+                Runnable nextStep;
+                if (e != null) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "[{}] [{}] failed to flush after writing old state",
+                            jobId,
+                            snapshotId
+                        ),
+                        e);
+                    nextStep = () -> setTaskToFailed(
+                        "Failed to flush after writing old state due to: " + e.getMessage(),
+                        ActionListener.wrap(t -> shutdown(e), f -> shutdown(e))
+                    );
+                } else {
+                    nextStep = this::requestStateWrite;
+                }
+                threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(nextStep);
+            });
+        }
+
+        private void requestStateWrite() {
             task.updatePersistentTaskState(
                 new SnapshotUpgradeTaskState(SnapshotUpgradeState.SAVING_NEW_STATE, task.getAllocationId(), ""),
                 ActionListener.wrap(
@@ -279,6 +327,13 @@ public final class JobModelSnapshotUpgrader {
             if (process.isProcessAlive() == false) {
                 // Don't log here - it just causes double logging when the exception gets logged
                 throw new ElasticsearchException("[{}] Unexpected death of autodetect: {}", job.getId(), process.readError());
+            }
+        }
+
+        private void checkResultsProcessorIsAlive() {
+            if (processor.isFailed()) {
+                // Don't log here - it just causes double logging when the exception gets logged
+                throw new ElasticsearchException("[{}] Unexpected death of the result processor", job.getId());
             }
         }
 

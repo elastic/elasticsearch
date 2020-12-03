@@ -81,7 +81,8 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
             List<Bucket> newBuckets = new ArrayList<>(buckets.size());
             for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
                 Bucket bucket = buckets.get(entry.getKey());
-                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(entry.getValue()));
+                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(),
+                                                        InternalAggregations.from(entry.getValue()));
                 newBuckets.add(newBucket);
             }
             internalAggregation = factory.createAggregation(newBuckets);
@@ -89,7 +90,8 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
             LongTerms factory = (LongTerms) parentAggregate;
             List<LongTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
             for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
-                LongTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()), (LongTerms.Bucket) buckets.get(entry.getKey()));
+                LongTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()),
+                                                                  (LongTerms.Bucket) buckets.get(entry.getKey()));
                 newBuckets.add(newBucket);
             }
             internalAggregation = factory.create(newBuckets);
@@ -97,7 +99,8 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
             DoubleTerms factory = (DoubleTerms) parentAggregate;
             List<DoubleTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
             for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
-                DoubleTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()), (DoubleTerms.Bucket) buckets.get(entry.getKey()));
+                DoubleTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()),
+                                                                    (DoubleTerms.Bucket) buckets.get(entry.getKey()));
                 newBuckets.add(newBucket);
             }
             internalAggregation = factory.create(newBuckets);
@@ -105,7 +108,8 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
             StringTerms factory = (StringTerms) parentAggregate;
             List<StringTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
             for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
-                StringTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()), (StringTerms.Bucket) buckets.get(entry.getKey()));
+                StringTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()),
+                                                                    (StringTerms.Bucket) buckets.get(entry.getKey()));
                 newBuckets.add(newBucket);
             }
             internalAggregation = factory.create(newBuckets);

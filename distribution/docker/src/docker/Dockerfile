@@ -223,13 +223,14 @@ ${source_elasticsearch}
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
 # The distribution includes a `config` directory, no need to create it
-COPY ${config_dir}/elasticsearch.yml ${config_dir}/log4j2.docker.properties config/
+COPY ${config_dir}/elasticsearch.yml config/
+COPY ${bin_dir}/convert_log4j_config.jshell /tmp/
 
 # 1. Configure the distribution for Docker
 # 2. Ensure directories are created. Most already are, but make sure
 # 3. Apply correct permissions
-# 4. Move the stack logging config aside
-# 5. Rename the docker logging config to be used by default
+# 4. Move the distribution's default logging config aside
+# 5. Generate a docker logging config, to be used by default
 # 6. Apply more correct permissions
 # 7. The JDK's directories' permissions don't allow `java` to be executed under a different
 #    group to the default. Fix this.
@@ -239,8 +240,8 @@ COPY ${config_dir}/elasticsearch.yml ${config_dir}/log4j2.docker.properties conf
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir -p config/jvm.options.d data logs plugins && \\
     chmod 0775 config config/jvm.options.d data logs plugins && \\
-    mv config/log4j2.properties config/log4j2.stack.properties && \\
-    mv config/log4j2.docker.properties config/log4j2.properties && \\
+    mv config/log4j2.properties config/log4j2.file.properties && \\
+    jdk/bin/jshell -q --execution local /tmp/convert_log4j_config.jshell > config/log4j2.properties && \\
     chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\
     find ./jdk -type d -exec chmod 0755 {} + && \\
     find . -xdev -perm -4000 -exec chmod ug-s {} + && \\

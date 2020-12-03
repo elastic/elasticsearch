@@ -59,15 +59,15 @@ fi
 
 if [[ -n "$ES_LOG_STYLE" ]]; then
   case "$ES_LOG_STYLE" in
-    docker)
+    console)
       # This is the default. Nothing to do.
       ;;
-    stack)
+    file)
       # Overwrite the default config with the stack config
-      mv /usr/share/elasticsearch/config/log4j2.stack.properties /usr/share/elasticsearch/config/log4j2.properties
+      mv /usr/share/elasticsearch/config/log4j2.file.properties /usr/share/elasticsearch/config/log4j2.properties
       ;;
     *)
-      echo "ERROR: ES_LOG_STYLE set to [$ES_LOG_STYLE]. Expected [docker] or [stack]" >&2
+      echo "ERROR: ES_LOG_STYLE set to [$ES_LOG_STYLE]. Expected [console] or [file]" >&2
       exit 1 ;;
   esac
 fi

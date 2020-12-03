@@ -647,7 +647,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that it is possible to use the Stack logging config
      */
     public void test121CanUseStackLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "stack")));
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
 
         waitForElasticsearch(installation);
 
@@ -665,7 +665,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Docker logging config can be explicitly selected.
      */
     public void test122CanUseDockerLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "docker")));
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "console")));
 
         waitForElasticsearch(installation);
 
@@ -681,7 +681,7 @@ public class DockerTests extends PackagingTestCase {
     public void test123CannotUseUnknownLoggingConfig() {
         final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
 
-        assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [docker] or [stack]"));
+        assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
     }
 
     /**

@@ -12,7 +12,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
 import java.util.Collection;
-import java.util.List;
 
 /**
  * A plugin to manage and provide access to the system indices used by Fleet.
@@ -23,7 +22,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(
+        return org.elasticsearch.common.collect.List.of(
             new SystemIndexDescriptor(".fleet-servers*", "Configuration of fleet servers"),
             new SystemIndexDescriptor(".fleet-policies*", "Policies and enrollment keys"),
             new SystemIndexDescriptor(".fleet-agents*", "Agents and agent checkins"),

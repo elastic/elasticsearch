@@ -28,27 +28,25 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.List;
 
-public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder implements SourceBasedFragmentsBuilder {
-    private SourceLookup sourceLookup;
+public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
+
+    private final SourceLookup sourceLookup;
 
     public SourceSimpleFragmentsBuilder(MappedFieldType fieldType,
                                         boolean fixBrokenAnalysis,
+                                        SourceLookup sourceLookup,
                                         String[] preTags,
                                         String[] postTags,
                                         BoundaryScanner boundaryScanner) {
         super(fieldType, fixBrokenAnalysis, preTags, postTags, boundaryScanner);
+        this.sourceLookup = sourceLookup;
     }
 
     public static final Field[] EMPTY_FIELDS = new Field[0];
 
     @Override
-    public void setSource(SourceLookup sourceLookup) {
-        this.sourceLookup = sourceLookup;
-    }
-
-    @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
-        assert sourceLookup != null;
+        // we know its low level reader, and matching docId, since that's how we call the highlighter with
         List<Object> values = sourceLookup.extractRawValues(fieldType.name());
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
@@ -59,4 +57,5 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder impleme
         }
         return fields;
     }
+
 }

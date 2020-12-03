@@ -65,9 +65,6 @@ setup:
 
 ---
 "Highlight multiple documents":
-  - skip:
-      version: " - 7.99.99"
-      reason: Bug fix not yet backported
   - do:
       search:
         rest_total_hits_as_int: true
@@ -89,9 +86,6 @@ setup:
 
 ---
 "Highlight multiple nested documents":
-  - skip:
-      version: " - 7.99.99"
-      reason: Bug fix not yet backported
   - do:
       search:
         rest_total_hits_as_int: true

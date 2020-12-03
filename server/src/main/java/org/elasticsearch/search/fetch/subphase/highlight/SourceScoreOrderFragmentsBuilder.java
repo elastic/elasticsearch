@@ -31,32 +31,28 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.List;
 
-public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder implements SourceBasedFragmentsBuilder {
+public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
     private final MappedFieldType fieldType;
-    private SourceLookup sourceLookup;
+    private final SourceLookup sourceLookup;
     private final boolean fixBrokenAnalysis;
 
     public SourceScoreOrderFragmentsBuilder(MappedFieldType fieldType,
                                             boolean fixBrokenAnalysis,
+                                            SourceLookup sourceLookup,
                                             String[] preTags,
                                             String[] postTags,
                                             BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.fieldType = fieldType;
+        this.sourceLookup = sourceLookup;
         this.fixBrokenAnalysis = fixBrokenAnalysis;
     }
 
     @Override
-    public void setSource(SourceLookup sourceLookup) {
-        this.sourceLookup = sourceLookup;
-    }
-
-    @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
-        assert sourceLookup != null;
+        // we know its low level reader, and matching docId, since that's how we call the highlighter with
         List<Object> values = sourceLookup.extractRawValues(fieldType.name());
-
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
             fields[i] = new Field(fieldType.name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);

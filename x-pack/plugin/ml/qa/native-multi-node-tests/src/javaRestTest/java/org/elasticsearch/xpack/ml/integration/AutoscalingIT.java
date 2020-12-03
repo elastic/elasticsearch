@@ -59,7 +59,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build());
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             "ml_test",
-            new TreeSet<>(Arrays.asList("ml")),
+            new TreeSet<>(),
             deciders
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());

@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistr
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 
 import java.io.IOException;
@@ -112,6 +113,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
             LocalStateCompositeXPackPlugin.class,
+            MachineLearning.class,
             Netty4Plugin.class,
             Autoscaling.class,
             ReindexPlugin.class,

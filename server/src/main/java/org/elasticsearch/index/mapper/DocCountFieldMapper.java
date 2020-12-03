@@ -93,6 +93,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         XContentParser parser = context.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.currentToken(), parser);
 
+        // Check that _doc_count is a single value and not an array
+        if (context.doc().getField(NAME) != null) {
+            throw new IllegalArgumentException("Arrays are not allowed for field [" + fieldType().name() + "].");
+        }
+
         int value = parser.intValue(false);
         if (value <= 0) {
             throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer. Value ["

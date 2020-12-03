@@ -54,7 +54,7 @@ public class TransformConfig implements ToXContentObject {
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
-    public static final ParseField LATEST_TRANSFORM = new ParseField("latest_doc");
+    public static final ParseField LATEST_TRANSFORM = new ParseField("latest");
 
     private final String id;
     private final SourceConfig source;

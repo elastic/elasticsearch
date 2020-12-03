@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -46,8 +45,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
-import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
+import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.io.IOException;
 import java.util.List;
@@ -79,8 +78,6 @@ public class LatestDoc implements Function {
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(LatestDocConfig config) {
-        assert config.getSort().size() == 1 && config.getSort().get(0) instanceof FieldSortBuilder;
-
         CompositeAggregationBuilder compositeAggregation;
         try (XContentBuilder builder = jsonBuilder()) {
             config.toCompositeAggXContent(builder);
@@ -91,12 +88,12 @@ public class LatestDoc implements Function {
             compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
         } catch (IOException e) {
             throw new RuntimeException(
-                TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "latest_doc"), e);
+                TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "latest"), e);
         }
         TopHitsAggregationBuilder topHitsAgg =
             AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
                 .size(1)  // we are only interested in the top-1
-                .sorts(config.getSort());  // we copy the sort config directly from the function config
+                .sorts(config.getSorts());  // we copy the sort config directly from the function config
         compositeAggregation.subAggregation(topHitsAgg);
         return compositeAggregation;
     }

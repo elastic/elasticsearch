@@ -20,19 +20,15 @@
 package org.elasticsearch.client.transform.transforms.latest;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Predicate;
 
 public class LatestDocConfigTests extends AbstractXContentTestCase<LatestDocConfig> {
 
     public static LatestDocConfig randomLatestDocConfig() {
-        return new LatestDocConfig(
-            randomList(5, () -> randomAlphaOfLengthBetween(1, 10)),
-            Collections.singletonList(SortBuilders.fieldSort(randomAlphaOfLengthBetween(1, 10))));
+        return new LatestDocConfig(randomList(5, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override

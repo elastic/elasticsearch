@@ -22,23 +22,18 @@ package org.elasticsearch.client.transform.transforms.latest.hlrc;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class LatestDocConfigTests extends AbstractResponseTestCase<
-    LatestDocConfig,
-    org.elasticsearch.client.transform.transforms.latest.LatestDocConfig> {
+public class LatestDocConfigTests
+        extends AbstractResponseTestCase<LatestDocConfig, org.elasticsearch.client.transform.transforms.latest.LatestDocConfig> {
 
     public static LatestDocConfig randomLatestDocConfig() {
-        return new LatestDocConfig(
-            randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10)),
-            Collections.singletonList(SortBuilders.fieldSort(randomAlphaOfLengthBetween(1, 10))));
+        return new LatestDocConfig(randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override

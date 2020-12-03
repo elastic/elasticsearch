@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * {@link Function.ChangeCollector} implementation for the latest_doc function.
+ * {@link Function.ChangeCollector} implementation for the latest function.
  */
 class LatestDocChangeCollector implements Function.ChangeCollector {
 
@@ -61,7 +61,7 @@ class LatestDocChangeCollector implements Function.ChangeCollector {
 
     @Override
     public boolean queryForChanges() {
-        // Calculating latest_doc does not require elaborate change detection mechanism that is used in pivot.
+        // Calculating latest does not require elaborate change detection mechanism that is used in pivot.
         return false;
     }
 }

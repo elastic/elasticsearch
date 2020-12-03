@@ -48,7 +48,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
-    public static final ParseField LATEST_TRANSFORM = new ParseField("latest_doc");
+    public static final ParseField LATEST_TRANSFORM = new ParseField("latest");
 
     private static final ConstructingObjectParser<TransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<TransformConfig, String> LENIENT_PARSER = createParser(true);

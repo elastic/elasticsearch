@@ -23,8 +23,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -58,7 +56,7 @@ public class LatestDocContinuousIT extends ContinuousTestCase {
                 .setLatestDocConfig(
                     LatestDocConfig.builder()
                         .setUniqueKey(EVENT_FIELD)
-                        .setSort(SortBuilders.fieldSort(TIMESTAMP_FIELD).order(SortOrder.DESC))
+                        .setSort(TIMESTAMP_FIELD)
                         .build());
         addCommonBuilderParameters(transformConfigBuilder);
         return transformConfigBuilder.build();

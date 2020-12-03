@@ -21,16 +21,12 @@ package org.elasticsearch.client.transform.transforms.latest;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -41,27 +37,28 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class LatestDocConfig implements ToXContentObject {
 
+    private static final String NAME = "latest_config";
+
     private static final ParseField UNIQUE_KEY = new ParseField("unique_key");
     private static final ParseField SORT = new ParseField("sort");
 
     private final List<String> uniqueKey;
-    private final List<SortBuilder<?>> sort;
+    private final String sort;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<LatestDocConfig, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "latest_doc_config", true, args -> new LatestDocConfig((List<String>) args[0], (List<SortBuilder<?>>) args[1]));
+        new ConstructingObjectParser<>(NAME, true, args -> new LatestDocConfig((List<String>) args[0], (String) args[1]));
 
     static {
         PARSER.declareStringArray(constructorArg(), UNIQUE_KEY);
-        PARSER.declareField(constructorArg(), (p, c) -> SortBuilder.fromXContent(p), SORT, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        PARSER.declareString(constructorArg(), SORT);
     }
 
     public static LatestDocConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    LatestDocConfig(List<String> uniqueKey, List<SortBuilder<?>> sort) {
+    LatestDocConfig(List<String> uniqueKey, String sort) {
         this.uniqueKey = uniqueKey;
         this.sort = sort;
     }
@@ -79,7 +76,7 @@ public class LatestDocConfig implements ToXContentObject {
         return uniqueKey;
     }
 
-    public List<SortBuilder<?>> getSort() {
+    public String getSort() {
         return sort;
     }
 
@@ -106,12 +103,12 @@ public class LatestDocConfig implements ToXContentObject {
 
     public static class Builder {
         private List<String> uniqueKey;
-        private List<SortBuilder<?>> sort;
+        private String sort;
 
         /**
          * Set how to group the source data
          * @param uniqueKey The configuration describing how to group the source data
-         * @return the {@link Builder} with the interval set.
+         * @return the {@link Builder} with the unique key set.
          */
         public Builder setUniqueKey(String... uniqueKey) {
             return setUniqueKey(Arrays.asList(uniqueKey));
@@ -122,8 +119,8 @@ public class LatestDocConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setSort(FieldSortBuilder sort) {
-            this.sort = Collections.singletonList(sort);
+        public Builder setSort(String sort) {
+            this.sort = sort;
             return this;
         }
 

@@ -19,8 +19,6 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.latest.LatestDocConfig;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 import org.junit.After;
 
 import java.io.IOException;
@@ -109,7 +107,7 @@ public class LatestDocIT extends TransformIntegTestCase {
                 .setLatestDocConfig(
                     LatestDocConfig.builder()
                         .setUniqueKey(USER_ID)
-                        .setSort(SortBuilders.fieldSort(TIMESTAMP).order(SortOrder.DESC))
+                        .setSort(TIMESTAMP)
                         .build())
                 .build();
         assertTrue(putTransform(transformConfig, RequestOptions.DEFAULT).isAcknowledged());
@@ -148,7 +146,7 @@ public class LatestDocIT extends TransformIntegTestCase {
                 .setLatestDocConfig(
                     LatestDocConfig.builder()
                         .setUniqueKey(USER_ID)
-                        .setSort(SortBuilders.fieldSort(TIMESTAMP).order(SortOrder.DESC))
+                        .setSort(TIMESTAMP)
                         .build())
                 .build();
 

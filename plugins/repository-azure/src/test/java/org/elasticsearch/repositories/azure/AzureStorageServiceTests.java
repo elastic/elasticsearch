@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.azure.storage.common.policy.RequestRetryOptions;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -46,7 +47,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class AzureStorageServiceTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -326,6 +326,50 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
         assertEquals("Azure proxy host is unknown.", e.getMessage());
+    }
+
+    public void testDefaultTimeOut() throws Exception {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            RequestRetryOptions retryOptions =
+                azureStorageService.getRetryOptions(LocationMode.PRIMARY_ONLY, azureStorageSettings);
+            assertThat(retryOptions.getTryTimeout(), equalTo(Integer.MAX_VALUE));
+        }
+    }
+
+    public void testMillisecondsTimeOutIsRoundedUp() throws Exception {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.timeout", "200ms")
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            RequestRetryOptions retryOptions =
+                azureStorageService.getRetryOptions(LocationMode.PRIMARY_ONLY, azureStorageSettings);
+            assertThat(retryOptions.getTryTimeout(), equalTo(1));
+        }
+    }
+
+    public void testTimeoutConfiguration() throws Exception {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.timeout", "200s")
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            RequestRetryOptions retryOptions =
+                azureStorageService.getRetryOptions(LocationMode.PRIMARY_ONLY, azureStorageSettings);
+            assertThat(retryOptions.getTryTimeout(), equalTo(200));
+        }
     }
 
     private static MockSecureSettings buildSecureSettings() {

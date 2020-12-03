@@ -99,6 +99,7 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
@@ -232,11 +233,15 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final TimestampFieldMapperService timestampFieldMapperService;
 
     @Override
     protected void doStart() {
         // Start thread that will manage cleaning the field data cache periodically
         threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
+
+        // Start watching for timestamp fields
+        clusterService.addStateApplier(timestampFieldMapperService);
     }
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
@@ -328,6 +333,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
+
+        this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -338,6 +345,9 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     protected void doStop() {
+        clusterService.removeApplier(timestampFieldMapperService);
+        timestampFieldMapperService.doStop();
+
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 
         ExecutorService indicesStopExecutor =
@@ -1603,4 +1613,16 @@ public class IndicesService extends AbstractLifecycleComponent
         return nodeWriteDanglingIndicesInfo == false ||
             (danglingIndicesToWrite.isEmpty() && danglingIndicesThreadPoolExecutor.getActiveCount() == 0);
     }
+
+    /**
+     * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
+     * - the index is not found,
+     * - the field is not found, or
+     * - the field is not a timestamp field.
+     */
+    @Nullable
+    public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
+        return timestampFieldMapperService.getTimestampFieldType(index);
+    }
+
 }

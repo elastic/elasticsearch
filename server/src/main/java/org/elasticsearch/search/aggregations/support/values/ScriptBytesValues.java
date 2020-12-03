@@ -54,34 +54,33 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerA
     public boolean advanceExact(int doc) throws IOException {
         script.setDocument(doc);
         final Object value = script.execute();
-        if (value == null) {
-            return false;
-        } else if (value.getClass().isArray()) {
-            count = Array.getLength(value);
-            if (count == 0) {
-                return false;
+        boolean isValueValid = value != null;
+
+        if (isValueValid) {
+            boolean valueIsArray = value.getClass().isArray();
+            boolean valueIsCollection = value instanceof Collection;   
+            int count = valueIsArray ? Array.getLength(value) : valueIsCollection ? ((Collection<?>) value).size() : 0 ;
+
+            if (count > 0) {
+                grow();
+                if (isArray) {
+                    for (int i = 0; i < count; ++i) {
+                        set(i, Array.get(value, i));
+                    }
+                } else {
+                    final Collection<?> coll = (Collection<?>) value;
+                    int i = 0;
+                    for (Object v : coll) {
+                        set(i++, v);
+                    }
+                }
+            } else {
+                set(count, value);
             }
-            grow();
-            for (int i = 0; i < count; ++i) {
-                set(i, Array.get(value, i));
-            }
-        } else if (value instanceof Collection) {
-            final Collection<?> coll = (Collection<?>) value;
-            count = coll.size();
-            if (count == 0) {
-                return false;
-            }
-            grow();
-            int i = 0;
-            for (Object v : coll) {
-                set(i++, v);
-            }
-        } else {
-            count = 1;
-            set(0, value);
+            sort();
         }
-        sort();
-        return true;
+
+        return isValueValid;
     }
 
     @Override

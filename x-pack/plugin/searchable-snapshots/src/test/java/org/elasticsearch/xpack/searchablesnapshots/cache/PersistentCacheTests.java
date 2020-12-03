@@ -58,14 +58,16 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             final Path snapshotCacheIndexDir = resolveCacheIndexFolder(nodePath);
             assertThat(Files.exists(snapshotCacheIndexDir), equalTo(iter > 0));
 
+            // load existing documents from persistent cache index before each iteration
+            final Map<String, Document> documents = PersistentCache.loadExistingDocuments(nodeEnvironment);
+            assertThat(documents.size(), equalTo(liveDocs.size()));
+
             try (PersistentCache.CacheIndexWriter writer = createCacheIndexWriter(nodePath)) {
                 assertThat(writer.nodePath(), sameInstance(nodePath));
-                assertThat(writer.getDocuments(), notNullValue());
-                assertThat(writer.getDocuments().size(), equalTo(liveDocs.size()));
 
                 // verify that existing documents are loaded
                 for (Map.Entry<String, Integer> liveDoc : liveDocs.entrySet()) {
-                    final Document document = writer.getDocument(liveDoc.getKey());
+                    final Document document = documents.get(liveDoc.getKey());
                     assertThat("Document should be loaded", document, notNullValue());
                     final String iteration = document.get("update_iteration");
                     assertThat(iteration, equalTo(String.valueOf(liveDoc.getValue())));
@@ -74,7 +76,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
                 // verify that deleted documents are not loaded
                 for (String deletedDoc : deletedDocs) {
-                    final Document document = writer.getDocument(deletedDoc);
+                    final Document document = documents.get(deletedDoc);
                     assertThat("Document should not be loaded", document, nullValue());
                 }
 
@@ -110,16 +112,15 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 }
 
                 boolean commit = false;
-                if (randomBoolean()) {
+                if (frequently()) {
                     writer.prepareCommit();
-                    if (randomBoolean()) {
+                    if (frequently()) {
                         writer.commit();
                         commit = true;
                     }
                 }
 
                 if (commit) {
-                    assertThat(writer.getDocuments(), nullValue());
                     liveDocs.putAll(updatedDocs);
                     liveDocs.putAll(newDocs);
                     for (String cacheId : removedDocs.keySet()) {

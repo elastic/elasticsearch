@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -65,8 +64,8 @@ import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.synchronizedMap;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableSortedSet;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.getShardCachePath;
@@ -78,10 +77,12 @@ public class PersistentCache implements Closeable {
     private static final String NODE_VERSION_COMMIT_KEY = "node_version";
 
     private final NodeEnvironment nodeEnvironment;
+    private final Map<String, Document> documents;
     private final List<CacheIndexWriter> writers;
     private final AtomicBoolean closed;
 
     public PersistentCache(NodeEnvironment nodeEnvironment) {
+        this.documents = synchronizedMap(loadExistingDocuments(nodeEnvironment));
         this.writers = createWriters(nodeEnvironment);
         this.nodeEnvironment = nodeEnvironment;
         this.closed = new AtomicBoolean();
@@ -147,7 +148,7 @@ public class PersistentCache implements Closeable {
 
                         if (Files.isDirectory(shardCachePath)) {
                             logger.trace("found snapshot cache dir at [{}], loading cache files from disk and index", shardCachePath);
-                            Files.walkFileTree(shardCachePath, new CacheFileVisitor(cacheService, writer));
+                            Files.walkFileTree(shardCachePath, new CacheFileVisitor(cacheService, writer, documents));
                         }
                     }
                 }
@@ -159,6 +160,7 @@ public class PersistentCache implements Closeable {
                 writer.commit();
             }
             logger.info("persistent cache index loaded");
+            documents.clear();
         } catch (IOException e) {
             try {
                 close();
@@ -227,6 +229,7 @@ public class PersistentCache implements Closeable {
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
             IOUtils.close(writers);
+            documents.clear();
         }
     }
 
@@ -270,22 +273,6 @@ public class PersistentCache implements Closeable {
             final Directory directory = FSDirectory.open(directoryPath);
             closeables.add(directory);
 
-            final Map<String, Document> documents = new HashMap<>();
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                for (LeafReaderContext leafReaderContext : indexReader.leaves()) {
-                    final LeafReader leafReader = leafReaderContext.reader();
-                    final Bits liveDocs = leafReader.getLiveDocs();
-                    for (int i = 0; i < leafReader.maxDoc(); i++) {
-                        if (liveDocs == null || liveDocs.get(i)) {
-                            final Document document = leafReader.document(i);
-                            documents.put(getValue(document, CACHE_ID_FIELD), document);
-                        }
-                    }
-                }
-            } catch (IndexNotFoundException e) {
-                logger.debug("persistent cache index does not exist yet", e);
-            }
-
             final IndexWriterConfig config = new IndexWriterConfig(new KeywordAnalyzer());
             config.setIndexDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
             config.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
@@ -296,7 +283,7 @@ public class PersistentCache implements Closeable {
             final IndexWriter indexWriter = new IndexWriter(directory, config);
             closeables.add(indexWriter);
 
-            final CacheIndexWriter cacheIndexWriter = new CacheIndexWriter(nodePath, directory, indexWriter, documents);
+            final CacheIndexWriter cacheIndexWriter = new CacheIndexWriter(nodePath, directory, indexWriter);
             success = true;
             return cacheIndexWriter;
         } finally {
@@ -304,6 +291,44 @@ public class PersistentCache implements Closeable {
                 IOUtils.close(closeables);
             }
         }
+    }
+
+    /**
+     * Load existing documents from persistent cache indices located at the root of every node path.
+     *
+     * @param nodeEnvironment the data node environment
+     * @return a map of {cache file uuid, Lucene document}
+     */
+    static Map<String, Document> loadExistingDocuments(NodeEnvironment nodeEnvironment) {
+        final Map<String, Document> documents = new HashMap<>();
+        try {
+            for (NodeEnvironment.NodePath nodePath : nodeEnvironment.nodePaths()) {
+                final Path directoryPath = resolveCacheIndexFolder(nodePath);
+                if (Files.exists(directoryPath)) {
+                    try (Directory directory = FSDirectory.open(directoryPath)) {
+                        try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                            logger.trace("loading documents from persistent cache index [{}]", directoryPath);
+                            for (LeafReaderContext leafReaderContext : indexReader.leaves()) {
+                                final LeafReader leafReader = leafReaderContext.reader();
+                                final Bits liveDocs = leafReader.getLiveDocs();
+                                for (int i = 0; i < leafReader.maxDoc(); i++) {
+                                    if (liveDocs == null || liveDocs.get(i)) {
+                                        final Document document = leafReader.document(i);
+                                        logger.trace("loading document [{}]", document);
+                                        documents.put(getValue(document, CACHE_ID_FIELD), document);
+                                    }
+                                }
+                            }
+                        } catch (IndexNotFoundException e) {
+                            logger.debug("persistent cache index does not exist yet", e);
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load existing documents from persistent cache index", e);
+        }
+        return documents;
     }
 
     /**
@@ -344,23 +369,15 @@ public class PersistentCache implements Closeable {
 
     /**
      * A {@link CacheIndexWriter} contains a Lucene {@link Directory} with an {@link IndexWriter} that can be used to index documents in
-     * the persistent cache index. The list of existing cache documents is loaded at startup and kept around until a first commit is done.
-     * There is one {@link CacheIndexWriter} for each data path.
+     * the persistent cache index. There is one {@link CacheIndexWriter} for each data path.
      */
     static class CacheIndexWriter implements Closeable {
 
-        private final AtomicReference<Map<String, Document>> documentsRef;
         private final NodeEnvironment.NodePath nodePath;
         private final IndexWriter indexWriter;
         private final Directory directory;
 
-        private CacheIndexWriter(
-            NodeEnvironment.NodePath nodePath,
-            Directory directory,
-            IndexWriter indexWriter,
-            Map<String, Document> documents
-        ) {
-            this.documentsRef = new AtomicReference<>(Objects.requireNonNull(documents));
+        private CacheIndexWriter(NodeEnvironment.NodePath nodePath, Directory directory, IndexWriter indexWriter) {
             this.nodePath = nodePath;
             this.directory = directory;
             this.indexWriter = indexWriter;
@@ -370,29 +387,13 @@ public class PersistentCache implements Closeable {
             return nodePath;
         }
 
-        Map<String, Document> getDocuments() {
-            return documentsRef.get();
-        }
-
-        @Nullable
-        Document getDocument(String cacheFileId) {
-            final Map<String, Document> documents = getDocuments();
-            if (documents == null) {
-                assert false : "this method should only be used when loading persistent cache, before any prior commit";
-                throw new IllegalStateException("Persistent cache index was already committed");
-            }
-            return documents.get(cacheFileId);
-        }
-
         void updateCacheFile(CacheFile cacheFile, SortedSet<Tuple<Long, Long>> cacheRanges) throws IOException {
-            assert getDocuments() == null : "this method should only be used after loading persistent cache";
             final Term term = buildTerm(cacheFile);
             logger.debug("updating document with term [{}]", term);
             indexWriter.updateDocument(term, buildDocument(nodePath, cacheFile, cacheRanges));
         }
 
         void updateCacheFile(String cacheFileId, Document cacheFileDocument) throws IOException {
-            assert getDocuments() != null : "this method should only be used when loading persistent cache, before any prior commit";
             final Term term = buildTerm(cacheFileId);
             logger.debug("updating document with term [{}]", term);
             indexWriter.updateDocument(term, cacheFileDocument);
@@ -417,20 +418,8 @@ public class PersistentCache implements Closeable {
         }
 
         void commit() throws IOException {
-            boolean success = false;
-            try {
-                logger.debug("committing");
-                indexWriter.commit();
-                success = true;
-            } finally {
-                if (success) {
-                    Map<String, Document> documents = documentsRef.getAndSet(null);
-                    if (documents != null) {
-                        logger.trace("clearing existing cache documents");
-                        documents.clear();
-                    }
-                }
-            }
+            logger.debug("committing");
+            indexWriter.commit();
         }
 
         @Override
@@ -454,10 +443,12 @@ public class PersistentCache implements Closeable {
     private static class CacheFileVisitor extends SimpleFileVisitor<Path> {
 
         private final CacheService cacheService;
+        private final Map<String, Document> documents;
         private final CacheIndexWriter writer;
 
-        private CacheFileVisitor(CacheService cacheService, CacheIndexWriter writer) {
+        private CacheFileVisitor(CacheService cacheService, CacheIndexWriter writer, Map<String, Document> documents) {
             this.cacheService = Objects.requireNonNull(cacheService);
+            this.documents = Objects.requireNonNull(documents);
             this.writer = Objects.requireNonNull(writer);
         }
 
@@ -465,7 +456,7 @@ public class PersistentCache implements Closeable {
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
             try {
                 final String id = buildId(file);
-                final Document cacheDocument = writer.getDocument(id);
+                final Document cacheDocument = documents.get(id);
                 if (cacheDocument != null) {
                     logger.trace("indexing cache file with id [{}] in persistent cache index", id);
                     writer.updateCacheFile(id, cacheDocument);

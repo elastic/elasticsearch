@@ -24,19 +24,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class LoadDotDefNode extends ExpressionNode {
 
-    /* ---- begin node data ---- */
-
-    private String value;
-
-    public void setValue(String value) {
-        this.value = value;
-    }
-
-    public String getValue() {
-        return value;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

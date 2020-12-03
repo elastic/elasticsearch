@@ -29,6 +29,7 @@ import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -179,6 +180,14 @@ public class CacheService extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {}
 
+    private void ensureLifecycleInitializing() {
+        final Lifecycle.State state = lifecycleState();
+        assert state == Lifecycle.State.INITIALIZED : state;
+        if (state != Lifecycle.State.INITIALIZED) {
+            throw new IllegalStateException("Failed to read data from cache: cache service is not initializing [" + state + "]");
+        }
+    }
+
     private void ensureLifecycleStarted() {
         final Lifecycle.State state = lifecycleState();
         assert state != Lifecycle.State.INITIALIZED : state;
@@ -201,6 +210,16 @@ public class CacheService extends AbstractLifecycleComponent {
         return toIntBytes(rangeSize.getBytes());
     }
 
+    /**
+     * Retrieves the {@link CacheFile} instance associated with the specified {@link CacheKey} in the cache. If the key is not already
+     * associated with a {@link CacheFile}, this method creates a new instance using the given file length and cache directory.
+     *
+     * @param cacheKey   the cache key whose associated {@link CacheFile} instance is to be returned or computed for if non-existent
+     * @param fileLength the length of the cache file (required to compute a new instance)
+     * @param cacheDir   the cache directory where the cache file on disk is created  (required to compute a new instance)
+     * @return the current  {@link CacheFile} instance (existing or computed)
+     * @throws Exception if this method is used when the {@link CacheService} is not started
+     */
     public CacheFile get(final CacheKey cacheKey, final long fileLength, final Path cacheDir) throws Exception {
         ensureLifecycleStarted();
         return cache.computeIfAbsent(cacheKey, key -> {
@@ -212,9 +231,42 @@ public class CacheService extends AbstractLifecycleComponent {
             assert Files.notExists(path) : "cache file already exists " + path;
 
             final SetOnce<CacheFile> cacheFile = new SetOnce<>();
-            cacheFile.set(new CacheFile(key.toString(), fileLength, path, () -> onCacheFileUpdate(cacheFile.get())));
+            cacheFile.set(new CacheFile(key, fileLength, path, () -> onCacheFileUpdate(cacheFile.get())));
             return cacheFile.get();
         });
+    }
+
+    /**
+     * Computes a new {@link CacheFile} instance using the specified cache file information (file length, file name, parent directory and
+     * already available cache ranges) and associates it with the specified {@link CacheKey} in the cache. If the key is already
+     * associated with a {@link CacheFile}, the previous instance is replaced by a new one.
+     *
+     * This method can only be used before the {@link CacheService} is started.
+     *
+     * @param cacheKey        the cache key with which the new {@link CacheFile} instance is to be associated
+     * @param fileLength      the length of the cache file
+     * @param cacheDir        the cache directory where the cache file on disk is located
+     * @param cacheFileUuid   the name of the cache file on disk (should be a UUID)
+     * @param cacheFileRanges the set of ranges that are known to be already available/completed for this cache file
+     * @throws Exception if this method is used when the {@link CacheService} is not initializing
+     */
+    void put(
+        final CacheKey cacheKey,
+        final long fileLength,
+        final Path cacheDir,
+        final String cacheFileUuid,
+        final SortedSet<Tuple<Long, Long>> cacheFileRanges
+    ) throws Exception {
+
+        ensureLifecycleInitializing();
+        final Path path = cacheDir.resolve(cacheFileUuid);
+        if (Files.exists(path) == false) {
+            throw new FileNotFoundException("Cache file [" + path + "] not found");
+        }
+
+        final SetOnce<CacheFile> cacheFile = new SetOnce<>();
+        cacheFile.set(new CacheFile(cacheKey, fileLength, path, cacheFileRanges, () -> onCacheFileUpdate(cacheFile.get())));
+        cache.put(cacheKey, cacheFile.get());
     }
 
     /**

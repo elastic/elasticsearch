@@ -142,25 +142,8 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
         assertBusy(() -> {
             try {
-                Response statsResponse = client().performRequest(new Request("GET",
-                    "_ml/trained_models/" + classificationModelId + "/_stats"));
-                try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
-                    GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
-                    assertThat(response.getTrainedModelStats(), hasSize(1));
-                    TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
-                    assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
-                    assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
-                    assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
-                }
-                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
-                try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
-                    GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
-                    assertThat(response.getTrainedModelStats(), hasSize(1));
-                    TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
-                    assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
-                    assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
-                    assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
-                }
+                assertStatsWithCacheMisses(classificationModelId, 10L);
+                assertStatsWithCacheMisses(regressionModelId, 10L);
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
                 fail(ex.getMessage());
@@ -208,30 +191,26 @@ public class InferenceIngestIT extends ESRestTestCase {
 
         assertBusy(() -> {
             try {
-                Response statsResponse = client().performRequest(new Request("GET",
-                    "_ml/trained_models/" + classificationModelId + "/_stats"));
-                try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
-                    GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
-                    assertThat(response.getTrainedModelStats(), hasSize(1));
-                    TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
-                    assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
-                    assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(10L));
-                    assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
-                }
-                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
-                try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
-                    GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
-                    assertThat(response.getTrainedModelStats(), hasSize(1));
-                    TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
-                    assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
-                    assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(15L));
-                    assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
-                }
+                assertStatsWithCacheMisses(classificationModelId, 10L);
+                assertStatsWithCacheMisses(regressionModelId, 10L);
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
                 fail(ex.getMessage());
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    public void assertStatsWithCacheMisses(String modelId, long inferenceCount) throws IOException {
+        Response statsResponse = client().performRequest(new Request("GET",
+            "_ml/trained_models/" + modelId + "/_stats"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, statsResponse.getEntity().getContent())) {
+            GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
+            assertThat(response.getTrainedModelStats(), hasSize(1));
+            TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
+            assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
+            assertThat(trainedModelStats.getInferenceStats().getInferenceCount(), equalTo(inferenceCount));
+            assertThat(trainedModelStats.getInferenceStats().getCacheMissCount(), greaterThan(0L));
+        }
     }
 
     public void testSimulate() throws IOException {

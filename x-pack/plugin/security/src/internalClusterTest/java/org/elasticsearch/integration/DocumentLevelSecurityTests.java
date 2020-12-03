@@ -67,10 +67,12 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -111,7 +113,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+        List<Class<? extends Plugin>> transportPlugins = new ArrayList<>();
+        transportPlugins.addAll(nodePlugins());
+        // the SpatialPlugin cannot be bind with guice on a client because the plugin itself has a dependency back on a client
+        transportPlugins.remove(SpatialPlugin.class);
+        return transportPlugins;
     }
 
     @Override
@@ -530,17 +536,17 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testPercolateQueryWithIndexedDocWithDLS() {
         assertAcked(client().admin().indices().prepareCreate("query_index")
-                .addMapping("type1", "message", "type=text", "query", "type=percolator", "field1", "type=text", "field2", "type=text")
+                .addMapping("_doc", "message", "type=text", "query", "type=percolator", "field1", "type=text", "field2", "type=text")
         );
         assertAcked(client().admin().indices().prepareCreate("doc_index")
-                .addMapping("type1", "message", "type=text", "field1", "type=text")
+                .addMapping("_doc", "message", "type=text", "field1", "type=text")
         );
-        client().prepareIndex("query_index", "type1", "1")
+        client().prepareIndex("query_index", "_doc", "1")
                 .setSource("{\"field1\": \"value1\", \"field2\": \"value2\", \"query\": " +
                                 "{\"match\": {\"message\": \"bonsai tree\"}}}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("doc_index", "type1", "1")
+        client().prepareIndex("doc_index", "_doc", "1")
                 .setSource("{\"field1\": \"value1\", \"message\": \"A new bonsai tree in the office\"}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
@@ -548,7 +554,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         SearchResponse result = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("query_index")
-                .setQuery(new PercolateQueryBuilder("query", "doc_index", "type1", "1", null, null, null))
+                .setQuery(new PercolateQueryBuilder("query", "doc_index", "_doc", "1", null, null, null))
                 .get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
@@ -564,24 +570,24 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("query_index")
-                .setQuery(new PercolateQueryBuilder("query", "doc_index", "type1", "1", null, null, null))
+                .setQuery(new PercolateQueryBuilder("query", "doc_index", "_doc", "1", null, null, null))
                 .get());
-        assertThat(e.getMessage(), is("indexed document [doc_index/1] couldn't be found"));
+        assertThat(e.getMessage(), is("indexed document [doc_index/_doc/1] couldn't be found"));
     }
 
     public void testGeoQueryWithIndexedShapeWithDLS() {
         assertAcked(client().admin().indices().prepareCreate("search_index")
-                .addMapping("type1", "search_field", "type=shape", "field1", "type=text", "field2", "type=text")
+                .addMapping("_doc", "search_field", "type=shape", "field1", "type=text", "field2", "type=text")
         );
         assertAcked(client().admin().indices().prepareCreate("shape_index")
-                .addMapping("type1", "shape_field", "type=shape", "field1", "type=text", "field2", "type=text")
+                .addMapping("_doc", "shape_field", "type=shape", "field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("search_index", "type1", "1")
+        client().prepareIndex("search_index", "_doc", "1")
                 .setSource("{\"field1\": \"value1\", \"field2\": \"value2\", \"search_field\": " +
                                 "{ \"type\": \"point\", \"coordinates\":[1, 1] }}",
                         XContentType.JSON)
                 .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("shape_index", "type1", "1")
+        client().prepareIndex("shape_index", "_doc", "1")
                 .setSource("{\"field1\": \"value1\", \"shape_field\": " +
                                 "{ \"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
                             XContentType.JSON)
@@ -627,7 +633,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     .setPostFilter(shapeQuery)
                     .get());
         }
-        assertThat(e.getMessage(), is("Shape with ID [1] not found"));
+        assertThat(e.getMessage(), is("Shape with ID [1] in type [_doc] not found"));
     }
 
     public void testTermsLookupOnIndexWithDLS() {

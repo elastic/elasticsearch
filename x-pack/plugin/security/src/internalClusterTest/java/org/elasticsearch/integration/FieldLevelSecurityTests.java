@@ -57,10 +57,12 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -101,7 +103,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+        List<Class<? extends Plugin>> transportPlugins = new ArrayList<>();
+        transportPlugins.addAll(nodePlugins());
+        // the SpatialPlugin cannot be bind with guice on a client because the plugin itself has a dependency back on a client
+        transportPlugins.remove(SpatialPlugin.class);
+        return transportPlugins;
     }
 
     @Override

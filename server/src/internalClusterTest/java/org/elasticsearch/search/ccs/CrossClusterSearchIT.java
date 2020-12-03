@@ -59,6 +59,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         return List.of("cluster_a");
     }
 
+    @Override
+    protected boolean reuseClusters() {
+        return false;
+    }
+
     private int indexDocs(Client client, String index) {
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {

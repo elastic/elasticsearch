@@ -31,10 +31,9 @@ already familiar with:
 
 The following considerations are not sequential – the numbers help to navigate 
 between the list items; you can take action on one or more of them in any order. 
-The list sorts the considerations by difficulty: the ones that are easier to 
-address are on the top of the list. Most of the recommendations apply to both 
-continuous and batch {transforms}. If a list item only applies to one 
-{transform} type, this exception is highlighted in the description.
+Most of the recommendations apply to both continuous and batch {transforms}. If 
+a list item only applies to one {transform} type, this exception is highlighted 
+in the description.
 
 The keywords in parenthesis at the end of each recommendation title indicates 
 the bottleneck area that may be improved by following the given recommendation.
@@ -69,8 +68,23 @@ hour), the workload can be spread over time at the cost of less up-to-date data.
 
 
 [discrete]
+[[increase-shards-dest-index]]
+== 2. Increase the number of shards of the destination index (index)
+
+Depending on the size of the destination index, you may consider increasing its 
+shard count. {transforms-cap} use one shard by default when creating the 
+destination index. To override the index settings, create the destination index 
+before starting the {transform}. For more information about how the number of 
+shards affects scalability and resilience, refer to <<scalability>>
+
+TIP: Use the <<preview-transform>> to check the settings that the {transform} 
+would use to create the destination index. You can copy and adjust these in 
+order to create the destination index prior to starting the {transform}.
+
+
+[discrete]
 [[search-queries]]
-== 2. Profile and optimize your search queries (search)
+== 3. Profile and optimize your search queries (search)
 
 If you have defined a {transform} source index `query`, ensure it is as 
 efficient as possible. Use the **Search Profiler** under **Dev Tools** in {kib} 
@@ -86,8 +100,67 @@ to write {es} queries, and some of them are more efficient than others. Consult
 
 
 [discrete]
+[[limit-source-query]]
+== 4. Limit the scope of the source query (search)
+
+Imagine your {ctransform} is configured to group by `IP` and calculate the sum 
+of `bytes_sent`. For each checkpoint, a {ctransform} detects changes in the 
+source data since the previous checkpoint, identifying the IPs for which new 
+data has been ingested. Then it performs a second search, filtered for this 
+group of IPs, in order to calculate the total `bytes_sent`. If this second 
+search matches many shards, then this could be resource intensive. Consider 
+limiting the scope that the source index pattern and query will match.
+
+Use an absolute time value as a date range filter in your source query (for 
+example, greater than `2020-01-01T00:00:00`) to limit which historical indices 
+are accessed. If you use a relative time value (for example, `now-30d`) then 
+this date range is re-evaluated at the point of each checkpoint execution.
+
+
+[discrete]
+[[optimize-shading-strategy]]
+== 5. Optimize the sharding strategy for the source index (search)
+
+There is no one-size-fits-all sharding strategy. A strategy that works in one 
+environment may not scale in another. A good sharding strategy must account for 
+your infrastructure, use case, and performance expectations.
+
+Too few shards may mean that the benefits of distributing the workload cannot be 
+realised; however too many shards may impact your cluster health. To learn more 
+about sizing your shards, read this <<size-your-shards,guide>>.
+
+
+[discrete]
+[[tune-max-page-search-size]]
+== 6. Tune `max_page_search_size` (search)
+
+The `max_page_search_size` {transform} configuration option defines the number 
+of buckets that are returned for each search request. The default value is 500. 
+If you increase this value, you get better throughput at the cost of higher 
+latency and memory usage.
+
+The ideal value of this parameter is highly dependent on your use case. If your 
+{transform} executes memory-intensive aggregations – for example, cardinality or 
+percentiles – then increasing `max_page_search_size` requires more available 
+memory. If memory limits are exceeded, a circuit breaker exception occurs.
+
+
+[discrete]
+[[indexed-fields-in-source]]
+== 7. Use indexed fields in your source indices (search)
+
+Runtime fields and scripted fields are not indexed fields; their values are only 
+extracted or computed at search time. While these fields provide flexibility in 
+how you access your data, they increase performance costs at search time. If 
+{transform} performance using runtime fields or scripted fields is a concern, 
+you may wish to consider using indexed fields instead. For performance reasons, 
+we do not recommend using a runtime field as the time field that synchs a 
+{ctransform}. 
+
+
+[discrete]
 [[index-sorting-group-by-ordering]]
-== 3. Use index sorting and `group_by` ordering (search, process)
+== 8. Use index sorting and `group_by` ordering (search, process)
 
 If you use more than one `group_by` field in your {transform}, then the order of 
 the fields in conjunction with the use of <<index-modules-index-sorting>> may 
@@ -105,36 +178,8 @@ a new, sorted index.
 
 
 [discrete]
-[[increase-shards-dest-index]]
-== 4. Increase the number of shards of the destination index (index)
-
-Depending on the size of the destination index, you may consider increasing its 
-shard count. {transforms-cap} use one shard by default when creating the 
-destination index. To override the index settings, create the destination index 
-before starting the {transform}. For more information about how the number of 
-shards affects scalability and resilience, refer to <<scalability>>
-
-TIP: Use the <<preview-transform>> to check the settings that the {transform} 
-would use to create the destination index. You can copy and adjust these in 
-order to create the destination index prior to starting the {transform}.
-
-
-[discrete]
-[[optimize-shading-strategy]]
-== 5. Optimize the sharding strategy for the source index (search)
-
-There is no one-size-fits-all sharding strategy. A strategy that works in one 
-environment may not scale in another. A good sharding strategy must account for 
-your infrastructure, use case, and performance expectations.
-
-Too few shards may mean that the benefits of distributing the workload cannot be 
-realised; however too many shards may impact your cluster health. To learn more 
-about sizing your shards, read this <<size-your-shards,guide>>.
-
-
-[discrete]
 [[disable-source-dest]]
-== 6. Disable the `_source` field on the destination index (storage)
+== 9. Disable the `_source` field on the destination index (storage)
 
 The <<mapping-source-field>> contains the original JSON document body that was 
 passed at index time. The `_source` field itself is not indexed (and thus is not 
@@ -146,51 +191,6 @@ NOTE: When the `_source` field is disabled, a number of features are not
 supported. Consult <<disable-source-field>> to understand the consequences 
 before disabling it.
 
-
-[discrete]
-[[tune-max-page-search-size]]
-== 7. Tune `max_page_search_size` (search)
-
-The `max_page_search_size` {transform} configuration option defines the number 
-of buckets that are returned for each search request. The default value is 500. 
-If you increase this value, you get better throughput at the cost of higher 
-latency and memory usage.
-
-The ideal value of this parameter is highly dependent on your use case. If your 
-{transform} executes memory-intensive aggregations – for example, cardinality or 
-percentiles – then increasing `max_page_search_size` requires more available 
-memory. If memory limits are exceeded, a circuit breaker exception occurs.
-
-
-[discrete]
-[[indexed-fields-in-source]]
-== 8. Use indexed fields in your source indices (search)
-
-Runtime fields and scripted fields are not indexed fields; their values are only 
-extracted or computed at search time. While these fields provide flexibility in 
-how you access your data, they increase performance costs at search time. If 
-{transform} performance using runtime fields or scripted fields is a concern, 
-you may wish to consider using indexed fields instead. For performance reasons, 
-we do not recommend using a runtime field as the time field that synchs a 
-{ctransform}. 
-
-
-[discrete]
-[[limit-source-query]]
-== 9. Limit the scope of the source query (search)
-
-Imagine your {ctransform} is configured to group by `IP` and calculate the sum 
-of `bytes_sent`. For each checkpoint, a {ctransform} detects changes in the 
-source data since the previous checkpoint, identifying the IPs for which new 
-data has been ingested. Then it performs a second search, filtered for this 
-group of IPs, in order to calculate the total `bytes_sent`. If this second 
-search matches many shards, then this could be resource intensive. Consider 
-limiting the scope that the source index pattern and query will match.
-
-Use an absolute time value as a date range filter in your source query (for 
-example, greater than `2020-01-01T00:00:00`) to limit which historical indices 
-are accessed. If you use a relative time value (for example, `now-30d`) then 
-this date range is re-evaluated at the point of each checkpoint execution.
 
 [discrete]
 == Further reading

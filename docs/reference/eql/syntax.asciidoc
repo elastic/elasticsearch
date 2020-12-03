@@ -853,7 +853,7 @@ states as follows:
 
 { "index" : { "_id" : "3" } }
 { "user": { "name": "elkbee" }, "process": { "name": "hostname" }, ...}
-// Nothing happens. This event doesn't match state A for the "elkbee" user.
+// Nothing happens. The "elkbee" user has no pending sequence to move from state A to state B
 
 { "index" : { "_id" : "4" } }
 { "user": { "name": "root" }, "process": { "name": "hostname" }, ...}

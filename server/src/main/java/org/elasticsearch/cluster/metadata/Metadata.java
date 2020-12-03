@@ -77,6 +77,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -89,6 +90,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
+    public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -1485,7 +1487,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     Set<String> conflicts =
                         indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
                             .keySet().stream()
-                            .filter(s -> s.substring(prefix.length()).matches("[0-9]+"))
+                            .filter(s -> NUMBER_PATTERN.matcher(s.substring(prefix.length())).matches())
                             .filter(s -> IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
                             .collect(Collectors.toSet());
 

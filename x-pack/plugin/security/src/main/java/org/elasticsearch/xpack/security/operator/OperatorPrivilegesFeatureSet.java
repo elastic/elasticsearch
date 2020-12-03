@@ -6,42 +6,53 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
-import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
+import org.elasticsearch.xpack.core.security.OperatorPrivilegesFeatureSetUsage;
+
+import java.util.Map;
 
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 
-public class OperatorPrivilegesInfoTransportAction extends XPackInfoFeatureTransportAction {
+public class OperatorPrivilegesFeatureSet implements XPackFeatureSet {
 
     private final XPackLicenseState licenseState;
     private final boolean enabled;
 
     @Inject
-    public OperatorPrivilegesInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                                 Settings settings, XPackLicenseState licenseState) {
-        super(XPackInfoFeatureAction.OPERATOR_PRIVILEGES.name(), transportService, actionFilters);
+    public OperatorPrivilegesFeatureSet(Settings settings, XPackLicenseState licenseState) {
         this.licenseState = licenseState;
-        enabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
+        this.enabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
     }
 
     @Override
-    protected String name() {
+    public String name() {
         return XPackField.OPERATOR_PRIVILEGES;
     }
 
     @Override
-    protected boolean available() {
+    public boolean available() {
         return licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES);
     }
 
     @Override
-    protected boolean enabled() {
+    public boolean enabled() {
         return enabled;
+    }
+
+    @Override
+    public Map<String, Object> nativeCodeInfo() {
+        return null;
+    }
+
+    @Override
+    public void usage(ActionListener<Usage> listener) {
+        listener.onResponse(
+            new OperatorPrivilegesFeatureSetUsage(available(), enabled)
+        );
     }
 }

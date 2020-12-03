@@ -16,7 +16,8 @@ import java.util.Set;
 
 public class OperatorOnlyRegistry {
 
-    public static final Set<String> SIMPLE_ACTIONS = Set.of(AddVotingConfigExclusionsAction.NAME,
+    public static final Set<String> SIMPLE_ACTIONS = org.elasticsearch.common.collect.Set.of(
+        AddVotingConfigExclusionsAction.NAME,
         ClearVotingConfigExclusionsAction.NAME,
         PutLicenseAction.NAME,
         DeleteLicenseAction.NAME,

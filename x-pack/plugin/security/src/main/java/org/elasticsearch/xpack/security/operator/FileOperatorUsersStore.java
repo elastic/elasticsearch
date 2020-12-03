@@ -123,10 +123,11 @@ public class FileOperatorUsersStore {
         }
     }
 
-    private static final OperatorUsersDescriptor EMPTY_OPERATOR_USERS_DESCRIPTOR = new OperatorUsersDescriptor(List.of());
+    private static final OperatorUsersDescriptor EMPTY_OPERATOR_USERS_DESCRIPTOR = new OperatorUsersDescriptor(
+        org.elasticsearch.common.collect.List.of());
 
     static final class Group {
-        private static final Set<String> SINGLETON_REALM_TYPES = Set.of(
+        private static final Set<String> SINGLETON_REALM_TYPES = org.elasticsearch.common.collect.Set.of(
             FileRealmSettings.TYPE, NativeRealmSettings.TYPE, ReservedRealm.TYPE);
 
         private final Set<String> usernames;
@@ -236,7 +237,7 @@ public class FileOperatorUsersStore {
     private static final ConstructingObjectParser<Group, Void> GROUP_PARSER = new ConstructingObjectParser<>(
         "operator_privileges.operator.group", false,
         (Object[] arr) -> new Group(
-            Set.copyOf((List<String>)arr[0]),
+            org.elasticsearch.common.collect.Set.copyOf((List<String>)arr[0]),
             (String) arr[1],
             (String) arr[2],
             (String) arr[3]

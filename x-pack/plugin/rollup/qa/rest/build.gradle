@@ -10,19 +10,18 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(path: xpackModule('rollup'))
+    testImplementation project(path: xpackModule('rollup'))
 }
 
 restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'cluster', 'indices', 'search'
-    includeXpack 'rollup'
-  }
+    restApi {
+        includeCore '_common', 'bulk', 'cluster', 'indices', 'search'
+        includeXpack 'rollup'
+    }
 }
 
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'basic'
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+testClusters.matching { it.name == "integTest" }.configureEach {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'basic'
+    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
-

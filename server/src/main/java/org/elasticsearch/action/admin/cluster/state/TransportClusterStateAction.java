@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -82,7 +83,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
-            ActionListener.completeWith(listener, () -> buildResponse(request, state));
+            resolveListener(request, state, listener);
         } else {
             assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
@@ -91,7 +92,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 @Override
                 public void onNewClusterState(ClusterState newState) {
                     if (acceptableClusterStatePredicate.test(newState)) {
-                        ActionListener.completeWith(listener, () -> buildResponse(request, newState));
+                        resolveListener(request, newState, listener);
                     } else {
                         listener.onFailure(new NotMasterException(
                             "master stepped down waiting for metadata version " + request.waitForMetadataVersion()));
@@ -113,6 +114,13 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 }
             }, acceptableClusterStateOrNotMasterPredicate);
         }
+    }
+
+    // The cluster state can be a large object so we resolve the response listener on the MANAGEMENT pool to not serialize the resulting
+    // large response on a transport or cluster state thread which we don't want to block needlessly
+    private void resolveListener(ClusterStateRequest request, ClusterState currentState, ActionListener<ClusterStateResponse> listener) {
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
+                ActionRunnable.supply(listener, () -> buildResponse(request, currentState)));
     }
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request,

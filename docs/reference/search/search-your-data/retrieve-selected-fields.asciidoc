@@ -241,6 +241,7 @@ flag hasn't been set to `true` for that field pattern.
         "_index" : "my-index-000001",
         "_id" : "1",
         "_score" : 1.0,
+        "_type" : "_doc",
         "fields" : {
           "session_data.object.some_field": [
             "some_value"

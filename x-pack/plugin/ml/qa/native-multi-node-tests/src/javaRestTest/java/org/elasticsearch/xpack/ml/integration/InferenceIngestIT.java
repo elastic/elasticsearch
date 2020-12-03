@@ -192,7 +192,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 assertStatsWithCacheMisses(classificationModelId, 10L);
-                assertStatsWithCacheMisses(regressionModelId, 10L);
+                assertStatsWithCacheMisses(regressionModelId, 15L);
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
                 fail(ex.getMessage());

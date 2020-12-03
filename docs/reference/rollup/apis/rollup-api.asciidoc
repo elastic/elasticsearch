@@ -72,7 +72,7 @@ a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
 +
 The request creates this index with
 <<index-modules-blocks,`index.blocks.write`>> set to `true`.  If the `<index>`
-is a backing index for a data stream, this new index is a backing index for the
+is a backing index for a data stream, this index is a backing index for the
 same stream.
 
 `groups`::

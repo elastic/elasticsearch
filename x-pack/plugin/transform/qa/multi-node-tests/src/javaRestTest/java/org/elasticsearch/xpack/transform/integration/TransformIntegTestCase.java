@@ -317,6 +317,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     protected void createReviewsIndex(String indexName,
                                       int numDocs,
                                       int numUsers,
+                                      Function<Integer, Integer> userIdProvider,
                                       Function<Integer, String> dateStringProvider) throws Exception {
         assert numUsers > 0;
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
@@ -352,16 +353,21 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             // create index
             BulkRequest bulk = new BulkRequest(indexName);
             for (int i = 0; i < numDocs; i++) {
-                long user = i % numUsers;
+                Integer user = userIdProvider.apply(i);
                 int stars = i % 5;
                 long business = i % 50;
                 String dateString = dateStringProvider.apply(i);
 
-                StringBuilder sourceBuilder = new StringBuilder();
-                sourceBuilder.append("{\"user_id\":\"")
-                    .append("user_")
-                    .append(user)
-                    .append("\",\"count\":")
+                StringBuilder sourceBuilder = new StringBuilder().append("{");
+                if (user != null) {
+                    sourceBuilder
+                        .append("\"user_id\":\"")
+                        .append("user_")
+                        .append(user)
+                        .append("\",");
+                }
+                sourceBuilder
+                    .append("\"count\":")
                     .append(i)
                     .append(",\"business_id\":\"")
                     .append("business_")

@@ -83,7 +83,7 @@ public class PreviewTransformRequestTests extends AbstractXContentTestCase<Previ
         assertThat(error.get().getMessage(), containsString("transform source cannot be null"));
 
         // null id and destination is valid
-        config = TransformConfig.forPreview(randomSourceConfig(), LatestDocConfigTests.randomLatestDocConfig());
+        config = TransformConfig.forPreview(randomSourceConfig(), LatestDocConfigTests.randomLatestConfig());
 
         assertThat(new PreviewTransformRequest(config).validate(), isEmpty());
     }

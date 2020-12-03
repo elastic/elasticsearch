@@ -27,7 +27,7 @@ import java.util.function.Predicate;
 
 public class LatestDocConfigTests extends AbstractXContentTestCase<LatestDocConfig> {
 
-    public static LatestDocConfig randomLatestDocConfig() {
+    public static LatestDocConfig randomLatestConfig() {
         return new LatestDocConfig(randomList(5, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
     }
 
@@ -38,7 +38,7 @@ public class LatestDocConfigTests extends AbstractXContentTestCase<LatestDocConf
 
     @Override
     protected LatestDocConfig createTestInstance() {
-        return randomLatestDocConfig();
+        return randomLatestConfig();
     }
 
     @Override

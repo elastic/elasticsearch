@@ -34,7 +34,7 @@ public class FunctionFactoryTests extends ESTestCase {
             TransformConfigTests.randomTransformConfig(
                 randomAlphaOfLengthBetween(1, 10),
                 null,
-                LatestDocConfigTests.randomLatestDocConfig());
+                LatestDocConfigTests.randomLatestConfig());
         Function function = FunctionFactory.create(config);
         assertThat(function, is(instanceOf(LatestDoc.class)));
     }

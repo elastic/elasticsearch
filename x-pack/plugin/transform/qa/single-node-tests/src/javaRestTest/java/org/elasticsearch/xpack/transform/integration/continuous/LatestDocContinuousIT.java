@@ -53,7 +53,7 @@ public class LatestDocContinuousIT extends ContinuousTestCase {
                 .setId(NAME)
                 .setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX))
                 .setDest(new DestConfig(NAME, INGEST_PIPELINE))
-                .setLatestDocConfig(
+                .setLatestConfig(
                     LatestDocConfig.builder()
                         .setUniqueKey(EVENT_FIELD)
                         .setSort(TIMESTAMP_FIELD)
@@ -80,6 +80,7 @@ public class LatestDocContinuousIT extends ContinuousTestCase {
                             new TermsAggregationBuilder("by_event")
                                 .size(1000)
                                 .field(EVENT_FIELD)
+                                .missing(MISSING_BUCKET_KEY)
                                 .order(BucketOrder.key(true))
                                 .subAggregation(AggregationBuilders.max("max_timestamp").field(TIMESTAMP_FIELD))));
         SearchResponse searchResponseSource = search(searchRequestSource);
@@ -96,7 +97,7 @@ public class LatestDocContinuousIT extends ContinuousTestCase {
         // the number of search hits should be equal to the number of buckets returned by the aggregation
         assertThat(
             new ParameterizedMessage(
-                "Number of buckets did not match, source: {}, expected: {}, iteration: ",
+                "Number of buckets did not match, source: {}, expected: {}, iteration: {}",
                 searchResponseDest.getHits().getTotalHits().value, Long.valueOf(buckets.size()), iteration).getFormattedMessage(),
             searchResponseDest.getHits().getTotalHits().value,
             is(equalTo(Long.valueOf(buckets.size())))

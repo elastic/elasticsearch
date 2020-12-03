@@ -15,8 +15,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -24,8 +22,10 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -83,10 +83,18 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
         if (uniqueKey.isEmpty()) {
             validationException = addValidationError("latest.unique_key must be non-empty", validationException);
         } else {
+            Set<String> uniqueKeyElements = new HashSet<>();
             for (int i = 0; i < uniqueKey.size(); ++i) {
                 if (uniqueKey.get(i).isEmpty()) {
                     validationException =
                         addValidationError("latest.unique_key[" + i + "] element must be non-empty", validationException);
+                } else if (uniqueKeyElements.contains(uniqueKey.get(i))) {
+                    validationException =
+                        addValidationError(
+                            "latest.unique_key elements must be unique, found duplicate element [" + uniqueKey.get(i) + "]",
+                            validationException);
+                } else {
+                    uniqueKeyElements.add(uniqueKey.get(i));
                 }
             }
         }
@@ -105,25 +113,6 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
         builder.field(SORT.getPreferredName(), sort);
         builder.endObject();
         return builder;
-    }
-
-    public void toCompositeAggXContent(XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
-
-        builder.startArray();
-        for (String field : uniqueKey) {
-            builder.startObject();
-            builder.startObject(field);
-            builder.startObject(TermsAggregationBuilder.NAME);
-            builder.field("field", field);
-            builder.endObject();
-            builder.endObject();
-            builder.endObject();
-        }
-        builder.endArray();
-
-        builder.endObject(); // unique_key
     }
 
     @Override

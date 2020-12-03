@@ -19,12 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -32,13 +27,14 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -48,15 +44,13 @@ import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class LatestDoc implements Function {
 
@@ -78,41 +72,20 @@ public class LatestDoc implements Function {
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(LatestDocConfig config) {
-        CompositeAggregationBuilder compositeAggregation;
-        try (XContentBuilder builder = jsonBuilder()) {
-            config.toCompositeAggXContent(builder);
-            XContentParser parser = builder.generator()
-                .contentType()
-                .xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-            compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
-        } catch (IOException e) {
-            throw new RuntimeException(
-                TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "latest"), e);
-        }
+        List<CompositeValuesSourceBuilder<?>> sources =
+            config.getUniqueKey().stream()
+                .map(field -> new TermsValuesSourceBuilder(field).field(field).missingBucket(true))
+                .collect(toList());
         TopHitsAggregationBuilder topHitsAgg =
             AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
                 .size(1)  // we are only interested in the top-1
                 .sorts(config.getSorts());  // we copy the sort config directly from the function config
-        compositeAggregation.subAggregation(topHitsAgg);
-        return compositeAggregation;
+        return AggregationBuilders.composite(COMPOSITE_AGGREGATION_NAME, sources).subAggregation(topHitsAgg);
     }
 
     @Override
     public int getInitialPageSize() {
         return DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE;
-    }
-
-    private SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        buildSearchQuery(sourceBuilder, null, pageSize);
-        sourceBuilder.query(sourceConfig.getQueryConfig().getQuery());
-        SearchRequest searchRequest =
-            new SearchRequest(sourceConfig.getIndex())
-                .source(sourceBuilder)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        logger.trace("Search request: {}", searchRequest);
-        return searchRequest;
     }
 
     @Override
@@ -127,7 +100,9 @@ public class LatestDoc implements Function {
         return new LatestDocChangeCollector(synchronizationField);
     }
 
-    private Stream<Map<String, Object>> extractResults(CompositeAggregation compositeAgg, TransformIndexerStats transformIndexerStats) {
+    private static Stream<Map<String, Object>> extractResults(LatestDocConfig config,
+                                                              CompositeAggregation compositeAgg,
+                                                              TransformIndexerStats transformIndexerStats) {
         return compositeAgg.getBuckets().stream()
             .map(bucket -> {
                 transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
@@ -168,14 +143,19 @@ public class LatestDoc implements Function {
         }
 
         Stream<IndexRequest> indexRequestStream =
-            extractResults(compositeAgg, stats)
+            extractResults(config, compositeAgg, stats)
                 .map(document -> DocumentConversionUtils.convertDocumentToIndexRequest(document, destinationIndex, destinationPipeline));
         return Tuple.tuple(indexRequestStream, compositeAgg.afterKey());
     }
 
     @Override
     public void validateQuery(Client client, SourceConfig sourceConfig, ActionListener<Boolean> listener) {
-        SearchRequest searchRequest = buildSearchRequest(sourceConfig, null, TEST_QUERY_PAGE_SIZE);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery());
+        buildSearchQuery(sourceBuilder, null, TEST_QUERY_PAGE_SIZE);
+        SearchRequest searchRequest =
+            new SearchRequest(sourceConfig.getIndex())
+                .source(sourceBuilder)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {
@@ -234,12 +214,19 @@ public class LatestDoc implements Function {
         int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
     ) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery());
+        buildSearchQuery(sourceBuilder, null, numberOfBuckets);
+        SearchRequest searchRequest =
+            new SearchRequest(sourceConfig.getIndex())
+                .source(sourceBuilder)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            buildSearchRequest(sourceConfig, null, numberOfBuckets),
+            searchRequest,
             ActionListener.wrap(r -> {
                 Aggregations aggregations = r.getAggregations();
                 if (aggregations == null) {
@@ -251,10 +238,10 @@ public class LatestDoc implements Function {
                 TransformIndexerStats stats = new TransformIndexerStats();
 
                 List<Map<String, Object>> docs =
-                    extractResults(compositeAgg, stats)
+                    extractResults(config, compositeAgg, stats)
                         // remove all internal fields
                         .peek(doc -> doc.keySet().removeIf(k -> k.startsWith("_")))
-                        .collect(Collectors.toList());
+                        .collect(toList());
 
                 listener.onResponse(docs);
             }, listener::onFailure)

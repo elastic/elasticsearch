@@ -39,6 +39,11 @@ public class LatestDocIT extends TransformIntegTestCase {
 
     private static final String TRANSFORM_NAME = "transform-crud-latest";
 
+    private static final Integer getUserIdForRow(int row) {
+        int userId = row % (NUM_USERS + 1);
+        return userId < NUM_USERS ? userId : null;
+    }
+
     private static final String getDateStringForRow(int row) {
         int month = 1 + (row / 28);
         int day = 1 + (row % 28);
@@ -51,46 +56,49 @@ public class LatestDocIT extends TransformIntegTestCase {
     private static final String COUNT = "count";
     private static final String STARS = "stars";
 
-    private static final Map<String, Object> row(String timestamp, String userId, String businessId, int count, int stars) {
+    private static final Map<String, Object> row(String userId, String businessId, int count, int stars, String timestamp) {
         return new HashMap<>() {{
-            put(TIMESTAMP, timestamp);
-            put(USER_ID, userId);
+            if (userId != null) {
+                put(USER_ID, userId);
+            }
             put(BUSINESS_ID, businessId);
             put(COUNT, count);
             put(STARS, stars);
+            put(TIMESTAMP, timestamp);
         }};
     }
 
     private static final Object[] EXPECTED_DEST_INDEX_ROWS =
         new Object[] {
-            row("2017-04-01T12:30:00Z", "user_0", "business_34", 84, 4),
-            row("2017-04-02T12:30:00Z", "user_1", "business_35", 85, 0),
-            row("2017-04-03T12:30:00Z", "user_2", "business_36", 86, 1),
-            row("2017-04-04T12:30:00Z", "user_3", "business_37", 87, 2),
-            row("2017-04-05T12:30:00Z", "user_4", "business_38", 88, 3),
-            row("2017-04-06T12:30:00Z", "user_5", "business_39", 89, 4),
-            row("2017-04-07T12:30:00Z", "user_6", "business_40", 90, 0),
-            row("2017-04-08T12:30:00Z", "user_7", "business_41", 91, 1),
-            row("2017-04-09T12:30:00Z", "user_8", "business_42", 92, 2),
-            row("2017-04-10T12:30:00Z", "user_9", "business_43", 93, 3),
-            row("2017-04-11T12:30:00Z", "user_10", "business_44", 94, 4),
-            row("2017-04-12T12:30:00Z", "user_11", "business_45", 95, 0),
-            row("2017-04-13T12:30:00Z", "user_12", "business_46", 96, 1),
-            row("2017-04-14T12:30:00Z", "user_13", "business_47", 97, 2),
-            row("2017-04-15T12:30:00Z", "user_14", "business_48", 98, 3),
-            row("2017-04-16T12:30:00Z", "user_15", "business_49", 99, 4),
-            row("2017-03-17T12:30:00Z", "user_16", "business_22", 72, 2),
-            row("2017-03-18T12:30:00Z", "user_17", "business_23", 73, 3),
-            row("2017-03-19T12:30:00Z", "user_18", "business_24", 74, 4),
-            row("2017-03-20T12:30:00Z", "user_19", "business_25", 75, 0),
-            row("2017-03-21T12:30:00Z", "user_20", "business_26", 76, 1),
-            row("2017-03-22T12:30:00Z", "user_21", "business_27", 77, 2),
-            row("2017-03-23T12:30:00Z", "user_22", "business_28", 78, 3),
-            row("2017-03-24T12:30:00Z", "user_23", "business_29", 79, 4),
-            row("2017-03-25T12:30:00Z", "user_24", "business_30", 80, 0),
-            row("2017-03-26T12:30:00Z", "user_25", "business_31", 81, 1),
-            row("2017-03-27T12:30:00Z", "user_26", "business_32", 82, 2),
-            row("2017-03-28T12:30:00Z", "user_27", "business_33", 83, 3)
+            row("user_0", "business_37", 87, 2, "2017-04-04T12:30:00Z"),
+            row("user_1", "business_38", 88, 3, "2017-04-05T12:30:00Z"),
+            row("user_2", "business_39", 89, 4, "2017-04-06T12:30:00Z"),
+            row("user_3", "business_40", 90, 0, "2017-04-07T12:30:00Z"),
+            row("user_4", "business_41", 91, 1, "2017-04-08T12:30:00Z"),
+            row("user_5", "business_42", 92, 2, "2017-04-09T12:30:00Z"),
+            row("user_6", "business_43", 93, 3, "2017-04-10T12:30:00Z"),
+            row("user_7", "business_44", 94, 4, "2017-04-11T12:30:00Z"),
+            row("user_8", "business_45", 95, 0, "2017-04-12T12:30:00Z"),
+            row("user_9", "business_46", 96, 1, "2017-04-13T12:30:00Z"),
+            row("user_10", "business_47", 97, 2, "2017-04-14T12:30:00Z"),
+            row("user_11", "business_48", 98, 3, "2017-04-15T12:30:00Z"),
+            row("user_12", "business_49", 99, 4, "2017-04-16T12:30:00Z"),
+            row("user_13", "business_21", 71, 1, "2017-03-16T12:30:00Z"),
+            row("user_14", "business_22", 72, 2, "2017-03-17T12:30:00Z"),
+            row("user_15", "business_23", 73, 3, "2017-03-18T12:30:00Z"),
+            row("user_16", "business_24", 74, 4, "2017-03-19T12:30:00Z"),
+            row("user_17", "business_25", 75, 0, "2017-03-20T12:30:00Z"),
+            row("user_18", "business_26", 76, 1, "2017-03-21T12:30:00Z"),
+            row("user_19", "business_27", 77, 2, "2017-03-22T12:30:00Z"),
+            row("user_20", "business_28", 78, 3, "2017-03-23T12:30:00Z"),
+            row("user_21", "business_29", 79, 4, "2017-03-24T12:30:00Z"),
+            row("user_22", "business_30", 80, 0, "2017-03-25T12:30:00Z"),
+            row("user_23", "business_31", 81, 1, "2017-03-26T12:30:00Z"),
+            row("user_24", "business_32", 82, 2, "2017-03-27T12:30:00Z"),
+            row("user_25", "business_33", 83, 3, "2017-03-28T12:30:00Z"),
+            row("user_26", "business_34", 84, 4, "2017-04-01T12:30:00Z"),
+            row("user_27", "business_35", 85, 0, "2017-04-02T12:30:00Z"),
+            row(null, "business_36", 86, 1, "2017-04-03T12:30:00Z")
         };
 
     @After
@@ -99,12 +107,12 @@ public class LatestDocIT extends TransformIntegTestCase {
     }
 
     public void testLatestDoc() throws Exception {
-        createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestDocIT::getDateStringForRow);
+        createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestDocIT::getUserIdForRow, LatestDocIT::getDateStringForRow);
 
         String destIndexName = "reviews-latest";
         TransformConfig transformConfig =
             createTransformConfigBuilder(TRANSFORM_NAME, destIndexName, SOURCE_INDEX_NAME)
-                .setLatestDocConfig(
+                .setLatestConfig(
                     LatestDocConfig.builder()
                         .setUniqueKey(USER_ID)
                         .setSort(TIMESTAMP)
@@ -128,7 +136,7 @@ public class LatestDocIT extends TransformIntegTestCase {
             // Verify destination index contents
             SearchResponse searchResponse =
                 restClient.search(new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)), RequestOptions.DEFAULT);
-            assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo(Long.valueOf(NUM_USERS))));
+            assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo(Long.valueOf(NUM_USERS + 1))));
             assertThat(
                 Stream.of(searchResponse.getHits().getHits())
                     .map(SearchHit::getSourceAsMap)
@@ -139,11 +147,11 @@ public class LatestDocIT extends TransformIntegTestCase {
     }
 
     public void testLatestDocPreview() throws Exception {
-        createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestDocIT::getDateStringForRow);
+        createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestDocIT::getUserIdForRow, LatestDocIT::getDateStringForRow);
 
         TransformConfig transformConfig =
             createTransformConfigBuilder(TRANSFORM_NAME, "dummy", SOURCE_INDEX_NAME)
-                .setLatestDocConfig(
+                .setLatestConfig(
                     LatestDocConfig.builder()
                         .setUniqueKey(USER_ID)
                         .setSort(TIMESTAMP)
@@ -160,7 +168,7 @@ public class LatestDocIT extends TransformIntegTestCase {
                 previewResponse.getMappings().get("properties"),
                 is(equalTo(sourceIndexMapping.mappings().get(SOURCE_INDEX_NAME).sourceAsMap().get("properties"))));
             // Verify preview contents
-            assertThat(previewResponse.getDocs(), hasSize(NUM_USERS));
+            assertThat(previewResponse.getDocs(), hasSize(NUM_USERS + 1));
             assertThat(previewResponse.getDocs(), containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
         }
     }

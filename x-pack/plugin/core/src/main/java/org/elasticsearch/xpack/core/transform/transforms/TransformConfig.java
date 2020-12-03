@@ -68,7 +68,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     private Instant createTime;
 
     private final PivotConfig pivotConfig;
-    private final LatestDocConfig latestDocConfig;
+    private final LatestDocConfig latestConfig;
 
     private static void validateStrictParsingParams(Object arg, String parameterName) {
         if (arg != null) {
@@ -99,18 +99,22 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             SyncConfig syncConfig = (SyncConfig) args[4];
             // ignored, only for internal storage: String docType = (String) args[5];
 
-            // on strict parsing do not allow injection of headers, transform version, or create time
             if (lenient == false) {
+                // on strict parsing do not allow injection of headers, transform version, or create time
                 validateStrictParsingParams(args[6], HEADERS.getPreferredName());
                 validateStrictParsingParams(args[11], TransformField.CREATE_TIME.getPreferredName());
                 validateStrictParsingParams(args[12], TransformField.VERSION.getPreferredName());
+                // exactly one function must be defined
+                if ((args[7] == null) == (args[8] == null)) {
+                    throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT);
+                }
             }
 
             @SuppressWarnings("unchecked")
             Map<String, String> headers = (Map<String, String>) args[6];
 
             PivotConfig pivotConfig = (PivotConfig) args[7];
-            LatestDocConfig latestDocConfig = (LatestDocConfig) args[8];
+            LatestDocConfig latestConfig = (LatestDocConfig) args[8];
             String description = (String) args[9];
             SettingsConfig settings = (SettingsConfig) args[10];
             return new TransformConfig(
@@ -121,7 +125,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 syncConfig,
                 headers,
                 pivotConfig,
-                latestDocConfig,
+                latestConfig,
                 description,
                 settings,
                 (Instant) args[11],
@@ -170,7 +174,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         final SyncConfig syncConfig,
         final Map<String, String> headers,
         final PivotConfig pivotConfig,
-        final LatestDocConfig latestDocConfig,
+        final LatestDocConfig latestConfig,
         final String description,
         final SettingsConfig settings,
         final Instant createTime,
@@ -183,14 +187,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         this.syncConfig = syncConfig;
         this.setHeaders(headers == null ? Collections.emptyMap() : headers);
         this.pivotConfig = pivotConfig;
-        this.latestDocConfig = latestDocConfig;
+        this.latestConfig = latestConfig;
         this.description = description;
         this.settings = settings == null ? new SettingsConfig() : settings;
-
-        // exactly one function must be defined
-        if ((this.pivotConfig == null) == (this.latestDocConfig == null)) {
-            throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT);
-        }
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
@@ -210,9 +209,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo 7.11.0
-            latestDocConfig = in.readOptionalWriteable(LatestDocConfig::new);
+            latestConfig = in.readOptionalWriteable(LatestDocConfig::new);
         } else {
-            latestDocConfig = null;
+            latestConfig = null;
         }
         description = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
@@ -283,8 +282,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         return pivotConfig;
     }
 
-    public LatestDocConfig getLatestDocConfig() {
-        return latestDocConfig;
+    public LatestDocConfig getLatestConfig() {
+        return latestConfig;
     }
 
     @Nullable
@@ -300,8 +299,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (pivotConfig != null) {
             validationException = pivotConfig.validate(validationException);
         }
-        if (latestDocConfig != null) {
-            validationException = latestDocConfig.validate(validationException);
+        if (latestConfig != null) {
+            validationException = latestConfig.validate(validationException);
         }
         validationException = settings.validate(validationException);
         return validationException;
@@ -309,6 +308,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public boolean isValid() {
         if (pivotConfig != null && pivotConfig.isValid() == false) {
+            return false;
+        }
+
+        if (latestConfig != null && latestConfig.validate(null) != null) {
             return false;
         }
 
@@ -330,7 +333,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo 7.11.0
-            out.writeOptionalWriteable(latestDocConfig);
+            out.writeOptionalWriteable(latestConfig);
         }
         out.writeOptionalString(description);
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
@@ -387,8 +390,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
         }
-        if (latestDocConfig != null) {
-            builder.field(LATEST_TRANSFORM.getPreferredName(), latestDocConfig);
+        if (latestConfig != null) {
+            builder.field(LATEST_TRANSFORM.getPreferredName(), latestConfig);
         }
         if (description != null) {
             builder.field(TransformField.DESCRIPTION.getPreferredName(), description);
@@ -417,7 +420,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             && Objects.equals(this.syncConfig, that.syncConfig)
             && Objects.equals(this.headers, that.headers)
             && Objects.equals(this.pivotConfig, that.pivotConfig)
-            && Objects.equals(this.latestDocConfig, that.latestDocConfig)
+            && Objects.equals(this.latestConfig, that.latestConfig)
             && Objects.equals(this.description, that.description)
             && Objects.equals(this.settings, that.settings)
             && Objects.equals(this.createTime, that.createTime)
@@ -434,7 +437,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             syncConfig,
             headers,
             pivotConfig,
-            latestDocConfig,
+            latestConfig,
             description,
             settings,
             createTime,
@@ -524,7 +527,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         private Version transformVersion;
         private Instant createTime;
         private PivotConfig pivotConfig;
-        private LatestDocConfig latestDocConfig;
+        private LatestDocConfig latestConfig;
         private SettingsConfig settings;
 
         public Builder() {}
@@ -539,7 +542,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             this.transformVersion = config.transformVersion;
             this.createTime = config.createTime;
             this.pivotConfig = config.pivotConfig;
-            this.latestDocConfig = config.latestDocConfig;
+            this.latestConfig = config.latestConfig;
             this.settings = config.settings;
         }
 
@@ -624,13 +627,13 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return pivotConfig;
         }
 
-        public Builder setLatestDocConfig(LatestDocConfig latestDocConfig) {
-            this.latestDocConfig = latestDocConfig;
+        public Builder setLatestConfig(LatestDocConfig latestConfig) {
+            this.latestConfig = latestConfig;
             return this;
         }
 
         public LatestDocConfig getLatestConfig() {
-            return latestDocConfig;
+            return latestConfig;
         }
 
         Builder setVersion(Version version) {
@@ -651,7 +654,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 syncConfig,
                 headers,
                 pivotConfig,
-                latestDocConfig,
+                latestConfig,
                 description,
                 settings,
                 createTime,
@@ -678,7 +681,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 && Objects.equals(this.syncConfig, that.syncConfig)
                 && Objects.equals(this.headers, that.headers)
                 && Objects.equals(this.pivotConfig, that.pivotConfig)
-                && Objects.equals(this.latestDocConfig, that.latestDocConfig)
+                && Objects.equals(this.latestConfig, that.latestConfig)
                 && Objects.equals(this.description, that.description)
                 && Objects.equals(this.settings, that.settings)
                 && Objects.equals(this.createTime, that.createTime)
@@ -695,7 +698,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 syncConfig,
                 headers,
                 pivotConfig,
-                latestDocConfig,
+                latestConfig,
                 description,
                 settings,
                 createTime,

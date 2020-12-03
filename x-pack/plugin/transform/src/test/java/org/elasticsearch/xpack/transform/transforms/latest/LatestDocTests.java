@@ -17,9 +17,9 @@ import static org.hamcrest.Matchers.is;
 public class LatestDocTests extends ESTestCase {
 
     public void testValidateConfig() {
-        LatestDocConfig latestDocConfig = LatestDocConfigTests.randomLatestDocConfig();
-        Function latestDoc = new LatestDoc(latestDocConfig);
-        latestDoc.validateConfig(
+        LatestDocConfig latestConfig = LatestDocConfigTests.randomLatestConfig();
+        Function latest = new LatestDoc(latestConfig);
+        latest.validateConfig(
             ActionListener.wrap(
                 isValid -> assertThat(isValid, is(true)),
                 e -> fail(e.getMessage())));

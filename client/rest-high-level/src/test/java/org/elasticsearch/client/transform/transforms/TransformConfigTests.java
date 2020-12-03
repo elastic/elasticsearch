@@ -45,13 +45,13 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
 
     public static TransformConfig randomTransformConfig() {
         PivotConfig pivotConfig;
-        LatestDocConfig latestDocConfig;
+        LatestDocConfig latestConfig;
         if (randomBoolean()) {
             pivotConfig = PivotConfigTests.randomPivotConfig();
-            latestDocConfig = null;
+            latestConfig = null;
         } else {
             pivotConfig = null;
-            latestDocConfig = LatestDocConfigTests.randomLatestDocConfig();
+            latestConfig = LatestDocConfigTests.randomLatestConfig();
         }
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
@@ -60,7 +60,7 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
             randomBoolean() ? null : randomSyncConfig(),
             pivotConfig,
-            latestDocConfig,
+            latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
             SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),

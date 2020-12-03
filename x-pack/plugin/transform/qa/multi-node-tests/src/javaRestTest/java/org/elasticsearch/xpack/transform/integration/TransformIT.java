@@ -51,6 +51,10 @@ public class TransformIT extends TransformIntegTestCase {
 
     private static final int NUM_USERS = 28;
 
+    private static final Integer getUserIdForRow(int row) {
+        return row % NUM_USERS;
+    }
+
     private static final String getDateStringForRow(int row) {
         int day = (11 + (row / 100)) % 28;
         int hour = 10 + (row % 13);
@@ -67,7 +71,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void testTransformCrud() throws Exception {
         String indexName = "basic-crud-reviews";
         String transformId = "transform-crud";
-        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getDateStringForRow);
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -103,7 +107,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void testContinuousTransformCrud() throws Exception {
         String indexName = "continuous-crud-reviews";
         String transformId = "transform-continuous-crud";
-        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getDateStringForRow);
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -151,7 +155,7 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testContinuousTransformUpdate() throws Exception {
         String indexName = "continuous-reviews-update";
-        createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getDateStringForRow);
+        createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
@@ -237,7 +241,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void testStopWaitForCheckpoint() throws Exception {
         String indexName = "wait-for-checkpoint-reviews";
         String transformId = "transform-wait-for-checkpoint";
-        createReviewsIndex(indexName, 1000, NUM_USERS, TransformIT::getDateStringForRow);
+        createReviewsIndex(indexName, 1000, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -303,7 +307,7 @@ public class TransformIT extends TransformIntegTestCase {
         String indexName = "continuous-crud-reviews-throttled";
         String transformId = "transform-continuous-crud-throttled";
 
-        createReviewsIndex(indexName, 1000, NUM_USERS, TransformIT::getDateStringForRow);
+        createReviewsIndex(indexName, 1000, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));

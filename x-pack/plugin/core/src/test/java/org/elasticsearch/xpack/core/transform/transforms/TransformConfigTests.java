@@ -72,9 +72,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomTransformConfig(id, PivotConfigTests.randomPivotConfig(Version.CURRENT), null);
     }
 
-    public static TransformConfig randomTransformConfig(String id,
-                                                        PivotConfig pivotConfig,
-                                                        LatestDocConfig latestDocConfig) {
+    public static TransformConfig randomTransformConfig(String id, PivotConfig pivotConfig, LatestDocConfig latestConfig) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -83,7 +81,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomSyncConfig(),
             randomHeaders(),
             pivotConfig,
-            latestDocConfig,
+            latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),
@@ -225,7 +223,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     randomSyncConfig(),
                     null,
                     PivotConfigTests.randomPivotConfig(),
-                    LatestDocConfigTests.randomLatestDocConfig(),
+                    LatestDocConfigTests.randomLatestConfig(),
                     null,
                     SettingsConfigTests.randomSettingsConfig(),
                     null,

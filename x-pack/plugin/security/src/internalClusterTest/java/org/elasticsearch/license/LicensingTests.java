@@ -22,6 +22,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.node.MockNode;
@@ -41,7 +42,6 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -112,9 +112,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(Netty4Plugin.class); // for http
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), Netty4Plugin.class); // for http
     }
 
     @Override

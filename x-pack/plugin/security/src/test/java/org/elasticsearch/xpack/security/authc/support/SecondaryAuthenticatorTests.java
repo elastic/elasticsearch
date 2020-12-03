@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
@@ -79,6 +80,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private SecurityContext securityContext;
     private TokenService tokenService;
     private Client client;
+    private OperatorPrivileges operatorPrivileges;
 
     @Before
     public void setupMocks() throws Exception {
@@ -124,7 +126,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
                                                               securityIndex, clusterService,
                                                               mock(CacheInvalidatorRegistry.class),threadPool);
         authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
-            tokenService, apiKeyService);
+            tokenService, apiKeyService, OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
     }
 

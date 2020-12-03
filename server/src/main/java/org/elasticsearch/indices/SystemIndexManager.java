@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -83,10 +84,21 @@ public class SystemIndexManager implements ClusterStateListener {
             return;
         }
 
-        if (isUpgradeInProgress.get() == false) {
-            getEligibleDescriptors(state.getMetadata()).stream()
+        if (isUpgradeInProgress.compareAndSet(false, true)) {
+            final List<SystemIndexDescriptor> descriptors = getEligibleDescriptors(state.getMetadata()).stream()
                 .filter(descriptor -> getUpgradeStatus(state, descriptor) == UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
-                .forEach(this::upgradeIndexMetadata);
+                .collect(Collectors.toList());
+
+            if (descriptors.isEmpty() == false) {
+                // Use a GroupedActionListener so that we only release the lock once all upgrade attempts have succeeded or failed.
+                // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
+                ActionListener<AcknowledgedResponse> listener = new GroupedActionListener<>(
+                    ActionListener.wrap(() -> isUpgradeInProgress.set(false)),
+                    descriptors.size()
+                );
+
+                descriptors.forEach(descriptor -> upgradeIndexMetadata(descriptor, listener));
+            }
         }
     }
 
@@ -157,12 +169,9 @@ public class SystemIndexManager implements ClusterStateListener {
     /**
      * Updates the mappings for a system index
      * @param descriptor information about the system index
+     * @param listener a listener to call upon success or failure
      */
-    private void upgradeIndexMetadata(SystemIndexDescriptor descriptor) {
-        if (isUpgradeInProgress.compareAndSet(false, true) == false) {
-            return;
-        }
-
+    private void upgradeIndexMetadata(SystemIndexDescriptor descriptor, ActionListener<AcknowledgedResponse> listener) {
         final String indexName = descriptor.getPrimaryIndex();
 
         PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);
@@ -171,17 +180,20 @@ public class SystemIndexManager implements ClusterStateListener {
 
         originSettingClient.admin().indices().putMapping(request, new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                isUpgradeInProgress.set(false);
-                if (acknowledgedResponse.isAcknowledged() == false) {
-                    logger.error("Put mapping request for [{}] was not acknowledged", indexName);
+            public void onResponse(AcknowledgedResponse response) {
+                if (response.isAcknowledged() == false) {
+                    String message = "Put mapping request for [" + indexName + "] was not acknowledged";
+                    logger.error(message);
+                    listener.onFailure(new ElasticsearchException(message));
+                } else {
+                    listener.onResponse(response);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                isUpgradeInProgress.set(false);
                 logger.error("Put mapping request for [" + indexName + "] failed", e);
+                listener.onFailure(e);
             }
         });
     }

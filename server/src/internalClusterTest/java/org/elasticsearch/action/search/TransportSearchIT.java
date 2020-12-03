@@ -370,7 +370,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         try {
             Settings settings = Settings.builder()
-                .put("indices.breaker.request.limit", "1b")
+                .put("breaker.request.limit", "1b")
                 .build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
             final Client client = client();
@@ -411,7 +411,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
             Settings settings = Settings.builder()
-                .putNull("indices.breaker.request.limit")
+                .putNull("breaker.request.limit")
                 .build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
         }

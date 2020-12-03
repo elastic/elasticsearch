@@ -37,6 +37,7 @@ import java.util.List;
 
 public class IRDecorations {
 
+    /** base class for all type decorations to provide consistent {@code #toString()} */
     public abstract static class IRDType extends IRDecoration<Class<?>> {
 
         public IRDType(Class<?> value) {
@@ -49,6 +50,7 @@ public class IRDecorations {
         }
     }
 
+    /** all expressions are decorated with a type based on the result */
     public static class IRDExpressionType extends IRDType {
 
         public IRDExpressionType(Class<?> value) {
@@ -56,6 +58,7 @@ public class IRDecorations {
         }
     }
 
+    /** binary type is used as an optimization for binary math */
     public static class IRDBinaryType extends IRDType {
 
         public IRDBinaryType(Class<?> value) {
@@ -63,6 +66,7 @@ public class IRDecorations {
         }
     }
 
+    /** shift type is used to define the right-hand side type of a shift operation */
     public static class IRDShiftType extends IRDType {
 
         public IRDShiftType(Class<?> value) {
@@ -70,6 +74,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes a math operation */
     public static class IRDOperation extends IRDecoration<Operation> {
 
         public IRDOperation(Operation value) {
@@ -82,6 +87,7 @@ public class IRDecorations {
         }
     }
 
+    /** general flags used to describe options on a node; options depend on node type*/
     public static class IRDFlags extends IRDecoration<Integer> {
 
         public IRDFlags(Integer value) {
@@ -89,6 +95,7 @@ public class IRDecorations {
         }
     }
 
+    /** condition attached to a statement node when all logical paths escape */
     public static class IRCAllEscape implements IRCondition {
 
         private IRCAllEscape() {
@@ -96,6 +103,7 @@ public class IRDecorations {
         }
     }
 
+    /** condition attached to describe a cast for a node */
     public static class IRDCast extends IRDecoration<PainlessCast> {
 
         public IRDCast(PainlessCast value) {
@@ -103,6 +111,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes what exception type is caught */
     public static class IRDExceptionType extends IRDType {
 
         public IRDExceptionType(Class<?> value) {
@@ -110,6 +119,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes a symbol for a node; what symbol represents depends on node type */
     public static class IRDSymbol extends IRDecoration<String> {
 
         public IRDSymbol(String value) {
@@ -117,6 +127,10 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * additional information for the type of comparison;
+     * comparison node's result is always boolean so this is required
+     */
     public static class IRDComparisonType extends IRDType {
 
         public IRDComparisonType(Class<?> value) {
@@ -124,6 +138,9 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * describes a constant for a node; what the constant is depends on the node
+     */
     public static class IRDConstant extends IRDecoration<Object> {
 
         public IRDConstant(Object value) {
@@ -131,6 +148,9 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * describes the type for a declaration
+     */
     public static class IRDDeclarationType extends IRDType {
 
         public IRDDeclarationType(Class<?> value) {
@@ -138,6 +158,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes a name for a specific piece of data in a node; the data depends on the node */
     public static class IRDName extends IRDecoration<String> {
 
         public IRDName(String value) {
@@ -145,6 +166,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes an encoding used to resolve references and lambdas at runtime */
     public static class IRDDefReferenceEncoding extends IRDecoration<String> {
 
         public IRDDefReferenceEncoding(String value) {
@@ -152,6 +174,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the size of a dup instruction */
     public static class IRDSize extends IRDecoration<Integer> {
 
         public IRDSize(Integer value) {
@@ -159,6 +182,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the depth of a dup instruction */
     public static class IRDDepth extends IRDecoration<Integer> {
 
         public IRDDepth(Integer value) {
@@ -166,6 +190,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes modifiers on a class, method, or field; depends on node type */
     public static class IRDModifiers extends IRDecoration<Integer> {
 
         public IRDModifiers(Integer value) {
@@ -173,6 +198,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the type for a member field on a class */
     public static class IRDFieldType extends IRDType {
 
         public IRDFieldType(Class<?> value) {
@@ -180,6 +206,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes a type for a variable access */
     public static class IRDVariableType extends IRDType {
 
         public IRDVariableType(Class<?> value) {
@@ -187,6 +214,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the name for a variable access */
     public static class IRDVariableName extends IRDecoration<String> {
 
         public IRDVariableName(String value) {
@@ -194,6 +222,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the array variable type in a foreach loop */
     public static class IRDArrayType extends IRDType {
 
         public IRDArrayType(Class<?> value) {
@@ -201,6 +230,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the array variable name in a foreach loop */
     public static class IRDArrayName extends IRDecoration<String> {
 
         public IRDArrayName(String value) {
@@ -208,6 +238,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the index variable type in a foreach loop */
     public static class IRDIndexType extends IRDType {
 
         public IRDIndexType(Class<?> value) {
@@ -215,6 +246,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the index variable name variable in a foreach loop */
     public static class IRDIndexName extends IRDecoration<String> {
 
         public IRDIndexName(String value) {
@@ -222,6 +254,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the array type in a foreach loop */
     public static class IRDIndexedType extends IRDType {
 
         public IRDIndexedType(Class<?> value) {
@@ -229,6 +262,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the iterable variable type in a foreach loop */
     public static class IRDIterableType extends IRDType {
 
         public IRDIterableType(Class<?> value) {
@@ -236,6 +270,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the iterable name type in a foreach loop */
     public static class IRDIterableName extends IRDecoration<String> {
 
         public IRDIterableName(String value) {
@@ -243,6 +278,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes a method for a node; which method depends on node type */
     public static class IRDMethod extends IRDecoration<PainlessMethod> {
 
         public IRDMethod(PainlessMethod value) {
@@ -255,6 +291,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the return type for a statement node */
     public static class IRDReturnType extends IRDType {
 
         public IRDReturnType(Class<?> value) {
@@ -262,6 +299,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the parameter types for a function node */
     public static class IRDTypeParameters extends IRDecoration<List<Class<?>>> {
 
         public IRDTypeParameters(List<Class<?>> value) {
@@ -269,6 +307,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the parameter names for a function node */
     public static class IRDParameterNames extends IRDecoration<List<String>> {
 
         public IRDParameterNames(List<String> value) {
@@ -276,6 +315,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes if a method or field is static */
     public static class IRCStatic implements IRCondition {
 
         private IRCStatic() {
@@ -283,6 +323,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes if a method has variadic arguments */
     public static class IRCVarArgs implements IRCondition {
 
         private IRCVarArgs() {
@@ -290,6 +331,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes if a method or field is synthetic */
     public static class IRCSynthetic implements IRCondition {
 
         private IRCSynthetic() {
@@ -297,6 +339,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the maximum number of loop iterations possible in a method */
     public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
 
         public IRDMaxLoopCounter(Integer value) {
@@ -304,6 +347,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the type for an instanceof instruction */
     public static class IRDInstanceType extends IRDType {
 
         public IRDInstanceType(Class<?> value) {
@@ -311,6 +355,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the call to a generated function */
     public static class IRDFunction extends IRDecoration<LocalFunction> {
 
         public IRDFunction(LocalFunction value) {
@@ -318,6 +363,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the call to a class binding */
     public static class IRDClassBinding extends IRDecoration<PainlessClassBinding> {
 
         public IRDClassBinding(PainlessClassBinding value) {
@@ -325,6 +371,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the call to an instance binding */
     public static class IRDInstanceBinding extends IRDecoration<PainlessInstanceBinding> {
 
         public IRDInstanceBinding(PainlessInstanceBinding value) {
@@ -332,6 +379,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes a constructor for a new instruction */
     public static class IRDConstructor extends IRDecoration<PainlessConstructor> {
 
         public IRDConstructor(PainlessConstructor value) {
@@ -339,6 +387,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes a value used as an index for shortcut field accesses */
     public static class IRDValue extends IRDecoration<String> {
 
         public IRDValue(String value) {
@@ -346,6 +395,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the field for a field access */
     public static class IRDField extends IRDecoration<PainlessField> {
 
         public IRDField(PainlessField value) {
@@ -353,6 +403,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes if a loop has no escape paths */
     public static class IRCContinuous implements IRCondition {
 
         private IRCContinuous() {
@@ -360,6 +411,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes if a new array is an initializer */
     public static class IRCInitialize implements IRCondition {
 
         private IRCInitialize() {
@@ -367,6 +419,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes if an expression's value is read from */
     public static class IRCRead implements IRCondition {
 
         private IRCRead() {
@@ -374,6 +427,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the names of all captured variables in a reference or lambda */
     public static class IRDCaptureNames extends IRDecoration<List<String>> {
 
         public IRDCaptureNames(List<String> value) {
@@ -381,6 +435,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the type of value stored in an assignment operation */
     public static class IRDStoreType extends IRDType {
 
         public IRDStoreType(Class<?> value) {
@@ -388,6 +443,7 @@ public class IRDecorations {
         }
     }
 
+    /** unary type is used as an optimization for unary math */
     public static class IRDUnaryType extends IRDType {
 
         public IRDUnaryType(Class<?> value) {
@@ -395,6 +451,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes a function reference resolved at compile-time */
     public static class IRDReference extends IRDecoration<FunctionRef> {
 
         public IRDReference(FunctionRef value) {
@@ -402,6 +459,7 @@ public class IRDecorations {
         }
     }
 
+    /** describes the limit of operations performed on a regex */
     public static class IRDRegexLimit extends IRDecoration<Integer> {
 
         public IRDRegexLimit(Integer value) {

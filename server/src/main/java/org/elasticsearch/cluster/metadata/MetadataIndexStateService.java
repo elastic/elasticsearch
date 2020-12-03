@@ -68,6 +68,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -769,6 +770,7 @@ public class MetadataIndexStateService {
                     routingTable.remove(index.getName());
                 } else {
                     metadata.put(updatedMetadata
+                        .timestampMillisRange(IndexLongFieldRange.NO_SHARDS)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder()
                             .put(indexMetadata.getSettings())
@@ -858,6 +860,7 @@ public class MetadataIndexStateService {
                     .state(IndexMetadata.State.OPEN)
                     .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                     .settings(updatedSettings)
+                    .timestampMillisRange(IndexLongFieldRange.NO_SHARDS)
                     .build();
 
                 // The index might be closed because we couldn't import it due to old incompatible version

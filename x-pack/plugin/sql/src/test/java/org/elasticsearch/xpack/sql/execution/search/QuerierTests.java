@@ -10,7 +10,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.execution.search.Querier.AggSortingQueue;

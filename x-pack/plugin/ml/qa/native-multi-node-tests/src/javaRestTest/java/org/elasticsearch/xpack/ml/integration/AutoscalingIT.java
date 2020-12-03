@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +46,6 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     // This test assumes that xpack.ml.max_machine_memory_percent is 30
     // and that xpack.ml.use_auto_machine_memory_percent is false
     public void testMLAutoscalingCapacity() {
-        assumeTrue("should only run if it is a snapshot build", Build.CURRENT.isSnapshot());
         SortedMap<String, Settings> deciders = new TreeMap<>();
         deciders.put(MlAutoscalingDeciderService.NAME,
             Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build());

@@ -153,7 +153,7 @@ cluster and remove nodes from the old one.
 
 . For each index that you need to migrate to the new cluster:
 
-.. Create an index the appropriate mappings and settings. Set the
+.. Create an index with the appropriate mappings and settings. Set the
   `refresh_interval` to `-1` and set `number_of_replicas` to `0` for
   faster reindexing.
 

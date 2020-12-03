@@ -30,7 +30,7 @@ public abstract class AbstractTokenizerFactory extends AbstractIndexComponent im
 
     public AbstractTokenizerFactory(IndexSettings indexSettings, Settings settings, String name) {
         super(indexSettings);
-        this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
+        this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);
         this.name = name;
     }
 

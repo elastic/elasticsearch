@@ -98,6 +98,8 @@ public class SystemIndexManager implements ClusterStateListener {
                 );
 
                 descriptors.forEach(descriptor -> upgradeIndexMetadata(descriptor, listener));
+            } else {
+                isUpgradeInProgress.set(false);
             }
         }
     }

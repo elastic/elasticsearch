@@ -226,11 +226,8 @@ public class Querier {
                 }
             }
 
-            try {
-                // 1. consume all pages received
-                consumeRowSet(page.rowSet());
-            } catch (SqlIllegalArgumentException siae) {
-                onFailure(siae);
+            // 1. consume all pages received
+            if (consumeRowSet(page.rowSet()) == false) {
                 return;
             }
 
@@ -248,17 +245,19 @@ public class Querier {
             sendResponse();
         }
 
-        private void consumeRowSet(RowSet rowSet) {
+        private boolean consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
             for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
                 List<Object> row = new ArrayList<>(rrs.columnCount());
                 rrs.forEachResultColumn(row::add);
                 // if the queue overflows and no limit was specified, throw an error
                 if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
-                    throw new SqlIllegalArgumentException(
-                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE);
+                    onFailure(new SqlIllegalArgumentException(
+                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
+                    return false;
                 }
             }
+            return true;
         }
 
         private void sendResponse() {

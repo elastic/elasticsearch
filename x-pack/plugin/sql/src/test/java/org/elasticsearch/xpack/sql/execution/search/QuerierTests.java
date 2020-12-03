@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests.randomHitExtractor;
 
 public class QuerierTests extends ESTestCase {
@@ -231,7 +232,7 @@ public class QuerierTests extends ESTestCase {
 
             @Override
             public Schema schema() {
-                return new Schema(Collections.<String>emptyList(), Collections.<DataType>emptyList());
+                return new Schema(emptyList(), emptyList());
             }
 
             @Override
@@ -259,8 +260,7 @@ public class QuerierTests extends ESTestCase {
 
         SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
         Querier querier = new Querier(session);
-        Querier.LocalAggregationSorterListener localSorter = querier.new LocalAggregationSorterListener(listener, Collections.emptyList(),
-            -1);
+        Querier.LocalAggregationSorterListener localSorter = querier.new LocalAggregationSorterListener(listener, emptyList(), -1);
         localSorter.onResponse(page);
 
         return new Tuple<>(responses.get(), failures.get());

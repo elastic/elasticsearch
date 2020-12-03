@@ -487,7 +487,7 @@ final class DocumentParser {
                                     String[] paths) throws IOException {
         assert currentFieldName != null;
 
-        Mapper objectMapper = getMapper(context, mapper, currentFieldName, paths);
+        Mapper objectMapper = getMapper(context, true, mapper, currentFieldName, paths);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
             parseObjectOrField(context, objectMapper);
@@ -524,7 +524,7 @@ final class DocumentParser {
                                    String[] paths) throws IOException {
         String arrayFieldName = lastFieldName;
 
-        Mapper mapper = getMapper(context, parentMapper, lastFieldName, paths);
+        Mapper mapper = getMapper(context, false, parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
@@ -600,7 +600,7 @@ final class DocumentParser {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with"
                 + " no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
-        Mapper mapper = getMapper(context, parentMapper, currentFieldName, paths);
+        Mapper mapper = getMapper(context, false, parentMapper, currentFieldName, paths);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
@@ -617,7 +617,7 @@ final class DocumentParser {
     private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName,
                                        String[] paths) throws IOException {
         // we can only handle null values if we have mappings for them
-        Mapper mapper = getMapper(context, parentMapper, lastFieldName, paths);
+        Mapper mapper = getMapper(context, false, parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
@@ -883,7 +883,7 @@ final class DocumentParser {
     }
 
     // looks up a child mapper, but takes into account field names that expand to objects
-    private static Mapper getMapper(final ParseContext context, ObjectMapper objectMapper, String fieldName, String[] subfields) {
+    private static Mapper getMapper(final ParseContext context, boolean isObject, ObjectMapper objectMapper, String fieldName, String[] subfields) {
         String fieldPath = context.path().pathAsText(fieldName);
         // Check if mapper is a metadata mapper first
         Mapper mapper = context.docMapper().mapping().getMetadataMapper(fieldPath);
@@ -905,7 +905,7 @@ final class DocumentParser {
         }
         String leafName = subfields[subfields.length - 1];
         mapper = objectMapper.getMapper(leafName);
-        if (mapper != null) {
+        if (mapper != null || isObject) {
             return mapper;
         }
         //concrete fields take the precedence over runtime fields when parsing documents, though when a field is defined as runtime field

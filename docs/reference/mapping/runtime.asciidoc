@@ -233,8 +233,7 @@ the original `_source`.
 The following request uses the search API to retrieve the `day_of_week` field
 that <<runtime-mapping-fields,this previous request>> defined as a runtime field
 in the mapping. The value for the `day_of_week` field is calculated dynamically
-at search time, and the following search request retrieves any documents where
-the calculated value is equal to `Thursday`.
+at search time based on the evaluation of the defined script.
 
 [source,console]
 ----
@@ -242,7 +241,7 @@ GET my-index/_search
 {
   "fields": [
     "@timestamp",
-    "day_of_week": "Thursday"
+    "day_of_week"
   ],
   "_source": false
 }

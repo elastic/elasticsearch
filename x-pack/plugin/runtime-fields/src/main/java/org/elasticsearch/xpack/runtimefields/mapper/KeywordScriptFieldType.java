@@ -44,6 +44,9 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
         @Override
         protected AbstractScriptFieldType<?> buildFieldType() {
+            if (script.get() == null) {
+                return new KeywordScriptFieldType(name, StringFieldScript.PARSE_FROM_SOURCE, this);
+            }
             StringFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), StringFieldScript.CONTEXT);
             return new KeywordScriptFieldType(name, factory, this);
         }

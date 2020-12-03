@@ -112,8 +112,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected TransportRequestOptions transportOptions(Settings settings) {
-        return BulkAction.INSTANCE.transportOptions(settings);
+    protected TransportRequestOptions transportOptions() {
+        return BulkAction.INSTANCE.transportOptions();
     }
 
     @Override

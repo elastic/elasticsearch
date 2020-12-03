@@ -600,8 +600,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Metadata metadata = mock(Metadata.class);
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
-        when(metadata.templates()).thenReturn(templateMetadataBuilder.build());
-        when(metadata.getTemplates()).thenReturn(templateMetadataBuilder.build());
+        final ImmutableOpenMap<String, IndexTemplateMetadata> templateMetadata = templateMetadataBuilder.build();
+        when(metadata.templates()).thenReturn(templateMetadata);
+        when(metadata.getTemplates()).thenReturn(templateMetadata);
         when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");

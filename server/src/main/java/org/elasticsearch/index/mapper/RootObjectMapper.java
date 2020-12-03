@@ -226,7 +226,7 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<Boolean> dateDetection;
     private Explicit<Boolean> numericDetection;
     private Explicit<DynamicTemplate[]> dynamicTemplates;
-    private final Map<String, RuntimeFieldType> runtimeFieldTypes;
+    private Map<String, RuntimeFieldType> runtimeFieldTypes;
 
     RootObjectMapper(String name, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      Map<String, RuntimeFieldType> runtimeFieldTypes,
@@ -241,15 +241,24 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
+    protected ObjectMapper clone() {
+        ObjectMapper clone = super.clone();
+        ((RootObjectMapper) clone).runtimeFieldTypes = new HashMap<>(this.runtimeFieldTypes);
+        return clone;
+    }
+
+    @Override
     public ObjectMapper mappingUpdate(Mapper mapper) {
         RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
         // for dynamic updates, no need to carry root-specific options, we just
-        // set everything to they implicit default value so that they are not
+        // set everything to their implicit default value so that they are not
         // applied at merge time
         update.dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
         update.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         update.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         update.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
+        //also no need to carry the already defined runtime fields, only new ones need to be added
+        update.runtimeFieldTypes.clear();
         return update;
     }
 
@@ -271,6 +280,10 @@ public class RootObjectMapper extends ObjectMapper {
 
     Collection<RuntimeFieldType> runtimeFieldTypes() {
         return runtimeFieldTypes.values();
+    }
+
+    RuntimeFieldType getRuntimeFieldType(String name) {
+        return runtimeFieldTypes.get(name);
     }
 
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
@@ -350,7 +363,7 @@ public class RootObjectMapper extends ObjectMapper {
                 this.dynamicTemplates = mergeWithObject.dynamicTemplates;
             }
         }
-
+        assert this.runtimeFieldTypes != mergeWithObject.runtimeFieldTypes;
         this.runtimeFieldTypes.putAll(mergeWithObject.runtimeFieldTypes);
     }
 

@@ -30,7 +30,7 @@ DELETE _component_template/template_1
 [[delete-component-template-api-request]]
 ==== {api-request-title}
 
-`DELETE /_template/<component-template>`
+`DELETE /_component_template/<component-template>`
 
 
 [[delete-component-template-api-desc]]

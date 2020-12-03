@@ -50,6 +50,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
@@ -174,7 +175,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final TransportRequest requestToSend;
         final StartRecoveryRequest startRequest;
         final RecoveryState.Timer timer;
-        CancellableThreads cancellableThreads;
         try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
             if (recoveryRef == null) {
                 logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
@@ -182,7 +182,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
             final RecoveryTarget recoveryTarget = recoveryRef.target();
             timer = recoveryTarget.state().getTimer();
-            cancellableThreads = recoveryTarget.cancellableThreads();
             if (preExistingRequest == null) {
                 try {
                     final IndexShard indexShard = recoveryTarget.indexShard();
@@ -211,22 +210,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 logger.trace("{} reestablishing recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             }
         }
-        RecoveryResponseHandler responseHandler = new RecoveryResponseHandler(startRequest, timer);
-
-        try {
-            cancellableThreads.executeIO(() ->
-                // we still execute under cancelableThreads here to ensure we interrupt any blocking call to the network if any
-                // on the underlying transport. It's unclear if we need this here at all after moving to async execution but
-                // the issues that a missing call to this could cause are sneaky and hard to debug. If we don't need it on this
-                // call we can potentially remove it altogether which we should do it in a major release only with enough
-                // time to test. This shoudl be done for 7.0 if possible
-                transportService.sendRequest(startRequest.sourceNode(), actionName, requestToSend, responseHandler)
-            );
-        } catch (CancellableThreads.ExecutionCancelledException e) {
-            logger.trace("recovery cancelled", e);
-        } catch (Exception e) {
-            responseHandler.onException(e);
-        }
+        transportService.sendRequest(startRequest.sourceNode(), actionName, requestToSend,
+                new RecoveryResponseHandler(startRequest, timer));
     }
 
     /**
@@ -287,7 +272,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public interface RecoveryListener {
-        void onRecoveryDone(RecoveryState state);
+        void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange);
 
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
@@ -327,10 +312,18 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel,
                                     Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
-                recoveryRef.target().handoffPrimaryContext(request.primaryContext());
+            final RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId());
+            boolean success = false;
+            try {
+                recoveryRef.target().handoffPrimaryContext(request.primaryContext(),
+                        ActionListener.runBefore(new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request)
+                                .map(v -> TransportResponse.Empty.INSTANCE), recoveryRef::close));
+                success = true;
+            } finally {
+                if (success == false) {
+                    recoveryRef.close();
+                }
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
     }
@@ -485,12 +478,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         return createOrFinishListener(recoveryRef, channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
     }
 
+    @Nullable
     private ActionListener<Void> createOrFinishListener(final RecoveryRef recoveryRef, final TransportChannel channel,
                                                         final String action, final RecoveryTransportRequest request,
                                                         final CheckedFunction<Void, TransportResponse, Exception> responseFn) {
         final RecoveryTarget recoveryTarget = recoveryRef.target();
-        final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, action, request);
-        final ActionListener<Void> voidListener = ActionListener.map(channelListener, responseFn);
+        final ActionListener<Void> voidListener = new ChannelActionListener<>(channel, action, request).map(responseFn);
 
         final long requestSeqNo = request.requestSeqNo();
         final ActionListener<Void> listener;
@@ -583,10 +576,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void handleException(TransportException e) {
-            onException(e);
-        }
-
-        private void onException(Exception e) {
             if (logger.isTraceEnabled()) {
                 logger.trace(() -> new ParameterizedMessage(
                     "[{}][{}] Got exception on recovery", request.shardId().getIndex().getName(),

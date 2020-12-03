@@ -34,11 +34,11 @@ public class CustomHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) {
         SearchHighlightContext.Field field = fieldContext.field;
-        CacheEntry cacheEntry = (CacheEntry) fieldContext.hitContext.cache().get("test-custom");
+        CacheEntry cacheEntry = (CacheEntry) fieldContext.cache.get("test-custom");
         final int docId = fieldContext.hitContext.readerContext().docBase + fieldContext.hitContext.docId();
         if (cacheEntry == null) {
             cacheEntry = new CacheEntry();
-            fieldContext.hitContext.cache().put("test-custom", cacheEntry);
+            fieldContext.cache.put("test-custom", cacheEntry);
             cacheEntry.docId = docId;
             cacheEntry.position = 1;
         } else {

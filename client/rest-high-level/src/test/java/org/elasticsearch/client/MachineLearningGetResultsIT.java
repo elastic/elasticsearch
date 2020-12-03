@@ -250,7 +250,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
 
             assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541587929"));
@@ -272,8 +272,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemorySource(),
-                equalTo(ModelSizeStats.AssignmentMemorySource.fromString("model_memory_limit")));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemoryBasis(),
+                equalTo(ModelSizeStats.AssignmentMemoryBasis.fromString("model_memory_limit")));
 
             assertThat(response.snapshots().get(2).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(2).getSnapshotId(), equalTo("1541588919"));
@@ -295,7 +295,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(2).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(2).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(2).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(2).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
 
             assertThat(response.snapshots().get(3).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(3).getSnapshotId(), equalTo("1541589919"));
@@ -317,7 +317,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(3).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(3).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(3).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(3).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
         }
         {
             GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
@@ -350,7 +350,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(3).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(3).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(3).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(3).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
 
             assertThat(response.snapshots().get(2).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(2).getSnapshotId(), equalTo("1541587929"));
@@ -372,8 +372,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(2).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(2).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(2).getModelSizeStats().getAssignmentMemorySource(),
-                equalTo(ModelSizeStats.AssignmentMemorySource.fromString("model_memory_limit")));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getAssignmentMemoryBasis(),
+                equalTo(ModelSizeStats.AssignmentMemoryBasis.fromString("model_memory_limit")));
 
             assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541588919"));
@@ -395,7 +395,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
 
             assertThat(response.snapshots().get(0).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(0).getSnapshotId(), equalTo("1541589919"));
@@ -417,7 +417,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
         }
         {
             GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
@@ -450,7 +450,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
         }
         {
             GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
@@ -484,7 +484,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
 
             assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541589919"));
@@ -506,7 +506,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
         }
         {
             GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
@@ -538,7 +538,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
         }
         {
             GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
@@ -582,7 +582,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
 
             assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541587929"));
@@ -604,8 +604,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemorySource(),
-                equalTo(ModelSizeStats.AssignmentMemorySource.fromString("model_memory_limit")));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getAssignmentMemoryBasis(),
+                equalTo(ModelSizeStats.AssignmentMemoryBasis.fromString("model_memory_limit")));
 
             assertThat(response.snapshots().get(2).getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(2).getSnapshotId(), equalTo("1541588919"));
@@ -627,7 +627,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(2).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(2).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(2).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(2).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
         }
         {
             GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
@@ -660,7 +660,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
                 equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemorySource(), nullValue());
+            assertThat(response.snapshots().get(0).getModelSizeStats().getAssignmentMemoryBasis(), nullValue());
         }
     }
 

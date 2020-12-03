@@ -108,7 +108,7 @@ tag::assignment-explanation-dfanalytics[]
 Contains messages relating to the selection of a node.
 end::assignment-explanation-dfanalytics[]
 
-tag::assignment-memory-source[]
+tag::assignment-memory-basis[]
 Where should the memory requirement used for deciding which node the job
 will run on come from? The possible values are:
 +
@@ -123,7 +123,7 @@ it will be in the future.
 the basis that its peak model memory size is a good reflection of what
 the model size will be in the future.
 --
-end::assignment-memory-source[]
+end::assignment-memory-basis[]
 
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the

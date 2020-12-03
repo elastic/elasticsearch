@@ -24,7 +24,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.util.Date;
 
-import static org.elasticsearch.client.ml.job.process.ModelSizeStats.AssignmentMemorySource;
+import static org.elasticsearch.client.ml.job.process.ModelSizeStats.AssignmentMemoryBasis;
 import static org.elasticsearch.client.ml.job.process.ModelSizeStats.CategorizationStatus;
 import static org.elasticsearch.client.ml.job.process.ModelSizeStats.MemoryStatus;
 
@@ -41,7 +41,7 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
         assertEquals(0, stats.getTotalPartitionFieldCount());
         assertEquals(0, stats.getBucketAllocationFailuresCount());
         assertEquals(MemoryStatus.OK, stats.getMemoryStatus());
-        assertNull(stats.getAssignmentMemorySource());
+        assertNull(stats.getAssignmentMemoryBasis());
         assertEquals(0, stats.getCategorizedDocCount());
         assertEquals(0, stats.getTotalCategoryCount());
         assertEquals(0, stats.getFrequentCategoryCount());
@@ -102,7 +102,7 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
         }
         if (randomBoolean()) {
-            stats.setAssignmentMemorySource(randomFrom(AssignmentMemorySource.values()));
+            stats.setAssignmentMemoryBasis(randomFrom(AssignmentMemoryBasis.values()));
         }
         if (randomBoolean()) {
             stats.setCategorizedDocCount(randomNonNegativeLong());

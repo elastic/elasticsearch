@@ -1227,8 +1227,8 @@ public class JobResultsProvider {
         assert latestModelSizeStats != null;
 
         // There might be an easy short-circuit if the latest model size stats say which number to use
-        if (latestModelSizeStats.getAssignmentMemorySource() != null) {
-            switch (latestModelSizeStats.getAssignmentMemorySource()) {
+        if (latestModelSizeStats.getAssignmentMemoryBasis() != null) {
+            switch (latestModelSizeStats.getAssignmentMemoryBasis()) {
                 case MODEL_MEMORY_LIMIT:
                     handler.accept(0L);
                     return;

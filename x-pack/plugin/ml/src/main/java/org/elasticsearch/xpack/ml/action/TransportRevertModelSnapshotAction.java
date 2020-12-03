@@ -85,8 +85,18 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                 PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 JobState jobState = MlTasks.getJobState(request.getJobId(), tasks);
 
-                if (jobState.equals(JobState.CLOSED) == false) {
-                    throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
+                if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
+                    listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
+                    return;
+                }
+
+                if (MlTasks.getSnapshotUpgraderTask(request.getJobId(), request.getSnapshotId(), tasks) != null) {
+                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                        "Cannot revert job [{}] to snapshot [{}] as it is being upgraded",
+                        request.getJobId(),
+                        request.getSnapshotId()
+                    ));
+                    return;
                 }
 
                 getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
@@ -117,13 +127,22 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                                   Consumer<Exception> errorHandler) {
         logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
 
+        if (ModelSnapshot.isTheEmptySnapshot(request.getSnapshotId())) {
+            handler.accept(ModelSnapshot.emptySnapshot(request.getJobId()));
+            return;
+        }
+
         provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
             if (modelSnapshot == null) {
-                throw new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(),
-                        request.getJobId()));
+                throw missingSnapshotException(request);
             }
             handler.accept(modelSnapshot.result);
         }, errorHandler);
+    }
+
+    private static ResourceNotFoundException missingSnapshotException(RevertModelSnapshotAction.Request request) {
+        return new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(),
+            request.getJobId()));
     }
 
     private ActionListener<RevertModelSnapshotAction.Response> wrapDeleteOldAnnotationsListener(
@@ -132,7 +151,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             String jobId) {
 
         return ActionListener.wrap(response -> {
-            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
+            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp() == null ? new Date(0) : modelSnapshot.getLatestResultTimeStamp();
             logger.info("[{}] Removing intervening annotations after reverting model: deleting annotations after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
@@ -166,7 +185,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // wrap the listener with one that invokes the OldDataRemover on
         // acknowledged responses
         return ActionListener.wrap(response -> {
-            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
+            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp() == null ? new Date(0) : modelSnapshot.getLatestResultTimeStamp();
             logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);

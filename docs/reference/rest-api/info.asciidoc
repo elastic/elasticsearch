@@ -67,6 +67,10 @@ Example response:
         "available" : true,
         "enabled" : true
       },
+     "aggregate_metric" : {
+          "available" : true,
+          "enabled" : true
+      },
       "analytics" : {
           "available" : true,
           "enabled" : true
@@ -98,6 +102,10 @@ Example response:
       "monitoring" : {
          "available" : true,
          "enabled" : true
+      },
+      "operator_privileges": {
+         "available": true,
+         "enabled": false
       },
       "rollup": {
          "available": true,

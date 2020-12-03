@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
       "description":"Creates or updates an index template."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url":{
       "paths":[
         {

@@ -410,6 +410,9 @@ POST _reindex
 --------------------------------------------------
 // TEST[s/^/PUT source\n/]
 
+[[reindex-with-an-ingest-pipeline]]
+===== Reindex with an ingest pipeline
+
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
 
@@ -440,6 +443,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 
@@ -954,6 +959,9 @@ This feature should work with remote clusters of any version of Elasticsearch
 you are likely to find. This should allow you to upgrade from any version of
 Elasticsearch to the current version by reindexing from a cluster of the old
 version.
+
+WARNING: {es} does not support forward compatibility across major versions. For
+example, you cannot reindex from a 7.x cluster into a 6.x cluster.
 
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.

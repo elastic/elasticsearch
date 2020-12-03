@@ -24,6 +24,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -42,12 +43,17 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class FiltersAggregatorTests extends AggregatorTestCase {
     private MappedFieldType fieldType;
@@ -200,7 +206,31 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testMergePointRangeQueries() throws IOException {
+    /**
+     * Test that we perform the appropriate unwrapping to merged queries.
+     */
+    public void testFilterMatchingBoth() throws IOException {
+        Query topLevelQuery = LongPoint.newRangeQuery(
+            "test",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01")
+        );
+        Query filterQuery = LongPoint.newRangeQuery(
+            "test",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01")
+        );
+        Query matchingBoth = FiltersAggregator.filterMatchingBoth(new IndexOrDocValuesQuery(topLevelQuery, mock(Query.class)), filterQuery);
+        /*
+         * The topLevelQuery is entirely contained within the filter query so
+         * it is good enough to match that. See MergedPointRangeQueryTests for
+         * tons more tests around this. Really in this test we're just excited
+         * to prove that we unwrapped the IndexOrDocValuesQuery above. 
+         */
+        assertThat(matchingBoth, equalTo(topLevelQuery));
+    }
+
+    public void testWithMergedPointRangeQueries() throws IOException {
         MappedFieldType ft = new DateFieldMapper.DateFieldType("test", Resolution.MILLISECONDS);
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
@@ -219,5 +249,35 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filters.getBuckets(), hasSize(1));
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
         }, ft);
+    }
+
+    public void testFilterByFilterCost() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test", Resolution.MILLISECONDS);
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from("2020-01-01").to("2020-03-01").includeUpper(false))
+        );
+        withAggregator(
+            builder,
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
+                iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
+            },
+            (searcher, agg) -> {
+                assertThat(agg, instanceOf(FiltersAggregator.FilterByFilter.class));
+                FiltersAggregator.FilterByFilter filterByFilter = (FiltersAggregator.FilterByFilter) agg;
+                int maxDoc = searcher.getIndexReader().maxDoc();
+                assertThat(filterByFilter.estimateCost(maxDoc), equalTo(1L));
+                assertThat(filterByFilter.scorersCached(), equalTo(true));
+                Map<String, Object> debug = new HashMap<>();
+                filterByFilter.collectDebugInfo(debug::put);
+                assertThat(debug, hasEntry("segments_with_deleted_docs", 0));
+                assertThat(debug, hasEntry("estimated_cost", 1L));
+                assertThat(debug, hasEntry("max_cost", (long) maxDoc));
+                assertThat(debug, hasEntry("estimate_cost_time", 0L));
+            },
+            ft
+        );
     }
 }

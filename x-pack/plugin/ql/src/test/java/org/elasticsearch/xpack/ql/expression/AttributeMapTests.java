@@ -90,15 +90,6 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(m.containsValue("on"), is(false));
         assertThat(m.attributeNames(), contains("one", "two", "three"));
         assertThat(m.values(), contains("one", "two", "three"));
-
-        // defensive copying
-        builder.put(a("four"), "four");
-        AttributeMap<String> m2 = builder.build();
-        assertThat(m.size(), is(3));
-        assertThat(m.isEmpty(), is(false));
-        assertThat(m2.size(), is(4));
-        assertThat(m.isEmpty(), is(false));
-        assertThat(m2.attributeNames(), contains("one", "two", "three", "four"));
     }
 
     public void testSingleItemConstructor() {

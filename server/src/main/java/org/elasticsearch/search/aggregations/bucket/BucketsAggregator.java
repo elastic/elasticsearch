@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -32,8 +31,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -50,22 +49,15 @@ import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
 public abstract class BucketsAggregator extends AggregatorBase {
-
-    private final BigArrays bigArrays;
     private final IntConsumer multiBucketConsumer;
     private LongArray docCounts;
     protected final DocCountProvider docCountProvider;
 
-    public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
+    public BucketsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
             CardinalityUpperBound bucketCardinality, Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, bucketCardinality, metadata);
-        bigArrays = context.bigArrays();
-        if (context.aggregations() != null) {
-            multiBucketConsumer = context.aggregations().multiBucketConsumer();
-        } else {
-            multiBucketConsumer = (count) -> {};
-        }
-        docCounts = bigArrays.newLongArray(1, true);
+        multiBucketConsumer = context.multiBucketConsumer();
+        docCounts = bigArrays().newLongArray(1, true);
         docCountProvider = new DocCountProvider();
     }
 
@@ -80,7 +72,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Ensure there are at least <code>maxBucketOrd</code> buckets available.
      */
     public final void grow(long maxBucketOrd) {
-        docCounts = bigArrays.grow(docCounts, maxBucketOrd);
+        docCounts = bigArrays().grow(docCounts, maxBucketOrd);
     }
 
     /**
@@ -95,7 +87,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        long docCount = docCountProvider.getDocCount(doc);
+        int docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We calculate the final number of buckets only during the reduce phase. But we still need to
             // trigger bucket consumer from time to time in order to give it a chance to check available memory and break
@@ -106,29 +98,14 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}  to merge the actual
-     * ordinals and doc ID deltas.
-     *
-     * Refer to that method for documentation about the merge map.
-     *
-     * @deprecated use {@link rewriteBuckets(long, LongUnaryOperator)}
-     */
-    @Deprecated
-    public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
-        rewriteBuckets(newNumBuckets, bucket -> mergeMap[Math.toIntExact(bucket)]);
-    }
-
-    /**
-     *
-     *  @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
+     * Merge doc counts. If the {@linkplain Aggregator} is delayed then you must also call
+     * {@link BestBucketsDeferringCollector#rewriteBuckets(LongUnaryOperator)} to merge the delayed buckets.
+     * @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
      *  If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
-     *
-     * This only tidies up doc counts. Call {@link BestBucketsDeferringCollector#rewriteBuckets(LongUnaryOperator)} to
-     * merge the actual ordinals and doc ID deltas.
      */
     public final void rewriteBuckets(long newNumBuckets, LongUnaryOperator mergeMap){
         try (LongArray oldDocCounts = docCounts) {
-            docCounts = bigArrays.newLongArray(newNumBuckets, true);
+            docCounts = bigArrays().newLongArray(newNumBuckets, true);
             docCounts.fill(0, newNumBuckets, 0);
             for (long i = 0; i < oldDocCounts.size(); i++) {
                 long docCount = oldDocCounts.get(i);
@@ -152,7 +129,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Utility method to increment the doc counts of the given bucket (identified by the bucket ordinal)
      */
     public final void incrementBucketDocCount(long bucketOrd, long inc) {
-        docCounts = bigArrays.grow(docCounts, bucketOrd + 1);
+        docCounts = bigArrays().grow(docCounts, bucketOrd + 1);
         docCounts.increment(bucketOrd, inc);
     }
 

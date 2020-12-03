@@ -8,18 +8,9 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            properties:
-              timestamp:
-                type: date
-              temperature:
-                type: long
-              voltage:
-                type: double
-              node:
-                type: keyword
+            runtime:
               voltage_percent:
-                type: runtime
-                runtime_type: double
+                type: double
                 script:
                   source: |
                     for (double v : doc['voltage']) {
@@ -29,8 +20,7 @@ setup:
                     max: 5.8
               # Test fetching from _source
               voltage_percent_from_source:
-                type: runtime
-                runtime_type: double
+                type: double
                 script:
                   source: |
                     emit(params._source.voltage / params.max);
@@ -38,8 +28,7 @@ setup:
                     max: 5.8
               # Test fetching many values
               voltage_sqrts:
-                type: runtime
-                runtime_type: double
+                type: double
                 script:
                   source: |
                     for (double voltage : doc['voltage']) {
@@ -49,6 +38,15 @@ setup:
                         v = Math.sqrt(v);
                       }
                     }
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
 
   - do:
       bulk:
@@ -73,15 +71,14 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.voltage_percent.type: runtime }
-  - match: {sensor.mappings.properties.voltage_percent.runtime_type: double }
+  - match: {sensor.mappings.runtime.voltage_percent.type: double }
   - match:
-      sensor.mappings.properties.voltage_percent.script.source: |
+      sensor.mappings.runtime.voltage_percent.script.source: |
         for (double v : doc['voltage']) {
           emit(v / params.max);
         }
-  - match: {sensor.mappings.properties.voltage_percent.script.params: {max: 5.8} }
-  - match: {sensor.mappings.properties.voltage_percent.script.lang: painless }
+  - match: {sensor.mappings.runtime.voltage_percent.script.params: {max: 5.8} }
+  - match: {sensor.mappings.runtime.voltage_percent.script.lang: painless }
 
 ---
 "fetch fields":

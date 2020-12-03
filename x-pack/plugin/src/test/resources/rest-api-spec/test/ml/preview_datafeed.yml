@@ -390,3 +390,82 @@ setup:
       ml.preview_datafeed:
         datafeed_id: empty-feed
   - length: { $body: 0 }
+
+
+---
+"Test preview aggregation with runtime fields":
+
+  - do:
+      ml.put_job:
+        job_id: runtime-field-aggregation-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "3600s",
+                "summary_count_field_name": "doc_count",
+                "detectors" :[{"function":"mean","field_name":"responsetime_x_2","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: aggregation-doc-count-feed
+        body:  >
+          {
+            "job_id":"runtime-field-aggregation-job",
+            "indexes":"airline-data",
+            "runtime_mappings" : {
+              "responsetime_x_2": {
+                "type": "double",
+                "script": "emit(doc['responsetime'].value * 2.0)"
+              }
+            },
+            "aggregations": {
+              "buckets": {
+                "histogram": {
+                  "field": "time",
+                  "interval": 3600000
+                },
+                "aggregations": {
+                  "time": {
+                    "max": {
+                      "field": "time"
+                    }
+                  },
+                  "airline": {
+                    "terms": {
+                      "field": "airline",
+                      "size": 100
+                    },
+                    "aggregations": {
+                      "responsetime_x_2": {
+                        "sum": {
+                           "field": "responsetime_x_2"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ml.preview_datafeed:
+        datafeed_id: aggregation-doc-count-feed
+  - length: { $body: 3 }
+  - match: { 0.time: 1487377800000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime_x_2: 4.0 }
+  - match: { 0.doc_count: 2 }
+  - match: { 1.time: 1487379660000 }
+  - match: { 1.airline: bar }
+  - match: { 1.responsetime_x_2: 84.0 }
+  - match: { 1.doc_count: 1 }
+  - match: { 1.time: 1487379660000 }
+  - match: { 2.airline: foo }
+  - match: { 2.responsetime_x_2: 84.0 }
+  - match: { 2.doc_count: 1 }

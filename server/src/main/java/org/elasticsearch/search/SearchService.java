@@ -935,13 +935,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
-            AggregationContext aggContext = new ProductionAggregationContext(
-                queryShardContext,
-                context.parsedQuery() == null ? null : context.parsedQuery().query()
-            );
+            AggregationContext aggContext = new ProductionAggregationContext(context, multiBucketConsumerService.create());
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
-                context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
+                context.aggregations(new SearchContextAggregations(factories));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
             }

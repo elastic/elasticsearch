@@ -49,7 +49,7 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
             clusterService.state().nodes(),
             searchTransportService,
             contextIds,
-            ActionListener.map(listener, freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed))
+            listener.map(freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed))
         );
     }
 }

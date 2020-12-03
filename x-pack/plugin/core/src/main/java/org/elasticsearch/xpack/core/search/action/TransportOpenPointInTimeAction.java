@@ -92,7 +92,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     new ActionListenerResponseHandler<SearchPhaseResult>(phaseListener, ShardOpenReaderResponse::new)
                 );
             },
-            ActionListener.map(listener, r -> {
+            listener.map(r -> {
                 assert r.pointInTimeId() != null : r;
                 return new OpenPointInTimeResponse(r.pointInTimeId());
             })
@@ -162,10 +162,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             searchService.openReaderContext(
                 request.getShardId(),
                 request.keepAlive,
-                ActionListener.map(
-                    new ChannelActionListener<>(channel, OPEN_SHARD_READER_CONTEXT_NAME, request),
-                    ShardOpenReaderResponse::new
-                )
+                new ChannelActionListener<>(channel, OPEN_SHARD_READER_CONTEXT_NAME, request).map(ShardOpenReaderResponse::new)
             );
         }
     }

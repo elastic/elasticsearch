@@ -10,31 +10,32 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-int pluginsCount = 0
+def pluginPaths = project(':plugins').getChildProjects().findAll { pluginName, pluginProject ->
+  // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+  def ignoreIngestAttachment = BuildParams.inFipsJvm && pluginName == "ingest-attachment"
+
+  // This plugin has to be configured to work via system properties
+  def ignoreQuotaWareFs = pluginName == 'quota-aware-fs'
+
+  return ignoreIngestAttachment == false && ignoreQuotaWareFs == false
+}.collect {pluginName, pluginProject -> pluginProject.path }
+
+ext.expansions = [
+        'expected.plugins.count': pluginPaths.size()
+]
+
+processTestResources {
+  inputs.properties(project.expansions)
+  MavenFilteringHack.filter(it, expansions)
+}
+
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_user", password: "x-pack-test-password"
-  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
-      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-      return
-    }
-    if (pluginName == 'quota-aware-fs') {
-      // This plugin has to be configured to work via system properties
-      return
-    }
-    plugin pluginProject.path
-    pluginsCount += 1
+
+  pluginPaths.each {pluginPath ->
+    plugin pluginPath
   }
-}
-
-ext.expansions = [
-  'expected.plugins.count': pluginsCount
-]
-
-processTestResources {
-  inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
 }

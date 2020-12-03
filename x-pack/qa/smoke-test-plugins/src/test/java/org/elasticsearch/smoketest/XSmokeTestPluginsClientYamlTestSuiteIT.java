@@ -8,7 +8,6 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,7 +16,6 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65541")
 public class XSmokeTestPluginsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";

@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- * An integration test case that allows mocking the disk usage per node. Notice that only files count towards disk usage and translog and
+ * An integration test case that allows mocking the disk usage per node. Notice that only Lucene files count towards disk usage and translog and
  * state files are disregarded.
  */
 public class DiskUsageIntegTestCase extends ESIntegTestCase {

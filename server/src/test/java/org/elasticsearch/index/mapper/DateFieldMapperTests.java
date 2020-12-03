@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.DocValueFormat;
@@ -36,6 +37,10 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends MapperTestCase {
@@ -332,5 +337,34 @@ public class DateFieldMapperTests extends MapperTestCase {
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
         assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
+    }
+
+    public void testResolutionRounding() {
+        final long millis = randomLong();
+        assertThat(DateFieldMapper.Resolution.MILLISECONDS.roundDownToMillis(millis), equalTo(millis));
+        assertThat(DateFieldMapper.Resolution.MILLISECONDS.roundUpToMillis(millis), equalTo(millis));
+
+        final long nanos = randomNonNegativeLong();
+        final long down = DateFieldMapper.Resolution.NANOSECONDS.roundDownToMillis(nanos);
+        assertThat(DateUtils.toNanoSeconds(down), lessThanOrEqualTo(nanos));
+        try {
+            assertThat(DateUtils.toNanoSeconds(down + 1), greaterThan(nanos));
+        } catch (IllegalArgumentException e) {
+            // ok, down+1 was out of range
+        }
+
+        final long up = DateFieldMapper.Resolution.NANOSECONDS.roundUpToMillis(nanos);
+        try {
+            assertThat(DateUtils.toNanoSeconds(up), greaterThanOrEqualTo(nanos));
+        } catch (IllegalArgumentException e) {
+            // ok, up may be out of range by 1; we check that up-1 is in range below (as long as it's >0)
+            assertThat(up, greaterThan(0L));
+        }
+
+        if (up > 0) {
+            assertThat(DateUtils.toNanoSeconds(up - 1), lessThan(nanos));
+        } else {
+            assertThat(up, equalTo(0L));
+        }
     }
 }

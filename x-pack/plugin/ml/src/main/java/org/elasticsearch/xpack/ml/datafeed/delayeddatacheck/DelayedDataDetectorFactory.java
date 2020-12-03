@@ -52,6 +52,7 @@ public class DelayedDataDetectorFactory {
                 datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getIndices().toArray(new String[0]),
                 datafeedConfig.getIndicesOptions(),
+                datafeedConfig.getRuntimeMappings(),
                 client);
         } else {
             return new NullDelayedDataDetector();

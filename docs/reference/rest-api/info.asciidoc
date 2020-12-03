@@ -103,6 +103,10 @@ Example response:
          "available" : true,
          "enabled" : true
       },
+      "operator_privileges": {
+         "available": true,
+         "enabled": false
+      },
       "rollup": {
          "available": true,
          "enabled": true

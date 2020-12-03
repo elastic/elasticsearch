@@ -262,6 +262,10 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
+  "operator_privileges": {
+    "available": true,
+    "enabled": false
+  },
   "searchable_snapshots" : {
     "available" : true,
     "enabled" : true,

@@ -41,7 +41,7 @@ tasks.register("setupPorts") {
 
 integTest.dependsOn "setupPorts"
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

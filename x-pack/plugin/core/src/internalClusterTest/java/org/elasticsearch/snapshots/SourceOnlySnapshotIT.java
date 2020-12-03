@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
@@ -59,9 +60,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> classes = new ArrayList<>(super.nodePlugins());
-        classes.add(MyPlugin.class);
-        return classes;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MyPlugin.class);
     }
 
     @Override

@@ -112,6 +112,9 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
             return Objects.hash(results);
         }
 
+        public Map<String, AutoscalingDeciderResults> getResults() {
+            return results;
+        }
     }
 
 }

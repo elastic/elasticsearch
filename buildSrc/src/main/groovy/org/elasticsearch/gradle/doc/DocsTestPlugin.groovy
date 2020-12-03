@@ -39,8 +39,8 @@ class DocsTestPlugin implements Plugin<Project> {
 
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
-        project.testClusters.integTest.testDistribution = distribution.toUpperCase()
-        project.testClusters.integTest.nameCustomization = { it.replace("integTest", "node") }
+        project.testClusters.matching { it.name.equals("integTest") }.configureEach { testDistribution = distribution.toUpperCase() }
+        project.testClusters.matching { it.name.equals("integTest") }.configureEach { nameCustomization = { it.replace("integTest", "node") } }
         // Docs are published separately so no need to assemble
         project.tasks.named("assemble").configure {enabled = false }
         Map<String, String> commonDefaultSubstitutions = [

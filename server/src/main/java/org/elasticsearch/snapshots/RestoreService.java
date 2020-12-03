@@ -232,54 +232,47 @@ public class RestoreService implements ClusterStateApplier {
                 // Make sure that we can restore from this snapshot
                 validateSnapshotRestorable(repositoryName, snapshotInfo);
 
+                // Get the global state if necessary
                 Metadata globalMetadata = null;
-                // Resolve the indices from the snapshot that need to be restored
-                Map<String, DataStream> dataStreams;
-                List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
-
-                List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(String[]::new),
-                    IndicesOptions.fromOptions(true, true, true, true));
-                if (requestedDataStreams.isEmpty()) {
-                    dataStreams = new HashMap<>();
-                } else {
-                    globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
-                    final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
-                    dataStreams = new HashMap<>(requestedDataStreams.size());
-                    for (String requestedDataStream : requestedDataStreams) {
-                        final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
-                        assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
-                        dataStreams.put(requestedDataStream, dataStreamInSnapshot);
-                    }
-                }
-                requestIndices.removeAll(dataStreams.keySet());
-                Set<String> dataStreamIndices = dataStreams.values().stream()
-                    .flatMap(ds -> ds.getIndices().stream())
-                    .map(Index::getName)
-                    .collect(Collectors.toSet());
-                requestIndices.addAll(dataStreamIndices);
-
-                final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), requestIndices.toArray(String[]::new),
-                    request.indicesOptions());
-
                 final Metadata.Builder metadataBuilder;
                 if (request.includeGlobalState()) {
-                    if (globalMetadata == null) {
-                        globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
-                    }
+                    globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
                     metadataBuilder = Metadata.builder(globalMetadata);
                 } else {
                     metadataBuilder = Metadata.builder();
                 }
 
-                final Map<String, List<String>> featureStatesToRestore = getFeatureStatesToRestore(request, snapshotInfo, snapshot);
+                List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
 
+                // Get data stream metadata for requested data streams
+                Map<String, DataStream> dataStreamsToRestore = getDataStreamsToRestore(repository, snapshotId, snapshotInfo, globalMetadata,
+                    requestIndices);
+
+                // Remove the data streams from the list of requested indices
+                requestIndices.removeAll(dataStreamsToRestore.keySet());
+
+                // And add the backing indices
+                Set<String> dataStreamIndices = dataStreamsToRestore.values().stream()
+                    .flatMap(ds -> ds.getIndices().stream())
+                    .map(Index::getName)
+                    .collect(Collectors.toSet());
+                requestIndices.addAll(dataStreamIndices);
+
+                // Determine system indices to restore from requested feature states
+                final Map<String, List<String>> featureStatesToRestore = getFeatureStatesToRestore(request, snapshotInfo, snapshot);
                 final Set<String> featureStateIndices = featureStatesToRestore.values().stream()
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
 
-                final List<String> requestedIndicesIncludingSystem = Stream.concat(indicesInSnapshot.stream(), featureStateIndices.stream())
-                    .distinct()
-                    .collect(Collectors.toList());
+                // Resolve the indices that were directly requested
+                final List<String> requestedIndicesInSnapshot = filterIndices(snapshotInfo.indices(), requestIndices.toArray(String[]::new),
+                    request.indicesOptions());
+
+                // Combine into the final list of indices to be restored
+                final List<String> requestedIndicesIncludingSystem = Stream.concat(
+                    requestedIndicesInSnapshot.stream(),
+                    featureStateIndices.stream()
+                ).distinct().collect(Collectors.toList());
 
                 final Set<Index> systemIndicesToDelete = new HashSet<>();
                 final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(requestedIndicesIncludingSystem);
@@ -457,7 +450,7 @@ public class RestoreService implements ClusterStateApplier {
                         checkAliasNameConflicts(indices, aliases);
 
                         Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().dataStreams());
-                        updatedDataStreams.putAll(dataStreams.values().stream()
+                        updatedDataStreams.putAll(dataStreamsToRestore.values().stream()
                             .map(ds -> updateDataStream(ds, mdBuilder, request))
                             .collect(Collectors.toMap(DataStream::getName, Function.identity())));
                         mdBuilder.dataStreams(updatedDataStreams);
@@ -635,6 +628,28 @@ public class RestoreService implements ClusterStateApplier {
                 request.repository() + ":" + request.snapshot()), e);
             listener.onFailure(e);
         }
+    }
+
+    private Map<String, DataStream> getDataStreamsToRestore(Repository repository, SnapshotId snapshotId, SnapshotInfo snapshotInfo,
+                                                           Metadata globalMetadata, List<String> requestIndices) {
+        Map<String, DataStream> dataStreams;
+        List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(String[]::new),
+            IndicesOptions.fromOptions(true, true, true, true));
+        if (requestedDataStreams.isEmpty()) {
+            dataStreams = new HashMap<>();
+        } else {
+            if (globalMetadata == null) {
+                globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+            }
+            final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
+            dataStreams = new HashMap<>(requestedDataStreams.size());
+            for (String requestedDataStream : requestedDataStreams) {
+                final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
+                assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
+                dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+            }
+        }
+        return dataStreams;
     }
 
     private Map<String, List<String>> getFeatureStatesToRestore(RestoreSnapshotRequest request, SnapshotInfo snapshotInfo,

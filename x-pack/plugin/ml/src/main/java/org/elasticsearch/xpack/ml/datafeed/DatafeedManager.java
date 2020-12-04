@@ -113,7 +113,7 @@ public class DatafeedManager {
             finishHandler
         );
 
-        datafeedContextProvider.buildDatafeedContext(task.getDatafeedId(), task.getDatafeedStartTime(), datafeedContextListener);
+        datafeedContextProvider.buildDatafeedContext(task.getDatafeedId(), datafeedContextListener);
     }
 
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {

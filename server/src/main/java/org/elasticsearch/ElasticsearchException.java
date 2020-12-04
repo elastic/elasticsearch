@@ -419,81 +419,44 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         List<ElasticsearchException> suppressed = new ArrayList<>();
 
         for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
-            String currentFieldName = parser.currentName();
-            token = parser.nextToken();
+            parser.nextToken();
 
-            if (token.isValue()) {
-                if (TYPE.equals(currentFieldName)) {
-                    type = parser.text();
-                } else if (REASON.equals(currentFieldName)) {
-                    reason = parser.text();
-                } else if (STACK_TRACE.equals(currentFieldName)) {
-                    stack = parser.text();
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    metadata.put(currentFieldName, Collections.singletonList(parser.text()));
+            if(isType(parser)){
+                type = getTypeFromXContent(parser);
+            } else if (isReason(parser)){
+                reason = getReasonFromXContent(parser);
+            } else if (isStack(parser)) {
+                stack = getStackFromXContent(parser);
+            } else if(hasMetadata(parser)){
+                getMetadataFromXContent(parser,metadata,parseRootCauses);
+            } else if(hasCause(parser)){
+                cause = getCauseFromXContent(parser);
+            } else if(isStartObjectToken(parser)){
+                getHeadersFromXContent(parser, headers);
+            } else if(isStartArray(parser)){
+                if(parseRootCauses && isRootCause(parser)){
+                    getRootCausesFromXContent(parser, rootCauses, parseRootCauses);
+                } else if(isSupressed(parser)){
+                    getSuppressedFromXContent(parser, suppressed);
                 }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (CAUSED_BY.equals(currentFieldName)) {
-                    cause = fromXContent(parser);
-                } else if (HEADER.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else {
-                            List<String> values = headers.getOrDefault(currentFieldName, new ArrayList<>());
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                values.add(parser.text());
-                            } else if (token == XContentParser.Token.START_ARRAY) {
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                    if (token == XContentParser.Token.VALUE_STRING) {
-                                        values.add(parser.text());
-                                    } else {
-                                        parser.skipChildren();
-                                    }
-                                }
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                parser.skipChildren();
-                            }
-                            headers.put(currentFieldName, values);
-                        }
-                    }
-                } else {
-                    // Any additional metadata object added by the metadataToXContent method is ignored
-                    // and skipped, so that the parser does not fail on unknown fields. The parser only
-                    // support metadata key-pairs and metadata arrays of values.
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseRootCauses && ROOT_CAUSE.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rootCauses.add(fromXContent(parser));
-                    }
-                } else if (SUPPRESSED.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        suppressed.add(fromXContent(parser));
-                    }
-                } else {
+                else {
                     // Parse the array and add each item to the corresponding list of metadata.
                     // Arrays of objects are not supported yet and just ignored and skipped.
-                    List<String> values = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            values.add(parser.text());
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                    if (values.size() > 0) {
-                        if (metadata.containsKey(currentFieldName)) {
-                            values.addAll(metadata.get(currentFieldName));
-                        }
-                        metadata.put(currentFieldName, values);
-                    }
+                    addMetadataFromArray(parser, metadata);
                 }
             }
         }
 
         ElasticsearchException e = new ElasticsearchException(buildMessage(type, reason, stack), cause);
+
+        addMetadata(e,metadata);
+        addHeader(e,headers);
+        addSuppressed(e, rootCauses, suppressed);
+        return e;
+    }
+
+    private static void addMetadata(ElasticsearchException e, Map<String, List<String>> metadata){
+
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
             //parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
@@ -503,10 +466,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             //TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
             e.addMetadata("es." + entry.getKey(), entry.getValue());
         }
+    }
+
+    private static void addHeader(ElasticsearchException e, Map<String, List<String>> headers){
+
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             e.addHeader(header.getKey(), header.getValue());
         }
+    }
 
+    private static void addSuppressed(ElasticsearchException e, List<ElasticsearchException> rootCauses, List<ElasticsearchException> suppressed){
         // Adds root causes as suppressed exception. This way they are not lost
         // after parsing and can be retrieved using getSuppressed() method.
         for (ElasticsearchException rootCause : rootCauses) {
@@ -515,7 +484,160 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         for (ElasticsearchException s : suppressed) {
             e.addSuppressed(s);
         }
-        return e;
+    }
+
+    private static String getTypeFromXContent(XContentParser parser) throws IOException {
+        if (isType(parser)) {
+            return parser.text();
+        }
+        return null;
+    }
+
+    private static boolean isType(XContentParser parser) throws IOException {
+        return  parser.currentToken().isValue() && TYPE.equals(parser.currentName());
+    }
+
+    private static String getReasonFromXContent(XContentParser parser) throws IOException {
+        if (isReason(parser)) {
+            return parser.text();
+        }
+        return null;
+    }
+
+    private static boolean isReason(XContentParser parser) throws IOException{
+        return parser.currentToken().isValue() && REASON.equals(parser.currentName());
+    }
+
+    private static String getStackFromXContent(XContentParser parser) throws IOException {
+        if (isStack(parser)) {
+            return parser.text();
+        }
+        return null;
+    }
+
+    private static boolean isStack(XContentParser parser) throws IOException {
+        return parser.currentToken().isValue() && STACK_TRACE.equals(parser.currentName());
+    }
+
+    private static void getMetadataFromXContent(XContentParser parser, Map<String, List<String>> metadata, boolean parseRootCauses) throws IOException {
+        if (isValueString(parser)) {
+            metadata.put(parser.currentName(), Collections.singletonList(parser.text()));
+        } else if (isStartArray(parser) && !(parseRootCauses && isRootCause(parser) || isSupressed(parser))) {
+            addMetadataFromArray(parser, metadata);
+        }
+    }
+
+    private static boolean isValueString(XContentParser parser){
+        return parser.currentToken().isValue() && parser.currentToken() == XContentParser.Token.VALUE_STRING;
+    }
+
+    private static boolean isStartArray(XContentParser parser){
+        return parser.currentToken() == XContentParser.Token.START_ARRAY;
+    }
+
+    private static boolean isRootCause(XContentParser parser) throws IOException {
+        return ROOT_CAUSE.equals(parser.currentName());
+    }
+
+    private static boolean isSupressed(XContentParser parser) throws IOException {
+        return SUPPRESSED.match(parser.currentName(), parser.getDeprecationHandler());
+    }
+
+    private static boolean hasMetadata(XContentParser parser) throws IOException {
+        return isValueString(parser) || (isStartArray(parser) && !(isRootCause(parser) || isSupressed(parser)));
+    }
+
+    /**
+     * Parse the array and add each item to the corresponding list of metadata.
+     * Arrays of objects are not supported yet and just ignored and skipped.
+     */
+    private static void addMetadataFromArray(XContentParser parser, Map<String, List<String>> metadata) throws IOException {
+        List<String> values = new ArrayList<>();
+
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            if (isValueString(parser)) {
+                values.add(parser.text());
+            } else {
+                parser.skipChildren();
+            }
+        }
+        if (values.size() > 0) {
+            if (metadata.containsKey(parser.currentName())) {
+                values.addAll(metadata.get(parser.currentName()));
+            }
+            metadata.put(parser.currentName(), values);
+        }
+    }
+
+    private static ElasticsearchException getCauseFromXContent(XContentParser parser) throws IOException {
+        if (hasCause(parser)) {
+            return fromXContent(parser);
+        }
+        return null;
+    }
+
+    private static boolean hasCause(XContentParser parser) throws IOException {
+        return parser.currentToken() == XContentParser.Token.START_OBJECT && CAUSED_BY.equals(parser.currentName());
+    }
+
+    private static void getHeadersFromXContent(XContentParser parser, Map<String, List<String>> headers) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (isStartObjectToken(parser)) {
+            if (hasHeader(parser)) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else {
+                        List<String> values = headers.getOrDefault(currentFieldName, new ArrayList<>());
+                        if (isValueString(parser)) {
+                            values.add(parser.text());
+                        } else if (isStartArray(parser)) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                if (isValueString(parser)) {
+                                    values.add(parser.text());
+                                } else {
+                                    parser.skipChildren();
+                                }
+                            }
+                        } else if (isStartObjectToken(parser)) {
+                            parser.skipChildren();
+                        }
+                        headers.put(currentFieldName, values);
+                    }
+                }
+            } else {
+                // Any additional metadata object added by the metadataToXContent method is ignored
+                // and skipped, so that the parser does not fail on unknown fields. The parser only
+                // support metadata key-pairs and metadata arrays of values.
+                parser.skipChildren();
+            }
+        }
+    }
+
+    private static boolean isStartObjectToken(XContentParser parser){
+        return parser.currentToken() == XContentParser.Token.START_OBJECT;
+    }
+
+    private static boolean hasHeader(XContentParser parser) throws IOException {
+        return HEADER.equals(parser.currentName());
+    }
+
+    private static void getRootCausesFromXContent(XContentParser parser, List<ElasticsearchException> rootCauses, boolean parseRootCauses) throws IOException {
+        if (isStartArray(parser) && parseRootCauses && isRootCause(parser)) {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                rootCauses.add(fromXContent(parser));
+            }
+        }
+    }
+
+    private static void getSuppressedFromXContent(XContentParser parser, List<ElasticsearchException> suppressed) throws IOException {
+        if (isSupressed(parser)) {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                suppressed.add(fromXContent(parser));
+            }
+        }
     }
 
     /**

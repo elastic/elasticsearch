@@ -82,7 +82,7 @@ public class PersistentCache implements Closeable {
     private final AtomicBoolean closed;
 
     public PersistentCache(NodeEnvironment nodeEnvironment) {
-        this.documents = synchronizedMap(loadExistingDocuments(nodeEnvironment));
+        this.documents = synchronizedMap(loadDocuments(nodeEnvironment));
         this.writers = createWriters(nodeEnvironment);
         this.nodeEnvironment = nodeEnvironment;
         this.closed = new AtomicBoolean();
@@ -299,34 +299,46 @@ public class PersistentCache implements Closeable {
      * @param nodeEnvironment the data node environment
      * @return a map of {cache file uuid, Lucene document}
      */
-    static Map<String, Document> loadExistingDocuments(NodeEnvironment nodeEnvironment) {
+    static Map<String, Document> loadDocuments(NodeEnvironment nodeEnvironment) {
         final Map<String, Document> documents = new HashMap<>();
         try {
             for (NodeEnvironment.NodePath nodePath : nodeEnvironment.nodePaths()) {
                 final Path directoryPath = resolveCacheIndexFolder(nodePath);
                 if (Files.exists(directoryPath)) {
-                    try (Directory directory = FSDirectory.open(directoryPath)) {
-                        try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                            logger.trace("loading documents from persistent cache index [{}]", directoryPath);
-                            for (LeafReaderContext leafReaderContext : indexReader.leaves()) {
-                                final LeafReader leafReader = leafReaderContext.reader();
-                                final Bits liveDocs = leafReader.getLiveDocs();
-                                for (int i = 0; i < leafReader.maxDoc(); i++) {
-                                    if (liveDocs == null || liveDocs.get(i)) {
-                                        final Document document = leafReader.document(i);
-                                        logger.trace("loading document [{}]", document);
-                                        documents.put(getValue(document, CACHE_ID_FIELD), document);
-                                    }
-                                }
-                            }
-                        } catch (IndexNotFoundException e) {
-                            logger.debug("persistent cache index does not exist yet", e);
-                        }
-                    }
+                    documents.putAll(loadDocuments(directoryPath));
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to load existing documents from persistent cache index", e);
+        }
+        return documents;
+    }
+
+    /**
+     * Load existing documents from a persistent cache Lucene directory.
+     *
+     * @param directoryPath the Lucene directory path
+     * @return a map of {cache file uuid, Lucene document}
+     */
+    static Map<String, Document> loadDocuments(Path directoryPath) throws IOException {
+        final Map<String, Document> documents = new HashMap<>();
+        try (Directory directory = FSDirectory.open(directoryPath)) {
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                logger.trace("loading documents from persistent cache index [{}]", directoryPath);
+                for (LeafReaderContext leafReaderContext : indexReader.leaves()) {
+                    final LeafReader leafReader = leafReaderContext.reader();
+                    final Bits liveDocs = leafReader.getLiveDocs();
+                    for (int i = 0; i < leafReader.maxDoc(); i++) {
+                        if (liveDocs == null || liveDocs.get(i)) {
+                            final Document document = leafReader.document(i);
+                            logger.trace("loading document [{}]", document);
+                            documents.put(getValue(document, CACHE_ID_FIELD), document);
+                        }
+                    }
+                }
+            } catch (IndexNotFoundException e) {
+                logger.debug("persistent cache index does not exist yet", e);
+            }
         }
         return documents;
     }
@@ -589,7 +601,11 @@ public class PersistentCache implements Closeable {
     }
 
     static Path resolveCacheIndexFolder(NodeEnvironment.NodePath nodePath) {
-        return CacheService.resolveSnapshotCache(nodePath.path);
+        return resolveCacheIndexFolder(nodePath.path);
+    }
+
+    static Path resolveCacheIndexFolder(Path dataPath) {
+        return CacheService.resolveSnapshotCache(dataPath);
     }
 
     /**

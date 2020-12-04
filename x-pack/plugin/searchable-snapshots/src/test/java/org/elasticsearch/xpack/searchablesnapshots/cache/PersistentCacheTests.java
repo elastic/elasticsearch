@@ -59,7 +59,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             assertThat(Files.exists(snapshotCacheIndexDir), equalTo(iter > 0));
 
             // load existing documents from persistent cache index before each iteration
-            final Map<String, Document> documents = PersistentCache.loadExistingDocuments(nodeEnvironment);
+            final Map<String, Document> documents = PersistentCache.loadDocuments(nodeEnvironment);
             assertThat(documents.size(), equalTo(liveDocs.size()));
 
             try (PersistentCache.CacheIndexWriter writer = createCacheIndexWriter(nodePath)) {

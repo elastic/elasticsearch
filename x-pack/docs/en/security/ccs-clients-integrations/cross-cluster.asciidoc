@@ -132,7 +132,7 @@ Finally, create a user on cluster `one` and apply the `cluster_two_logs` role:
 -----------------------------------------------------------
 POST /_security/user/alice
 {
-  "password" : "somepassword",
+  "password" : "somepasswordhere",
   "roles" : [ "cluster_two_logs" ],
   "full_name" : "Alice",
   "email" : "alice@example.com",

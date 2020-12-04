@@ -705,7 +705,7 @@ setups['jacknich_user'] = '''
         username: "jacknich"
         body:  >
           {
-            "password" : "test-user-password",
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
             "roles" : [ "admin", "other_role1" ],
             "full_name" : "Jack Nicholson",
             "email" : "jacknich@example.com",

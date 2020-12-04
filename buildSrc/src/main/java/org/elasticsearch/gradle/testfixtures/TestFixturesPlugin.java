@@ -145,7 +145,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
 
         // Skip docker compose tasks if it is unavailable
-        maybeSkipTasks(tasks, dockerSupport, Test.class);
+        //maybeSkipTasks(tasks, dockerSupport, Test.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
         maybeSkipTasks(tasks, dockerSupport, TestingConventionsTasks.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.test.AntFixture"));

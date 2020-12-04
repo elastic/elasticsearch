@@ -26,6 +26,7 @@ import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InnerClassNode;
@@ -35,6 +36,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
@@ -47,7 +50,6 @@ public class JavaClassPublicifier extends DefaultTask {
     private List<String> classFiles;
     private DirectoryProperty inputDir;
     private DirectoryProperty outputDir;
-    private boolean markInnerClassesAsPublic;
 
     public JavaClassPublicifier() {
         this.inputDir = getProject().getObjects().directoryProperty();
@@ -63,15 +65,6 @@ public class JavaClassPublicifier extends DefaultTask {
         this.classFiles = classFiles;
     }
 
-    @Input
-    public boolean getMarkInnerClassesAsPublic() {
-        return markInnerClassesAsPublic;
-    }
-
-    public void setMarkInnerClassesAsPublic(boolean markInnerClassesAsPublic) {
-        this.markInnerClassesAsPublic = markInnerClassesAsPublic;
-    }
-
     @InputDirectory
     public DirectoryProperty getInputDir() {
         return inputDir;
@@ -84,30 +77,51 @@ public class JavaClassPublicifier extends DefaultTask {
 
     @TaskAction
     public void adapt() throws IOException {
+
         for (String classFile : classFiles) {
-            final ClassNode classNode;
-            try (InputStream is = Files.newInputStream(inputDir.get().file(classFile).getAsFile().toPath())) {
-                ClassReader classReader = new ClassReader(is);
-                classNode = new ClassNode();
-                classReader.accept(classNode, ClassReader.EXPAND_FRAMES);
-            }
+            adjustClass(classFile, classNode -> {
+                classNode.access &= ~ACC_PRIVATE;
+                classNode.access |= ACC_PUBLIC;
 
-            if (markInnerClassesAsPublic) {
-                for (InnerClassNode innerClass : classNode.innerClasses) {
-                    innerClass.access &= ~ACC_PRIVATE;
-                    innerClass.access |= ACC_PUBLIC;
+                if (classFile.contains("$")) {
+                    // java inexplicably has an inner class contain itself as an inner class...
+                    makeInnerClassPublic(classNode, classNode.name.split("\\$")[1]);
                 }
+            });
+
+            if (classFile.contains("$")) {
+                // for inner classes, also need to adjust the parent
+                String[] parts = classFile.split("\\$");
+                String parentClassFile = parts[0] + ".class";
+                String innerClass = parts[1].split("\\.")[0];
+                adjustClass(parentClassFile, classNode -> makeInnerClassPublic(classNode, innerClass));
             }
+        }
+    }
 
-            classNode.access &= ~ACC_PRIVATE;
-            classNode.access |= ACC_PUBLIC;
+    private static void makeInnerClassPublic(ClassNode classNode, String innerClass) {
+        InnerClassNode innerClassNode = classNode.innerClasses.stream()
+            .filter(node -> node.innerName.equals(innerClass)).findFirst().get();
+        innerClassNode.access &= ~ACC_PRIVATE;
+        innerClassNode.access |= ACC_PUBLIC;
+    }
 
-            ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-            classNode.accept(classWriter);
+    private void writeClass(String classFile, ClassNode classNode) throws IOException {
+        ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+        classNode.accept(classWriter);
 
-            File outputFile = outputDir.get().file(classFile).getAsFile();
-            outputFile.getParentFile().mkdirs();
-            Files.write(outputFile.toPath(), classWriter.toByteArray());
+        File outputFile = outputDir.get().file(classFile).getAsFile();
+        outputFile.getParentFile().mkdirs();
+        Files.write(outputFile.toPath(), classWriter.toByteArray());
+    }
+
+    private void adjustClass(String classFile, Consumer<ClassNode> adjustor) throws IOException {
+        try (InputStream is = Files.newInputStream(inputDir.get().file(classFile).getAsFile().toPath())) {
+            ClassReader classReader = new ClassReader(is);
+            ClassNode classNode = new ClassNode();
+            classReader.accept(classNode, ClassReader.EXPAND_FRAMES);
+            adjustor.accept(classNode);
+            writeClass(classFile, classNode);
         }
     }
 }

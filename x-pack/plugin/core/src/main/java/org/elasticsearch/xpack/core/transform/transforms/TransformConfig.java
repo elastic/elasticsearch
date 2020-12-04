@@ -467,32 +467,34 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     }
 
     private static TransformConfig applyRewriteForUpdate(Builder builder) {
-         // 1. Move pivot.max_page_size_search to settings.max_page_size_search
-         if (builder.getPivotConfig() != null && builder.getPivotConfig().getMaxPageSearchSize() != null) {
+        // 1. Move pivot.max_page_size_search to settings.max_page_size_search
+        if (builder.getPivotConfig() != null && builder.getPivotConfig().getMaxPageSearchSize() != null) {
 
-             // find maxPageSearchSize value
-             Integer maxPageSearchSizeDeprecated = builder.getPivotConfig().getMaxPageSearchSize();
-             Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize() != null
-                 ? builder.getSettings().getMaxPageSearchSize()
-                 : maxPageSearchSizeDeprecated;
+            // find maxPageSearchSize value
+            Integer maxPageSearchSizeDeprecated = builder.getPivotConfig().getMaxPageSearchSize();
+            Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize() != null
+                ? builder.getSettings().getMaxPageSearchSize()
+                : maxPageSearchSizeDeprecated;
 
-             // create a new pivot config but set maxPageSearchSize to null
-             builder.setPivotConfig(
-                 new PivotConfig(builder.getPivotConfig().getGroupConfig(), builder.getPivotConfig().getAggregationConfig(), null)
-             );
-             // create new settings with maxPageSearchSize
-             builder.setSettings(
-                 new SettingsConfig(
-                     maxPageSearchSize,
-                     builder.getSettings().getDocsPerSecond(),
-                     builder.getSettings().getDatesAsEpochMillis()
-                 )
-             );
-         }
+            // create a new pivot config but set maxPageSearchSize to null
+            builder.setPivotConfig(
+                new PivotConfig(builder.getPivotConfig().getGroupConfig(), builder.getPivotConfig().getAggregationConfig(), null)
+            );
+            // create new settings with maxPageSearchSize
+            builder.setSettings(
+                new SettingsConfig(
+                    maxPageSearchSize,
+                    builder.getSettings().getDocsPerSecond(),
+                    builder.getSettings().getDatesAsEpochMillis()
+                )
+            );
+        }
 
         // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
         if (builder.getVersion() != null && builder.getVersion().before(Version.V_8_0_0)) { // todo: V_7_11_0
-            builder.setSettings(new SettingsConfig(builder.getSettings().getMaxPageSearchSize(), builder.getSettings().getDocsPerSecond(), true));
+            builder.setSettings(
+                new SettingsConfig(builder.getSettings().getMaxPageSearchSize(), builder.getSettings().getDocsPerSecond(), true)
+            );
         }
 
         return builder.setVersion(Version.CURRENT).build();
@@ -594,8 +596,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return this;
         }
 
-        public Map<String, String> getHeaders()
-        {
+        public Map<String, String> getHeaders() {
             return headers;
         }
 

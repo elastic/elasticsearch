@@ -19,137 +19,207 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.format.DateTimeParseException;
 
 /**
- * Encapsulates the logic for dynamically creating fields based on values parsed from incoming documents.
+ * Encapsulates the logic for dynamically creating fields as part of document parsing.
  */
-abstract class DynamicFieldsBuilder {
+final class DynamicFieldsBuilder {
 
-    static final DynamicFieldsBuilder TEMPLATE_OR_CONCRETE = new TemplateOrDelegate(Concrete.INSTANCE);
-    static final DynamicFieldsBuilder TEMPLATE_OR_RUNTIME = new TemplateOrDelegate(Runtime.INSTANCE);
+    private static final Concrete CONCRETE = new Concrete(DocumentParser::parseObjectOrField);
+    private static final Runtime RUNTIME = new Runtime();
 
-    abstract void newDynamicStringField(ParseContext context, String name) throws IOException;
+    static final DynamicFieldsBuilder DYNAMIC_TRUE = new DynamicFieldsBuilder(CONCRETE);
+    static final DynamicFieldsBuilder DYNAMIC_RUNTIME = new DynamicFieldsBuilder(RUNTIME);
 
-    abstract void newDynamicLongField(ParseContext context, String name) throws IOException;
+    private final Strategy strategy;
 
-    abstract void newDynamicDoubleField(ParseContext context, String name) throws IOException;
-
-    abstract void newDynamicBooleanField(ParseContext context, String name) throws IOException;
-
-    abstract void newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) throws IOException;
-
-    abstract void newDynamicBinaryField(ParseContext context, String name) throws IOException;
+    private DynamicFieldsBuilder(Strategy strategy) {
+        this.strategy = strategy;
+    }
 
     /**
-     * Returns the builder for a dynamically created object mapper. Note that objects are always created under properties.
+     * Creates a dynamic field based on the value of the current token being parsed from an incoming document.
+     * Makes decisions based on the type of the field being found, looks at matching dynamic templates and
+     * delegates to the appropriate strategy which depends on the current dynamic mode.
+     * The strategy defines if fields are going to be mapped as ordinary or runtime fields.
      */
-    final Mapper.Builder newDynamicObjectBuilder(ParseContext context, String name) {
+    final void createDynamicFieldFromValue(final ParseContext context,
+                                           XContentParser.Token token,
+                                           String name) throws IOException {
+        if (token == XContentParser.Token.VALUE_STRING) {
+            String text = context.parser().text();
+
+            boolean parseableAsLong = false;
+            try {
+                Long.parseLong(text);
+                parseableAsLong = true;
+            } catch (NumberFormatException e) {
+                // not a long number
+            }
+
+            boolean parseableAsDouble = false;
+            try {
+                Double.parseDouble(text);
+                parseableAsDouble = true;
+            } catch (NumberFormatException e) {
+                // not a double number
+            }
+
+            if (parseableAsLong && context.root().numericDetection()) {
+                createDynamicField(context, name, DynamicTemplate.XContentFieldType.LONG,
+                    () -> strategy.newDynamicLongField(context, name));
+            } else if (parseableAsDouble && context.root().numericDetection()) {
+                createDynamicField(context, name, DynamicTemplate.XContentFieldType.DOUBLE,
+                    () -> strategy.newDynamicDoubleField(context, name));
+            } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
+                // We refuse to match pure numbers, which are too likely to be
+                // false positives with date formats that include eg.
+                // `epoch_millis` or `YYYY`
+                for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
+                    try {
+                        dateTimeFormatter.parse(text);
+                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {
+                        // failure to parse this, continue
+                        continue;
+                    }
+                    createDynamicDateField(context, name, dateTimeFormatter, () -> strategy.newDynamicDoubleField(context, name));
+                    return;
+                }
+                createDynamicField(context, name, DynamicTemplate.XContentFieldType.STRING,
+                    () -> strategy.newDynamicStringField(context, name));
+            } else {
+                createDynamicField(context, name, DynamicTemplate.XContentFieldType.STRING,
+                    () -> strategy.newDynamicStringField(context, name));
+            }
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            XContentParser.NumberType numberType = context.parser().numberType();
+            if (numberType == XContentParser.NumberType.INT
+                || numberType == XContentParser.NumberType.LONG
+                || numberType == XContentParser.NumberType.BIG_INTEGER) {
+                createDynamicField(context, name, DynamicTemplate.XContentFieldType.LONG,
+                    () -> strategy.newDynamicLongField(context, name));
+            } else if (numberType == XContentParser.NumberType.FLOAT
+                || numberType == XContentParser.NumberType.DOUBLE
+                || numberType == XContentParser.NumberType.BIG_DECIMAL) {
+                createDynamicField(context, name, DynamicTemplate.XContentFieldType.DOUBLE,
+                    () -> strategy.newDynamicDoubleField(context, name));
+            } else {
+                throw new IllegalStateException("Unable to parse number of type [" + numberType + "]");
+            }
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            createDynamicField(context, name, DynamicTemplate.XContentFieldType.BOOLEAN,
+                () -> strategy.newDynamicBooleanField(context, name));
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            //runtime binary fields are not supported, hence binary objects always get created as concrete fields
+            createDynamicField(context, name, DynamicTemplate.XContentFieldType.BINARY,
+                () -> CONCRETE.newDynamicBinaryField(context, name));
+        } else {
+            createDynamicStringFieldFromTemplate(context, name);
+        }
+    }
+
+    /**
+     * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
+     * Note that objects are always mapped under properties.
+     */
+    final Mapper createDynamicObjectMapper(ParseContext context, String name) {
         //dynamic:runtime maps objects under properties, exactly like dynamic:true
-        Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.OBJECT);
-        if (templateBuilder == null) {
-            return new ObjectMapper.Builder(name, context.indexSettings().getIndexVersionCreated()).enabled(true);
-        }
-        return templateBuilder;
+        Mapper mapper = createObjectMapperFromTemplate(context, name);
+        return mapper != null ? mapper :
+            new ObjectMapper.Builder(name, context.indexSettings().getIndexVersionCreated()).enabled(true).build(context.path());
     }
 
-    final void newDynamicStringFieldFromTemplate(ParseContext context, String name) throws IOException {
-        Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.STRING);
-        if (templateBuilder != null) {
-            Concrete.INSTANCE.createDynamicField(templateBuilder, context);
-        }
-    }
-
-    final Mapper getObjectMapperFromTemplate(ParseContext context, String name) {
-        Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.OBJECT);
+    /**
+     * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
+     * Note that objects are always mapped under properties.
+     */
+    final Mapper createObjectMapperFromTemplate(ParseContext context, String name) {
+        Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.OBJECT, null);
         return templateBuilder == null ? null : templateBuilder.build(context.path());
     }
 
-    protected static Mapper.Builder findTemplateBuilder(ParseContext context, String name, DynamicTemplate.XContentFieldType matchType) {
-        return findTemplateBuilder(context, name, matchType, null);
+    /**
+     * Creates a dynamic string field based on a matching dynamic template.
+     * No field is created in case there is no matching dynamic template.
+     */
+    final void createDynamicStringFieldFromTemplate(ParseContext context, String name) throws IOException {
+        createDynamicField(context, name, DynamicTemplate.XContentFieldType.STRING, () -> {});
+    }
+
+    private static void createDynamicDateField(ParseContext context,
+                                               String name,
+                                               DateFormatter dateFormatter,
+                                               CheckedRunnable<IOException> createDynamicField) throws IOException{
+        createDynamicField(context, name, DynamicTemplate.XContentFieldType.DATE, dateFormatter, createDynamicField);
+    }
+
+    private static void createDynamicField(ParseContext context,
+                                           String name,
+                                           DynamicTemplate.XContentFieldType matchType,
+                                           CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException{
+        createDynamicField(context, name, matchType, null, dynamicFieldStrategy);
+    }
+
+    private static void createDynamicField(ParseContext context,
+                                           String name,
+                                           DynamicTemplate.XContentFieldType matchType,
+                                           DateFormatter dateFormatter,
+                                           CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException{
+        Mapper.Builder templateBuilder = findTemplateBuilder(context, name, matchType, dateFormatter);
+        if (templateBuilder == null) {
+            dynamicFieldStrategy.run();
+        } else {
+            CONCRETE.createDynamicField(templateBuilder, context);
+        }
     }
 
     /**
-     * Creates dynamic fields based on matching dynamic templates. If there are none, according to the current dynamic setting.
+     * Find a template. Returns {@code null} if no template could be found.
+     * @param context        the parse context for this document
+     * @param name           the current field name
+     * @param matchType      the type of the field in the json document or null if unknown
+     * @param dateFormatter  a date formatter to use if the type is a date, null if not a date or is using the default format
+     * @return a mapper builder, or null if there is no template for such a field
      */
-    private static final class TemplateOrDelegate extends DynamicFieldsBuilder {
-        private final DynamicFieldsBuilder delegate;
-
-        private TemplateOrDelegate(DynamicFieldsBuilder delegate) {
-            this.delegate = delegate;
+    private static Mapper.Builder findTemplateBuilder(ParseContext context,
+                                                      String name,
+                                                      DynamicTemplate.XContentFieldType matchType,
+                                                      DateFormatter dateFormatter) {
+        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        if (dynamicTemplate == null) {
+            return null;
         }
-
-        @Override
-        void newDynamicStringField(ParseContext context, String name) throws IOException {
-            Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.STRING);
-            if (builder == null) {
-                delegate.newDynamicStringField(context, name);
-            } else {
-                Concrete.INSTANCE.createDynamicField(builder, context);
-            }
+        String dynamicType = matchType.defaultMappingType();
+        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
+        String mappingType = dynamicTemplate.mappingType(dynamicType);
+        Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+        if (typeParser == null) {
+            throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
         }
+        return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
+    }
 
-        @Override
-        void newDynamicLongField(ParseContext context, String name) throws IOException {
-            Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.LONG);
-            if (builder == null) {
-                delegate.newDynamicLongField(context, name);
-            } else {
-                Concrete.INSTANCE.createDynamicField(builder, context);
-            }
-        }
-
-        @Override
-        void newDynamicDoubleField(ParseContext context, String name) throws IOException {
-            Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.DOUBLE);
-            if (builder == null) {
-                delegate.newDynamicDoubleField(context, name);
-            } else {
-                Concrete.INSTANCE.createDynamicField(builder, context);
-            }
-        }
-
-        @Override
-        void newDynamicBooleanField(ParseContext context, String name) throws IOException {
-            Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.BOOLEAN);
-            if (builder == null) {
-                delegate.newDynamicBooleanField(context, name);
-            } else {
-                Concrete.INSTANCE.createDynamicField(builder, context);
-            }
-        }
-
-        @Override
-        void newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) throws IOException {
-            Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.DATE, dateFormatter);
-            if (builder == null) {
-                delegate.newDynamicDateField(context, name, dateFormatter);
-            } else {
-                Concrete.INSTANCE.createDynamicField(builder, context);
-            }
-        }
-
-        @Override
-        void newDynamicBinaryField(ParseContext context, String name) throws IOException {
-            Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.BINARY);
-            if (builder == null) {
-                delegate.newDynamicBinaryField(context, name);
-            } else {
-                Concrete.INSTANCE.createDynamicField(builder, context);
-            }
-        }
+    private interface Strategy {
+        void newDynamicStringField(ParseContext context, String name) throws IOException;
+        void newDynamicLongField(ParseContext context, String name) throws IOException;
+        void newDynamicDoubleField(ParseContext context, String name) throws IOException;
+        void newDynamicBooleanField(ParseContext context, String name) throws IOException;
+        void newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) throws IOException;
     }
 
     /**
      * Creates dynamic concrete fields, in the properties section
      */
-    private static final class Concrete extends DynamicFieldsBuilder {
-        private static final Concrete INSTANCE = new Concrete(DocumentParser::parseObjectOrField);
-
+    private static final class Concrete implements Strategy {
         private final CheckedBiConsumer<ParseContext, Mapper, IOException> parseField;
 
         Concrete(CheckedBiConsumer<ParseContext, Mapper, IOException> parseField) {
@@ -196,7 +266,6 @@ abstract class DynamicFieldsBuilder {
                 dateTimeFormatter, ignoreMalformed, context.indexSettings().getIndexVersionCreated()), context);
         }
 
-        @Override
         void newDynamicBinaryField(ParseContext context, String name) throws IOException {
             createDynamicField(new BinaryFieldMapper.Builder(name), context);
         }
@@ -205,9 +274,7 @@ abstract class DynamicFieldsBuilder {
     /**
      * Creates dynamic runtime fields, in the runtime section
      */
-    private static final class Runtime extends DynamicFieldsBuilder {
-        private static final Runtime INSTANCE = new Runtime();
-
+    private static final class Runtime implements Strategy {
         @Override
         public void newDynamicStringField(ParseContext context, String name) {
             RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicStringField(name);
@@ -237,35 +304,5 @@ abstract class DynamicFieldsBuilder {
             RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDateField(name, dateFormatter);
             context.addDynamicRuntimeField(runtimeFieldType);
         }
-
-        @Override
-        void newDynamicBinaryField(ParseContext context, String name) throws IOException {
-            //binary runtime fields are not supported
-            Concrete.INSTANCE.newDynamicBinaryField(context, name);
-        }
-    }
-
-    /**
-     * Find a template. Returns {@code null} if no template could be found.
-     * @param context        the parse context for this document
-     * @param name           the current field name
-     * @param matchType      the type of the field in the json document or null if unknown
-     * @param dateFormatter  a date formatter to use if the type is a date, null if not a date or is using the default format
-     * @return a mapper builder, or null if there is no template for such a field
-     */
-    static Mapper.Builder findTemplateBuilder(ParseContext context, String name, DynamicTemplate.XContentFieldType matchType,
-                                              DateFormatter dateFormatter) {
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
-        if (dynamicTemplate == null) {
-            return null;
-        }
-        String dynamicType = matchType.defaultMappingType();
-        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
-        String mappingType = dynamicTemplate.mappingType(dynamicType);
-        Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
-        if (typeParser == null) {
-            throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
-        }
-        return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 }

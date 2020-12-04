@@ -53,30 +53,20 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public enum Dynamic {
-        TRUE(true) {
+        TRUE {
             @Override
             DynamicFieldsBuilder getDynamicFieldsBuilder() {
-                return DynamicFieldsBuilder.TEMPLATE_OR_CONCRETE;
+                return DynamicFieldsBuilder.DYNAMIC_TRUE;
             }
         },
-        FALSE(false),
-        STRICT(false),
-        RUNTIME(true) {
+        FALSE,
+        STRICT,
+        RUNTIME {
             @Override
             DynamicFieldsBuilder getDynamicFieldsBuilder() {
-                return DynamicFieldsBuilder.TEMPLATE_OR_RUNTIME;
+                return DynamicFieldsBuilder.DYNAMIC_RUNTIME;
             }
         };
-
-        private final boolean canCreateDynamicFields;
-
-        Dynamic(boolean canCreateDynamicFields) {
-            this.canCreateDynamicFields = canCreateDynamicFields;
-        }
-
-        final boolean canCreateDynamicFields() {
-            return canCreateDynamicFields;
-        }
 
         DynamicFieldsBuilder getDynamicFieldsBuilder() {
             throw new UnsupportedOperationException("Cannot create dynamic fields when dynamic is set to [" + this + "]");

@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -508,7 +506,7 @@ final class DocumentParser {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
             } else {
-                objectMapper = dynamic.getDynamicFieldsBuilder().newDynamicObjectBuilder(context, currentFieldName).build(context.path());
+                objectMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, currentFieldName);
                 context.addDynamicMapper(objectMapper);
                 context.path().add(currentFieldName);
                 parseObjectOrField(context, objectMapper);
@@ -546,7 +544,7 @@ final class DocumentParser {
                 // TODO: shouldn't this skip, not parse?
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             } else {
-                Mapper objectMapperFromTemplate = dynamic.getDynamicFieldsBuilder().getObjectMapperFromTemplate(context, arrayFieldName);
+                Mapper objectMapperFromTemplate = dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, arrayFieldName);
                 if (objectMapperFromTemplate == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 } else {
@@ -625,73 +623,6 @@ final class DocumentParser {
         }
     }
 
-    private static void createDynamicFieldFromValue(final ParseContext context,
-                                                            XContentParser.Token token,
-                                                            String currentFieldName,
-                                                            DynamicFieldsBuilder dynamicFieldsBuilder) throws IOException {
-        if (token == XContentParser.Token.VALUE_STRING) {
-            String text = context.parser().text();
-
-            boolean parseableAsLong = false;
-            try {
-                Long.parseLong(text);
-                parseableAsLong = true;
-            } catch (NumberFormatException e) {
-                // not a long number
-            }
-
-            boolean parseableAsDouble = false;
-            try {
-                Double.parseDouble(text);
-                parseableAsDouble = true;
-            } catch (NumberFormatException e) {
-                // not a double number
-            }
-
-            if (parseableAsLong && context.root().numericDetection()) {
-                dynamicFieldsBuilder.newDynamicLongField(context, currentFieldName);
-            } else if (parseableAsDouble && context.root().numericDetection()) {
-                dynamicFieldsBuilder.newDynamicDoubleField(context, currentFieldName);
-            } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
-                // We refuse to match pure numbers, which are too likely to be
-                // false positives with date formats that include eg.
-                // `epoch_millis` or `YYYY`
-                for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
-                    try {
-                        dateTimeFormatter.parse(text);
-                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {
-                        // failure to parse this, continue
-                        continue;
-                    }
-                    dynamicFieldsBuilder.newDynamicDateField(context, currentFieldName, dateTimeFormatter);
-                    return;
-                }
-                dynamicFieldsBuilder.newDynamicStringField(context, currentFieldName);
-            } else {
-                dynamicFieldsBuilder.newDynamicStringField(context, currentFieldName);
-            }
-        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            XContentParser.NumberType numberType = context.parser().numberType();
-            if (numberType == XContentParser.NumberType.INT
-                    || numberType == XContentParser.NumberType.LONG
-                    || numberType == XContentParser.NumberType.BIG_INTEGER) {
-                dynamicFieldsBuilder.newDynamicLongField(context, currentFieldName);
-            } else if (numberType == XContentParser.NumberType.FLOAT
-                    || numberType == XContentParser.NumberType.DOUBLE
-                    || numberType == XContentParser.NumberType.BIG_DECIMAL) {
-                dynamicFieldsBuilder.newDynamicDoubleField(context, currentFieldName);
-            } else {
-                throw new IllegalStateException("Unable to parse number of type [" + numberType + "]");
-            }
-        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            dynamicFieldsBuilder.newDynamicBooleanField(context, currentFieldName);
-        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-            dynamicFieldsBuilder.newDynamicBinaryField(context, currentFieldName);
-        } else {
-            dynamicFieldsBuilder.newDynamicStringFieldFromTemplate(context, currentFieldName);
-        }
-    }
-
     private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper,
                                           String currentFieldName, XContentParser.Token token) throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
@@ -701,7 +632,7 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
-        createDynamicFieldFromValue(context, token, currentFieldName, dynamic.getDynamicFieldsBuilder());
+        dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, token, currentFieldName);
     }
 
     /** Creates instances of the fields that the current field should be copied to */
@@ -781,8 +712,7 @@ final class DocumentParser {
                     return new Tuple<>(pathsAdded, parent);
                 } else {
                     //objects are created under properties even with dynamic: runtime, as the runtime section only holds leaf fields
-                    Mapper.Builder builder = dynamic.getDynamicFieldsBuilder().newDynamicObjectBuilder(context, paths[i]);
-                    mapper = (ObjectMapper) builder.build(context.path());
+                    mapper = (ObjectMapper) dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, paths[i]);
                     if (mapper.nested() != ObjectMapper.Nested.NO) {
                         throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
                             + context.path().pathAsText(paths[i]) + "]) through `copy_to` or dots in field names");

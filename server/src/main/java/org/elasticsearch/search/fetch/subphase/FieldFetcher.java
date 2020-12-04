@@ -20,7 +20,10 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -31,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,9 +49,16 @@ public class FieldFetcher {
                                       Collection<FieldAndFormat> fieldAndFormats) {
 
         List<FieldContext> fieldContexts = new ArrayList<>();
+        List<String> unmappedFetchPattern = new ArrayList<>();
+        Set<String> mappedToExclude = new HashSet<>();
+        boolean includeUnmapped = false;
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
+            if (fieldAndFormat.includeUnmapped != null && fieldAndFormat.includeUnmapped) {
+                unmappedFetchPattern.add(fieldAndFormat.field);
+                includeUnmapped = true;
+            }
             String format = fieldAndFormat.format;
 
             Collection<String> concreteFields = context.simpleMatchToIndexNames(fieldPattern);
@@ -57,17 +68,34 @@ public class FieldFetcher {
                     continue;
                 }
                 ValueFetcher valueFetcher = ft.valueFetcher(context, format);
+                mappedToExclude.add(field);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }
-
-        return new FieldFetcher(fieldContexts);
+        CharacterRunAutomaton unmappedFetchAutomaton = new CharacterRunAutomaton(Automata.makeEmpty());
+        if (unmappedFetchPattern.isEmpty() == false) {
+            unmappedFetchAutomaton = new CharacterRunAutomaton(
+                Regex.simpleMatchToAutomaton(unmappedFetchPattern.toArray(new String[unmappedFetchPattern.size()]))
+            );
+        }
+        return new FieldFetcher(fieldContexts, unmappedFetchAutomaton, mappedToExclude, includeUnmapped);
     }
 
     private final List<FieldContext> fieldContexts;
+    private final CharacterRunAutomaton unmappedFetchAutomaton;
+    private final Set<String> mappedToExclude;
+    private final boolean includeUnmapped;
 
-    private FieldFetcher(List<FieldContext> fieldContexts) {
+    private FieldFetcher(
+        List<FieldContext> fieldContexts,
+        CharacterRunAutomaton unmappedFetchAutomaton,
+        Set<String> mappedToExclude,
+        boolean includeUnmapped
+    ) {
         this.fieldContexts = fieldContexts;
+        this.unmappedFetchAutomaton = unmappedFetchAutomaton;
+        this.mappedToExclude = mappedToExclude;
+        this.includeUnmapped = includeUnmapped;
     }
 
     public Map<String, DocumentField> fetch(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
@@ -85,7 +113,82 @@ public class FieldFetcher {
                 documentFields.put(field, new DocumentField(field, parsedValues));
             }
         }
+        if (this.includeUnmapped) {
+            collectUnmapped(documentFields, sourceLookup.loadSourceIfNeeded(), "", 0);
+        }
         return documentFields;
+    }
+
+    private void collectUnmapped(Map<String, DocumentField> documentFields, Map<String, Object> source, String parentPath, int lastState) {
+        for (String key : source.keySet()) {
+            Object value = source.get(key);
+            String currentPath = parentPath + key;
+            int currentState = step(this.unmappedFetchAutomaton, key, lastState);
+            if (currentState == -1) {
+                // current path doesn't match any fields pattern
+                continue;
+            }
+            if (value instanceof Map) {
+                // one step deeper into source tree
+                collectUnmapped(
+                    documentFields,
+                    (Map<String, Object>) value,
+                    currentPath + ".",
+                    step(this.unmappedFetchAutomaton, ".", currentState)
+                );
+            } else if (value instanceof List) {
+                // iterate through list values
+                collectUnmappedList(documentFields, (List<?>) value, currentPath, currentState);
+            } else {
+                // we have a leaf value
+                if (this.unmappedFetchAutomaton.isAccept(currentState) && this.mappedToExclude.contains(currentPath) == false) {
+                    if (value != null) {
+                        DocumentField currentEntry = documentFields.get(currentPath);
+                        if (currentEntry == null) {
+                            List<Object> list = new ArrayList<>();
+                            list.add(value);
+                            documentFields.put(currentPath, new DocumentField(currentPath, list));
+                        } else {
+                            currentEntry.getValues().add(value);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void collectUnmappedList(Map<String, DocumentField> documentFields, Iterable<?> iterable, String parentPath, int lastState) {
+        List<Object> list = new ArrayList<>();
+        for (Object value : iterable) {
+            if (value instanceof Map) {
+                collectUnmapped(
+                    documentFields,
+                    (Map<String, Object>) value,
+                    parentPath + ".",
+                    step(this.unmappedFetchAutomaton, ".", lastState)
+                );
+            } else if (value instanceof List) {
+                // weird case, but can happen for objects with "enabled" : "false"
+                collectUnmappedList(documentFields, (List<?>) value, parentPath, lastState);
+            } else if (this.unmappedFetchAutomaton.isAccept(lastState) && this.mappedToExclude.contains(parentPath) == false) {
+                list.add(value);
+            }
+        }
+        if (list.isEmpty() == false) {
+            DocumentField currentEntry = documentFields.get(parentPath);
+            if (currentEntry == null) {
+                documentFields.put(parentPath, new DocumentField(parentPath, list));
+            } else {
+                currentEntry.getValues().addAll(list);
+            }
+        }
+    }
+
+    private static int step(CharacterRunAutomaton automaton, String key, int state) {
+        for (int i = 0; state != -1 && i < key.length(); ++i) {
+            state = automaton.step(state, key.charAt(i));
+        }
+        return state;
     }
 
     public void setNextReader(LeafReaderContext readerContext) {

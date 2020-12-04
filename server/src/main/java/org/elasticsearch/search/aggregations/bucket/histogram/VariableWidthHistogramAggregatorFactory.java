@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,6 +42,7 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
                 true);
     }
 
+    private final VariableWidthHistogramAggregatorSupplier aggregatorSupplier;
     private final int numBuckets;
     private final int shardSize;
     private final int initialBuffer;
@@ -55,18 +55,18 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
                                             AggregationContext context,
                                             AggregatorFactory parent,
                                             AggregatorFactories.Builder subFactoriesBuilder,
-                                            Map<String, Object> metadata) throws IOException{
+                                            Map<String, Object> metadata,
+                                            VariableWidthHistogramAggregatorSupplier aggregatorSupplier) throws IOException{
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.numBuckets = numBuckets;
         this.shardSize = shardSize;
         this.initialBuffer = initialBuffer;
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException{
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         if (cardinality != CardinalityUpperBound.ONE) {
             throw new IllegalArgumentException(
                 "["
@@ -74,16 +74,13 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
                     + "] cannot be nested inside an aggregation that collects more than a single bucket."
             );
         }
-        return context.getValuesSourceRegistry()
-            .getAggregator(VariableWidthHistogramAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, factories, numBuckets, shardSize, initialBuffer, config, searchContext, parent, metadata);
+        return aggregatorSupplier
+            .build(name, factories, numBuckets, shardSize, initialBuffer, config, context, parent, metadata);
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, config,
-            searchContext, parent, metadata);
+            context, parent, metadata);
     }
 }

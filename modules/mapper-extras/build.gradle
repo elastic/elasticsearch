@@ -19,6 +19,8 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.java-rest-test'
 
+import org.elasticsearch.gradle.info.BuildParams
+
 esplugin {
   description 'Adds advanced field mappers'
   classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'

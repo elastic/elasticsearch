@@ -91,7 +91,8 @@ final class DynamicFieldsBuilder {
                         // failure to parse this, continue
                         continue;
                     }
-                    createDynamicDateField(context, name, dateTimeFormatter, () -> strategy.newDynamicDoubleField(context, name));
+                    createDynamicDateField(context, name, dateTimeFormatter,
+                        () -> strategy.newDynamicDateField(context, name, dateTimeFormatter));
                     return;
                 }
                 createDynamicField(context, name, DynamicTemplate.XContentFieldType.STRING,
@@ -208,7 +209,7 @@ final class DynamicFieldsBuilder {
         return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
-    private interface Strategy {
+    interface Strategy {
         void newDynamicStringField(ParseContext context, String name) throws IOException;
         void newDynamicLongField(ParseContext context, String name) throws IOException;
         void newDynamicDoubleField(ParseContext context, String name) throws IOException;

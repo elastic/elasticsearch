@@ -349,7 +349,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (final Index index : indices) {
             indicesStopExecutor.execute(() -> {
                 try {
-                    removeIndex(index, IndexRemovalReason.CLOSED, "shutdown");
+                    removeIndex(index, IndexRemovalReason.SHUTDOWN, "shutdown");
                 } finally {
                     latch.countDown();
                 }

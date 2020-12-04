@@ -219,7 +219,6 @@ import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
-import org.elasticsearch.xpack.security.operator.OperatorPrivilegesFeatureSet;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
@@ -379,8 +378,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             return modules;
         }
         modules.add(b -> XPackPlugin.bindFeatureSet(b, SecurityFeatureSet.class));
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, OperatorPrivilegesFeatureSet.class));
-
 
         if (enabled == false) {
             modules.add(b -> {

@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;

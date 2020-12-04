@@ -55,7 +55,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
         Properties prop = new Properties();
         prop.put("user", user);
-        prop.put("password", "testpass");
+        prop.put("password", "test-user-password");
         addSslPropertiesIfNeeded(prop);
         return prop;
     }

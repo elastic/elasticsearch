@@ -115,8 +115,7 @@ See <<create-a-data-stream-template>>.
 [[data-stream-hidden]]
 `hidden`::
 (Optional, Boolean)
-If `true`, the data stream is <<hidden-indices,hidden>>. By default, wildcard
-expressions do not match hidden data streams. Defaults to `false`.
+If `true`, the data stream is <<hidden-indices,hidden>>. Defaults to `false`.
 ====
 
 `template`::

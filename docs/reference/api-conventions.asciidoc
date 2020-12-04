@@ -54,13 +54,14 @@ syntax.
 [[hidden-indices]]
 ==== Hidden data streams and indices
 
-By default, wildcard expressions do not match hidden data streams and indices.
-To match hidden data streams and indices using a wildcard expression, use the
-`expand_wildcards` query parameter.
+For most APIs, wildcard expressions do not match hidden data streams and indices
+by default. To match hidden data streams and indices using a wildcard
+expression, use the `expand_wildcards` query parameter.
 
-You can hide data streams by setting <<data-stream-hidden,`data_stream.hidden`>>
-to `true` in the stream's matching index template. You can hide indices using
-the <<index-hidden,`index.hidden`>> index setting.
+You can create hidden data streams by setting
+<<data-stream-hidden,`data_stream.hidden`>> to `true` in the stream's matching
+index template. You can hide indices using the <<index-hidden,`index.hidden`>>
+index setting.
 
 The backing indices for data streams are hidden automatically. Some features,
 such as {ml}, store information in hidden indices.

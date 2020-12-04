@@ -158,13 +158,14 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     /**
      * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
      * - the index is not found,
-     * - the field is not found, or
+     * - the field is not found,
+     * - the mapping is not known yet, or
      * - the field is not a timestamp field.
      */
     @Nullable
     public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
         final PlainActionFuture<DateFieldMapper.DateFieldType> future = fieldTypesByIndex.get(index);
-        if (future == null) {
+        if (future == null || future.isDone() == false) {
             return null;
         }
         return future.actionGet();

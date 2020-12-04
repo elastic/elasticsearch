@@ -8,6 +8,7 @@ package org.elasticsearch.index.engine;
 
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -22,7 +23,6 @@ import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
@@ -102,7 +102,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").getMillis()));
     }
 
-    public void testTimestampFieldTypeExposedByAllIndicesServices() throws IOException {
+    public void testTimestampFieldTypeExposedByAllIndicesServices() throws Exception {
         internalCluster().startNodes(between(2, 4));
 
         final String locale = randomFrom("", "en_GB", "fr_FR");
@@ -134,9 +134,14 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
         ensureGreen("index");
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            final DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(index);
-            assertNotNull(timestampFieldType);
-            assertThat(timestampFieldType.dateTimeFormatter().locale().toString(), equalTo(locale));
+            final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
+            assertBusy(() -> {
+                final DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(index);
+                assertNotNull(timestampFieldType);
+                timestampFieldTypeFuture.onResponse(timestampFieldType);
+            });
+            assertTrue(timestampFieldTypeFuture.isDone());
+            assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().locale().toString(), equalTo(locale));
         }
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").setFreeze(false)).actionGet());

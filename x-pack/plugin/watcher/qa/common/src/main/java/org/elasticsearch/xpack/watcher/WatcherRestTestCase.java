@@ -84,7 +84,7 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
 
         int totalCount = response.evaluate("count");
         List<Map<?, ?>> watches = response.evaluate("watches");
-        assertThat("Less watches requested than exist in total", watches.size(), equalTo(totalCount));
+        assert watches.size() == totalCount : "number of watches returned is unequal to the total number of watches";
         for (Map<?, ?> watch : watches) {
             String id = (String) watch.get("_id");
             var deleteWatchRequest = new Request("DELETE", "/_watcher/watch/" + id);

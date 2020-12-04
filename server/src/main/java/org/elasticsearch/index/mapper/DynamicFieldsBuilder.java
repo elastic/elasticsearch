@@ -114,7 +114,7 @@ abstract class DynamicFieldsBuilder {
         }
 
         @Override
-        final void newDynamicBooleanField(ParseContext context, String name) throws IOException {
+        void newDynamicBooleanField(ParseContext context, String name) throws IOException {
             Mapper.Builder builder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.BOOLEAN);
             if (builder == null) {
                 delegate.newDynamicBooleanField(context, name);

@@ -224,7 +224,7 @@ RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
 # The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml config/
-COPY ${bin_dir}/convert_log4j_config.jshell /tmp/
+COPY ${bin_dir}/transform-log4j-config-${version}.jar /tmp/
 
 # 1. Configure the distribution for Docker
 # 2. Ensure directories are created. Most already are, but make sure
@@ -241,7 +241,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     mkdir -p config/jvm.options.d data logs plugins && \\
     chmod 0775 config config/jvm.options.d data logs plugins && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
-    jdk/bin/jshell -q --execution local /tmp/convert_log4j_config.jshell > config/log4j2.properties && \\
+    jdk/bin/java -jar /tmp/transform-log4j-config-${version}.jar config/log4j2.file.properties > config/log4j2.properties && \\
     chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\
     find ./jdk -type d -exec chmod 0755 {} + && \\
     find . -xdev -perm -4000 -exec chmod ug-s {} + && \\

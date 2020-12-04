@@ -21,6 +21,7 @@ configurations {
   dockerSource
   aarch64OssDockerSource
   ossDockerSource
+  transformLog4jJar
 }
 
 dependencies {
@@ -28,6 +29,7 @@ dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
   aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
+  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: "default")
 }
 
 /**
@@ -183,13 +185,17 @@ void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase
     throw new GradleException("The only allowed docker base image for OSS builds is CENTOS")
   }
 
-  tasks.register(taskName("copy", architecture, oss, base, "DockerContext"), Sync) {
+  def copyTask = tasks.register(taskName("copy", architecture, oss, base, "DockerContext"), Sync) {
     expansions(architecture, oss, base, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
     into buildPath(architecture, oss, base)
 
     with dockerBuildContext(architecture, oss, base, true)
+
+    into(base == DockerBase.IRON_BANK ? 'scripts' : 'bin') {
+      from configurations.transformLog4jJar
+    }
 
     if (architecture == Architecture.AARCH64) {
       if (oss) {

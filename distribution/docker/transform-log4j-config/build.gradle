@@ -1,0 +1,11 @@
+apply plugin: 'java'
+
+repositories {
+  jcenter()
+}
+
+jar {
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.transform.log4j.TransformLog4jConfig'
+  }
+}

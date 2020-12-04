@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.in;
@@ -215,6 +216,38 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // but the non-requested feature should still have its new document
         assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+    }
+
+    public void testRestoreFeatureNotInSnapshot() {
+        createRepository("test-repo", "fs");
+
+        // create indices
+        assertAcked(prepareCreate(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, 2, Settings.builder()
+            .put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)).put("refresh_interval", 10, TimeUnit.SECONDS)));
+
+        ensureGreen();
+
+        // put a document in each one
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snaphost doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+
+        // snapshot including global state
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        final String fakeFeatureStateName = "NonExistentTestPlugin";
+        SnapshotRestoreException exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
+                .setWaitForCompletion(true)
+                .setFeatureStates("SystemIndexTestPlugin", fakeFeatureStateName)
+                .get());
+
+        assertThat(exception.getMessage(),
+            containsString("requested feature states [[" + fakeFeatureStateName + "]] are not present in snapshot"));
     }
 
     public void testRestoringSystemIndexByNameIsDeprecated() throws IllegalAccessException {

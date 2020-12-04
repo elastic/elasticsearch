@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.core.http.ProxyOptions;
+import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
@@ -54,6 +55,7 @@ public class AzureStorageService {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final AzureClientProvider azureClientProvider;
+    private final ClientLogger clientLogger = new ClientLogger(AzureStorageService.class);
 
     public AzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
         // eagerly load client settings so that secure settings are read
@@ -121,12 +123,12 @@ public class AzureStorageService {
     // non-static, package private for testing
     RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
         String connectString = azureStorageSettings.getConnectString();
-        StorageConnectionString storageConnectionString = StorageConnectionString.create(connectString, null);
+        StorageConnectionString storageConnectionString = StorageConnectionString.create(connectString, clientLogger);
         String primaryUri = storageConnectionString.getBlobEndpoint().getPrimaryUri();
         String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
 
-        if (locationMode.isSecondary() && secondaryUri == null) {
-            throw new IllegalArgumentException("Expected to get a secondary URI");
+        if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY && secondaryUri == null) {
+            throw new IllegalArgumentException("Unable to use " + locationMode + " location mode without a secondary location URI");
         }
 
         final String secondaryHost;
@@ -142,7 +144,8 @@ public class AzureStorageService {
                 secondaryHost = primaryUri;
                 break;
             default:
-                throw new IllegalStateException();
+                assert false;
+                throw new AssertionError("Impossible to get here");
         }
 
         // The request retry policy uses seconds as the default time unit, since

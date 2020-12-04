@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -372,6 +373,86 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
+    public void testRetryConfigurationForSecondaryFallbackLocationMode() throws Exception {
+        final String endpoint;
+        if (randomBoolean()) {
+            endpoint = "core.windows.net";
+        } else {
+            endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net;" +
+                "BlobSecondaryEndpoint=https://myaccount1-secondary.blob.core.windows.net";
+        }
+
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.endpoint_suffix", endpoint)
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            RequestRetryOptions retryOptions =
+                azureStorageService.getRetryOptions(LocationMode.PRIMARY_THEN_SECONDARY, azureStorageSettings);
+            assertThat(retryOptions.getSecondaryHost(), equalTo("https://myaccount1-secondary.blob.core.windows.net"));
+        }
+    }
+
+    public void testRetryConfigurationForPrimaryFallbackLocationMode() throws Exception {
+        final String endpoint;
+        if (randomBoolean()) {
+            endpoint = "core.windows.net";
+        } else {
+            endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net;" +
+                "BlobSecondaryEndpoint=https://myaccount1-secondary.blob.core.windows.net";
+        }
+
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.endpoint_suffix", endpoint)
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            RequestRetryOptions retryOptions =
+                azureStorageService.getRetryOptions(LocationMode.SECONDARY_THEN_PRIMARY, azureStorageSettings);
+            assertThat(retryOptions.getSecondaryHost(), equalTo("https://myaccount1.blob.core.windows.net"));
+        }
+    }
+
+    public void testRetryConfigurationForLocationModeWithoutFallback() throws Exception {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.endpoint_suffix", "core.windows.net")
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+            LocationMode locationMode = randomFrom(LocationMode.PRIMARY_ONLY, LocationMode.SECONDARY_ONLY);
+            RequestRetryOptions retryOptions =
+                azureStorageService.getRetryOptions(locationMode, azureStorageSettings);
+
+            assertThat(retryOptions.getSecondaryHost(), equalTo(null));
+        }
+    }
+
+    public void testInvalidSettingsRetryConfigurationForLocationModeWithSecondaryFallback() throws Exception {
+        final String endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net";
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.endpoint_suffix", endpoint)
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureStorageSettings azureStorageSettings = azureStorageService.storageSettings.get("azure1");
+
+            expectThrows(IllegalArgumentException.class,
+                () ->  azureStorageService.getRetryOptions(LocationMode.PRIMARY_THEN_SECONDARY, azureStorageSettings));
+        }
+    }
+
+
     private static MockSecureSettings buildSecureSettings() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.azure1.account", "myaccount1");
@@ -381,10 +462,6 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings.setString("azure.client.azure3.account", "myaccount3");
         secureSettings.setString("azure.client.azure3.key", encodeKey("mykey3"));
         return secureSettings;
-    }
-
-    private static Settings buildSettings() {
-        return Settings.builder().setSecureSettings(buildSecureSettings()).build();
     }
 
     private static String encodeKey(final String value) {

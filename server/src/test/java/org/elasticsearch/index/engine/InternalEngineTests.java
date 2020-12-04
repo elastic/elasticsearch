@@ -5528,7 +5528,7 @@ public class InternalEngineTests extends EngineTestCase {
                     .put(indexSettings())
                     .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-            try (Store store = createStore();
+            try (Store store = createStore(indexSettings, newDirectory());
                     InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
                 ParsedDocument doc = testParsedDocument("1", null, new Document(),
                         new BytesArray("{}".getBytes("UTF-8")), null);

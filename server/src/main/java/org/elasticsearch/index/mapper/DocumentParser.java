@@ -664,9 +664,12 @@ final class DocumentParser {
                         continue;
                     }
                     dynamicFieldsBuilder.newDynamicDateField(context, currentFieldName, dateTimeFormatter);
+                    return;
                 }
+                dynamicFieldsBuilder.newDynamicStringField(context, currentFieldName);
+            } else {
+                dynamicFieldsBuilder.newDynamicStringField(context, currentFieldName);
             }
-            dynamicFieldsBuilder.newDynamicStringField(context, currentFieldName);
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
             XContentParser.NumberType numberType = context.parser().numberType();
             if (numberType == XContentParser.NumberType.INT
@@ -677,6 +680,8 @@ final class DocumentParser {
                     || numberType == XContentParser.NumberType.DOUBLE
                     || numberType == XContentParser.NumberType.BIG_DECIMAL) {
                 dynamicFieldsBuilder.newDynamicDoubleField(context, currentFieldName);
+            } else {
+                throw new IllegalStateException("Unable to parse number of type [" + numberType + "]");
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             dynamicFieldsBuilder.newDynamicBooleanField(context, currentFieldName);
@@ -685,9 +690,6 @@ final class DocumentParser {
         } else {
             dynamicFieldsBuilder.newDynamicStringFieldFromTemplate(context, currentFieldName);
         }
-        // TODO how do we identify dynamically that its a binary value?
-        throw new IllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name ["
-            + currentFieldName + "]");
     }
 
     private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper,

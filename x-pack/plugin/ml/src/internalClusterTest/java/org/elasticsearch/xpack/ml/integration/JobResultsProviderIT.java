@@ -125,7 +125,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, builder.build());
+        resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, builder.build());
         auditor = new AnomalyDetectionAuditor(client(), clusterService);
         waitForMlTemplates();
     }

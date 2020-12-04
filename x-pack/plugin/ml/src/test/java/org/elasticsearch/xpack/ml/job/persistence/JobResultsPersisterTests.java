@@ -393,7 +393,7 @@ public class JobResultsPersisterTests extends ESTestCase {
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
 
-        return new ResultsPersisterService(client, clusterService, Settings.EMPTY);
+        return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }
 
     private AnomalyDetectionAuditor makeAuditor() {

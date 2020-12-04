@@ -59,7 +59,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         jobResultsProvider = new JobResultsProvider(client(), settings, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
         jobResultsPersister = new JobResultsPersister(
             originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), clusterService));

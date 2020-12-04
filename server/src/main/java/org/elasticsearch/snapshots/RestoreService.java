@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -130,6 +131,7 @@ import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestoreService.class);
 
     private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
             SETTING_NUMBER_OF_SHARDS,
@@ -275,13 +277,24 @@ public class RestoreService implements ClusterStateApplier {
                 ).distinct().collect(Collectors.toList());
 
                 final Set<Index> systemIndicesToDelete = new HashSet<>();
+                final Set<String> explicitlyRequestedSystemIndices = new HashSet<>();
                 final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(requestedIndicesIncludingSystem);
                 for (IndexId indexId : indexIdsInSnapshot) {
                     IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
                     if (snapshotIndexMetaData.isSystem()) {
                         systemIndicesToDelete.add(snapshotIndexMetaData.getIndex());
+                        if (requestedIndicesInSnapshot.contains(indexId.getName())) {
+                            explicitlyRequestedSystemIndices.add(indexId.getName());
+                        }
                     }
                     metadataBuilder.put(snapshotIndexMetaData, false);
+                }
+
+                // log a deprecation warning if the any of the indexes to delete were included in the request
+                if (explicitlyRequestedSystemIndices.isEmpty() == false) {
+                    deprecationLogger.deprecate("restore-system-index-from-snapshot",
+                        "Restoring system indices by name is deprecated. Use feature states instead. System indices: "
+                            + explicitlyRequestedSystemIndices);
                 }
 
                 final Metadata metadata = metadataBuilder.build();

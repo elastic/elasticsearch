@@ -614,7 +614,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         try {
             final SnapshotsInfoService snapshotsInfoService = getFollowerCluster().getCurrentMasterNodeInstance(SnapshotsInfoService.class);
 
-            final PlainActionFuture<List<Long>> waitForAllShardSnapshotSizesFailures = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = PlainActionFuture.newFuture();
             final ClusterStateListener listener = event -> {
                 RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
                 if (restoreInProgress != null
@@ -628,10 +628,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                                 .sorted(Comparator.comparingInt(ShardRouting::getId))
                                 .map(shard -> snapshotsInfoService.snapshotShardSizes().getShardSize(shard))
                                 .filter(Objects::nonNull)
+                                .filter(size -> ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE == size)
                                 .collect(Collectors.toList());
                             assertThat(sizes, hasSize(numberOfShards));
-                            waitForAllShardSnapshotSizesFailures.onResponse(sizes);
                         });
+                        waitForAllShardSnapshotSizesFailures.onResponse(null);
                     } catch (Exception e) {
                         throw new AssertionError("Failed to retrieve all snapshot shard sizes", e);
                     }
@@ -644,10 +645,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             logger.debug("--> creating follower index [{}]", followerIndex);
             followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex, ActiveShardCount.NONE));
 
-            final List<Long> allShardSnapshotSizes = waitForAllShardSnapshotSizesFailures.get(30L, TimeUnit.SECONDS);
+            waitForAllShardSnapshotSizesFailures.get(30L, TimeUnit.SECONDS);
             clusterService.removeListener(listener);
 
-            assertTrue(allShardSnapshotSizes.stream().allMatch(size -> ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE == size));
             assertThat(simulatedFailures.get(), equalTo(numberOfShards));
 
             logger.debug("--> checking that SnapshotsInfoService does not know the real sizes fof snapshot shards");

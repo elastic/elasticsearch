@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -36,7 +38,9 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -52,8 +56,11 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    public RestClusterStateAction(SettingsFilter settingsFilter) {
+    private final ThreadPool threadPool;
+
+    public RestClusterStateAction(SettingsFilter settingsFilter, ThreadPool threadPool) {
         this.settingsFilter = settingsFilter;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -107,20 +114,36 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
         settingsFilter.addFilterSettingParams(request);
 
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                if (clusterStateRequest.waitForMetadataVersion() != null) {
-                    builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
-                }
-                builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                ToXContent.Params params = new ToXContent.DelegatingMapParams(
-                    singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request);
-                response.getState().toXContent(builder, params);
-                builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<>(channel) {
+
+                    @Override
+                    protected void processResponse(ClusterStateResponse response) {
+                        final long startTimeMs = threadPool.relativeTimeInMillis();
+                        // Process serialization on MANAGEMENT pool since the serialization of the cluster state to XContent
+                        // can be too slow to execute on an IO thread
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
+                                ActionRunnable.wrap(this, l -> new RestBuilderListener<ClusterStateResponse>(channel) {
+                                    @Override
+                                    public RestResponse buildResponse(final ClusterStateResponse response,
+                                                                      final XContentBuilder builder) throws Exception {
+                                        if (clusterStateRequest.local() == false &&
+                                                threadPool.relativeTimeInMillis() - startTimeMs >
+                                                        clusterStateRequest.masterNodeTimeout().millis()) {
+                                            throw new ElasticsearchTimeoutException("Timed out getting cluster state");
+                                        }
+                                        builder.startObject();
+                                        if (clusterStateRequest.waitForMetadataVersion() != null) {
+                                            builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
+                                        }
+                                        builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+                                        ToXContent.Params params = new ToXContent.DelegatingMapParams(
+                                                singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request);
+                                        response.getState().toXContent(builder, params);
+                                        builder.endObject();
+                                        return new BytesRestResponse(RestStatus.OK, builder);
+                                    }
+                                }.onResponse(response)));
+                    }
         });
     }
 

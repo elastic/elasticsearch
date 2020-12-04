@@ -80,11 +80,13 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     static final Setting<Integer> EVENT_LOOP_THREAD_COUNT = Setting.intSetting(
         "repository.azure.http_client.event_loop_executor_thread_count",
         DEFAULT_EVENT_LOOP_THREAD_COUNT,
+        1,
         Setting.Property.NodeScope);
 
     static final Setting<Integer> MAX_OPEN_CONNECTIONS = Setting.intSetting(
         "repository.azure.http_client.max_open_connections",
         DEFAULT_MAX_CONNECTIONS,
+        1,
         Setting.Property.NodeScope);
 
     static final Setting<TimeValue> OPEN_CONNECTION_TIMEOUT = Setting.timeSetting(
@@ -183,7 +185,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                                         ProxyOptions proxyOptions,
                                         BiConsumer<String, URL> successfulRequestConsumer) {
         if (closed) {
-            throw new IllegalArgumentException("AzureClientProvider is already closed");
+            throw new IllegalStateException("AzureClientProvider is already closed");
         }
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);

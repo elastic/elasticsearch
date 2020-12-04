@@ -105,7 +105,25 @@ public class FrozenIndexIT extends ESIntegTestCase {
     public void testTimestampFieldTypeExposedByAllIndicesServices() throws Exception {
         internalCluster().startNodes(between(2, 4));
 
-        final String locale = randomFrom("", "en_GB", "fr_FR");
+        final String locale;
+        final String date;
+
+        switch (between(1, 3)) {
+            case 1:
+                locale = "";
+                date = "04 Feb 2020 12:01:23Z";
+                break;
+            case 2:
+                locale = "en_GB";
+                date = "04 Feb 2020 12:01:23Z";
+                break;
+            case 3:
+                locale = "fr_FR";
+                date = "04 févr. 2020 12:01:23Z";
+                break;
+            default:
+                throw new AssertionError("impossible");
+        }
 
         assertAcked(prepareCreate("index")
                 .setSettings(Settings.builder()
@@ -114,7 +132,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                 .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
                         .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
                         .field("type", "date")
-                        .field("format", "strict_date_hour_minute_second_fraction")
+                        .field("format", "dd LLL yyyy HH:mm:ssX")
                         .field("locale", locale)
                         .endObject()
                         .endObject().endObject().endObject()));
@@ -124,7 +142,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureGreen("index");
         if (randomBoolean()) {
-            client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567").get();
+            client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, date).get();
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -142,6 +160,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             });
             assertTrue(timestampFieldTypeFuture.isDone());
             assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().locale().toString(), equalTo(locale));
+            assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().parseMillis(date), equalTo(1580817683000L));
         }
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").setFreeze(false)).actionGet());

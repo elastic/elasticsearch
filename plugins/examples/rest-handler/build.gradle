@@ -33,7 +33,7 @@ esplugin {
 // No unit tests in this example
 tasks.named("test").configure { enabled = false }
 
-tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
+def fixture = tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
   dependsOn sourceSets.javaRestTest.runtimeClasspath
   env 'CLASSPATH', "${-> project.sourceSets.javaRestTest.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
@@ -41,6 +41,6 @@ tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
 }
 
 tasks.named("javaRestTest").configure {
-  dependsOn "exampleFixture"
-  nonInputProperties.systemProperty 'external.address', "${-> exampleFixture.addressAndPort}"
+  dependsOn fixture
+  nonInputProperties.systemProperty 'external.address', "${-> fixture.get().addressAndPort}"
 }

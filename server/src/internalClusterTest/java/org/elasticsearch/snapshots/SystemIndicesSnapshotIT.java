@@ -19,12 +19,16 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -211,6 +215,50 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // but the non-requested feature should still have its new document
         assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+    }
+
+    public void testRestoringSystemIndexByNameIsDeprecated() throws IllegalAccessException {
+        createRepository("test-repo", "fs");
+
+        // create system index
+        assertAcked(prepareCreate(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, 2, Settings.builder()
+            .put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)).put("refresh_interval", 10, TimeUnit.SECONDS)));
+
+        ensureGreen();
+
+        // put a document in system index
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snaphost doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+
+        // snapshot including global state
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        MockLogAppender mockLogAppender = new MockLogAppender();
+        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation.snapshots.RestoreService"), mockLogAppender);
+        mockLogAppender.start();
+        mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            "restore-system-index-from-snapshot",
+            "org.elasticsearch.deprecation.snapshots.RestoreService",
+            DeprecationLogger.DEPRECATION,
+            "Restoring system indices by name is deprecated. Use feature states instead. System indices: [.test-system-idx]"));
+
+        // restore system index by name, rather than feature state
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+            .get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        mockLogAppender.assertAllExpectationsMatched();
+        mockLogAppender.stop();
+        Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation.snapshots.RestoreService"), mockLogAppender);
+
+        // verify only the original document is restored
+        assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
     }
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {

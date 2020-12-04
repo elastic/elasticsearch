@@ -85,7 +85,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
 
         config = fromString("{\"dates_as_epoch_millis\" : null}");
-        assertNull(emptyConfig.getDatesAsEpochMillis());
+        assertFalse(config.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
@@ -119,8 +119,8 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
 
         config = new SettingsConfig.Builder().setDatesAsEpochMilli(null).build();
-        // returns null, however it's `null` as in "use default"
-        assertNull(emptyConfig.getDatesAsEpochMillis());
+        // returns false, however it's `null` as in "use default", checked next
+        assertFalse(config.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));

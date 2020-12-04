@@ -350,11 +350,13 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertNull(transformConfigRewritten.getPivotConfig().getMaxPageSearchSize());
         assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
         assertEquals(111L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
+        assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
+
         assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
     }
 
-    public void testRewriteForUpdateConflicting() throws IOException {
+    public void testRewriteForUpdateMaxPageSizeSearchConflicting() throws IOException {
         String pivotTransform = "{"
             + " \"id\" : \"body_id\","
             + " \"source\" : {\"index\":\"src\"},"
@@ -389,7 +391,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 
-    public void testRewriteForBWCofDateNormalization() throws IOException {
+    public void testRewriteForBWCOfDateNormalization() throws IOException {
         String pivotTransform = "{"
             + " \"id\" : \"body_id\","
             + " \"source\" : {\"index\":\"src\"},"

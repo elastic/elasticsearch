@@ -65,7 +65,7 @@ public final class AggregationResultUtils {
 
     private static final Map<String, BucketKeyExtractor> BUCKET_KEY_EXTRACTOR_MAP;
     private static final BucketKeyExtractor DEFAULT_BUCKET_KEY_EXTRACTOR = new DefaultBucketKeyExtractor();
-    private static final BucketKeyExtractor DATE_AS_EPOCH_BUCKET_KEY_EXTRACTOR = new DateAsEpochBucketKeyExtractor();
+    private static final BucketKeyExtractor DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR = new DatesAsEpochBucketKeyExtractor();
 
     static {
         Map<String, BucketKeyExtractor> tempMap = new HashMap<>();
@@ -135,7 +135,7 @@ public final class AggregationResultUtils {
     static BucketKeyExtractor getBucketKeyExtractor(SingleGroupSource groupSource, boolean datesAsEpoch) {
         return BUCKET_KEY_EXTRACTOR_MAP.getOrDefault(
             groupSource.getClass().getName(),
-            datesAsEpoch ? DATE_AS_EPOCH_BUCKET_KEY_EXTRACTOR : DEFAULT_BUCKET_KEY_EXTRACTOR
+            datesAsEpoch ? DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR : DEFAULT_BUCKET_KEY_EXTRACTOR
         );
     }
 
@@ -430,7 +430,7 @@ public final class AggregationResultUtils {
 
     }
 
-    static class DateAsEpochBucketKeyExtractor implements BucketKeyExtractor {
+    static class DatesAsEpochBucketKeyExtractor implements BucketKeyExtractor {
 
         @Override
         public Object value(Object key, String type) {

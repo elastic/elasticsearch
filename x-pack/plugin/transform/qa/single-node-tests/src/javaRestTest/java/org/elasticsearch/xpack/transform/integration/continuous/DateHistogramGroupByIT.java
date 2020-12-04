@@ -43,18 +43,18 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         .format(Instant.ofEpochMilli(42));
 
     private final boolean missing;
-    private final boolean dateAsEpochMillis;
+    private final boolean datesAsEpochMillis;
 
     public DateHistogramGroupByIT() {
         missing = randomBoolean();
-        dateAsEpochMillis = randomBoolean();
+        datesAsEpochMillis = randomBoolean();
     }
 
     @Override
     public TransformConfig createConfig() {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder();
         addCommonBuilderParameters(transformConfigBuilder);
-        if (dateAsEpochMillis) {
+        if (datesAsEpochMillis) {
             transformConfigBuilder.setSettings(addCommonSetings(new SettingsConfig.Builder()).setDatesAsEpochMilli(true).build());
         }
 
@@ -117,7 +117,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
             Map<String, Object> source = searchHit.getSourceAsMap();
 
             String transformBucketKey;
-            if (dateAsEpochMillis) {
+            if (datesAsEpochMillis) {
                 transformBucketKey = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
                     .format(Instant.ofEpochMilli((Long) XContentMapValues.extractValue("second", source)));
             } else {

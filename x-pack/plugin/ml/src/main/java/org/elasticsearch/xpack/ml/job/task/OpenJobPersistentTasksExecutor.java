@@ -240,7 +240,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     private void revertToCurrentSnapshot(String jobId, ActionListener<RevertModelSnapshotAction.Response> listener) {
-        logger.info("[{}] job has running datafeed task; performing recovery", jobId);
+        logger.info("[{}] job has running datafeed task; reverting to current snapshot", jobId);
 
         ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(
             jobResponse -> {

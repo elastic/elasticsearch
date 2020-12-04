@@ -209,7 +209,7 @@ final class DynamicFieldsBuilder {
         return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
-    interface Strategy {
+    private interface Strategy {
         void newDynamicStringField(ParseContext context, String name) throws IOException;
         void newDynamicLongField(ParseContext context, String name) throws IOException;
         void newDynamicDoubleField(ParseContext context, String name) throws IOException;

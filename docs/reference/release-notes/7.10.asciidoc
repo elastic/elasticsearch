@@ -1,6 +1,8 @@
 [[release-notes-7.10.1]]
 == {es} version 7.10.1
 
+coming::[7.10.1]
+
 Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
 
 [[bug-7.10.1]]
@@ -45,7 +47,7 @@ Machine Learning::
 * Fix bug with data frame analytics classification test data sampling when using custom feature processors {es-pull}64727[#64727]
 * Fix custom feature processor extraction bugs around boolean fields and custom one_hot feature output order {es-pull}64937[#64937]
 * Protect against stack overflow while loading data frame analytics data {es-pull}64947[#64947]
-* Fix a bug where the peak_model_bytes value of the model_size_stats object was not restored from the anomaly detector job snapshots {ml-pull}1572[#1572].
+* Fix a bug where the peak_model_bytes value of the model_size_stats object was not restored from the anomaly detector job snapshots {ml-pull}1572[#1572]
 
 Mapping::
 * Correctly serialize search-as-you-type analyzer {es-pull}65359[#65359] (issue: {es-issue}65319[#65319])

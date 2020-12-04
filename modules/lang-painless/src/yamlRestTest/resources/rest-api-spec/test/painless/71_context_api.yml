@@ -10,8 +10,8 @@
 
 "Action to get all API values for score context":
     - skip:
-      features: fips_140
-      reason: "The tests expect to be run with OSS distribution"
+        features: fips_140
+        reason: "The tests expect to be run with OSS distribution"
     - do:
         scripts_painless_context:
             context: score

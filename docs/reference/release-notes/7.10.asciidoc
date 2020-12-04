@@ -1,3 +1,68 @@
+[[release-notes-7.10.1]]
+== {es} version 7.10.1
+
+Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
+
+[[bug-7.10.1]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Fix NPE in toString of FailedShard {es-pull}64770[#64770]
+
+CCR::
+* Stop renew retention leases when follow task fails {es-pull}65168[#65168]
+
+CRUD::
+* Propogate rejected execution during bulk actions {es-pull}64842[#64842] (issue: {es-issue}64450[#64450])
+
+Cluster Coordination::
+* Fix up roles after rolling upgrade {es-pull}64693[#64693] (issue: {es-issue}62840[#62840])
+
+EQL::
+* Allow null tiebreakers inside ordinals/sequences {es-pull}65033[#65033] (issue: {es-issue}64706[#64706])
+* Fix "resource not found" exception on existing EQL async search {es-pull}65167[#65167] (issue: {es-issue}65108[#65108])
+* Fix aggressive/incorrect until policy in sequences {es-pull}65156[#65156]
+
+Features/ILM+SLM::
+* Fix SetSingleNodeAllocateStep for data tier deployments {es-pull}64679[#64679]
+
+Features/Watcher::
+* Watcher understands hidden expand wildcard value {es-pull}65332[#65332] (issue: {es-issue}65148[#65148])
+
+Geo::
+* Fix handling of null values in geo_point {es-pull}65307[#65307] (issue: {es-issue}65306[#65306])
+
+Infra/Core::
+* Fix date math hidden index resolution {es-pull}65236[#65236] (issue: {es-issue}65157[#65157])
+
+Infra/Scripting::
+* Fix Painless casting bug in compound assignment for String {es-pull}65329[#65329]
+* Revert null-safe behavior to error at run-time instead of compile-time {es-pull}65099[#65099] (issue: {es-issue}65098[#65098])
+
+Machine Learning::
+* Extract dependent variable's mapping correctly in case of a multi-field {es-pull}63813[#63813]
+* Fix bug with data frame analytics classification test data sampling when using custom feature processors {es-pull}64727[#64727]
+* Fix custom feature processor extraction bugs around boolean fields and custom one_hot feature output order {es-pull}64937[#64937]
+* Protect against stack overflow while loading data frame analytics data {es-pull}64947[#64947]
+* Fix a bug where the peak_model_bytes value of the model_size_stats object was not restored from the anomaly detector job snapshots {ml-pull}1572[#1572].
+
+Mapping::
+* Correctly serialize search-as-you-type analyzer {es-pull}65359[#65359] (issue: {es-issue}65319[#65319])
+* Unused boost parameter should not throw mapping exception {es-pull}64999[#64999] (issue: {es-issue}64982[#64982])
+
+SQL::
+* Fix the return type problem in the sign function {es-pull}64845[#64845]
+
+Search::
+* Fix cacheability of custom LongValuesSource in TermsSetQueryBuilder {es-pull}65367[#65367]
+* SourceValueFetcher should check all possible source fields {es-pull}65375[#65375]
+
+Snapshot/Restore::
+* Fix Broken Error Handling in CacheFile#acquire {es-pull}65342[#65342] (issue: {es-issue}65302[#65302])
+* Fix Two Snapshot Clone State Machine Bugs {es-pull}65042[#65042]
+
+
 [[release-notes-7.10.0]]
 == {es} version 7.10.0
 

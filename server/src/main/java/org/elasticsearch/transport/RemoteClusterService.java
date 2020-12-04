@@ -182,7 +182,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * will invoke the listener immediately.
      */
     void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
-        getRemoteClusterConnection(clusterAlias).ensureConnected(listener);
+        final RemoteClusterConnection remoteClusterConnection;
+        try {
+            remoteClusterConnection = getRemoteClusterConnection(clusterAlias);
+        } catch (NoSuchRemoteClusterException e) {
+            listener.onFailure(e);
+            return;
+        }
+        remoteClusterConnection.ensureConnected(listener);
     }
 
     /**

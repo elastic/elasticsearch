@@ -34,12 +34,15 @@ import java.util.List;
 import java.util.Map;
 
 class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
+    private final MetricAggregatorSupplier aggregatorSupplier;
 
     AvgAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metadata) throws IOException {
+                         Map<String, Object> metadata, MetricAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
     }
+
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -60,8 +63,6 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(AvgAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, context, parent, metadata);
+        return aggregatorSupplier.build(name, config, context, parent, metadata);
     }
 }

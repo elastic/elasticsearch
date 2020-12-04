@@ -34,6 +34,7 @@ import java.util.Map;
 
 class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final GeoBoundsAggregatorSupplier aggregatorSupplier;
     private final boolean wrapLongitude;
 
     GeoBoundsAggregatorFactory(String name,
@@ -42,9 +43,11 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                 AggregationContext context,
                                 AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metadata) throws IOException {
+                                Map<String, Object> metadata,
+                                GeoBoundsAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.wrapLongitude = wrapLongitude;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
@@ -58,9 +61,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(GeoBoundsAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, context, parent, config, wrapLongitude, metadata);
+        return aggregatorSupplier.build(name, context, parent, config, wrapLongitude, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {

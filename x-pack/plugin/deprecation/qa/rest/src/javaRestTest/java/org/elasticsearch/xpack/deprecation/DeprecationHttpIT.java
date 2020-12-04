@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
@@ -239,7 +240,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
             assertBusy(() -> {
                 Response response;
                 try {
-                    response = client().performRequest(new Request("GET", ".logs-deprecation-elasticsearch/_search"));
+                    client().performRequest(new Request("POST", "/.logs-deprecation-elasticsearch/_refresh?ignore_unavailable=true"));
+                    response = client().performRequest(new Request("GET", "/.logs-deprecation-elasticsearch/_search"));
                 } catch (Exception e) {
                     // It can take a moment for the index to be created. If it doesn't exist then the client
                     // throws an exception. Translate it into an assertion error so that assertBusy() will
@@ -305,7 +307,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         )
                     )
                 );
-            });
+            }, 30, TimeUnit.SECONDS);
         } finally {
             configureWriteDeprecationLogsToIndex(null);
             client().performRequest(new Request("DELETE", "_data_stream/.logs-deprecation-elasticsearch"));

@@ -74,7 +74,9 @@ public class XPackLicenseState {
 
         SPATIAL_GEO_LINE(OperationMode.GOLD, true),
 
-        SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true);
+        SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true),
+
+        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;

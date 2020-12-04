@@ -69,6 +69,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -339,7 +340,8 @@ public class RestoreService implements ClusterStateApplier {
                                         .index(renamedIndexName);
                                     indexMdBuilder.settings(Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
-                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
+                                        .timestampMillisRange(IndexLongFieldRange.NO_SHARDS);
                                     shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
                                     if (!request.includeAliases() && !snapshotIndexMetadata.getAliases().isEmpty()) {
                                         // Remove all aliases - they shouldn't be restored
@@ -372,6 +374,7 @@ public class RestoreService implements ClusterStateApplier {
                                             1 + currentIndexMetadata.getSettingsVersion()));
                                     indexMdBuilder.aliasesVersion(
                                         Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()));
+                                    indexMdBuilder.timestampMillisRange(IndexLongFieldRange.NO_SHARDS);
 
                                     for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
                                         indexMdBuilder.primaryTerm(shard,

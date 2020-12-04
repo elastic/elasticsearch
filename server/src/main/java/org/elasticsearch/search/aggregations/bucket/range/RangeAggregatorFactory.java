@@ -40,7 +40,8 @@ public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<Range
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        RangeAggregatorSupplier aggregatorSupplier
     ) throws IOException {
         super(
             name,
@@ -52,7 +53,8 @@ public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<Range
             context,
             parent,
             subFactoriesBuilder,
-            metadata
+            metadata,
+            aggregatorSupplier
         );
     }
 }

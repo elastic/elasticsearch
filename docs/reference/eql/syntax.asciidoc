@@ -382,14 +382,24 @@ use a regular string with the `\"` escape sequence.
 [[eql-syntax-wildcards]]
 === Wildcards
 
-For string comparisons using the `:` operator, you can use wildcards (`*`) to
-match specific patterns:
+For string comparisons using the `:` operator, you can use the `*` and `?`
+wildcards to match specific patterns. The `*` wildcard matches zero or more
+characters:
 
 [source,eql]
 ----
-field : "f*o"
-field : "*foo"
-field : "foo*"
+my_field : "doc*"  // Matches "doc", "docs", or "document" but not "dos"
+my_field : "*doc"  // Matches "adoc" or "asciidoc"
+my_field : "d*c"   // Matches "doc" or "disc"
+----
+
+The `?` wildcard matches exactly one character:
+
+[source,eql]
+----
+my_field : "doc?"  // Matches "docs" but not "doc", "document", or "dos"
+my_field : "?doc"  // Matches "adoc" but not "asciidoc"
+my_field : "d?c"   // Matches "doc" but not "disc"
 ----
 
 The `:` operator also supports wildcards in <<eql-syntax-lookup-operators,list
@@ -397,7 +407,7 @@ lookups>>:
 
 [source,eql]
 ----
-field : ("f*o", "*bar", "baz*", "qux")
+my_field : ("doc*", "f*o", "ba?", "qux")
 ----
 
 [discrete]

@@ -20,28 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class InstanceofNode extends UnaryNode {
 
-    /* ---- begin node data ---- */
-
-    private Class<?> instanceType;
-
-    public void setInstanceType(Class<?> instanceType) {
-        this.instanceType = instanceType;
-    }
-
-    public Class<?> getInstanceType() {
-        return instanceType;
-    }
-
-    public String getInstanceCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(instanceType);
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

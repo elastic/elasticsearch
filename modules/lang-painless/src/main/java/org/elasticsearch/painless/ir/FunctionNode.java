@@ -22,9 +22,6 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class FunctionNode extends IRNode {
 
     /* ---- begin tree structure ---- */
@@ -39,82 +36,7 @@ public class FunctionNode extends IRNode {
         return blockNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected String name;
-    Class<?> returnType;
-    List<Class<?>> typeParameters = new ArrayList<>();
-    List<String> parameterNames = new ArrayList<>();
-    protected boolean isStatic;
-    protected boolean hasVarArgs;
-    protected boolean isSynthetic;
-    protected int maxLoopCounter;
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setReturnType(Class<?> returnType) {
-        this.returnType = returnType;
-    }
-
-    public Class<?> getReturnType() {
-        return returnType;
-    }
-
-    public void addTypeParameter(Class<?> typeParameter) {
-        typeParameters.add(typeParameter);
-    }
-
-    public List<Class<?>> getTypeParameters() {
-        return typeParameters;
-    }
-
-    public void addParameterName(String parameterName) {
-        parameterNames.add(parameterName);
-    }
-
-    public List<String> getParameterNames() {
-        return parameterNames;
-    }
-
-    public void setStatic(boolean isStatic) {
-        this.isStatic = isStatic;
-    }
-
-    public boolean isStatic() {
-        return isStatic;
-    }
-
-    public void setVarArgs(boolean hasVarArgs) {
-        this.hasVarArgs = hasVarArgs;
-    }
-
-    public boolean hasVarArgs() {
-        return hasVarArgs;
-    }
-
-    public void setSynthetic(boolean isSythetic) {
-        this.isSynthetic = isSythetic;
-    }
-
-    public boolean isSynthetic() {
-        return isSynthetic;
-    }
-
-    public void setMaxLoopCounter(int maxLoopCounter) {
-        this.maxLoopCounter = maxLoopCounter;
-    }
-
-    public int getMaxLoopCounter() {
-        return maxLoopCounter;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

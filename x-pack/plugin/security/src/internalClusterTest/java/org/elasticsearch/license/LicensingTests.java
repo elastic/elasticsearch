@@ -208,45 +208,33 @@ public class LicensingTests extends SecurityIntegTestCase {
         options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
             new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
         request.setOptions(options);
-
         Response response = getRestClient().performRequest(request);
-
         List<String> beforeWarningHeaders = getWarningHeaders(response.getHeaders());
-
         assertTrue(beforeWarningHeaders.isEmpty());
-
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
             License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
         long now = System.currentTimeMillis();
+
         long newExpirationDate = now + LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() - 1;
         setLicensingExpirationDate(mode, newExpirationDate);
-
         response = getRestClient().performRequest(request);
-
         List<String> afterWarningHeaders= getWarningHeaders(response.getHeaders());
-
         assertThat(afterWarningHeaders, Matchers.hasSize(1));
         assertThat(afterWarningHeaders.get(0), Matchers.containsString("Your license will expire in [6] days. " +
             "Contact your administrator or update your license for continued use of features"));
 
         newExpirationDate = now + 300000;
         setLicensingExpirationDate(mode, newExpirationDate);
-
         response = getRestClient().performRequest(request);
-
         afterWarningHeaders= getWarningHeaders(response.getHeaders());
-
         assertThat(afterWarningHeaders, Matchers.hasSize(1));
         assertThat(afterWarningHeaders.get(0), Matchers.containsString("Your license expires today. " +
             "Contact your administrator or update your license for continued use of features"));
 
         newExpirationDate = now - 300000;
         setLicensingExpirationDate(mode, newExpirationDate);
-
         response = getRestClient().performRequest(request);
-
         afterWarningHeaders= getWarningHeaders(response.getHeaders());
-
         assertThat(afterWarningHeaders, Matchers.hasSize(1));
         long finalNewExpirationDate = newExpirationDate;
         String expiredMessage = String.format(Locale.ROOT, "Your license expired on [%s]. ",
@@ -255,13 +243,12 @@ public class LicensingTests extends SecurityIntegTestCase {
             "Contact your administrator or update your license for continued use of features"));
     }
 
-    public void testWarningHeaderAuthenticationFailed() throws Exception {
+    public void  testNoWarningHeaderWhenAuthenticationFailed() throws Exception {
         Request request = new Request("GET", "/_security/user");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
             new SecureString(SecuritySettingsSourceField.TEST_INVALID_PASSWORD.toCharArray())));
         request.setOptions(options);
-
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
             License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
         long now = System.currentTimeMillis();
@@ -275,7 +262,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             List<String> afterWarningHeaders= getWarningHeaders(e.getResponse().getHeaders());
             assertThat(afterWarningHeaders, Matchers.hasSize(0));
         }
-        assertTrue(headers != null && headers.length == 3);
+        assertThat(headers != null && headers.length == 3, is(true));
     }
 
     private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {

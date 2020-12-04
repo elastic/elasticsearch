@@ -650,7 +650,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
             assertThat(simulatedFailures.get(), equalTo(numberOfShards));
 
-            logger.debug("--> checking that SnapshotsInfoService does not know the real sizes fof snapshot shards");
+            logger.debug("--> checking that SnapshotsInfoService does not know the real sizes of snapshot shards");
             final SnapshotShardSizeInfo snapshotShardSizeInfo = snapshotsInfoService.snapshotShardSizes();
             for (int shardId = 0; shardId < numberOfShards; shardId++) {
                 final ShardRouting primary = clusterService.state().routingTable().index(followerIndex).shard(shardId).primaryShard();

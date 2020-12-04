@@ -58,7 +58,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             fips140Usage = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             operatorPrivilegesUsage = in.readMap();
         }
     }
@@ -105,7 +105,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeMap(fips140Usage);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeMap(operatorPrivilegesUsage);
         }
     }

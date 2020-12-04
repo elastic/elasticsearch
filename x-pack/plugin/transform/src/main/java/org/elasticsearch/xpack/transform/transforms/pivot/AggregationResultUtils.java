@@ -422,6 +422,8 @@ public final class AggregationResultUtils {
                 return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
             } else if ((DateFieldMapper.CONTENT_TYPE.equals(type) || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(type))
                 && key instanceof Long) {
+                    // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
+                    // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
                     return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
                 }
 

@@ -232,7 +232,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         settings.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "");
         settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "");
-        settings.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), "");
+        settings.put(IndexMetadata.SETTING_VERSION_CREATED, "");
         settings.put(IndexMetadata.SETTING_INDEX_UUID, "");
         settings.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, "");
         settings.put(IndexMetadata.SETTING_CREATION_DATE, "");

@@ -62,7 +62,8 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.core.rollup.v2.RollupV2Config;
+import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
+import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -84,7 +85,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
     static final String AGGREGATION_NAME = RollupField.NAME;
     static final int PAGE_SIZE = 1000;
 
-    private final RollupV2Config job;
+    private final RollupAction.Request request;
     private final Client client;
     private final Map<String, String> headers;
     private final CompositeAggregationBuilder compositeBuilder;
@@ -96,22 +97,22 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
      * @param client The Transport client
      * @param threadPool ThreadPool to use to fire the first request of a background job.
      * @param executorName Name of the executor to use to fire the first request of a background job.
-     * @param job The rollup job
+     * @param request The rollup request
      */
-    RollupV2Indexer(Client client, ThreadPool threadPool, String executorName, RollupV2Config job, Map<String, String> headers,
+    RollupV2Indexer(Client client, ThreadPool threadPool, String executorName, RollupAction.Request request, Map<String, String> headers,
                     ActionListener<Void> completionListener) {
         super(threadPool, executorName, new AtomicReference<>(IndexerState.STOPPED), null, new RollupIndexerJobStats());
         this.client = client;
-        this.job = job;
+        this.request = request;
         this.headers = headers;
-        this.compositeBuilder = createCompositeBuilder(job);
-        this.tmpIndex = ".rolluptmp-" + job.getRollupIndex();
+        this.compositeBuilder = createCompositeBuilder(this.request.getRollupConfig());
+        this.tmpIndex = ".rolluptmp-" + this.request.getRollupConfig().getRollupIndex();
         this.completionListener = completionListener;
     }
 
     @Override
     protected String getJobId() {
-        return job.getId();
+        return request.getRollupConfig().getId();
     }
 
     @Override
@@ -127,11 +128,12 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
     }
 
     XContentBuilder getMapping() throws IOException {
+        GroupConfig groupConfig = request.getRollupConfig().getGroupConfig();
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties");
-        String dateField = job.getGroupConfig().getDateHistogram().getField();
-        HistogramGroupConfig histogramGroupConfig = job.getGroupConfig().getHistogram();
-        TermsGroupConfig termsGroupConfig = job.getGroupConfig().getTerms();
-        List<MetricConfig> metricConfigs = job.getMetricsConfig();
+        String dateField = groupConfig.getDateHistogram().getField();
+        HistogramGroupConfig histogramGroupConfig = groupConfig.getHistogram();
+        TermsGroupConfig termsGroupConfig = groupConfig.getTerms();
+        List<MetricConfig> metricConfigs = request.getRollupConfig().getMetricsConfig();
 
         builder.startObject(dateField).field("type", DateFieldMapper.CONTENT_TYPE).endObject();
 
@@ -194,7 +196,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
     @Override
     protected void onFinish(ActionListener<Void> listener) {
         // "shrink index"
-        ResizeRequest resizeRequest = new ResizeRequest(job.getRollupIndex(), tmpIndex);
+        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupConfig().getRollupIndex(), tmpIndex);
         resizeRequest.setResizeType(ResizeType.CLONE);
         resizeRequest.getTargetIndexRequest()
             .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
@@ -237,7 +239,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
                 .size(0)
                 .trackTotalHits(false)
                 .aggregation(compositeBuilder.aggregateAfter(position));
-        return new SearchRequest(job.getSourceIndex()).source(searchSource);
+        return new SearchRequest(request.getSourceIndex()).source(searchSource);
     }
 
     @Override
@@ -298,7 +300,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
      * @param config The config for the job.
      * @return The composite aggregation that creates the rollup buckets
      */
-    private CompositeAggregationBuilder createCompositeBuilder(RollupV2Config config) {
+    private CompositeAggregationBuilder createCompositeBuilder(RollupActionConfig config) {
         final GroupConfig groupConfig = config.getGroupConfig();
         List<CompositeValuesSourceBuilder<?>> builders = createValueSourceBuilders(groupConfig);
 

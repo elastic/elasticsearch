@@ -53,10 +53,20 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public enum Dynamic {
-        TRUE(true),
+        TRUE(true) {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.TEMPLATE_OR_CONCRETE;
+            }
+        },
         FALSE(false),
         STRICT(false),
-        RUNTIME(true);
+        RUNTIME(true) {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.TEMPLATE_OR_RUNTIME;
+            }
+        };
 
         private final boolean canCreateDynamicFields;
 
@@ -67,6 +77,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         final boolean canCreateDynamicFields() {
             return canCreateDynamicFields;
         }
+
+        DynamicFieldsBuilder getDynamicFieldsBuilder() {
+            throw new UnsupportedOperationException("Cannot create dynamic fields when dynamic is set to [" + this + "]");
+        };
     }
 
     public static class Nested {

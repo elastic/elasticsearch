@@ -89,7 +89,12 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     protected MinAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                               AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MinAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        MetricAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
+        return new MinAggregatorFactory(name, config, context,
+                                        parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

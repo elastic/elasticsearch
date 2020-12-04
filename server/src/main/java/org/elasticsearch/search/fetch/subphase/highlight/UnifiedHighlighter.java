@@ -32,6 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -113,7 +114,7 @@ public class UnifiedHighlighter implements Highlighter {
             : HighlightUtils.Encoders.DEFAULT;
         int maxAnalyzedOffset = fieldContext.context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Analyzer analyzer = wrapAnalyzer(fieldContext.context.getQueryShardContext().getFieldNameIndexAnalyzer());
+        Analyzer analyzer = wrapAnalyzer(fieldContext.context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER));
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);

@@ -135,7 +135,11 @@ public final class CardinalityAggregationBuilder
     protected CardinalityAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                       AggregatorFactory parent,
                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, context, parent, subFactoriesBuilder, metadata);
+        CardinalityAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
+        return new CardinalityAggregatorFactory(name, config, precisionThreshold, context, parent,
+                                                subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

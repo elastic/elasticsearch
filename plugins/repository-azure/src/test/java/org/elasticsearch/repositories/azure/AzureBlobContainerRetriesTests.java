@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.azure;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import fixture.azure.AzureHttpHandler;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -74,6 +75,7 @@ import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -96,6 +98,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     private static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1L;
 
     private HttpServer httpServer;
+    private HttpServer secondaryHttpServer;
     private ThreadPool threadPool;
     private AzureClientProvider clientProvider;
 
@@ -105,6 +108,8 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY));
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
+        secondaryHttpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        secondaryHttpServer.start();
         clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
         clientProvider.start();
         super.setUp();
@@ -114,17 +119,24 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     public void tearDown() throws Exception {
         clientProvider.close();
         httpServer.stop(0);
+        secondaryHttpServer.stop(0);
         super.tearDown();
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 
     private BlobContainer createBlobContainer(final int maxRetries) {
+        return createBlobContainer(maxRetries, null, LocationMode.PRIMARY_ONLY);
+    }
+
+    private BlobContainer createBlobContainer(final int maxRetries, String secondaryHost, final LocationMode locationMode) {
         final Settings.Builder clientSettings = Settings.builder();
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
-        final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://"
-            + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/account";
+        String endpoint =
+            "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + getEndpointForServer(httpServer, "account");
+        if (secondaryHost != null) {
+            endpoint += ";BlobSecondaryEndpoint=" + getEndpointForServer(secondaryHttpServer, "account");
+        }
         clientSettings.put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
         clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueMillis(500));
@@ -143,7 +155,10 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                     1,
                     1L,
                     5L,
-                    null);
+                    // The SDK doesn't work well with ip endponts. Secondary host endpoints that contain
+                    // a path causes the sdk to rewrite the endpoint with an invalid path, that's the reason why we provide just the host +
+                    // port.
+                    secondaryHost != null ? secondaryHost.replaceFirst("/account", "") : null);
             }
 
             @Override
@@ -171,6 +186,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             Settings.builder()
                 .put(CONTAINER_SETTING.getKey(), "container")
                 .put(ACCOUNT_SETTING.getKey(), clientName)
+                .put(LOCATION_MODE_SETTING.getKey(), locationMode)
                 .build());
 
         return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetadata, service));
@@ -465,6 +481,78 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         }
     }
 
+    public void testRetryFromSecondaryLocationPolicies() throws Exception {
+        final int maxRetries = randomIntBetween(1, 5);
+        final AtomicInteger failedHeadCalls = new AtomicInteger();
+        final AtomicInteger failedGetCalls = new AtomicInteger();
+        final byte[] bytes = randomBlobContent();
+
+        HttpHandler failingHandler = exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    failedHeadCalls.incrementAndGet();
+                    AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    failedGetCalls.incrementAndGet();
+                    AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                }
+            } finally {
+                exchange.close();
+            }
+        };
+
+        HttpHandler workingHandler = exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(bytes.length));
+                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    final int rangeStart = getRangeStart(exchange);
+                    assertThat(rangeStart, lessThan(bytes.length));
+                    final int length = bytes.length - rangeStart;
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
+                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                    exchange.getResponseHeaders().add("ETag", UUIDs.base64UUID());
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
+                    exchange.getResponseBody().write(bytes, rangeStart, length);
+                }
+            } finally {
+                exchange.close();
+            }
+        };
+        LocationMode locationMode = randomFrom(LocationMode.PRIMARY_THEN_SECONDARY, LocationMode.SECONDARY_THEN_PRIMARY);
+
+        String secondaryHost = null;
+        String blobPath = "/account/container/read_blob_from_secondary";
+        if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY) {
+            httpServer.createContext(blobPath, failingHandler);
+            secondaryHttpServer.createContext(blobPath, workingHandler);
+            // The SDK doesn't work well with secondary host endpoints that contain
+            // a path, that's the reason why we sould provide just the host + port;
+            secondaryHost = getEndpointForServer(secondaryHttpServer, "account");
+        } else if (locationMode == LocationMode.SECONDARY_THEN_PRIMARY) {
+            secondaryHttpServer.createContext(blobPath, failingHandler);
+            httpServer.createContext(blobPath, workingHandler);
+            secondaryHost = getEndpointForServer(httpServer, "account");
+        }
+
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, secondaryHost, locationMode);
+        try (InputStream inputStream = blobContainer.readBlob("read_blob_from_secondary")) {
+            assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
+
+            // It does round robin, first tries on the primary, then on the secondary
+            assertThat(failedHeadCalls.get(), equalTo(1));
+            assertThat(failedGetCalls.get(), equalTo(1));
+        }
+    }
+
     private static byte[] randomBlobContent() {
         return randomByteArrayOfLength(randomIntBetween(1, 1 << 20)); // rarely up to 1mb
     }
@@ -495,5 +583,10 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             return Optional.empty();
         }
         return Optional.of(Math.toIntExact(rangeEnd));
+    }
+
+    private String getEndpointForServer(HttpServer server, String accountName) {
+        InetSocketAddress address = server.getAddress();
+        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/" + accountName;
     }
 }

@@ -155,23 +155,65 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        ParsedDocument doc = mapper.parse(source(b -> {
-            b.field("timestamp", "1998-04-30T14:30:17-05:00");
-            b.startObject("location");
-            {
-                b.field("lat", 13.5);
-                b.field("lon", 34.89);
-            }
-            b.endObject();
-            b.field("country", "de");
-            b.field("concrete", "foo");
-        }));
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("timestamp", "1998-04-30T14:30:17-05:00");
+                b.startObject("location");
+                {
+                    b.field("lat", 13.5);
+                    b.field("lon", 34.89);
+                }
+                b.endObject();
+                b.field("country", "de");
+                b.field("concrete", "foo");
+            }));
 
-        assertNotNull(doc.rootDoc().getField("timestamp"));
-        assertNotNull(doc.rootDoc().getField("_source"));
-        assertNotNull(doc.rootDoc().getField("location.lat"));
-        assertNotNull(doc.rootDoc().getField("concrete"));
-        assertNull(doc.rootDoc().getField("country"));
+            assertNotNull(doc.rootDoc().getField("timestamp"));
+            assertNotNull(doc.rootDoc().getField("_source"));
+            assertNotNull(doc.rootDoc().getField("location.lat"));
+            assertNotNull(doc.rootDoc().getField("concrete"));
+            assertNull(doc.rootDoc().getField("country"));
+        }
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("timestamp", "1998-04-30T14:30:17-05:00");
+                b.startArray("location");
+                {
+                    b.startObject().field("lat", 13.5).field("lon", 34.89).endObject();
+                    b.startObject().field("lat", 14.5).field("lon", 89.33).endObject();
+                }
+                b.endArray();
+                b.field("country", "de");
+                b.field("concrete", "foo");
+            }));
+
+            assertNotNull(doc.rootDoc().getField("timestamp"));
+            assertNotNull(doc.rootDoc().getField("_source"));
+            assertThat(doc.rootDoc().getFields("location.lat").length, equalTo(4));
+            assertNotNull(doc.rootDoc().getField("concrete"));
+            assertNull(doc.rootDoc().getField("country"));
+        }
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("timestamp", "1998-04-30T14:30:17-05:00");
+                b.startObject("location");
+                {
+                    b.array("lat", 13.5, 14.5);
+                    b.array("lon", 34.89, 89.33);
+                }
+                b.endObject();
+                b.field("country", "de");
+                b.field("concrete", "foo");
+            }));
+
+            assertNotNull(doc.rootDoc().getField("timestamp"));
+            assertNotNull(doc.rootDoc().getField("_source"));
+            assertThat(doc.rootDoc().getFields("location.lat").length, equalTo(4));
+            assertNotNull(doc.rootDoc().getField("concrete"));
+            assertNull(doc.rootDoc().getField("country"));
+        }
 
     }
 

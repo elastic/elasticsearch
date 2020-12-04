@@ -244,7 +244,6 @@ public class Constants {
         "cluster:monitor/xpack/info/logstash",
         "cluster:monitor/xpack/info/ml",
         "cluster:monitor/xpack/info/monitoring",
-        "cluster:monitor/xpack/info/operator_privileges",
         "cluster:monitor/xpack/info/rollup",
         "cluster:monitor/xpack/info/searchable_snapshots",
         "cluster:monitor/xpack/info/security",

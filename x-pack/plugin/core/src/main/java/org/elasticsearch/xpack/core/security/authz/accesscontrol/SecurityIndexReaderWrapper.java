@@ -80,14 +80,13 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 return reader;
             }
 
-            // permissions are defined, so check if the license actually allows DLS/FLS
-            if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
-                return reader;
-            }
+
 
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
-            if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {
+            if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions() &&
+                licenseState.checkFeature(Feature.SECURITY_DLS_FLS)) {
+
                 BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
                 if (filterQuery != null) {
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));

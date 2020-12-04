@@ -113,9 +113,7 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
     }
 
     private static SystemMemoryInfo errorThrowingMemoryInfo() {
-        return () -> {
-            throw new SystemMemoryInfo.SystemMemoryInfoException("something went wrong");
-        };
+        return () -> { throw new SystemMemoryInfo.SystemMemoryInfoException("something went wrong"); };
     }
 
     private static Path configPath() {

@@ -6,17 +6,22 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toMap;
 
 public class DocumentConversionUtils {
+
+    private static final Logger logger = LogManager.getLogger(DocumentConversionUtils.class);
 
     public static IndexRequest convertDocumentToIndexRequest(Map<String, Object> document,
                                                              String destinationIndex,
@@ -26,30 +31,36 @@ public class DocumentConversionUtils {
             throw new RuntimeException("Expected a document id but got null.");
         }
 
-        XContentBuilder builder = skipInternalFields(document);
-        IndexRequest request = new IndexRequest(destinationIndex).source(builder).id(id);
-        if (destinationPipeline != null) {
-            request.setPipeline(destinationPipeline);
-        }
-        return request;
+        document = removeInternalFields(document);
+        return new IndexRequest(destinationIndex).id(id).source(document).setPipeline(destinationPipeline);
     }
 
-    private static XContentBuilder skipInternalFields(Map<String, Object> document) {
-        XContentBuilder builder;
-        try {
-            builder = jsonBuilder();
-            builder.startObject();
-            for (Map.Entry<String, ?> value : document.entrySet()) {
-                // skip all internal fields
-                if (value.getKey().startsWith("_") == false) {
-                    builder.field(value.getKey(), value.getValue());
+    /**
+     * Removes all the internal entries from the map. The entry is considered internal when the key starts with underscore character ('_').
+     * The original document is *not* changed. The method returns a new document instead.
+     *
+     * TODO: Find out how to properly handle user-provided fields whose names start with underscore character ('_').
+     */
+    public static <V> Map<String, V> removeInternalFields(Map<String, V> document) {
+        return document.entrySet().stream()
+            .filter(not(e -> e.getKey().startsWith("_")))
+            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    public static Map<String, String> extractFieldMappings(FieldCapabilitiesResponse response) {
+        Map<String, String> extractedTypes = new HashMap<>();
+
+        response.get()
+            .forEach(
+                (fieldName, capabilitiesMap) -> {
+                    // TODO: overwrites types, requires resolve if types are mixed
+                    capabilitiesMap.forEach((name, capability) -> {
+                        logger.trace(() -> new ParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
+                        extractedTypes.put(fieldName, capability.getType());
+                    });
                 }
-            }
-            builder.endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return builder;
+            );
+        return extractedTypes;
     }
 
     private DocumentConversionUtils() {}

@@ -6,24 +6,29 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DocumentConversionUtilsTests extends ESTestCase {
 
     private static String INDEX = "some-index";
     private static String PIPELINE = "some-pipeline";
     private static String ID = "some-id";
-    private static Map<String, Object> DOCUMENT =
+    private static Map<String, Object> DOCUMENT = Collections.unmodifiableMap(
         new HashMap<>() {{
             put("_id", ID);
             put("field-1", "field-1-value");
@@ -31,13 +36,13 @@ public class DocumentConversionUtilsTests extends ESTestCase {
             put("field-3", "field-3-value");
             put("_internal-field-1", "internal-field-1-value");
             put("_internal-field-2", "internal-field-2-value");
-        }};
-    private static Map<String, Object> DOCUMENT_WITHOUT_INTERNAL_FIELDS =
+        }});
+    private static Map<String, Object> DOCUMENT_WITHOUT_INTERNAL_FIELDS = Collections.unmodifiableMap(
         new HashMap<>() {{
             put("field-1", "field-1-value");
             put("field-2", "field-2-value");
             put("field-3", "field-3-value");
-        }};
+        }});
 
     public void testConvertDocumentToIndexRequest_MissingId() {
         Exception e =
@@ -69,5 +74,37 @@ public class DocumentConversionUtilsTests extends ESTestCase {
         assertThat(indexRequest.id(), is(equalTo(ID)));
         assertThat(indexRequest.getPipeline(), is(nullValue()));
         assertThat(indexRequest.sourceAsMap(), is(equalTo(DOCUMENT_WITHOUT_INTERNAL_FIELDS)));
+    }
+
+    public void testRemoveInternalFields() {
+        assertThat(DocumentConversionUtils.removeInternalFields(DOCUMENT), is(equalTo(DOCUMENT_WITHOUT_INTERNAL_FIELDS)));
+    }
+
+    public void testExtractFieldMappings() {
+        FieldCapabilitiesResponse response =
+            new FieldCapabilitiesResponse(
+                new String[] { "some-index" },
+                new HashMap<>() {{
+                    put("field-1", new HashMap<>() {{
+                        put("keyword", createFieldCapabilities("field-1", "keyword"));
+                    }});
+                    put("field-2", new HashMap<>() {{
+                        put("long", createFieldCapabilities("field-2", "long"));
+                        put("keyword", createFieldCapabilities("field-2", "keyword"));
+                    }});
+                }});
+
+        assertThat(
+            DocumentConversionUtils.extractFieldMappings(response),
+            allOf(
+                hasEntry("field-1", "keyword"),
+                hasEntry(is(equalTo("field-2")), is(oneOf("long", "keyword")))
+            )
+        );
+    }
+
+    private static FieldCapabilities createFieldCapabilities(String name, String type) {
+        return new FieldCapabilities(
+            name, type, true, true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Collections.emptyMap());
     }
 }

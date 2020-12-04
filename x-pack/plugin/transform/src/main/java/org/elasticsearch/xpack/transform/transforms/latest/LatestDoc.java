@@ -42,15 +42,12 @@ import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
-import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 
 public class LatestDoc implements Function {
 
@@ -100,25 +97,26 @@ public class LatestDoc implements Function {
         return new LatestDocChangeCollector(synchronizationField);
     }
 
-    private static Stream<Map<String, Object>> extractResults(LatestDocConfig config,
-                                                              CompositeAggregation compositeAgg,
-                                                              TransformIndexerStats transformIndexerStats) {
-        return compositeAgg.getBuckets().stream()
-            .map(bucket -> {
-                transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
-                TopHits topHits = bucket.getAggregations().get(TOP_HITS_AGGREGATION_NAME);
-                assert topHits.getHits().getHits().length == 1;
-                Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
+    private static Map<String, Object> convertBucketToDocument(CompositeAggregation.Bucket bucket,
+                                                               LatestDocConfig config,
+                                                               TransformIndexerStats transformIndexerStats) {
+        transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
 
-                // generator to create unique but deterministic document ids, so we
-                // - do not create duplicates if we re-run after failure
-                // - update documents
-                IDGenerator idGen = new IDGenerator();
-                config.getUniqueKey().forEach(field -> idGen.add(field, bucket.getKey().get(field)));
+        TopHits topHits = bucket.getAggregations().get(TOP_HITS_AGGREGATION_NAME);
+        if (topHits.getHits().getHits().length != 1) {
+            throw new ElasticsearchException(
+                "Unexpected number of hits in the top_hits aggregation result. Wanted: 1, was: {}", topHits.getHits().getHits().length);
+        }
+        Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 
-                document.put(TransformField.DOCUMENT_ID_FIELD, idGen.getID());
-                return document;
-            });
+        // generator to create unique but deterministic document ids, so we
+        // - do not create duplicates if we re-run after failure
+        // - update documents
+        IDGenerator idGen = new IDGenerator();
+        config.getUniqueKey().forEach(field -> idGen.add(field, bucket.getKey().get(field)));
+
+        document.put(TransformField.DOCUMENT_ID_FIELD, idGen.getID());
+        return document;
     }
 
     @Override
@@ -143,7 +141,8 @@ public class LatestDoc implements Function {
         }
 
         Stream<IndexRequest> indexRequestStream =
-            extractResults(config, compositeAgg, stats)
+            compositeAgg.getBuckets().stream()
+                .map(bucket -> convertBucketToDocument(bucket, config, stats))
                 .map(document -> DocumentConversionUtils.convertDocumentToIndexRequest(document, destinationIndex, destinationPipeline));
         return Tuple.tuple(indexRequestStream, compositeAgg.afterKey());
     }
@@ -196,11 +195,10 @@ public class LatestDoc implements Function {
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(
-                response -> listener.onResponse(
-                    SchemaUtil.extractFieldMappings(response).entrySet().stream()
-                        .filter(not(e -> e.getKey().startsWith("_")))
-                        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue))
-                ),
+                response -> {
+                    listener.onResponse(
+                        DocumentConversionUtils.removeInternalFields(DocumentConversionUtils.extractFieldMappings(response)));
+                },
                 listener::onFailure)
         );
     }
@@ -238,9 +236,9 @@ public class LatestDoc implements Function {
                 TransformIndexerStats stats = new TransformIndexerStats();
 
                 List<Map<String, Object>> docs =
-                    extractResults(config, compositeAgg, stats)
-                        // remove all internal fields
-                        .peek(doc -> doc.keySet().removeIf(k -> k.startsWith("_")))
+                    compositeAgg.getBuckets().stream()
+                        .map(bucket -> convertBucketToDocument(bucket, config, stats))
+                        .map(DocumentConversionUtils::removeInternalFields)
                         .collect(toList());
 
                 listener.onResponse(docs);

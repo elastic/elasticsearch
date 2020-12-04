@@ -151,8 +151,7 @@ public class Pivot implements Function {
 
                     List<Map<String, Object>> docs =
                         extractResults(agg, fieldTypeMap, stats)
-                            // remove all internal fields
-                            .peek(doc -> doc.keySet().removeIf(k -> k.startsWith("_")))
+                            .map(DocumentConversionUtils::removeInternalFields)
                             .collect(Collectors.toList());
 
                     listener.onResponse(docs);

@@ -138,10 +138,7 @@ public class LatestDocIT extends TransformIntegTestCase {
                 restClient.search(new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)), RequestOptions.DEFAULT);
             assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo(Long.valueOf(NUM_USERS + 1))));
             assertThat(
-                Stream.of(searchResponse.getHits().getHits())
-                    .map(SearchHit::getSourceAsMap)
-                    .peek(doc -> doc.keySet().removeIf(k -> k.startsWith("_")))
-                    .collect(toList()),
+                Stream.of(searchResponse.getHits().getHits()).map(SearchHit::getSourceAsMap).collect(toList()),
                 containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
         }
     }

@@ -262,6 +262,7 @@ public class Constants {
         "cluster:monitor/xpack/usage",
         "cluster:monitor/xpack/watcher/stats/dist",
         "cluster:monitor/xpack/watcher/watch/get",
+        "cluster:monitor/xpack/watcher/watch/query",
         "indices:admin/aliases",
         "indices:admin/aliases/exists",
         "indices:admin/aliases/get",

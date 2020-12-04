@@ -26,7 +26,6 @@ import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InnerClassNode;
@@ -36,7 +35,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
@@ -100,8 +98,7 @@ public class JavaClassPublicifier extends DefaultTask {
     }
 
     private static void makeInnerClassPublic(ClassNode classNode, String innerClass) {
-        InnerClassNode innerClassNode = classNode.innerClasses.stream()
-            .filter(node -> node.innerName.equals(innerClass)).findFirst().get();
+        InnerClassNode innerClassNode = classNode.innerClasses.stream().filter(node -> node.innerName.equals(innerClass)).findFirst().get();
         innerClassNode.access &= ~ACC_PRIVATE;
         innerClassNode.access |= ACC_PUBLIC;
     }

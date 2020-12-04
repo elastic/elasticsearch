@@ -424,7 +424,7 @@ public abstract class TransportReplicationAction<
                     }, e -> handleException(primaryShardReference, e));
 
                     new ReplicationOperation<>(primaryRequest.getRequest(), primaryShardReference,
-                        ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
+                        responseListener.map(result -> result.finalResponseIfSuccessful),
                         newReplicasProxy(), logger, threadPool, actionName, primaryRequest.getPrimaryTerm(), initialRetryBackoffBound,
                         retryTimeout)
                         .execute();
@@ -954,7 +954,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
             if (Assertions.ENABLED) {
-                listener = ActionListener.map(listener, result -> {
+                listener = listener.map(result -> {
                     assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
                         + "] with a primary failure [" + result.finalFailure + "]";
                     return result;

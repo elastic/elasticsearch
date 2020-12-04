@@ -13,7 +13,7 @@ integTest {
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.license.self_generated.type', 'trial'

@@ -44,7 +44,7 @@ processTestResources.dependsOn(copyKeyCerts)
 integTest.dependsOn(copyKeyCerts)
 
 def pluginsCount = 0
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
 

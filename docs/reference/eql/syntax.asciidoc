@@ -863,7 +863,7 @@ Pending sequence matches move through each machine's states as follows:
 { "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
 // Creates sequence [1] in state A for the "root" user.
 //
-// +-------------------------root-------------------------+
+// +------------------------"root"------------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+     +------------+  |
@@ -875,7 +875,7 @@ Pending sequence matches move through each machine's states as follows:
 { "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
 // Creates sequence [2] in state A for "root", overwriting sequence [1].
 //
-// +-------------------------root-------------------------+
+// +------------------------"root"------------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+     +------------+  |
@@ -888,7 +888,7 @@ Pending sequence matches move through each machine's states as follows:
 // Nothing happens. The "elkbee" user has no pending sequence to move
 // from state A to state B.
 //
-// +------------------------elkbee------------------------+
+// +-----------------------"elkbee"-----------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+     +------------+  |
@@ -901,7 +901,7 @@ Pending sequence matches move through each machine's states as follows:
 // Sequence [2] moves out of state A for "root".
 // State B for "root" now contains [2, 4]. State A for "root" is empty.
 //
-// +-------------------------root-------------------------+
+// +------------------------"root"------------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+ --> +-----------+     +------------+  |
@@ -913,7 +913,7 @@ Pending sequence matches move through each machine's states as follows:
 { "user": { "name": "root" }, "process": { "name": "bash" }, ...}
 // Nothing happens. State A is empty for "root".
 //
-// +-------------------------root-------------------------+
+// +------------------------"root"------------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+     +------------+  |
@@ -925,7 +925,7 @@ Pending sequence matches move through each machine's states as follows:
 { "user": { "name": "elkbee" }, "process": { "name": "attrib" }, ...}
 // Creates sequence [6] in state A for "elkbee".
 //
-// +------------------------elkbee------------------------+
+// +-----------------------"elkbee"-----------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+     +------------+  |
@@ -938,7 +938,7 @@ Pending sequence matches move through each machine's states as follows:
 // Creates sequence [7] in state A for "root".
 // Sequence [2, 4] remains in state B for "root".
 //
-// +-------------------------root-------------------------+
+// +------------------------"root"------------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+     +------------+  |
@@ -951,7 +951,7 @@ Pending sequence matches move through each machine's states as follows:
 // Sequence [6, 8] moves to state B for "elkbee".
 // State A for "elkbee" is now empty.
 //
-// +------------------------elkbee------------------------+
+// +-----------------------"elkbee"-----------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+ --> +-----------+     +------------+  |
@@ -965,7 +965,7 @@ Pending sequence matches move through each machine's states as follows:
 // State B for "root" is now empty.
 // Sequence [7] remains in state A.
 //
-// +-------------------------root-------------------------+
+// +------------------------"root"------------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+ --> +------------+  |
@@ -978,7 +978,7 @@ Pending sequence matches move through each machine's states as follows:
 // Sequence [6, 8, 10] is complete for "elkbee".
 // State A and B for "elkbee" are now empty.
 //
-// +------------------------elkbee------------------------+
+// +-----------------------"elkbee"-----------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+ --> +------------+  |
@@ -991,7 +991,7 @@ Pending sequence matches move through each machine's states as follows:
 // Nothing happens.
 // The machines for "root" and "elkbee" remain the same.
 //
-// +-------------------------root-------------------------+
+// +------------------------"root"------------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+     +------------+  |
@@ -999,7 +999,7 @@ Pending sequence matches move through each machine's states as follows:
 // |  +-----------+     +-----------+     +------------+  |
 // +------------------------------------------------------+
 //
-// +------------------------elkbee------------------------+
+// +-----------------------"elkbee"-----------------------+
 // |  +-----------+     +-----------+     +------------+  |
 // |  |  State A  |     |  State B  |     |  Complete  |  |
 // |  +-----------+     +-----------+ --> +------------+  |

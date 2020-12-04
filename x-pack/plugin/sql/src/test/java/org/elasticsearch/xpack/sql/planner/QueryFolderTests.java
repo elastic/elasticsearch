@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.planner;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -507,10 +509,15 @@ public class QueryFolderTests extends ESTestCase {
     }
     
     public void testPivotHasSameQueryAsGroupBy() {
-        List<String> aggregations = asList("FIRST(int)", "LAST(int)", "COUNT(int)", "AVG(int)", 
-            "MIN(int)", "MAX(int)", "SUM(int)", "PERCENTILE(int, 0)", "PERCENTILE_RANK(int, 0)", 
-            "SUM_OF_SQUARES(int)", "STDDEV_POP(int)", "STDDEV_SAMP(int)", "VAR_SAMP(int)", "VAR_POP(int)", 
-            "SKEWNESS(int)", "MAD(int)", "KURTOSIS(int)");
+        final Map<String, String> aggFnsWithMultipleArguments = Map.of(
+            "PERCENTILE", "PERCENTILE(int, 0)",
+            "PERCENTILE_RANK", "PERCENTILE_RANK(int, 0)"
+        );
+        List<String> aggregations = new SqlFunctionRegistry().listFunctions()
+                .stream()
+                .filter(def -> AggregateFunction.class.isAssignableFrom(def.clazz()))
+                .map(def -> aggFnsWithMultipleArguments.getOrDefault(def.name(), def.name() + "(int)"))
+                .collect(toList());
         for (String aggregationStr : aggregations) {
             PhysicalPlan pivotPlan = plan("SELECT * FROM (SELECT some.dotted.field, bool, keyword, int FROM test) " +
                 "PIVOT(" + aggregationStr + " FOR keyword IN ('A', 'B'))");

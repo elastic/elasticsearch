@@ -89,7 +89,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
-    public static final String SCHEDULE_THREAD_POOL_NAME = RollupField.NAME + "_scheduler";
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
@@ -160,7 +159,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, Rollup.TASK_THREAD_POOL_NAME,
-                4, 4, "xpack.rollup.task_thread_pool", false);
+                4, 100, "xpack.rollup.task_thread_pool", false);
 
         return Collections.singletonList(indexing);
     }

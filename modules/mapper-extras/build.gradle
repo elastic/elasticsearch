@@ -29,3 +29,8 @@ restResources {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get'
   }
 }
+if (BuildParams.inFipsJvm){
+  // The cluster fails to form with a trial license and we can't test FIPS 140 mode with a basic license
+  tasks.named("yamlRestTest").configure{enabled = false }
+  tasks.named("javaRestTest").configure{enabled = false }
+}

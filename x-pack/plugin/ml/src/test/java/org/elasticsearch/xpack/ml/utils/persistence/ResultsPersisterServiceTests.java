@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -63,6 +64,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ResultsPersisterServiceTests extends ESTestCase {
 
@@ -156,7 +158,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             expectThrows(
                 ElasticsearchException.class,
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add));
-        assertThat(e.getMessage(), containsString("failed to search after [" + (maxFailureRetries + 1) + "] attempts."));
+        assertThat(e.getMessage(), containsString("search failed with status"));
         assertThat(messages, hasSize(maxFailureRetries));
 
         verify(client, times(maxFailureRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
@@ -183,7 +185,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             expectThrows(
                 ElasticsearchException.class,
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> false, messages::add));
-        assertThat(e.getMessage(), containsString("should not retry search after [1] attempts. SERVICE_UNAVAILABLE"));
+        assertThat(e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
         assertThat(messages, empty());
 
         verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
@@ -203,7 +205,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 ElasticsearchException.class,
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, shouldRetryUntil(maxRetries), messages::add));
         assertThat(
-            e.getMessage(), containsString("should not retry search after [" + (maxRetries + 1) + "] attempts. SERVICE_UNAVAILABLE"));
+            e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
         assertThat(messages, hasSize(maxRetries));
 
         verify(client, times(maxRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
@@ -219,9 +221,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             expectThrows(
                 ElasticsearchException.class,
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, (s) -> {}));
-        assertThat(e.getMessage(), containsString("experienced failure that cannot be automatically retried"));
+        assertThat(e.getMessage(), containsString("bad search request"));
 
-        verify(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
     }
 
     private static Supplier<Boolean> shouldRetryUntil(int maxRetries) {
@@ -375,6 +377,12 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
+        ExecutorService executor = mock(ExecutorService.class);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        when(tp.executor(any(String.class))).thenReturn(executor);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;

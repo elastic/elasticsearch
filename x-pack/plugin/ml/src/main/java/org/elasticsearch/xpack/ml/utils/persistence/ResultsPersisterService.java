@@ -219,11 +219,11 @@ public class ResultsPersisterService {
     private class BulkRetryableAction extends MlRetryableAction<BulkRequest, BulkResponse> {
         private final BulkRequestRewriter bulkRequestRewriter;
         BulkRetryableAction(String jobId,
-                                   BulkRequestRewriter bulkRequestRewriter,
-                                   Supplier<Boolean> shouldRetry,
-                                   Consumer<String> msgHandler,
-                                   BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor,
-                                   ActionListener<BulkResponse> listener) {
+                            BulkRequestRewriter bulkRequestRewriter,
+                            Supplier<Boolean> shouldRetry,
+                            Consumer<String> msgHandler,
+                            BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor,
+                            ActionListener<BulkResponse> listener) {
             super(jobId,
                 shouldRetry,
                 msgHandler,
@@ -289,7 +289,10 @@ public class ResultsPersisterService {
                             return;
                         }
                         retryableListener.onFailure(
-                            new ElasticsearchStatusException("experienced failure on search", searchResponse.status())
+                            new ElasticsearchStatusException(
+                                "search failed with status {}",
+                                searchResponse.status(),
+                                searchResponse.status())
                         );
                     },
                     retryableListener::onFailure
@@ -317,9 +320,9 @@ public class ResultsPersisterService {
         final Supplier<Boolean> shouldRetry;
         final Consumer<String> msgHandler;
         final BiConsumer<Request, ActionListener<Response>> action;
-        int currentAttempt = -1;
-        long currentMin = MIN_RETRY_SLEEP_MILLIS;
-        long currentMax = MIN_RETRY_SLEEP_MILLIS;
+        volatile int currentAttempt = 0;
+        volatile long currentMin = MIN_RETRY_SLEEP_MILLIS;
+        volatile long currentMax = MIN_RETRY_SLEEP_MILLIS;
 
         MlRetryableAction(String jobId,
                                  Supplier<Boolean> shouldRetry,

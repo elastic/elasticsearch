@@ -21,24 +21,17 @@ dependencies {
 // There are plans to make those public in the azure sdk side, but in the meanwhile
 // we just do this workaround
 // https://github.com/Azure/azure-sdk-for-java/issues/12829#issuecomment-736755543
-List<String> classesToRewrite = ['com/azure/storage/blob/implementation/AppendBlobsImpl.class',
-                                 'com/azure/storage/blob/implementation/AppendBlobsImpl$AppendBlobsService.class',
-                                 'com/azure/storage/blob/implementation/BlobsImpl.class',
+List<String> classesToRewrite = ['com/azure/storage/blob/implementation/AppendBlobsImpl$AppendBlobsService.class',
                                  'com/azure/storage/blob/implementation/BlobsImpl$BlobsService.class',
-                                 'com/azure/storage/blob/implementation/BlockBlobsImpl.class',
                                  'com/azure/storage/blob/implementation/BlockBlobsImpl$BlockBlobsService.class',
-                                 'com/azure/storage/blob/implementation/ContainersImpl.class',
                                  'com/azure/storage/blob/implementation/ContainersImpl$ContainersService.class',
-                                 'com/azure/storage/blob/implementation/DirectorysImpl.class',
                                  'com/azure/storage/blob/implementation/DirectorysImpl$DirectorysService.class',
-                                 'com/azure/storage/blob/implementation/PageBlobsImpl.class',
                                  'com/azure/storage/blob/implementation/PageBlobsImpl$PageBlobsService.class',
-                                 'com/azure/storage/blob/implementation/ServicesImpl.class',
                                  'com/azure/storage/blob/implementation/ServicesImpl$ServicesService.class']
 
 tasks.create('extractClientClasses', Copy).configure {
   from({ zipTree(configurations.originalJar.singleFile) }) {
-    include classesToRewrite
+    include "com/azure/storage/blob/implementation/**"
   }
   into project.file('build/original')
 }
@@ -50,7 +43,6 @@ makePublic.configure {
   classFiles = classesToRewrite
   inputDir = project.layout.buildDirectory.dir('original')
   outputDir = modifiedOutput
-  markInnerClassesAsPublic = true
 }
 
 sourceSets.main.output.dir(modifiedOutput, builtBy: makePublic)

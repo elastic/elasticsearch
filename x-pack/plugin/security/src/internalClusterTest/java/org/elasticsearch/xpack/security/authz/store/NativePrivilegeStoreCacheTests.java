@@ -249,8 +249,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
             .addIndices(new String[] { "*" }, new String[] { "read" }, null, null, null, false)
             .get();
         assertTrue(putRoleResponse.isCreated());
-        final Hasher hasher = inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000")) :
-            Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher hasher = getFastStoredHashAlgoForTests();
         final PutUserResponse putUserResponse = new PutUserRequestBuilder(client)
             .username(testRoleCacheUser)
             .roles(testRole)

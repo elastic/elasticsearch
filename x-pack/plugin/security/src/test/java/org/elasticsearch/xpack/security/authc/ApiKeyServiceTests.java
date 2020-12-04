@@ -87,6 +87,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
@@ -387,8 +388,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testValidateApiKey() throws Exception {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2_10000, Hasher.PBKDF2_50000) :
-            randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
         ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
@@ -597,8 +597,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testApiKeyCache() {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2_10000, Hasher.PBKDF2_50000) :
-            randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
         ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
@@ -651,8 +650,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testAuthenticateWhileCacheBeingPopulated() throws Exception {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2_10000, Hasher.PBKDF2_50000) :
-            randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
         Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
@@ -710,8 +708,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testApiKeyCacheDisabled() {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2_10000, Hasher.PBKDF2_50000) :
-            randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
         final Settings settings = Settings.builder()
             .put(ApiKeyService.CACHE_TTL_SETTING.getKey(), "0s")
@@ -733,8 +730,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testApiKeyDocCacheCanBeDisabledSeparately() {
         final String apiKey = randomAlphaOfLength(16);
-        Hasher hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2_10000, Hasher.PBKDF2_50000) :
-            randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
         final Settings settings = Settings.builder()
             .put(ApiKeyService.DOC_CACHE_TTL_SETTING.getKey(), "0s")
@@ -871,8 +867,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         writeCredentialsToThreadContext(creds);
 
-        Hasher hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2_10000, Hasher.PBKDF2_50000) :
-            randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
         Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
         mockSourceDocument(creds.getId(), sourceMap);
@@ -897,8 +892,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey1.toCharArray()));
         writeCredentialsToThreadContext(creds);
 
-        Hasher hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2_10000, Hasher.PBKDF2_50000) :
-            randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey1.toCharArray()));
         Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
         mockSourceDocument(creds.getId(), sourceMap);

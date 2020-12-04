@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -191,7 +192,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithBothPasswordAndHash() throws IOException {
-        final Hasher hasher = inFipsJvm() ? Hasher.PBKDF2_1000 : randomFrom(Hasher.BCRYPT4, Hasher.PBKDF2_1000);
+        final Hasher hasher = getFastStoredHashAlgoForTests();
         final String password = randomAlphaOfLength(14);
         final char[] hash = hasher.hash(new SecureString(password.toCharArray()));
         final LinkedHashMap<String, Object> fields = new LinkedHashMap<>();

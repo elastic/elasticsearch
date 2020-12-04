@@ -25,6 +25,7 @@ restResources {
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("integTest").configure{enabled = false }
+  tasks.named("testingConventions").configure{enabled = false }
 }
 testClusters.matching { it.name == "integTest" }.configureEach {
     testDistribution = 'DEFAULT'

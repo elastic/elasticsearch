@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -420,8 +421,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-        final Hasher pwdHasher = inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000")) :
-            Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher pwdHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(pwdHasher.hash(password));
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         RealmConfig config = new RealmConfig(
@@ -491,8 +491,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-        final Hasher pwdHasher = inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000")) :
-            Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher pwdHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(pwdHasher.hash(password));
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         RealmConfig config = new RealmConfig(
@@ -579,8 +578,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
-        final Hasher localHasher = inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000")) :
-            Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher localHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(localHasher.hash(password));
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         RealmConfig config = new RealmConfig(realmIdentifier,

@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,12 +54,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     @Before
     public void init() {
-        final String hashingAlgorithm = inFipsJvm() ? randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_50000") :
-            randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000", "pbkdf2_50000");
+        final Hasher hasher = getFastStoredHashAlgoForTests();
         settings = Settings.builder()
             .put("resource.reload.interval.high", "100ms")
             .put("path.home", createTempDir())
-            .put("xpack.security.authc.password_hashing.algorithm", hashingAlgorithm)
+            .put("xpack.security.authc.password_hashing.algorithm", hasher.name())
             .build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");

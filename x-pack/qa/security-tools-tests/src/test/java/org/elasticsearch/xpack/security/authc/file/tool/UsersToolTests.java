@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.containsString;
 
 public class UsersToolTests extends CommandTestCase {
@@ -70,8 +71,7 @@ public class UsersToolTests extends CommandTestCase {
         IOUtils.rm(homeDir);
         confDir = homeDir.resolve("config");
         Files.createDirectories(confDir);
-        hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2, Hasher.PBKDF2_1000, Hasher.PBKDF2_STRETCH)
-            : randomFrom(Hasher.PBKDF2_1000, Hasher.PBKDF2, Hasher.BCRYPT, Hasher.BCRYPT9);
+        hasher = getFastStoredHashAlgoForTests();
         String defaultPassword = SecuritySettingsSourceField.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
             "existing_user:" + new String(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)),

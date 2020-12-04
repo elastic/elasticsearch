@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -167,8 +168,7 @@ public class TransportPutUserActionTests extends ESTestCase {
         final boolean isCreate = randomBoolean();
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());
-        final Hasher hasher = inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000")) :
-            Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher hasher = getFastStoredHashAlgoForTests();
         if (isCreate) {
             request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         }

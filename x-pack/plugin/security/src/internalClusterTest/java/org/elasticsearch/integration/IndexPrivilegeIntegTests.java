@@ -121,8 +121,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        final Hasher passwdHasher = inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000")) :
-            Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher passwdHasher = getFastStoredHashAlgoForTests();
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         return super.configUsers() +

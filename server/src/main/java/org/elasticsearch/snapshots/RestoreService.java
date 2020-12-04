@@ -277,7 +277,7 @@ public class RestoreService implements ClusterStateApplier {
                 ).distinct().collect(Collectors.toList());
 
                 final Set<Index> systemIndicesToDelete = new HashSet<>();
-                Set<String> explicitlyRequestedSystemIndices = new HashSet<>();
+                final Set<String> explicitlyRequestedSystemIndices = new HashSet<>();
                 final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(requestedIndicesIncludingSystem);
                 for (IndexId indexId : indexIdsInSnapshot) {
                     IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);

@@ -453,24 +453,45 @@ public class AzureBlobStore implements BlobStore {
         private final BlobAsyncClient client;
         private final ByteBuffer buffer;
         private final int maxRetries;
+        private final long firstReadOffset;
+        private final int firstReadLength;
 
         private AzureInputStream(final BlobAsyncClient client,
                                  long rangeOffset,
                                  Long rangeLength,
                                  int chunkSize,
                                  long contentLength,
-                                 int maxRetries) {
+                                 int maxRetries) throws IOException {
             super(rangeOffset, rangeLength, chunkSize, contentLength);
             this.client = client;
             this.buffer = ByteBuffer.allocate(chunkSize);
             this.maxRetries = maxRetries;
+
+            // Read eagerly the first chunk so we can throw early if the
+            // blob doesn't exist
+            this.firstReadOffset = rangeOffset;
+            this.firstReadLength = (int) Math.min(chunkSize, contentLength - rangeOffset);
+            executeRead(firstReadLength, rangeOffset);
         }
 
         @Override
         protected ByteBuffer dispatchRead(int readLength, long offset) throws IOException {
+            // If the request is for the first chunk, don't download it again
+            // Since we disabled marking in this InputStream, the offset only advances
+            // and never goes back requesting the firstReadOffset again
+            if (offset != firstReadOffset || readLength != firstReadLength) {
+                executeRead(readLength, offset);
+            }
+
+            this.bufferSize = buffer.remaining();
+            this.bufferStartOffset = offset;
+            return buffer;
+        }
+
+        private void executeRead(long readLength, long offset) throws IOException {
             try {
                 buffer.clear();
-                final BlobRange range = new BlobRange(offset, (long) readLength);
+                final BlobRange range = new BlobRange(offset, readLength);
                 DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions()
                     .setMaxRetryRequests(maxRetries);
                 client.downloadWithResponse(range, downloadRetryOptions, null, false)
@@ -486,9 +507,30 @@ public class AzureBlobStore implements BlobStore {
             }
 
             buffer.flip();
-            this.bufferSize = buffer.remaining();
-            this.bufferStartOffset = offset;
-            return buffer;
+        }
+
+        @Override
+        public synchronized void mark(int readlimit) {
+            throwNotSupported();
+        }
+
+        @Override
+        public boolean markSupported() {
+            return false;
+        }
+
+        @Override
+        public synchronized void reset() {
+            throwNotSupported();
+        }
+
+        @Override
+        public synchronized long skip(long n) {
+            return throwNotSupported();
+        }
+
+        private long throwNotSupported() {
+            throw new UnsupportedOperationException("mark is not supported");
         }
     }
 

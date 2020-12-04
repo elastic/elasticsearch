@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.azure;
 import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -67,12 +68,13 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         }
         try {
             return blobStore.getInputStream(buildKey(blobName), position, length);
-        } catch (BlobStorageException e) {
-            if (e.getStatusCode() == 404) {
-                throw new NoSuchFileException("Blob [" + blobName + "] not found");
-            }
-            throw new IOException(e);
         } catch (Exception e) {
+            Throwable rootCause = Throwables.getRootCause(e);
+            if (rootCause instanceof BlobStorageException) {
+                if (((BlobStorageException) rootCause).getStatusCode() == 404) {
+                    throw new NoSuchFileException("Blob [" + blobName + "] not found");
+                }
+            }
             throw new IOException("Unable to get input stream for blob [" + blobName + "]", e);
         }
     }

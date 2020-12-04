@@ -282,7 +282,7 @@ public class RootObjectMapper extends ObjectMapper {
         return runtimeFieldTypes.values();
     }
 
-    RuntimeFieldType getRuntimeField(String name) {
+    RuntimeFieldType getRuntimeFieldType(String name) {
         return runtimeFieldTypes.get(name);
     }
 

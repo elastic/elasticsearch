@@ -24,27 +24,30 @@ import org.elasticsearch.plugins.MapperPlugin;
 
 /**
  * Defines how runtime fields are created dynamically. Used when objects are mapped with dynamic:runtime.
+ * Plugins that plug in runtime field implementations can also plug in their implementation of thsi interface
+ * which defines how runtime fields can be dynamically created in dynamic runtime mode.
+ *
  * @see MapperPlugin#getDynamicRuntimeFieldsBuilder()
  */
 public interface DynamicRuntimeFieldsBuilder {
     /**
-     * Dynamically create a runtime field from a parsed string value
+     * Dynamically creates a runtime field from a parsed string value
      */
     RuntimeFieldType newDynamicStringField(String name);
     /**
-     * Dynamically create a runtime field from a parsed long value
+     * Dynamically creates a runtime field from a parsed long value
      */
     RuntimeFieldType newDynamicLongField(String name);
     /**
-     * Dynamically create a runtime field from a parsed double value
+     * Dynamically creates a runtime field from a parsed double value
      */
     RuntimeFieldType newDynamicDoubleField(String name);
     /**
-     * Dynamically create a runtime field from a parsed boolean value
+     * Dynamically creates a runtime field from a parsed boolean value
      */
     RuntimeFieldType newDynamicBooleanField(String name);
     /**
-     * Dynamically create a runtime field from a parsed date value
+     * Dynamically creates a runtime field from a parsed date value
      */
     RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter);
 }

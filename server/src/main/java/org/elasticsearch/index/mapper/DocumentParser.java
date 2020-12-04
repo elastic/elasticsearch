@@ -742,7 +742,6 @@ final class DocumentParser {
                 // If parentMapper is ever null, it means the parent of the current mapper was dynamically created.
                 // But in order to be created dynamically, the dynamic setting of that parent was necessarily true
                 //TODO this is possibly a problem, add a test and fix if needed
-                //TODO also, double check direct usages of Dynamic.TRUE
                 return ObjectMapper.Dynamic.TRUE;
             }
             dynamic = parentMapper.dynamic();
@@ -781,8 +780,11 @@ final class DocumentParser {
         }
         //concrete fields take the precedence over runtime fields when parsing documents, though when a field is defined as runtime field
         //only, and not under properties, it is ignored when it is sent as part of _source
-        RuntimeFieldType runtimeFieldType = context.docMapper().mapping().root.getRuntimeField(fieldPath);
-        return runtimeFieldType == null ? null : new NoOpFieldMapper(leafName, runtimeFieldType);
+        RuntimeFieldType runtimeFieldType = context.docMapper().mapping().root.getRuntimeFieldType(fieldPath);
+        if (runtimeFieldType != null) {
+            return new NoOpFieldMapper(leafName, runtimeFieldType);
+        }
+        return null;
     }
 
     private static class NoOpFieldMapper extends FieldMapper {

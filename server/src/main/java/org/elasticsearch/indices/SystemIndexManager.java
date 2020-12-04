@@ -230,14 +230,17 @@ public class SystemIndexManager implements ClusterStateListener {
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
     }
 
-    /** Checks whether an index's mappings are up-to-date */
+    /**
+     * Checks whether an index's mappings are up-to-date. If an index is encountered that has
+     * a version higher than Version.CURRENT, it is still considered up-to-date.
+     */
     private boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {
             return false;
         }
 
-        return Version.CURRENT.equals(readMappingVersion(descriptor, mappingMetadata));
+        return Version.CURRENT.onOrBefore(readMappingVersion(descriptor, mappingMetadata));
     }
 
     /**

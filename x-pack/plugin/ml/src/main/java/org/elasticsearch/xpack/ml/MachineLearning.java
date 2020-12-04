@@ -491,7 +491,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final boolean transportClientMode;
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
-    private final SetOnce<DatafeedContextProvider> datafeedContextProvider = new SetOnce<>();
+    private final SetOnce<DatafeedConfigProvider> datafeedConfigProvider = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
@@ -631,6 +631,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             anomalyDetectionAuditor);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(environment,
             settings,
@@ -713,7 +714,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 clusterService.getNodeName());
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(jobConfigProvider, datafeedConfigProvider,
             jobResultsProvider);
-        this.datafeedContextProvider.set(datafeedContextProvider);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager, datafeedContextProvider);
         this.datafeedManager.set(datafeedManager);
@@ -816,7 +816,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new OpenJobPersistentTasksExecutor(settings,
                     clusterService,
                     autodetectProcessManager.get(),
-                    datafeedContextProvider.get(),
+                    datafeedConfigProvider.get(),
                     memoryTracker.get(),
                     client,
                     expressionResolver),

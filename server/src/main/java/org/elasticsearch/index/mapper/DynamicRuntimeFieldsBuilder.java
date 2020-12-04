@@ -22,12 +22,15 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.plugins.MapperPlugin;
 
+import static org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+
 /**
- * Defines how runtime fields are created dynamically. Used when objects are mapped with dynamic:runtime.
- * Plugins that plug in runtime field implementations can also plug in their implementation of thsi interface
- * which defines how runtime fields can be dynamically created in dynamic runtime mode.
+ * Defines how runtime fields are dynamically created. Used when objects are mapped with dynamic:runtime.
+ * Plugins that provide runtime field implementations can also plug in their implementation of this interface
+ * to define how leaf fields of each supported type can be dynamically created in dynamic runtime mode.
  *
  * @see MapperPlugin#getDynamicRuntimeFieldsBuilder()
+ * @see Dynamic
  */
 public interface DynamicRuntimeFieldsBuilder {
     /**

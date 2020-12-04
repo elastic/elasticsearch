@@ -25,20 +25,20 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
 
 /**
  * Encapsulates the logic for dynamically creating fields as part of document parsing.
+ * Objects are always created the same, but leaf fields can be mapped under properties, as concrete fields that get indexed,
+ * or as runtime fields that are evaluated at search-time and have no indexing overhead.
  */
 final class DynamicFieldsBuilder {
-
     private static final Concrete CONCRETE = new Concrete(DocumentParser::parseObjectOrField);
-    private static final Runtime RUNTIME = new Runtime();
-
     static final DynamicFieldsBuilder DYNAMIC_TRUE = new DynamicFieldsBuilder(CONCRETE);
-    static final DynamicFieldsBuilder DYNAMIC_RUNTIME = new DynamicFieldsBuilder(RUNTIME);
+    static final DynamicFieldsBuilder DYNAMIC_RUNTIME = new DynamicFieldsBuilder(new Runtime());
 
     private final Strategy strategy;
 
@@ -52,7 +52,7 @@ final class DynamicFieldsBuilder {
      * delegates to the appropriate strategy which depends on the current dynamic mode.
      * The strategy defines if fields are going to be mapped as ordinary or runtime fields.
      */
-    final void createDynamicFieldFromValue(final ParseContext context,
+    void createDynamicFieldFromValue(final ParseContext context,
                                            XContentParser.Token token,
                                            String name) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
@@ -132,7 +132,7 @@ final class DynamicFieldsBuilder {
      * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
      * Note that objects are always mapped under properties.
      */
-    final Mapper createDynamicObjectMapper(ParseContext context, String name) {
+    Mapper createDynamicObjectMapper(ParseContext context, String name) {
         //dynamic:runtime maps objects under properties, exactly like dynamic:true
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null ? mapper :
@@ -143,7 +143,7 @@ final class DynamicFieldsBuilder {
      * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
      * Note that objects are always mapped under properties.
      */
-    final Mapper createObjectMapperFromTemplate(ParseContext context, String name) {
+    Mapper createObjectMapperFromTemplate(ParseContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.OBJECT, null);
         return templateBuilder == null ? null : templateBuilder.build(context.path());
     }
@@ -152,21 +152,21 @@ final class DynamicFieldsBuilder {
      * Creates a dynamic string field based on a matching dynamic template.
      * No field is created in case there is no matching dynamic template.
      */
-    final void createDynamicStringFieldFromTemplate(ParseContext context, String name) throws IOException {
+    void createDynamicStringFieldFromTemplate(ParseContext context, String name) throws IOException {
         createDynamicField(context, name, DynamicTemplate.XContentFieldType.STRING, () -> {});
     }
 
     private static void createDynamicDateField(ParseContext context,
                                                String name,
                                                DateFormatter dateFormatter,
-                                               CheckedRunnable<IOException> createDynamicField) throws IOException{
+                                               CheckedRunnable<IOException> createDynamicField) throws IOException {
         createDynamicField(context, name, DynamicTemplate.XContentFieldType.DATE, dateFormatter, createDynamicField);
     }
 
     private static void createDynamicField(ParseContext context,
                                            String name,
                                            DynamicTemplate.XContentFieldType matchType,
-                                           CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException{
+                                           CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException {
         createDynamicField(context, name, matchType, null, dynamicFieldStrategy);
     }
 
@@ -174,7 +174,8 @@ final class DynamicFieldsBuilder {
                                            String name,
                                            DynamicTemplate.XContentFieldType matchType,
                                            DateFormatter dateFormatter,
-                                           CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException{
+                                           CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException {
+        assert matchType != DynamicTemplate.XContentFieldType.DATE;
         Mapper.Builder templateBuilder = findTemplateBuilder(context, name, matchType, dateFormatter);
         if (templateBuilder == null) {
             dynamicFieldStrategy.run();
@@ -209,6 +210,9 @@ final class DynamicFieldsBuilder {
         return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
+    /**
+     * Defines how leaf fields of type string, long, double, boolean and date are dynamically mapped
+     */
     private interface Strategy {
         void newDynamicStringField(ParseContext context, String name) throws IOException;
         void newDynamicLongField(ParseContext context, String name) throws IOException;
@@ -218,7 +222,9 @@ final class DynamicFieldsBuilder {
     }
 
     /**
-     * Creates dynamic concrete fields, in the properties section
+     * Dynamically creates concrete fields, as part of the properties section.
+     * Use for leaf fields, when their parent object is mapped as dynamic:true
+     * @see Dynamic
      */
     private static final class Concrete implements Strategy {
         private final CheckedBiConsumer<ParseContext, Mapper, IOException> parseField;
@@ -227,7 +233,7 @@ final class DynamicFieldsBuilder {
             this.parseField = parseField;
         }
 
-        private void createDynamicField(Mapper.Builder builder, ParseContext context) throws IOException {
+        void createDynamicField(Mapper.Builder builder, ParseContext context) throws IOException {
             Mapper mapper = builder.build(context.path());
             context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
@@ -273,7 +279,9 @@ final class DynamicFieldsBuilder {
     }
 
     /**
-     * Creates dynamic runtime fields, in the runtime section
+     * Dynamically creates runtime fields, in the runtime section.
+     * Used for leaf fields, when their parent object is mapped as dynamic:runtime.
+     * @see Dynamic
      */
     private static final class Runtime implements Strategy {
         @Override

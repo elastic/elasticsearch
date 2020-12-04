@@ -46,7 +46,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
-            boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+            boolean isXPackModule = project.path.startsWith(':x-pack:plugin') || project.path.startsWith(':x-pack:quota-aware-fs')
             boolean isModule = project.path.startsWith(':modules:') || isXPackModule
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name

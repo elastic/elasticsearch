@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEquals
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
@@ -83,6 +84,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
+                new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
                 // prune/elimination
                 new PruneFilters(),
@@ -112,7 +114,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
             return filter.transformExpressionsUp(e -> {
-                // expr : "wildcard*phrase" || expr !: "wildcard*phrase"
+                // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
                 if (e instanceof InsensitiveBinaryComparison) {
                     InsensitiveBinaryComparison cmp = (InsensitiveBinaryComparison) e;
 
@@ -142,7 +144,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private static boolean isWildcard(Expression expr) {
             if (expr instanceof Literal) {
                 Object value = expr.fold();
-                return value instanceof String && ((String) value).contains("*");
+                if (value instanceof String) {
+                    String string = (String) value;
+                    return string.contains("*") || string.contains("?");
+                }
             }
             return false;
         }

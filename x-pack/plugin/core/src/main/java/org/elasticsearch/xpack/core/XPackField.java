@@ -67,6 +67,8 @@ public final class XPackField {
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */
     public static final String AGGREGATE_METRIC = "aggregate_metric";
+    /** Name constant for the operator privileges feature. */
+    public static final String OPERATOR_PRIVILEGES = "operator_privileges";
 
     private XPackField() {}
 

@@ -50,8 +50,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -75,10 +73,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(
-            super.nodePlugins().stream(),
-            Stream.of(RetentionLeaseSyncIntervalSettingPlugin.class))
-            .collect(Collectors.toList());
+        return CollectionUtils.appendToCopy(super.nodePlugins(), RetentionLeaseSyncIntervalSettingPlugin.class);
     }
 
     public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {

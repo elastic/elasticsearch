@@ -353,7 +353,7 @@ public class DiskThresholdMonitor {
             Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
         client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
             .setSettings(readOnlySettings)
-            .execute(ActionListener.map(wrappedListener, r -> null));
+            .execute(wrappedListener.map(r -> null));
     }
 
     private static void cleanUpRemovedNodes(ObjectLookupContainer<String> nodesToKeep, Set<String> nodesToCleanUp) {

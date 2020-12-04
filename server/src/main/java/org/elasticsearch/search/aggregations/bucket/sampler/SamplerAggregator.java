@@ -33,8 +33,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -69,7 +69,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
                 int shardSize,
                 int maxDocsPerValue,
                 ValuesSourceConfig valuesSourceConfig,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata
             ) throws IOException {
@@ -93,7 +93,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
                 int shardSize,
                 int maxDocsPerValue,
                 ValuesSourceConfig valuesSourceConfig,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata
             ) throws IOException {
@@ -117,7 +117,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
                 int shardSize,
                 int maxDocsPerValue,
                 ValuesSourceConfig valuesSourceConfig,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata
             ) throws IOException {
@@ -153,7 +153,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
             int shardSize,
             int maxDocsPerValue,
             ValuesSourceConfig valuesSourceConfig,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException;
@@ -170,11 +170,11 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
     protected final int shardSize;
     protected BestDocsDeferringCollector bdd;
 
-    SamplerAggregator(String name, int shardSize, AggregatorFactories factories, SearchContext context,
+    SamplerAggregator(String name, int shardSize, AggregatorFactories factories, AggregationContext context,
             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, metadata);
         // Make sure we do not allow size > maxDoc, to prevent accidental OOM
-        this.shardSize = Math.min(shardSize, context.searcher().getIndexReader().maxDoc());
+        this.shardSize = Math.min(shardSize, searcher().getIndexReader().maxDoc());
     }
 
     @Override

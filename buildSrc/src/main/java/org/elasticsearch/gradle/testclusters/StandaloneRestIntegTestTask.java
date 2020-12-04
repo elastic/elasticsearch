@@ -19,9 +19,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
-import org.elasticsearch.gradle.test.Fixture;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
@@ -55,11 +53,11 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",
                 /*
-                 * Look for any other tasks which use the same cluster as this task. Since tests often have side effects for the cluster
-                 * they execute against, this state can cause issues when trying to cache tests results of tasks that share a cluster. To
-                 * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
-                 * multiple tasks.
-                 */
+                * Look for any other tasks which use the same cluster as this task. Since tests often have side effects for the cluster
+                * they execute against, this state can cause issues when trying to cache tests results of tasks that share a cluster. To
+                * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
+                * multiple tasks.
+                */
                 t -> getProject().getTasks()
                     .withType(StandaloneRestIntegTestTask.class)
                     .stream()
@@ -98,33 +96,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
         if (nodeCount > 0) {
             locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
         }
-
         return Collections.unmodifiableList(locks);
-    }
-
-    /**
-     * TODO Rene: These dependsOn overrides need to be removed as they don't play well with task avoidance api
-     * and likely cause misusage and errors when passing non Task objects here
-     * */
-    @Override
-    public Task dependsOn(Object... dependencies) {
-        super.dependsOn(dependencies);
-        for (Object dependency : dependencies) {
-            if (dependency instanceof Fixture) {
-                finalizedBy(((Fixture) dependency).getStopTask());
-            }
-        }
-        return this;
-    }
-
-    @Override
-    public void setDependsOn(Iterable<?> dependencies) {
-        super.setDependsOn(dependencies);
-        for (Object dependency : dependencies) {
-            if (dependency instanceof Fixture) {
-                finalizedBy(((Fixture) dependency).getStopTask());
-            }
-        }
     }
 
     public WorkResult delete(Object... objects) {

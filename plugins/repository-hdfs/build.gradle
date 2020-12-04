@@ -160,10 +160,8 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     if (name.contains("Secure")) {
       if (name.contains("Ha")) {
         dependsOn "secureHaHdfsFixture"
-        finalizedBy "secureHaHdfsFixture#stop"
       } else {
         dependsOn "secureHdfsFixture"
-        finalizedBy "secureHdfsFixture#stop"
       }
     }
 
@@ -260,14 +258,12 @@ if (fixtureSupported) {
   // Both standard and HA tests depend on their respective HDFS fixtures
   tasks.named("integTest").configure {
     dependsOn "hdfsFixture"
-    finalizedBy "hdfsFixture#stop"
 
     // The normal test runner only runs the standard hdfs rest tests
     systemProperty 'tests.rest.suite', 'hdfs_repository'
   }
   tasks.named("integTestHa").configure {
     dependsOn "haHdfsFixture"
-    finalizedBy "haHdfsFixture#stop"
     // Only include the HA integration tests for the HA test task
     setIncludes(['**/Ha*TestSuiteIT.class'])
 

@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,6 +57,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
     private final MetadataMappingService metadataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportPutMappingAction(
@@ -64,11 +67,13 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             final MetadataMappingService metadataMappingService,
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
-            final RequestValidators<PutMappingRequest> requestValidators) {
+            final RequestValidators<PutMappingRequest> requestValidators,
+            final SystemIndices systemIndices) {
         super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest::new,
             indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.metadataMappingService = metadataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -87,12 +92,25 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+            final String mappingSource = request.source();
 
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
+
+            final List<String> violations = checkForSystemIndexViolations(concreteIndices, mappingSource);
+            if (violations.isEmpty() == false) {
+                final String message = "Cannot update mappings in "
+                    + violations
+                    + ": system indices can only use mappings from their descriptors, "
+                    + "but the mappings in the request did not match those in the descriptors(s)";
+                logger.warn(message);
+                listener.onFailure(new IllegalArgumentException(message));
+                return;
+            }
+
             performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
@@ -142,4 +160,21 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         });
     }
 
+    private List<String> checkForSystemIndexViolations(Index[] concreteIndices, String requestMappings) {
+        List<String> violations = new ArrayList<>();
+
+        for (Index index : concreteIndices) {
+            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
+            if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+                final String descriptorMappings = descriptor.getMappings();
+
+                // Technically we could trip over a difference in whitespace here, but then again nobody should be trying to manually
+                // update a descriptor's mappings.
+                if (descriptorMappings.equals(requestMappings) == false) {
+                    violations.add(index.getName());
+                }
+            }
+        }
+        return violations;
+    }
 }

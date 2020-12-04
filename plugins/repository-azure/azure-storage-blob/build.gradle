@@ -14,17 +14,31 @@ dependencies {
   implementation "com.azure:azure-storage-blob:${project.parent.versions.azure}"
 }
 
-String blobsServiceClass = 'com/azure/storage/blob/implementation/BlobsImpl$BlobsService.class'
-String containersServiceClass = 'com/azure/storage/blob/implementation/ContainersImpl$ContainersService.class'
-String blockBlobsServiceClass = 'com/azure/storage/blob/implementation/BlockBlobsImpl$BlockBlobsService.class'
-String servicesServiceClass = 'com/azure/storage/blob/implementation/ServicesImpl$ServicesService.class'
+// We have to rewrite the service classes to make them public to avoid
+// granting the permission "java.lang.reflect.ReflectPermission" "newProxyInPackage"
+// to this plugin.
+//
+// There are plans to make those public in the azure sdk side, but in the meanwhile
+// we just do this workaround
+// https://github.com/Azure/azure-sdk-for-java/issues/12829#issuecomment-736755543
+List<String> classesToRewrite = ['com/azure/storage/blob/implementation/AppendBlobsImpl.class',
+                                 'com/azure/storage/blob/implementation/AppendBlobsImpl$AppendBlobsService.class',
+                                 'com/azure/storage/blob/implementation/BlobsImpl.class',
+                                 'com/azure/storage/blob/implementation/BlobsImpl$BlobsService.class',
+                                 'com/azure/storage/blob/implementation/BlockBlobsImpl.class',
+                                 'com/azure/storage/blob/implementation/BlockBlobsImpl$BlockBlobsService.class',
+                                 'com/azure/storage/blob/implementation/ContainersImpl.class',
+                                 'com/azure/storage/blob/implementation/ContainersImpl$ContainersService.class',
+                                 'com/azure/storage/blob/implementation/DirectorysImpl.class',
+                                 'com/azure/storage/blob/implementation/DirectorysImpl$DirectorysService.class',
+                                 'com/azure/storage/blob/implementation/PageBlobsImpl.class',
+                                 'com/azure/storage/blob/implementation/PageBlobsImpl$PageBlobsService.class',
+                                 'com/azure/storage/blob/implementation/ServicesImpl.class',
+                                 'com/azure/storage/blob/implementation/ServicesImpl$ServicesService.class']
 
 tasks.create('extractClientClasses', Copy).configure {
   from({ zipTree(configurations.originalJar.singleFile) }) {
-    include blobsServiceClass
-    include containersServiceClass
-    include blockBlobsServiceClass
-    include servicesServiceClass
+    include classesToRewrite
   }
   into project.file('build/original')
 }
@@ -33,10 +47,10 @@ def modifiedOutput = project.layout.buildDirectory.dir('modified')
 def makePublic = tasks.create('makeClientClassesPublic', JavaClassPublicifier)
 makePublic.configure {
   dependsOn 'extractClientClasses'
-  classFiles = [blobsServiceClass, containersServiceClass, blockBlobsServiceClass, servicesServiceClass]
+  classFiles = classesToRewrite
   inputDir = project.layout.buildDirectory.dir('original')
   outputDir = modifiedOutput
+  markInnerClassesAsPublic = true
 }
 
-//sourceSets.main.java.compiledBy(makePublic) { myTask -> myTask.outputDir }
 sourceSets.main.output.dir(modifiedOutput, builtBy: makePublic)

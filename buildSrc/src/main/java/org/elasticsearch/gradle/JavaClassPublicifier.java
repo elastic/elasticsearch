@@ -28,6 +28,7 @@ import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.InnerClassNode;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,6 +36,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.List;
 
+import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 
 /**
@@ -45,6 +47,7 @@ public class JavaClassPublicifier extends DefaultTask {
     private List<String> classFiles;
     private DirectoryProperty inputDir;
     private DirectoryProperty outputDir;
+    private boolean markInnerClassesAsPublic;
 
     public JavaClassPublicifier() {
         this.inputDir = getProject().getObjects().directoryProperty();
@@ -58,6 +61,15 @@ public class JavaClassPublicifier extends DefaultTask {
 
     public void setClassFiles(List<String> classFiles) {
         this.classFiles = classFiles;
+    }
+
+    @Input
+    public boolean getMarkInnerClassesAsPublic() {
+        return markInnerClassesAsPublic;
+    }
+
+    public void setMarkInnerClassesAsPublic(boolean markInnerClassesAsPublic) {
+        this.markInnerClassesAsPublic = markInnerClassesAsPublic;
     }
 
     @InputDirectory
@@ -80,6 +92,14 @@ public class JavaClassPublicifier extends DefaultTask {
                 classReader.accept(classNode, ClassReader.EXPAND_FRAMES);
             }
 
+            if (markInnerClassesAsPublic) {
+                for (InnerClassNode innerClass : classNode.innerClasses) {
+                    innerClass.access &= ~ACC_PRIVATE;
+                    innerClass.access |= ACC_PUBLIC;
+                }
+            }
+
+            classNode.access &= ~ACC_PRIVATE;
             classNode.access |= ACC_PUBLIC;
 
             ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);

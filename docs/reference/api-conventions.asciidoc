@@ -56,7 +56,7 @@ syntax.
 
 For most APIs, wildcard expressions do not match hidden data streams and indices
 by default. To match hidden data streams and indices using a wildcard
-expression, use the `expand_wildcards` query parameter.
+expression, you must specify the `expand_wildcards` query parameter.
 
 You can create hidden data streams by setting
 <<data-stream-hidden,`data_stream.hidden`>> to `true` in the stream's matching

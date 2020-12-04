@@ -118,17 +118,20 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
 
     @Override
     protected RateAggregatorFactory innerBuild(
-        AggregationContext context,
-        ValuesSourceConfig config,
-        AggregatorFactory parent,
-        AggregatorFactories.Builder subFactoriesBuilder
-    ) throws IOException {
+            AggregationContext context,
+            ValuesSourceConfig config,
+            AggregatorFactory parent,
+            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         if (field() == null && script() == null) {
             if (rateMode != null) {
                 throw new IllegalArgumentException("The mode parameter is only supported with field or script");
             }
         }
-        return new RateAggregatorFactory(name, config, rateUnit, rateMode, context, parent, subFactoriesBuilder, metadata);
+
+        RateAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new RateAggregatorFactory(name, config, rateUnit, rateMode, context, parent,
+                                         subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

@@ -246,6 +246,8 @@ Pass arbitrary jvm arguments.
 ./gradlew test -Dtests.jvm.argline="-verbose:gc"
 # enable security debugging
 ./gradlew test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
+# Running tests with a release or non-snapshot build
+./gradlew test -Dtests.jvm.argline="-Dbuild.snapshot=false"
 ------------------------------
 
 == Running verification tasks

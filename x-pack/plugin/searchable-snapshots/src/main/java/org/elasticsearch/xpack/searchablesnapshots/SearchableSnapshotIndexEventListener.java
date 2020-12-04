@@ -30,6 +30,13 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
+    /**
+     * Called before a searchable snapshot {@link IndexShard} starts to recover. This event is used to trigger the loading of the shard
+     * snapshot information that contains the list of shard's Lucene files.
+     *
+     * @param indexShard    the shard that is about to recover
+     * @param indexSettings the shard's index settings
+     */
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
@@ -37,9 +44,18 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         associateNewEmptyTranslogWithIndex(indexShard);
     }
 
+    /**
+     * Called before closing an {@link IndexService}. This event is used to toggle the "clear cache on closing" flag of the existing
+     * searchable snapshot directory instance. This way the directory will clean up its cache entries for us.
+     *
+     * @param indexService The index service
+     * @param reason       the reason for index removal
+     */
     @Override
     public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
-        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.FAILURE) {
+        if (reason == IndexRemovalReason.DELETED
+            || reason == IndexRemovalReason.NO_LONGER_ASSIGNED
+            || reason == IndexRemovalReason.FAILURE) {
             if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexService.getIndexSettings().getSettings())) {
                 for (IndexShard indexShard : indexService) {
                     try {

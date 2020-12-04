@@ -246,8 +246,13 @@ Pass arbitrary jvm arguments.
 ./gradlew test -Dtests.jvm.argline="-verbose:gc"
 # enable security debugging
 ./gradlew test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
-# Running tests with a release or non-snapshot build
-./gradlew test -Dtests.jvm.argline="-Dbuild.snapshot=false"
+------------------------------
+
+Pass build arguments.
+
+------------------------------
+# Run tests against a release build. License key must be provided, but can be anything.
+./gradlew test -Dbuild.snapshot=false -Dlicense.key=README.asciidoc
 ------------------------------
 
 == Running verification tasks

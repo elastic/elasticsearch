@@ -171,6 +171,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             assertNotNull(doc.rootDoc().getField("timestamp"));
             assertNotNull(doc.rootDoc().getField("_source"));
             assertNotNull(doc.rootDoc().getField("location.lat"));
+            assertNotNull(doc.rootDoc().getField("location.lon"));
             assertNotNull(doc.rootDoc().getField("concrete"));
             assertNull(doc.rootDoc().getField("country"));
         }
@@ -191,6 +192,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             assertNotNull(doc.rootDoc().getField("timestamp"));
             assertNotNull(doc.rootDoc().getField("_source"));
             assertThat(doc.rootDoc().getFields("location.lat").length, equalTo(4));
+            assertThat(doc.rootDoc().getFields("location.lon").length, equalTo(4));
             assertNotNull(doc.rootDoc().getField("concrete"));
             assertNull(doc.rootDoc().getField("country"));
         }
@@ -211,6 +213,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             assertNotNull(doc.rootDoc().getField("timestamp"));
             assertNotNull(doc.rootDoc().getField("_source"));
             assertThat(doc.rootDoc().getFields("location.lat").length, equalTo(4));
+            assertThat(doc.rootDoc().getFields("location.lon").length, equalTo(4));
             assertNotNull(doc.rootDoc().getField("concrete"));
             assertNull(doc.rootDoc().getField("country"));
         }

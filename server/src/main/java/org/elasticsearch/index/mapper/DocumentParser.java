@@ -883,6 +883,9 @@ final class DocumentParser {
     }
 
     // looks up a child mapper, but takes into account field names that expand to objects
+    // returns null if no such child mapper exists - note that unlike getLeafMapper,
+    // we do not check for shadowing runtime fields because they only apply to leaf
+    // fields
     private static Mapper getMapper(final ParseContext context,
                                     ObjectMapper objectMapper,
                                     String fieldName,
@@ -910,6 +913,9 @@ final class DocumentParser {
         return objectMapper.getMapper(leafName);
     }
 
+    // looks up a child mapper, taking into account field names that expand to objects
+    // if no mapper is found, checks to see if a runtime field with the specified
+    // field name exists and if so returns a no-op mapper to prevent indexing
     private static Mapper getLeafMapper(final ParseContext context,
                                         ObjectMapper objectMapper,
                                         String fieldName,

@@ -1,0 +1,4 @@
+limited_operator:
+  cluster:
+    - "cluster:admin/voting_config/add_exclusions"
+    - "monitor"

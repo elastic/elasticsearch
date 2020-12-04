@@ -38,14 +38,18 @@ import java.util.Map;
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Long precisionThreshold;
+    private final CardinalityAggregatorSupplier aggregatorSupplier;
 
     CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
                                     Long precisionThreshold,
                                     AggregationContext context,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
+                                    Map<String, Object> metadata,
+                                    CardinalityAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
         this.precisionThreshold = precisionThreshold;
     }
 
@@ -97,9 +101,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, precision(), context, parent, metadata);
+        return aggregatorSupplier.build(name, config, precision(), context, parent, metadata);
     }
 
     private int precision() {

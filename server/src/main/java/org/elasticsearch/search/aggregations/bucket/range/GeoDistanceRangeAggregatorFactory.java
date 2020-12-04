@@ -85,6 +85,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                 true);
     }
 
+    private final GeoDistanceAggregatorSupplier aggregatorSupplier;
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;
     private final GeoPoint origin;
     private final Range[] ranges;
@@ -96,8 +97,10 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                                              Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed,
                                              AggregationContext context, AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metadata) throws IOException {
+                                             Map<String, Object> metadata,
+                                             GeoDistanceAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.origin = origin;
         this.ranges = ranges;
         this.unit = unit;
@@ -117,8 +120,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(GeoDistanceAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(
                 name,
                 factories,

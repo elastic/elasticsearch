@@ -300,7 +300,7 @@ public class PackageTests extends PackagingTestCase {
         stopElasticsearch();
 
         withCustomConfig(tempConf -> {
-            append(installation.envFile, "ES_JAVA_OPTS=-Xmx512m -Xms512m -XX:-UseCompressedOops");
+            append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");
 
             startElasticsearch();
 

@@ -77,7 +77,9 @@ public class DockerRun {
     }
 
     public DockerRun memory(String memoryLimit) {
-        this.memory = memoryLimit;
+        if (memoryLimit != null) {
+            this.memory = memoryLimit;
+        }
         return this;
     }
 
@@ -95,9 +97,7 @@ public class DockerRun {
         cmd.add("--detach");
 
         // Limit container memory
-        if (memory != null) {
-            cmd.add("-m " + memory);
-        }
+        cmd.add("-m " + memory);
 
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 

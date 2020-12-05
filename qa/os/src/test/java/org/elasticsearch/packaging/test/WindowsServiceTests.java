@@ -215,6 +215,11 @@ public class WindowsServiceTests extends PackagingTestCase {
         );
     }
 
+    public void test22SetDefaultJvmArgs() {
+        append(installation.config.resolve("jvm.options.d/heap.options"), "-Xmx1g" + System.lineSeparator());
+        append(installation.config.resolve("jvm.options.d/heap.options"), "-Xms1g" + System.lineSeparator());
+    }
+
     public void test30StartStop() throws Exception {
         sh.run(serviceScript + " install");
         assertCommand(serviceScript + " start");

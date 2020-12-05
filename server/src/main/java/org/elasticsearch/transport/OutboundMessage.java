@@ -77,7 +77,7 @@ abstract class OutboundMessage extends NetworkMessage {
         if (message instanceof BytesTransportRequest) {
             BytesTransportRequest bRequest = (BytesTransportRequest) message;
             bRequest.writeThin(stream);
-            zeroCopyBuffer = bRequest.bytes;
+            zeroCopyBuffer = bRequest.bytes();
         } else if (message instanceof RemoteTransportException) {
             stream.writeException((RemoteTransportException) message);
             zeroCopyBuffer = BytesArray.EMPTY;

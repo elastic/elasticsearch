@@ -23,12 +23,13 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class InboundMessage implements Releasable {
+public class InboundMessage extends AbstractRefCounted {
 
     private final Header header;
     private final ReleasableBytesReference content;
@@ -38,26 +39,24 @@ public class InboundMessage implements Releasable {
     private StreamInput streamInput;
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
-        this.header = header;
-        this.content = content;
-        this.breakerRelease = breakerRelease;
-        this.exception = null;
-        this.isPing = false;
+        this(header, content, breakerRelease, null, false);
     }
 
     public InboundMessage(Header header, Exception exception) {
-        this.header = header;
-        this.content = null;
-        this.breakerRelease = null;
-        this.exception = exception;
-        this.isPing = false;
+        this(header, null, null, exception, false);
     }
 
     public InboundMessage(Header header, boolean isPing) {
+        this(header, null, null, null, isPing);
+    }
+
+    private InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease, Exception exception,
+                           boolean isPing) {
+        super("InboundMessage");
         this.header = header;
-        this.content = null;
-        this.breakerRelease = null;
-        this.exception = null;
+        this.content = content;
+        this.breakerRelease = breakerRelease;
+        this.exception = exception;
         this.isPing = isPing;
     }
 
@@ -101,13 +100,13 @@ public class InboundMessage implements Releasable {
     }
 
     @Override
-    public void close() {
-        IOUtils.closeWhileHandlingException(streamInput);
-        Releasables.closeWhileHandlingException(content, breakerRelease);
+    public String toString() {
+        return "InboundMessage{" + header + "}";
     }
 
     @Override
-    public String toString() {
-        return "InboundMessage{" + header + "}";
+    protected void closeInternal() {
+        IOUtils.closeWhileHandlingException(streamInput);
+        Releasables.closeWhileHandlingException(content, breakerRelease);
     }
 }

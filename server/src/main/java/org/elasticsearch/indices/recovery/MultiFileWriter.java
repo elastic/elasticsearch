@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -67,7 +68,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk)
+    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content, boolean lastChunk)
         throws IOException {
         assert Transports.assertNotTransportThread("multi_file_writer");
         final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetadata.name(), name -> new FileChunkWriter());
@@ -179,16 +180,21 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         store.renameTempFilesSafe(tempFileNames);
     }
 
-    static final class FileChunk {
+    private static final class FileChunk implements Releasable {
         final StoreFileMetadata md;
-        final BytesReference content;
+        final ReleasableBytesReference content;
         final long position;
         final boolean lastChunk;
-        FileChunk(StoreFileMetadata md, BytesReference content, long position, boolean lastChunk) {
+        FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk) {
             this.md = md;
-            this.content = content;
+            this.content = content.retain();
             this.position = position;
             this.lastChunk = lastChunk;
+        }
+
+        @Override
+        public void close() {
+            content.decRef();
         }
     }
 
@@ -210,7 +216,9 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                     }
                     pendingChunks.remove();
                 }
-                innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
+                try (chunk) {
+                    innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
+                }
                 synchronized (this) {
                     assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
                     lastPosition += chunk.content.length();

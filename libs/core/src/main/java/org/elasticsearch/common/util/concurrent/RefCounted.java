@@ -65,4 +65,15 @@ public interface RefCounted {
      * @return returns {@code true} if the ref count dropped to 0 as a result of calling this method
      */
     boolean decRef();
+
+    /**
+     * Decrement the ref count on the given {@code object} by one if it is a {@link RefCounted}
+     *
+     * @param object object to decrement ref count for if it is a {@link RefCounted}
+     */
+    static void decRef(Object object) {
+        if (object instanceof RefCounted) {
+            ((RefCounted) object).decRef();
+        }
+    }
 }

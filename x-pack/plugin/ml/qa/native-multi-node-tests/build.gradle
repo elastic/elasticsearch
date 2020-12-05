@@ -38,7 +38,7 @@ testClusters.all {
   numberOfNodes = 3
   testDistribution = 'DEFAULT'
 
-  if (BuildParams.isSnapshotBuild() == false) {
+  if (!BuildParams.isSnapshotBuild()) {
     systemProperty 'es.autoscaling_feature_flag_registered', 'true'
   }
   setting 'xpack.security.enabled', 'true'

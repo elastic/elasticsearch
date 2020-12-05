@@ -20,6 +20,7 @@
 package org.elasticsearch.tools.launchers;
 
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -107,7 +108,15 @@ public final class MachineDependentHeap {
         @SuppressWarnings("unchecked")
         public static MachineNodeRole parse(InputStream config) {
             Yaml yaml = new Yaml();
-            Map<String, Object> root = yaml.load(config);
+            Map<String, Object> root;
+            try {
+                root = yaml.load(config);
+            } catch (ClassCastException ex) {
+                // Strangely formatted config, so just return defaults and let startup settings validation catch the problem
+                return MachineNodeRole.UNKNOWN;
+            } catch (YAMLException ex) {
+                throw new IllegalStateException("Unable to parse elasticsearch.yml:", ex);
+            }
 
             if (root != null) {
                 Map<String, Object> map = flatten(root, null);

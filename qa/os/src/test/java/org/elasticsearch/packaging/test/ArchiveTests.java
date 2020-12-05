@@ -311,7 +311,7 @@ public class ArchiveTests extends PackagingTestCase {
             startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
+            assertThat(nodesResponse, not(containsString("\"heap_init_in_bytes\":536870912")));
 
             stopElasticsearch();
         } finally {

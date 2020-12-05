@@ -12,6 +12,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import java.io.IOException;
 
 import java.util.List;
+import java.util.Map;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -97,6 +99,14 @@ public class SecurityRestFilter implements RestHandler {
 
                 @Override
                 protected boolean skipStackTrace() { return restStatus == RestStatus.UNAUTHORIZED; }
+
+                @Override
+                public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
+                    if (headers.containsKey("Warning")) {
+                        return Maps.copyMapWithRemovedEntry(headers, "Warning");
+                    }
+                    return headers;
+                }
 
             });
         } catch (Exception inner) {

@@ -58,10 +58,19 @@ public final class TransportActionProxy {
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode targetNode = request.targetNode;
             TransportRequest wrappedRequest = request.wrapped;
+            assert assertConsistentTaskType(task, wrappedRequest);
             TaskId taskId = task.taskInfo(service.localNode.getId(), false).getTaskId();
             wrappedRequest.setParentTask(taskId);
             service.sendRequest(targetNode, action, wrappedRequest,
                     new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest)));
+        }
+
+        private boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
+            final Task targetTask = wrapped.createTask(0, proxyTask.getType(), proxyTask.getAction(), TaskId.EMPTY_TASK_ID, Map.of());
+            assert targetTask instanceof CancellableTask == proxyTask instanceof CancellableTask :
+                "Cancellable property of proxy action [" + proxyTask.getAction() + "] is configured inconsistently: " +
+                    "expected [" + (targetTask instanceof CancellableTask) + "] actual [" + (proxyTask instanceof CancellableTask) + "]";
+            return true;
         }
     }
 

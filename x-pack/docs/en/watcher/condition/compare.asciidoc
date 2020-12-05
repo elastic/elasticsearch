@@ -1,6 +1,9 @@
 [role="xpack"]
-[[condition-compare]]
-=== Compare condition
+[[watcher-condition-compare]]
+=== {watcher} compare condition
+++++
+<titleabbrev>Compare condition</titleabbrev>
+++++
 
 Use the `compare` condition to perform a simple comparison against a value in 
 the watch payload. You can use the `compare` condition without enabling 
@@ -37,7 +40,7 @@ To use the `compare` condition, you specify the value in the execution context
 that you want to evaluate, a <<condition-compare-operators,comparison operator>>, 
 and the value you want to compare against. For example, the following `compare` 
 condition returns `true` if the number of the total hits in the
-<<input-search,search result>> is greater than or equal to 5:
+<<watcher-input-search,search result>> is greater than or equal to 5:
 
 [source,js]
 --------------------------------------------------

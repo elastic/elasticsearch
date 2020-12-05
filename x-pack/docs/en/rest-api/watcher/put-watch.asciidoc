@@ -65,16 +65,16 @@ A watch has the following fields:
 |======
 | Name              | Description
 
-| `trigger`         | The <<trigger,trigger>> that defines when
+| `trigger`         | The <<watcher-triggers,trigger>> that defines when
                       the watch should run.
 
-| `input`           | The <<input,input>> that defines the input
+| `input`           | The <<watcher-inputs,input>> that defines the input
                       that loads the data for the watch.
 
-| `condition`       | The <<condition,condition>> that defines if
+| `condition`       | The <<watcher-conditions,condition>> that defines if
                       the actions should be run.
 
-| `actions`         | The list of <<actions,actions>> that will be
+| `actions`         | The list of <<watcher-actions,actions>> that will be
                       run if the condition matches
 
 | `metadata`        | Metadata json that will be copied into the history entries.

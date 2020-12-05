@@ -1,8 +1,11 @@
 [role="xpack"]
-[[schedule-interval]]
-==== Interval schedule
+[[watcher-schedule-interval]]
+==== {watcher} interval schedule
+++++
+<titleabbrev>Interval schedule</titleabbrev>
+++++
 
-A <<trigger-schedule,`schedule`>> that triggers at a fixed time interval. The
+A <<watcher-trigger-schedule,`schedule`>> that triggers at a fixed time interval. The
 interval can be set in seconds, minutes, hours, days, or weeks:
 
 * `"Xs"` - trigger every `X` seconds. For example, `"30s"` means every 30 seconds.

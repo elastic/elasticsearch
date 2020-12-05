@@ -1,6 +1,9 @@
 [role="xpack"]
-[[input]]
-== Inputs
+[[watcher-inputs]]
+== {watcher} inputs
+++++
+<titleabbrev>Inputs</titleabbrev>
+++++
 
 When a watch is triggered, its _input_ loads data into the execution 
 context. This payload is accessible during the subsequent watch execution 
@@ -9,12 +12,12 @@ input.
 
 {watcher} supports four input types: 
 
-* <<input-simple,`simple`>>: load static data into the execution context.
-* <<input-search,`search`>>: load the results of a search into the execution 
+* <<watcher-input-simple,`simple`>>: load static data into the execution context.
+* <<watcher-input-search,`search`>>: load the results of a search into the execution 
 context.
-* <<input-http,`http`>>: load the results of an HTTP request into the execution
+* <<watcher-input-http,`http`>>: load the results of an HTTP request into the execution
 context.
-* <<input-chain,`chain`>>: use a series of inputs to load data into the 
+* <<watcher-input-chain,`chain`>>: use a series of inputs to load data into the 
 execution context.
 
 NOTE: If you don't define an input for a watch, an empty payload is loaded

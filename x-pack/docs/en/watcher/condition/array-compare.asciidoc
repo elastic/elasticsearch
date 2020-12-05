@@ -1,6 +1,9 @@
 [role="xpack"]
-[[condition-array-compare]]
-=== Array compare condition
+[[watcher-condition-array-compare]]
+=== {watcher} array compare condition
+++++
+<titleabbrev>Array compare condition</titleabbrev>
+++++
 
 Use `array_compare` to compare an array of values in the execution context to a 
 given value. See <<condition-compare-operators>>
@@ -44,7 +47,7 @@ than or equal to 25:
     <<compare-condition-date-math,compare condition>>.
 
 NOTE: When using fieldnames that contain a dot this condition will not
-work, use a <<condition-script,script condition>> instead.
+work, use a <<watcher-condition-script,script condition>> instead.
 
 ==== Array-compare condition attributes
 

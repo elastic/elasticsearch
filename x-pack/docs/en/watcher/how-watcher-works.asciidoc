@@ -23,22 +23,22 @@ define what needs to be done once the condition is met. In addition, you can
 define _conditions_ and _transforms_ to process and prepare the watch payload before
 executing the actions.
 
-<<trigger,Trigger>>::
+<<watcher-triggers,Trigger>>::
 Determines when the watch is checked. A watch must have a trigger.
 
-<<input,Input>>::
+<<watcher-inputs,Input>>::
 Loads data into the watch payload. If no input is specified, an empty payload is
 loaded.
 
-<<condition,Condition>>::
+<<watcher-conditions,Condition>>::
 Controls whether the watch actions are executed. If no condition is specified,
 the condition defaults to `always`.
 
-<<transform,Transform>>::
+<<watcher-transforms,Transform>>::
 Processes the watch payload to prepare it for the watch actions. You can define
 transforms at the watch level or define action-specific transforms. Optional.
 
-<<actions,Actions>>::
+<<watcher-actions,Actions>>::
 Specify what happens when the watch condition is met.
 
 [[watch-definition-example]]
@@ -214,7 +214,7 @@ notifications about a watch as long as its condition is met. Once the condition
 evaluates to `false`, the acknowledgment is cleared and {watcher} resumes executing
 the watch actions normally.
 
-For more information, see <<actions-ack-throttle>>.
+For more information, see <<watcher-actions-ack-throttle>>.
 
 [discrete]
 [[watch-active-state]]
@@ -299,8 +299,8 @@ The following snippet shows the basic structure of the _Watch Execution Context_
 [[scripts]]
 ==== Using scripts
 
-You can use scripts to define <<condition-script,conditions>> and
-<<transform-script,transforms>>. The default scripting language is
+You can use scripts to define <<watcher-condition-script,conditions>> and
+<<watcher-transform-script,transforms>>. The default scripting language is
 <<modules-scripting-painless,Painless>>.
 
 NOTE: Starting with 5.0, Elasticsearch is shipped with the new

@@ -1,8 +1,11 @@
 [role="xpack"]
-[[trigger-schedule]]
-=== Schedule trigger
+[[watcher-trigger-schedule]]
+=== {watcher} schedule trigger
+++++
+<titleabbrev>Schedule trigger</titleabbrev>
+++++
 
-Schedule <<trigger,triggers>> define when the watch execution should start based
+Schedule <<watcher-triggers,triggers>> define when the watch execution should start based
 on date and time. All times are specified in UTC time.
 
 {watcher} uses the system clock to determine the current time. To ensure schedules
@@ -15,17 +18,17 @@ that's more frequent than the throttle period, the throttle period overrides the
 schedule. For example, if you set the throttle period to one minute (60000 ms)
 and set the schedule to every 10 seconds, the watch is executed no more than
 once per minute. For more information about throttling, see
-<<actions-ack-throttle>>.
+<<watcher-actions-ack-throttle>>.
 
 {watcher} provides several types of schedule triggers:
 
-* <<schedule-hourly, `hourly`>>
-* <<schedule-daily, `daily`>>
-* <<schedule-weekly, `weekly`>>
-* <<schedule-monthly, `monthly`>>
-* <<schedule-yearly, `yearly`>>
-* <<schedule-cron, `cron`>>
-* <<schedule-interval, `interval`>>
+* <<watcher-schedule-hourly, `hourly`>>
+* <<watcher-schedule-daily, `daily`>>
+* <<watcher-schedule-weekly, `weekly`>>
+* <<watcher-schedule-monthly, `monthly`>>
+* <<watcher-schedule-yearly, `yearly`>>
+* <<watcher-schedule-cron, `cron`>>
+* <<watcher-schedule-interval, `interval`>>
 
 include::schedule/hourly.asciidoc[]
 

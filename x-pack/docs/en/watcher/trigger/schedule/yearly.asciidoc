@@ -1,8 +1,11 @@
 [role="xpack"]
-[[schedule-yearly]]
-==== Yearly schedule
+[[watcher-schedule-yearly]]
+==== {watcher} yearly schedule
+++++
+<titleabbrev>Yearly schedule</titleabbrev>
+++++
 
-A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
+A <<watcher-trigger-schedule,`schedule`>> that triggers at a specific day and time
 every year. To use the `yearly` schedule, you specify the month, day, and time
 (or months, days, and times) when you want the scheduler to start the watch
 execution with the `in`, `on`, and `at` attributes.

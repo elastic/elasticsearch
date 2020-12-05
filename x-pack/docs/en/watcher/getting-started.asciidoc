@@ -20,12 +20,12 @@ condition is met.
 [[log-add-input]]
 === Schedule the watch and define an input
 
-A watch <<trigger-schedule,schedule>> controls how often a watch is triggered.
-The watch <<input,input>> gets the data that you want to evaluate.
+A watch <<watcher-trigger-schedule,schedule>> controls how often a watch is triggered.
+The watch <<watcher-inputs,input>> gets the data that you want to evaluate.
 
 To periodically search log data and load the results into the
-watch, you could use an <<schedule-interval,interval>> schedule and a
-<<input-search,search>> input. For example, the following Watch searches
+watch, you could use an <<watcher-schedule-interval,interval>> schedule and a
+<<watcher-input-search,search>> input. For example, the following Watch searches
 the `logs` index for errors every 10 seconds:
 
 [source,console]
@@ -77,7 +77,7 @@ GET .watcher-history*/_search?pretty
 [[log-add-condition]]
 === Add a condition
 
-A <<condition,condition>> evaluates the data you've loaded into the watch and
+A <<watcher-conditions,condition>> evaluates the data you've loaded into the watch and
 determines if any action is required. Now that you've loaded log errors into
 the watch, you can define a condition that checks to see if any errors were
 found.
@@ -108,7 +108,7 @@ PUT _watcher/watch/log_error_watch
 }
 --------------------------------------------------
 
-<1> The <<condition-compare,compare>> condition lets you easily compare against
+<1> The <<watcher-condition-compare,compare>> condition lets you easily compare against
     values in the execution context.
 
 For this compare condition to evaluate to `true`, you need to add an event
@@ -154,7 +154,7 @@ GET .watcher-history*/_search?pretty
 
 Recording watch records in the watch history is nice, but the real power of
 {watcher} is being able to do something when the watch condition is met. A
-watch's <<actions,actions>> define what to do when the watch condition
+watch's <<watcher-actions,actions>> define what to do when the watch condition
 evaluates to `true`. You can send emails, call third-party webhooks, write
 documents to an Elasticsearch index, or log messages to the standard
 Elasticsearch log files.

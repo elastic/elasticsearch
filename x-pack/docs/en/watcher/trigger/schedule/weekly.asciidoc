@@ -1,8 +1,11 @@
 [role="xpack"]
-[[schedule-weekly]]
-==== Weekly schedule
+[[watcher-schedule-weekly]]
+==== {watcher} weekly schedule
+++++
+<titleabbrev>Weekly schedule</titleabbrev>
+++++
 
-A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
+A <<watcher-trigger-schedule,`schedule`>> that triggers at a specific day and time
 every week. To use the `weekly` schedule, you specify the day and time (or days
 and times) when you want the scheduler to start the watch execution with the `on`
 and `at` attributes.

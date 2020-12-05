@@ -17,8 +17,8 @@ Elasticsearch cluster:
 [[health-add-input]]
 ==== Schedule the watch and add an input
 
-A watch <<trigger-schedule,schedule>> controls how often a watch is triggered.
-The watch <<input,input>> gets the data that you want to evaluate.
+A watch <<watcher-trigger-schedule,schedule>> controls how often a watch is triggered.
+The watch <<watcher-inputs,input>> gets the data that you want to evaluate.
 
 The simplest way to define a schedule is to specify an interval. For example,
 the following schedule runs every 10 seconds:
@@ -48,7 +48,7 @@ GET _cluster/health?pretty
 // TEST[continued]
 
 To load the health status into your watch, you simply add an
-<<input-http,HTTP input>> that calls the cluster health API:
+<<watcher-input-http,HTTP input>> that calls the cluster health API:
 
 [source,console]
 --------------------------------------------------
@@ -126,7 +126,7 @@ GET .watcher-history*/_search
 [[health-add-condition]]
 ==== Add a condition
 
-A <<condition,condition>> evaluates the data you've loaded into the watch and
+A <<watcher-conditions,condition>> evaluates the data you've loaded into the watch and
 determines if any action is required. Since you've defined an input that loads
 the cluster status into the watch, you can define a condition that checks that
 status.
@@ -182,7 +182,7 @@ GET .watcher-history*/_search?pretty
 
 Recording `watch_records` in the watch history is nice, but the real power of
 {watcher} is being able to do something in response to an alert. A watch's
-<<actions,actions>> define what to do when the watch condition is true--you
+<<watcher-actions,actions>> define what to do when the watch condition is true--you
 can send emails, call third-party webhooks, or write documents to an
 Elasticsearch index or log when the watch condition is met.
 

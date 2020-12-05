@@ -65,7 +65,7 @@ This API supports the following fields:
                                               that will be used during the watch execution
 
 | `ignore_condition`  | no       | false    | When set to `true`, the watch execution uses the
-                                              <<condition-always,always condition>>.
+                                              <<watcher-condition-always,always condition>>.
                                               This can also be specified as an HTTP parameter.
 
 | `alternative_input` | no       | null     | When present, the watch uses this object as a payload
@@ -98,7 +98,7 @@ are five possible modes an action can be associated with:
 
 | `simulate`        | The action execution is simulated. Each action type
                       define its own simulation operation mode. For example, the
-                      <<actions-email,`email` action>> creates
+                      <<watcher-action-email,`email` action>> creates
                       the email that would have been sent but does not actually
                       send it. In this mode, the action might be throttled if the
                       current state of the watch indicates it should be.

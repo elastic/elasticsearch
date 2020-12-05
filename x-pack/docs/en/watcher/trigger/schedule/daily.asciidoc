@@ -1,8 +1,11 @@
 [role="xpack"]
-[[schedule-daily]]
-==== Daily schedule
+[[watcher-schedule-daily]]
+==== {watcher} Daily schedule
+++++
+<titleabbrev>Daily schedule</titleabbrev>
+++++
 
-A <<trigger-schedule,`schedule`>> that triggers at a particular time
+A <<watcher-trigger-schedule,`schedule`>> that triggers at a particular time
 every day. To use the `daily` schedule, you specify the time of day (or times)
 when you want the scheduler to start the watch execution with the `at` attribute.
 

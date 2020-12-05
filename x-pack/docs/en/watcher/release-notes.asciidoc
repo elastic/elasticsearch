@@ -120,7 +120,7 @@ March 30, 2016
   {ref}/watcher-api-execute-watch.html[Execute Watch API]
 
 .New Features
-* Added <<actions-pagerduty,PagerDuty action>>
+* Added <<watcher-action-pagerduty,PagerDuty action>>
 * Added support for adding <<configuring-email-attachments,attachments to emails>>
   via HTTP requests and superseding and deprecating the usage of `attach_data`
   in order to use this feature
@@ -158,7 +158,7 @@ December 17, 2015
 November 24, 2015
 
 .New Features
-* Adds support for <<input-chain,chaining several inputs>>
+* Adds support for <<watcher-inputs-chain,chaining several inputs>>
 
 .Enhancements
 * Adds support for Elasticsearch 2.1.0.
@@ -205,12 +205,12 @@ October 28, 2015
   use the following index name `<logstash-{now/d{YYYY.MM.dd|+01:00}}>`.
 
 .New Features
-* Added new <<actions-hipchat,HipChat Action>>
-* Added new <<actions-slack,Slack Action>>
+* Added new <<watcher-actions-hipchat,HipChat Action>>
+* Added new <<watcher-action-slack,Slack Action>>
 * Watches now have an <<watch-active-state,active state>>. In addition, a new
   API was added to {ref}/watcher-api-activate-watch.html[activate]
   /{ref}watcher-api-deactivate-watch.html[deactivate] registered watches.
-* Added new <<condition-array-compare,array_compare>>, that can compare an array
+* Added new <<watcher-condition-array-compare,array_compare>>, that can compare an array
   of values in the <<watch-execution-context,Watch execution context model>>
   to a given value.
 
@@ -287,7 +287,7 @@ June 19, 2015
 June 10, 2015
 
 .New Features
-* <<actions-ack-throttle,Acking and throttling>> are now applied at the action
+* <<watcher-actions-ack-throttle,Acking and throttling>> are now applied at the action
   level rather than the watch level.
 * Added support for <<anatomy-actions-index-multi-doc-support,multi-doc>>
   indexing to the index action.
@@ -296,18 +296,18 @@ June 10, 2015
   <<watcher-api-stats,stats API>>.
 
 .Enhancements
-* The <<condition-compare,compare condition>> result now includes the value of
+* The <<watcher-condition-compare,compare condition>> result now includes the value of
   each field that was referenced in the comparison.
 * The <<watcher-api-execute-watch,execute API>> now supports a default trigger
   event (**breaking change**).
 * The `watch_record` document structure in the `.watch_history-*` indices has
   changed significantly (**breaking change**).
 * A new internal index was introduced - `.triggered_watches`
-* Added support for headers in the <<actions-webhook,webhook action>> result
-  and the <<input-http,HTTP input>> result.
-* Add plain text response body support for the <<input-http,HTTP input>>.
+* Added support for headers in the <<watcher-action-webhook,webhook action>> result
+  and the <<watcher-input-http,HTTP input>> result.
+* Add plain text response body support for the <<watcher-input-http,HTTP input>>.
 
 .Bug Fixes
-* Disallow negative time value settings for <<actions-ack-throttle,`throttle_period`>>
-* Added support for separate keystore and truststore in <<actions-webhook,webhook action>>
-  and <<input-http,HTTP input>>.
+* Disallow negative time value settings for <<watcher-actions-ack-throttle,`throttle_period`>>
+* Added support for separate keystore and truststore in <<watcher-action-webhook,webhook action>>
+  and <<watcher-input-http,HTTP input>>.

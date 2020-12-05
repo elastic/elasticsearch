@@ -1,6 +1,9 @@
 [role="xpack"]
-[[actions-jira]]
-=== Jira action
+[[watcher-action-jira]]
+=== {watcher} Jira action
+++++
+<titleabbrev>Jira action</titleabbrev>
+++++
 
 Use the `jira` action to create issues in  https://www.atlassian.com/software/jira[Atlassian's Jira Software].
 To create issues you need to <<configuring-jira, configure at least one Jira account>> in `elasticsearch.yml`.
@@ -159,7 +162,7 @@ xpack.notification.jira:
 
 If you configure multiple Jira accounts, you either need to configure a default
 account or specify which account the notification should be sent with in the
-<<actions-jira,`jira`>> action.
+<<watcher-action-jira,`jira`>> action.
 
 [source,yaml]
 --------------------------------------------------

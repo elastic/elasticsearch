@@ -1,6 +1,9 @@
 [role="xpack"]
-[[actions-index]]
-=== Index action
+[[watcher-action-index]]
+=== Watcher index action
+++++
+<titleabbrev>Index action</titleabbrev>
+++++
 
 Use the `index` action to index data into Elasticsearch.
 See <<index-action-attributes>> for the supported attributes.
@@ -24,8 +27,8 @@ The following snippet shows a simple `index` action definition:
 --------------------------------------------------
 // NOTCONSOLE
 <1> The id of the action
-<2> An optional <<condition,condition>> to restrict action execution
-<3> An optional <<transform,transform>> to transform the payload and prepare the data that should be indexed
+<2> An optional <<watcher-conditions,condition>> to restrict action execution
+<3> An optional <<watcher-transforms,transform>> to transform the payload and prepare the data that should be indexed
 <4> The index, alias, or data stream to which the data will be written
 <5> An optional `_id` for the document
 
@@ -62,7 +65,7 @@ The following snippet shows a simple `index` action definition:
 [[anatomy-actions-index-multi-doc-support]]
 ==== Multi-document support
 
-Like with all other actions, you can use a <<transform, transform>> to replace
+Like with all other actions, you can use a <<watcher-transforms, transform>> to replace
 the current execution context payload with another and by that change the document
 that will end up indexed.
 

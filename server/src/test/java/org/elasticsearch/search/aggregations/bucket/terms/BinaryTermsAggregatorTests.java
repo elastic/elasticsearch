@@ -35,7 +35,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,7 +63,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
     public void testMatchNoDocs() throws IOException {
         testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(BINARY_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
+            agg -> assertEquals(0, agg.getBuckets().size()), CoreValuesSourceType.BYTES
         );
     }
 
@@ -97,7 +99,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
         e = expectThrows(AggregationExecutionException.class,
             () -> testSearchCase(new MatchNoDocsQuery(), dataset,
                 aggregation -> aggregation.field(BINARY_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
-                agg -> fail("test should have failed with exception"), ValueType.STRING // string type hint
+                agg -> fail("test should have failed with exception"), CoreValuesSourceType.BYTES // string type hint
             ));
         assertThat(e.getMessage(), equalTo("Aggregation [_name] cannot support regular expression style include/exclude settings as " +
             "they can only be applied to string fields. Use an array of values for include/exclude clauses"));
@@ -106,14 +108,14 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
     public void testBadUserValueTypeHint() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(BINARY_FIELD),
-            agg -> fail("test should have failed with exception"), ValueType.NUMERIC // numeric type hint
+            agg -> fail("test should have failed with exception"), CoreValuesSourceType.NUMERIC // numeric type hint
         ));
         assertThat(e.getMessage(), equalTo("Expected numeric type on field [binary], but got [binary]"));
     }
 
     private void testSearchCase(Query query, List<Long> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
-                                Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
+                                Consumer<InternalMappedTerms> verify, ValuesSourceType valueType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();

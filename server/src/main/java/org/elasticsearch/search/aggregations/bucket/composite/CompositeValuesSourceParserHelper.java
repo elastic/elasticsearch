@@ -30,7 +30,9 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
@@ -44,7 +46,7 @@ public class CompositeValuesSourceParserHelper {
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
 
         objectParser.declareField(VB::userValuetypeHint, p -> {
-            ValueType valueType = ValueType.lenientParse(p.text());
+            ValuesSourceType valueType = CoreValuesSourceType.fromString(p.text());
             return valueType;
         }, new ParseField("value_type"), ObjectParser.ValueType.STRING);
 

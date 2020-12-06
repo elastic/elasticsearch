@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -168,7 +169,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertTrue(((FiltersAggregationBuilder) rewritten).isKeyed());
 
         // test sub-agg filter that does rewrite
-        original = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.BOOLEAN)
+        original = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.BOOLEAN)
             .subAggregation(
                 new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new BoolQueryBuilder()))
             );

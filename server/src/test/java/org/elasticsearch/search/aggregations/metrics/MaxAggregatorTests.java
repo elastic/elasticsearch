@@ -730,7 +730,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testOrderByEmptyAggregation() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.NUMERIC)
             .field("value")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>max", true)))
             .subAggregation(AggregationBuilders.filter("filter", termQuery("value", 100))
@@ -843,7 +843,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count")
                 .field("values");
             TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms")
-                .userValueTypeHint(ValueType.NUMERIC)
+                .userValueTypeHint(CoreValuesSourceType.NUMERIC)
                 .field("value").collectMode(collectionMode)
                 .subAggregation(new MaxAggregationBuilder("sub_max").field("invalid"));
 

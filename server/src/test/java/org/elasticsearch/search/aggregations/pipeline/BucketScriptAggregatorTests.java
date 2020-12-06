@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -75,7 +76,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("the_field");
 
         FiltersAggregationBuilder filters = new FiltersAggregationBuilder("placeholder", new MatchAllQueryBuilder())
-            .subAggregation(new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING).field("the_field")
+            .subAggregation(new TermsAggregationBuilder("the_terms").userValueTypeHint(CoreValuesSourceType.BYTES).field("the_field")
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("number_field")))
             .subAggregation(new BucketScriptPipelineAggregationBuilder("bucket_script",
                 Collections.singletonMap("the_avg", "the_terms['test1']>the_avg.value"),

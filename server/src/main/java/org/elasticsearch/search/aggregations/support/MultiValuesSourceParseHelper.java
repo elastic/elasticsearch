@@ -29,11 +29,11 @@ public final class MultiValuesSourceParseHelper {
 
     public static <T> void declareCommon(
             AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser, boolean formattable,
-            ValueType expectedValueType) {
+            ValuesSourceType expectedValueType) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValueType valueType = ValueType.lenientParse(p.text());
-            if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
+            ValuesSourceType valueType = CoreValuesSourceType.fromString(p.text());
+            if (expectedValueType != null && !valueType.equals(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
                         + valueType + "].  It can only work on value off type ["

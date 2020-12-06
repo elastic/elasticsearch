@@ -379,7 +379,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name");
         if (valueType != null && testWithHint) {
-            aggregationBuilder.userValueTypeHint(valueType);
+            aggregationBuilder.userValueTypeHint(valueType.getValuesSourceType());
         }
         aggregationBuilder.field(FIELD_NAME);
 

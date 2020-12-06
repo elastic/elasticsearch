@@ -46,7 +46,7 @@ public class GeoLineAggregationBuilder
     public static final ObjectParser<GeoLineAggregationBuilder, String> PARSER =
         ObjectParser.fromBuilder(NAME, GeoLineAggregationBuilder::new);
     static {
-        MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
+        MultiValuesSourceParseHelper.declareCommon(PARSER, true, CoreValuesSourceType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(POINT_FIELD.getPreferredName(), PARSER, true, false, false);
         MultiValuesSourceParseHelper.declareField(SORT_FIELD.getPreferredName(), PARSER, true, false, false);
         PARSER.declareString((builder, order) -> builder.sortOrder(SortOrder.fromString(order)), ORDER_FIELD);

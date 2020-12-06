@@ -57,4 +57,4 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-jarHell.enabled = false
+tasks.named("jarHell").configure { enabled = false }

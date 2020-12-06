@@ -17,8 +17,8 @@ restResources {
 String slackUrl = System.getenv('slack_url')
 
 if (!slackUrl) {
-  integTest.enabled = false
-  testingConventions.enabled = false
+  tasks.named("integTest").configure { enabled = false }
+  tasks.named("testingConventions").configure { enabled = false }
 } else {
   testClusters.matching { it.name == "integTest" }.configureEach {
     testDistribution = 'DEFAULT'

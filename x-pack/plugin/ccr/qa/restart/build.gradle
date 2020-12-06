@@ -48,4 +48,4 @@ task followClusterRestartTest(type: StandaloneRestIntegTestTask) {
 }
 
 check.dependsOn followClusterRestartTest
-test.enabled = false
+tasks.named("test").configure { enabled = false }

@@ -486,7 +486,7 @@ subprojects {
     tasks.register("checkLicense") {
       dependsOn buildDist, "checkExtraction"
     }
-    check.dependsOn "checkLicense"
+    tasks.named("check").configure { dependsOn "checkLicense" }
     if (project.name.contains('deb')) {
       tasks.named("checkLicense").configure {
         onlyIf dpkgExists

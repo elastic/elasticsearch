@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -308,7 +309,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
                 .calendarInterval(new DateHistogramInterval("1h"))
-                .subAggregation(new TermsAggregationBuilder("histo").userValueTypeHint(ValueType.STRING).field("bar"));
+                .subAggregation(new TermsAggregationBuilder("histo").userValueTypeHint(CoreValuesSourceType.BYTES).field("bar"));
 
         Set<RollupJobCaps> caps = new HashSet<>(2);
         caps.add(cap);

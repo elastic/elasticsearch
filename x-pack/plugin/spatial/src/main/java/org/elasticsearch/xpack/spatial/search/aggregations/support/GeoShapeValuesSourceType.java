@@ -39,7 +39,7 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     @Override
-    public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+    public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
         // TODO (support scripts)
         throw new UnsupportedOperationException("geo_shape");
     }

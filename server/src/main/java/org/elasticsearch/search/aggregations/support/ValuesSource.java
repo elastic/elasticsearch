@@ -534,16 +534,16 @@ public abstract class ValuesSource {
          */
         public static class Script extends Numeric {
             private final AggregationScript.LeafFactory script;
-            private final ValueType scriptValueType;
+            private final ValuesSourceType scriptValueType;
 
-            public Script(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            public Script(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
                 this.script = script;
                 this.scriptValueType = scriptValueType;
             }
 
             @Override
             public boolean isFloatingPoint() {
-                return scriptValueType != null ? scriptValueType == ValueType.DOUBLE : true;
+                return scriptValueType != null ? scriptValueType == CoreValuesSourceType.NUMERIC : true;
             }
 
             @Override

@@ -60,7 +60,7 @@ public interface ValuesSourceType {
      * @param scriptValueType - The expected output type of the script
      * @return - Script specialization of the base {@link ValuesSource}
      */
-    ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
+    ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType);
 
     /**
      * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.

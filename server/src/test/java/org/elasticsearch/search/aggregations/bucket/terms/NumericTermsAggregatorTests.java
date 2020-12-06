@@ -34,7 +34,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,7 +68,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
 
         testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(LONG_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.NUMERIC // with type hint
+            agg -> assertEquals(0, agg.getBuckets().size()), CoreValuesSourceType.NUMERIC // with type hint
         );
     }
 
@@ -94,7 +96,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(bucket.getKey(), equalTo(9L - i));
                     assertThat(bucket.getDocCount(), equalTo(9L - i));
                 }
-            }, ValueType.NUMERIC //with type hint
+            }, CoreValuesSourceType.NUMERIC //with type hint
         );
     }
 
@@ -115,7 +117,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         e = expectThrows(AggregationExecutionException.class,
             () -> testSearchCase(new MatchNoDocsQuery(), dataset,
                 aggregation -> aggregation.field(LONG_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
-                agg -> fail("test should have failed with exception"), ValueType.NUMERIC // with type hint
+                agg -> fail("test should have failed with exception"), CoreValuesSourceType.NUMERIC // with type hint
             ));
         assertThat(e.getMessage(), equalTo("Aggregation [_name] cannot support regular expression style " +
             "include/exclude settings as they can only be applied to string fields. Use an array of numeric " +
@@ -125,7 +127,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
 
     private void testSearchCase(Query query, List<Long> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
-                                Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
+                                Consumer<InternalMappedTerms> verify, ValuesSourceType valueType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();

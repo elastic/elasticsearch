@@ -62,7 +62,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
             return new ValuesSource.Numeric.Script(script, scriptValueType);
         }
 
@@ -112,7 +112,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
             return new ValuesSource.Bytes.Script(script);
         }
 
@@ -150,7 +150,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
             throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
         }
 
@@ -184,7 +184,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
             throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
         }
 
@@ -212,7 +212,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
             return BYTES.getScript(script, scriptValueType);
         }
 
@@ -239,7 +239,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
             return NUMERIC.getScript(script, scriptValueType);
         }
 
@@ -354,7 +354,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
             return NUMERIC.getScript(script, scriptValueType);
         }
 

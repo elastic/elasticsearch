@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
@@ -42,21 +43,21 @@ public abstract class GroupByKey extends Agg {
         if (script != null) {
             builder.script(script.toPainless());
             if (script.outputType().isInteger()) {
-                builder.userValuetypeHint(ValueType.LONG);
+                builder.userValuetypeHint(CoreValuesSourceType.NUMERIC);
             } else if (script.outputType().isRational()) {
-                builder.userValuetypeHint(ValueType.DOUBLE);
+                builder.userValuetypeHint(CoreValuesSourceType.NUMERIC);
             } else if (DataTypes.isString(script.outputType())) {
-                builder.userValuetypeHint(ValueType.STRING);
+                builder.userValuetypeHint(CoreValuesSourceType.BYTES);
             } else if (script.outputType() == DATE) {
-                builder.userValuetypeHint(ValueType.LONG);
+                builder.userValuetypeHint(CoreValuesSourceType.DATE);
             } else if (script.outputType() == TIME) {
-                builder.userValuetypeHint(ValueType.LONG);
+                builder.userValuetypeHint(CoreValuesSourceType.NUMERIC);
             } else if (script.outputType() == DATETIME) {
-                builder.userValuetypeHint(ValueType.LONG);
+                builder.userValuetypeHint(CoreValuesSourceType.NUMERIC);
             } else if (script.outputType() == BOOLEAN) {
-                builder.userValuetypeHint(ValueType.BOOLEAN);
+                builder.userValuetypeHint(CoreValuesSourceType.BOOLEAN);
             } else if (script.outputType() == IP) {
-                builder.userValuetypeHint(ValueType.IP);
+                builder.userValuetypeHint(CoreValuesSourceType.IP);
             }
         }
         // field based

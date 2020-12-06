@@ -11,7 +11,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
@@ -27,7 +26,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
             throw new AggregationExecutionException("Value source of type [" + this.value() + "] is not supported by scripts");
         }
 

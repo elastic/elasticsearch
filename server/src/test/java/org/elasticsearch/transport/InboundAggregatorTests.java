@@ -104,7 +104,7 @@ public class InboundAggregatorTests extends ESTestCase {
         for (ReleasableBytesReference reference : references) {
             assertEquals(1, reference.refCount());
         }
-        aggregated.decRef();
+        aggregated.close();
         for (ReleasableBytesReference reference : references) {
             assertEquals(0, reference.refCount());
         }

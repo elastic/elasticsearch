@@ -68,9 +68,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
         });
         project.getTasks()
             .withType(StandaloneRestIntegTestTask.class)
-            .configureEach(
-                testTask -> testTask.finalizedBy(project.getTasks().withType(FixtureStop.class))
-
-            );
+            .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));
     }
 }

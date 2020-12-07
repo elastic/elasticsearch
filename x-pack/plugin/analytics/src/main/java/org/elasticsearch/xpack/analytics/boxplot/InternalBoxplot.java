@@ -165,7 +165,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
-    public static Set<String> metricNames = Stream.of(Metrics.values())
+    static final Set<String> METRIC_NAMES = Stream.of(Metrics.values())
         .map(m -> m.name().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
@@ -254,7 +254,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     @Override
     public Iterable<String> valueNames() {
-        return metricNames;
+        return METRIC_NAMES;
     }
 
     // for testing only

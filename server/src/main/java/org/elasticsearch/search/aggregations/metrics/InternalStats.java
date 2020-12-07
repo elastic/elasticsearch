@@ -42,7 +42,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         }
     }
 
-    public static Set<String> metricNames = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet());
+    static final Set<String> METRIC_NAMES = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet());
 
     protected final long count;
     protected final double min;
@@ -150,7 +150,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     @Override
     public Iterable<String> valueNames() {
-        return metricNames;
+        return METRIC_NAMES;
     }
 
     @Override

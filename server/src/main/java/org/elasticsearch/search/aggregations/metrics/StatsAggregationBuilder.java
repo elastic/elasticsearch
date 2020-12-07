@@ -113,6 +113,6 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
 
     @Override
     public Optional<Set<String>> getOutputFieldNames() {
-        return Optional.of(InternalStats.metricNames);
+        return Optional.of(InternalStats.METRIC_NAMES);
     }
 }

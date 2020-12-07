@@ -149,7 +149,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
 
     @Override
     public Optional<Set<String>> getOutputFieldNames() {
-        return Optional.of(InternalBoxplot.metricNames);
+        return Optional.of(InternalBoxplot.METRIC_NAMES);
     }
 }
 

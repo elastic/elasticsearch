@@ -44,7 +44,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
     }
 
-    public static Set<String> metricNames = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet());
+    private static final Set<String> METRIC_NAMES = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet());
 
     private final double sumOfSqrs;
     private final double sigma;
@@ -122,7 +122,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public Iterable<String> valueNames() {
-        return metricNames;
+        return METRIC_NAMES;
     }
 
     public double getSigma() {

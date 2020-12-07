@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -70,7 +70,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     private ClusterService clusterService;
     private AutodetectProcessManager autodetectProcessManager;
-    private DatafeedContextProvider datafeedContextProvider;
+    private DatafeedConfigProvider datafeedConfigProvider;
     private Client client;
     private MlMemoryTracker mlMemoryTracker;
 
@@ -78,7 +78,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     public void setUpMocks() {
         clusterService = mock(ClusterService.class);
         autodetectProcessManager = mock(AutodetectProcessManager.class);
-        datafeedContextProvider = mock(DatafeedContextProvider.class);
+        datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         client = mock(Client.class);
         mlMemoryTracker = mock(MlMemoryTracker.class);
     }
@@ -234,7 +234,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     private OpenJobPersistentTasksExecutor createExecutor(Settings settings) {
         return new OpenJobPersistentTasksExecutor(
-            settings, clusterService, autodetectProcessManager, datafeedContextProvider, mlMemoryTracker, client,
+            settings, clusterService, autodetectProcessManager, datafeedConfigProvider, mlMemoryTracker, client,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
     }
 }

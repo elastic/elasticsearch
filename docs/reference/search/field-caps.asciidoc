@@ -36,7 +36,7 @@ fields among multiple indices.
 
 The field capabilities API returns <<runtime,runtime fields>> like any
 other field. For example, a runtime field with a type of
-`keyword` returns as any other field that belongs to the `keyword` family.
+`keyword` is returned as any other field that belongs to the `keyword` family.
 
 
 [[search-field-caps-api-path-params]]

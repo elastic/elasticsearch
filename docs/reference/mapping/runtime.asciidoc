@@ -67,10 +67,9 @@ IMPORTANT: Queries against runtime fields are considered expensive. If
 to `false`, expensive queries are not allowed and {es} will reject any queries
 against runtime fields.
 
-[discrete]
 [[runtime-mapping-fields]]
 === Mapping a runtime field
-You map runtime fields by adding a `"runtime"` section under the mapping
+You map runtime fields by adding a `runtime` section under the mapping
 definition. Within that section, you
 <<modules-scripting-using,define a Painless script>>, which has access to the
 original `_source` and `doc_values` (the mapped field plus its values). At
@@ -81,8 +80,8 @@ script. {es} will look in `_source` for a field with the same name as the
 runtime field and use values from that field at query time.
 
 Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
-of the `_search` request, but also make the script results available for
-queries and aggregations.
+of the `_search` request, but also make the script results available anywhere
+in a search request.
 
 The script in the following request extracts the day of the week from the
 `@timestamp` field, which is defined as a `date` type:
@@ -107,16 +106,17 @@ PUT /my-index
 }
 ----
 
-<1> Runtime fields are defined in the `"runtime"` section of the mapping
+<1> Runtime fields are defined in the `runtime` section of the mapping
 definition.
 <2> Each runtime field has its own field type, just like any other field.
 <3> The script defines the evaluation to calculate at search time.
 
-The `"runtime"` section supports `boolean`, `date`, `double`, `ip`, `keyword`,
-and `long` data types. Runtime fields with a `type` of `date` can accept the
-<<mapping-date-format,`format`>> parameter exactly as the `date` field type.
+The `runtime` section supports `boolean`, `date`, `double`, `geo_point` `ip`,
+`keyword`, and `long` data types. Runtime fields with a `type` of `date` can
+accept the <<mapping-date-format,`format`>> parameter exactly as the `date`
+field type.
 
-IMPORTANT: Objects are not supported in the `"runtime"` section under the
+IMPORTANT: Objects are not supported in the `runtime` section under the
 mapping definition. If you want to map a runtime field under an object, you
 can
 <<runtime-shadowing-fields,shadow the field value in the search request>>.
@@ -136,7 +136,6 @@ to `boolean`.
 
 ****
 
-[discrete]
 [[runtime-search-request]]
 === Defining runtime fields in a search request
 You can specify a `runtime_mappings` section in a search request to create
@@ -170,16 +169,15 @@ GET my-index/_search
 ----
 // TEST[continued]
 
-[discrete]
 [[runtime-shadowing-fields]]
-==== Shadowing fields in the search request
+=== Shadowing fields in the search request
 If you create a runtime field with the same name as a field that
 already exists in the mapping, the runtime field shadows the mapped field. At
 search time, {es} calculates the value of the runtime field and returns it as
 part of the query. Because the runtime field shadows the mapped field, you can
 modify the value returned in search without modifying the mapped field.
 
-Objects are not supported in the `"runtime"` section under the
+Objects are not supported in the `runtime` section under the
 mapping definition. However, you can use the `runtime_mappings` section of the
 `_search` request to shadow field values inside objects. For
 example, index the following documents into `my-index`:
@@ -222,9 +220,9 @@ POST my-index/_search
 ----
 // TEST[continued]
 
-[discrete]
+
 [[runtime-retrieving-fields]]
-==== Retrieving a runtime field
+=== Retrieving a runtime field
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
 the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of
@@ -248,9 +246,8 @@ GET my-index/_search
 ----
 // TEST[continued]
 
-[discrete]
 [[runtime-examples]]
-=== Examples
+=== Runtime fields examples
 Consider a large set of log data that you want to extract fields from.
 Indexing the data is time consuming and uses a lot of disk space, and you just
 want to explore the data structure without committing to a schema up front.

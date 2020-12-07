@@ -570,7 +570,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * Return the {@link BigArrays} instance for this node.
      */
-    public BigArrays bigArrays() {
+    public BigArrays bigArrays() {  // TODO this is only used in agg land, maybe remove it from here?
         return bigArrays;
     }
 

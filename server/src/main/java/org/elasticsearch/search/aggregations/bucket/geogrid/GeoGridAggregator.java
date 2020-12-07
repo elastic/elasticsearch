@@ -30,8 +30,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -50,7 +50,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     protected final LongKeyedBucketOrds bucketOrds;
 
     GeoGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
-                      int requiredSize, int shardSize, SearchContext aggregationContext,
+                      int requiredSize, int shardSize, AggregationContext aggregationContext,
                       Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.valuesSource = valuesSource;

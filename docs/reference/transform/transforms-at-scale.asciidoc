@@ -150,7 +150,7 @@ memory. If memory limits are exceeded, a circuit breaker exception occurs.
 == 7. Use indexed fields in your source indices (search)
 
 Scripted fields are not indexed fields; their values are only 
- computed at search time. While these fields provide flexibility in 
+computed at search time. While these fields provide flexibility in 
 how you access your data, they increase performance costs at search time. If 
 {transform} performance using scripted fields is a concern, 
 you may wish to consider using indexed fields instead.

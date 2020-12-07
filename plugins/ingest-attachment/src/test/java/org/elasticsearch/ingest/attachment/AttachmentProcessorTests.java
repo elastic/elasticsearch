@@ -55,7 +55,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, false, null, "resource_name");
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, false, null, null);
     }
 
     public void testEnglishTextDocument() throws Exception {

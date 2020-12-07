@@ -411,7 +411,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          * up in {@link InternalAutoDateHistogram#reduceBucket}. In particular,
          * on final reduce we bump the rounding until it we appropriately
          * cover the date range across all of the results returned by all of
-         * the {@link AutoDateHistogramAggregator}s.
+         * the {@link AutoDateHistogramAggregator}s. 
          */
         private ByteArray roundingIndices;
         /**
@@ -425,7 +425,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         /**
          * An underestimate of the number of buckets that are "live" in the
-         * current rounding for each {@code owningBucketOrdinal}.
+         * current rounding for each {@code owningBucketOrdinal}. 
          */
         private IntArray liveBucketCountUnderestimate;
         /**

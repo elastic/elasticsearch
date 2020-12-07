@@ -26,11 +26,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RetryableActionTests extends ESTestCase {
@@ -228,5 +231,50 @@ public class RetryableActionTests extends ESTestCase {
         // A second run will not occur because it is cancelled
         assertEquals(1, executedCount.get());
         expectThrows(ElasticsearchException.class, future::actionGet);
+    }
+
+    public void testRetryableActionCancelWhileRunning() {
+        assertTrue(validateCancelWhileRunning(l -> l.onResponse(true)).actionGet());
+
+        PlainActionFuture<Boolean> cancelledFuture = validateCancelWhileRunning(l -> l.onFailure(new EsRejectedExecutionException()));
+        ElasticsearchException cancelledException = expectThrows(ElasticsearchException.class, cancelledFuture::actionGet);
+        assertThat(cancelledException.getMessage(), equalTo("Cancelled"));
+
+        PlainActionFuture<Boolean> failedFuture = validateCancelWhileRunning(l -> l.onFailure(new ElasticsearchException("failed")));
+        ElasticsearchException failedException = expectThrows(ElasticsearchException.class, failedFuture::actionGet);
+        assertThat(failedException.getMessage(), equalTo("failed"));
+    }
+
+    private PlainActionFuture<Boolean> validateCancelWhileRunning(Consumer<ActionListener<Boolean>> tryAction) {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        AtomicInteger notificationCount = new AtomicInteger();
+        ActionListener<Boolean> listener = ActionListener.runAfter(future, notificationCount::incrementAndGet);
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<>(logger, taskQueue.getThreadPool(),
+            TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(30), listener) {
+
+            @Override
+            public void tryAction(ActionListener<Boolean> listener) {
+                taskQueue.getThreadPool().schedule(() -> {
+                    tryAction.accept(listener);
+                }, TimeValue.timeValueMillis(10), ThreadPool.Names.SAME);
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                return e instanceof EsRejectedExecutionException;
+            }
+        };
+
+        retryableAction.run();
+        taskQueue.runAllRunnableTasks();
+        assertTrue(taskQueue.hasDeferredTasks());
+        taskQueue.advanceTime();
+
+        retryableAction.cancel(new ElasticsearchException("Cancelled"));
+        taskQueue.runAllRunnableTasks();
+        assertFalse(taskQueue.hasDeferredTasks());
+
+        assertEquals(1, notificationCount.get());
+        return future;
     }
 }

@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -81,11 +80,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private static final Set<String> RESERVED_NAMES = Sets.newHashSet("cluster_settings", "node_settings");
-        private List<DeprecationIssue> clusterSettingsIssues;
-        private List<DeprecationIssue> nodeSettingsIssues;
-        private Map<String, List<DeprecationIssue>> indexSettingsIssues;
-        private Map<String, List<DeprecationIssue>> pluginSettingsIssues;
+        static final Set<String> RESERVED_NAMES = Sets.newHashSet("cluster_settings", "node_settings", "index_settings");
+        final private List<DeprecationIssue> clusterSettingsIssues;
+        final private List<DeprecationIssue> nodeSettingsIssues;
+        final private Map<String, List<DeprecationIssue>> indexSettingsIssues;
+        final private Map<String, List<DeprecationIssue>> pluginSettingsIssues;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -108,12 +107,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             this.clusterSettingsIssues = clusterSettingsIssues;
             this.nodeSettingsIssues = nodeSettingsIssues;
             this.indexSettingsIssues = indexSettingsIssues;
-            Set<String> reservedNames = new HashSet<>(RESERVED_NAMES);
-            reservedNames.addAll(indexSettingsIssues.keySet());
-            Set<String> intersection = Sets.intersection(reservedNames, pluginSettingsIssues.keySet());
+            Set<String> intersection = Sets.intersection(RESERVED_NAMES, pluginSettingsIssues.keySet());
             if (intersection.isEmpty() == false) {
                 throw new ElasticsearchStatusException(
-                    "Unable to discover deprecations as plugin deprecation names overlap with reserved names or index names {}",
+                    "Unable to discover deprecations as plugin deprecation names overlap with reserved names {}",
                     RestStatus.INTERNAL_SERVER_ERROR,
                     intersection
                 );

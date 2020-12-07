@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
@@ -53,12 +51,13 @@ public class MlDeprecationChecker implements DeprecationChecker {
     }
 
     @Override
-    public void check(DeprecationCheckerComponents components, ActionListener<CheckResult> deprecationIssueListener) {
+    public void check(Components components, ActionListener<CheckResult> deprecationIssueListener) {
         if (XPackSettings.MACHINE_LEARNING_ENABLED.get(components.settings()) == false) {
             deprecationIssueListener.onResponse(new CheckResult(getName(), Collections.emptyList()));
+            return;
         }
-        Client client = components.client();
-        ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN, GetDatafeedsAction.INSTANCE,
+        components.client().execute(
+            GetDatafeedsAction.INSTANCE,
             new GetDatafeedsAction.Request(GetDatafeedsAction.ALL), ActionListener.wrap(
                 datafeedsResponse -> {
                     List<DeprecationIssue> issues = new ArrayList<>();
@@ -69,7 +68,8 @@ public class MlDeprecationChecker implements DeprecationChecker {
                     deprecationIssueListener.onResponse(new CheckResult(getName(), issues));
                 },
                 deprecationIssueListener::onFailure
-            ));
+            )
+        );
     }
 
     @Override

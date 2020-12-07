@@ -12,6 +12,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -91,7 +92,11 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     }
                 }
 
-                DeprecationCheckerComponents components = new DeprecationCheckerComponents(xContentRegistry, settings, client);
+                DeprecationChecker.Components components = new DeprecationChecker.Components(
+                    xContentRegistry,
+                    settings,
+                    new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
+                );
                 pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
                     deprecationIssues -> listener.onResponse(
                         DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
@@ -107,7 +112,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     }
 
     static void pluginSettingIssues(List<DeprecationChecker> checkers,
-                                    DeprecationCheckerComponents components,
+                                    DeprecationChecker.Components components,
                                     ActionListener<Map<String, List<DeprecationIssue>>> listener) {
         List<DeprecationChecker> enabledCheckers = checkers
             .stream()

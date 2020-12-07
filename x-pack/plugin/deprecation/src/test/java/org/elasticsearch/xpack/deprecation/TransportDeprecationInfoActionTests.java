@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 public class TransportDeprecationInfoActionTests extends ESTestCase {
 
     public void testPluginSettingIssues() {
-        DeprecationCheckerComponents components = new DeprecationCheckerComponents(null, Settings.EMPTY, null);
+        DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
@@ -42,7 +42,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
     }
 
     public void testPluginSettingIssuesWithFailures() {
-        DeprecationCheckerComponents components = new DeprecationCheckerComponents(null, Settings.EMPTY, null);
+        DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
@@ -74,7 +74,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         }
 
         @Override
-        public void check(DeprecationCheckerComponents components, ActionListener<CheckResult> deprecationIssueListener) {
+        public void check(DeprecationChecker.Components components, ActionListener<CheckResult> deprecationIssueListener) {
             if (shouldFail) {
                 deprecationIssueListener.onFailure(new Exception("boom"));
                 return;

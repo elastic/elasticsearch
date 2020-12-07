@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction.Response.RESERVED_NAMES;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -138,9 +139,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         Map<String, List<DeprecationIssue>> indexNames = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(10)
             .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
-        Set<String> shouldCauseFailure = new HashSet<>(indexNames.keySet());
-        shouldCauseFailure.add("cluster_settings");
-        shouldCauseFailure.add("node_settings");
+        Set<String> shouldCauseFailure = new HashSet<>(RESERVED_NAMES);
         for(int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             Map<String, List<DeprecationIssue>> pluginSettingsIssues = randomSubsetOf(3, shouldCauseFailure)
                 .stream()

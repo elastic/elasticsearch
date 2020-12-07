@@ -19,14 +19,12 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -84,7 +82,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_9_1 = new Version(7090199, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_9_2 = new Version(7090299, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_9_3 = new Version(7090399, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_9_4 = new Version(7090499, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_7_10_1 = new Version(7100199, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_7_11_0 = new Version(7110099, org.apache.lucene.util.Version.LUCENE_8_7_0);
@@ -170,25 +167,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             luceneVersion = versions.get(index).luceneVersion;
         }
         return new Version(id, luceneVersion);
-    }
-
-    /**
-     * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
-     *
-     * @throws IllegalStateException if the given index settings doesn't contain a value for the key
-     *         {@value IndexMetadata#SETTING_VERSION_CREATED}
-     */
-    public static Version indexCreated(Settings indexSettings) {
-        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
-        if (indexVersion == V_EMPTY) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "[%s] is not present in the index settings for index with UUID [%s]",
-                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                    indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
-            throw new IllegalStateException(message);
-        }
-        return indexVersion;
     }
 
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
@@ -398,7 +376,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns the minimum version that can be used for compatible REST API
      */
     public Version minimumRestCompatibilityVersion() {
-        return Version.CURRENT.previousMajor();
+        return this.previousMajor();
     }
 
     /**

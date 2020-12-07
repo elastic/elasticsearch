@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -41,12 +42,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -76,11 +76,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
@@ -111,32 +110,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final Map<String, MappedFieldType> runtimeMappings;
 
     /**
-     * Build a {@linkplain QueryShardContext} without any information from the search request.
-     */
-    public QueryShardContext(int shardId,
-                             IndexSettings indexSettings,
-                             BigArrays bigArrays,
-                             BitsetFilterCache bitsetFilterCache,
-                             TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                             MapperService mapperService,
-                             SimilarityService similarityService,
-                             ScriptService scriptService,
-                             NamedXContentRegistry xContentRegistry,
-                             NamedWriteableRegistry namedWriteableRegistry,
-                             Client client,
-                             IndexSearcher searcher,
-                             LongSupplier nowInMillis,
-                             String clusterAlias,
-                             Predicate<String> indexNameMatcher,
-                             BooleanSupplier allowExpensiveQueries,
-                             ValuesSourceRegistry valuesSourceRegistry) {
-        this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
-                scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-                indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, emptyMap());
-    }
-
-    /**
-     * Build a {@linkplain QueryShardContext} with information from the search request.
+     * Build a {@linkplain QueryShardContext}.
      */
     public QueryShardContext(
         int shardId,
@@ -283,11 +257,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.documentMapper() == null ? null : mapperService.documentMapper().parse(source);
     }
 
-    public FieldNameAnalyzer getFieldNameIndexAnalyzer() {
-        DocumentMapper documentMapper = mapperService.documentMapper();
-        return documentMapper == null ? null : documentMapper.mappers().indexAnalyzer();
-    }
-
     public boolean hasNested() {
         return mapperService.hasNested();
     }
@@ -380,8 +349,17 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
-    public Analyzer getIndexAnalyzer() {
-        return mapperService.indexAnalyzer();
+    /**
+     * Return the index-time analyzer for the current index
+     * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
+     */
+    public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapperService.indexAnalyzer(fieldName, unindexedFieldAnalyzer);
+            }
+        };
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
@@ -401,7 +379,7 @@ public class QueryShardContext extends QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder
-                = new TextFieldMapper.Builder(name, () -> mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer());
+                = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
             return builder.build(new ContentPath(1)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -429,20 +407,6 @@ public class QueryShardContext extends QueryRewriteContext {
             );
         }
         return this.lookup;
-    }
-
-    /**
-     * Build a lookup customized for the fetch phase. Use {@link #lookup()}
-     * in other phases.
-     */
-    public SearchLookup newFetchLookup() {
-        /*
-         * Real customization coming soon, I promise!
-         */
-        return new SearchLookup(
-            this::getFieldType,
-            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
-        );
     }
 
     public NestedScope nestedScope() {
@@ -606,7 +570,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * Return the {@link BigArrays} instance for this node.
      */
-    public BigArrays bigArrays() {
+    public BigArrays bigArrays() {  // TODO this is only used in agg land, maybe remove it from here?
         return bigArrays;
     }
 

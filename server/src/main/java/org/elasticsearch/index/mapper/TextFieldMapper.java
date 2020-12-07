@@ -64,6 +64,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
@@ -177,7 +178,7 @@ public class TextFieldMapper extends FieldMapper {
             Defaults.INDEX_PREFIX_MIN_CHARS);
         int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"),
             Defaults.INDEX_PREFIX_MAX_CHARS);
-        DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix, parserContext.indexVersionCreated());
+        DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix);
         return new PrefixConfig(minChars, maxChars);
     }
 
@@ -232,7 +233,7 @@ public class TextFieldMapper extends FieldMapper {
         double minFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("min"), 0);
         double maxFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("max"), Integer.MAX_VALUE);
         int minSegmentSize = XContentMapValues.nodeIntegerValue(frequencyFilter.remove("min_segment_size"), 0);
-        DocumentMapperParser.checkNoRemainingFields(name, frequencyFilter, parserContext.indexVersionCreated());
+        DocumentMapperParser.checkNoRemainingFields(name, frequencyFilter);
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
@@ -266,14 +267,14 @@ public class TextFieldMapper extends FieldMapper {
 
         final TextParams.Analyzers analyzers;
 
-        public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
-            this(name, Version.CURRENT, defaultAnalyzer);
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+            this(name, Version.CURRENT, indexAnalyzers);
         }
 
-        public Builder(String name, Version indexCreatedVersion, Supplier<NamedAnalyzer> defaultAnalyzer) {
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(defaultAnalyzer, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
         }
 
         public Builder index(boolean index) {
@@ -421,7 +422,7 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), () -> c.getIndexAnalyzers().getDefaultIndexAnalyzer()));
+        = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
@@ -496,7 +497,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -642,7 +643,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
@@ -807,7 +808,7 @@ public class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
+        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
     }
 
     @Override

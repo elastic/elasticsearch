@@ -221,7 +221,9 @@ public class TermVectorsService  {
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
             return mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field));
         } else {
-            return mapperService.indexAnalyzer();
+            return mapperService.indexAnalyzer(field, f -> {
+                throw new IllegalArgumentException("No analyzer configured for field " + f);
+            });
         }
     }
 

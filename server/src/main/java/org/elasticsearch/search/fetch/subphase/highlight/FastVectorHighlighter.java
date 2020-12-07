@@ -82,10 +82,10 @@ public class FastVectorHighlighter implements Highlighter {
         Encoder encoder = field.fieldOptions().encoder().equals("html") ?
             HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
-        if (!hitContext.cache().containsKey(CACHE_KEY)) {
-            hitContext.cache().put(CACHE_KEY, new HighlighterEntry());
+        if (!fieldContext.cache.containsKey(CACHE_KEY)) {
+            fieldContext.cache.put(CACHE_KEY, new HighlighterEntry());
         }
-        HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
+        HighlighterEntry cache = (HighlighterEntry) fieldContext.cache.get(CACHE_KEY);
         FieldHighlightEntry entry = cache.fields.get(fieldType);
         if (entry == null) {
             FragListBuilder fragListBuilder;

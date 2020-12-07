@@ -22,9 +22,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.plugins.MapperPlugin;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 public class TestRuntimeField extends RuntimeFieldType {
     public TestRuntimeField(String name) {
@@ -32,21 +34,28 @@ public class TestRuntimeField extends RuntimeFieldType {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults) {
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults) throws IOException {
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
         return null;
     }
 
     @Override
     public String typeName() {
-        return null;
+        return "test";
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         return null;
+    }
+
+    public static class Plugin extends org.elasticsearch.plugins.Plugin implements MapperPlugin {
+        @Override
+        public Map<String, Parser> getRuntimeFieldTypes() {
+            return Collections.singletonMap("test", (name, node, parserContext) -> new TestRuntimeField(name));
+        }
     }
 }

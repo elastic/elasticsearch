@@ -81,10 +81,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject {
         static final Set<String> RESERVED_NAMES = Sets.newHashSet("cluster_settings", "node_settings", "index_settings");
-        final private List<DeprecationIssue> clusterSettingsIssues;
-        final private List<DeprecationIssue> nodeSettingsIssues;
-        final private Map<String, List<DeprecationIssue>> indexSettingsIssues;
-        final private Map<String, List<DeprecationIssue>> pluginSettingsIssues;
+        private final List<DeprecationIssue> clusterSettingsIssues;
+        private final List<DeprecationIssue> nodeSettingsIssues;
+        private final Map<String, List<DeprecationIssue>> indexSettingsIssues;
+        private final Map<String, List<DeprecationIssue>> pluginSettingsIssues;
 
         public Response(StreamInput in) throws IOException {
             super(in);

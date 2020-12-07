@@ -605,6 +605,25 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             "[unsupported : value]", e.getMessage());
     }
 
+    public void testDynamicRuntimeNotSupported() {
+        {
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> createMapperService(topMapping(b -> b.field("dynamic", "runtime"))));
+            assertEquals("Failed to parse mapping: unable to set dynamic:runtime as there is no registered dynamic runtime fields builder",
+                e.getMessage());
+        }
+        {
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> createMapperService(mapping(b -> {
+                    b.startObject("object");
+                    b.field("type", "object").field("dynamic", "runtime");
+                    b.endObject();
+                })));
+            assertEquals("Failed to parse mapping: unable to set dynamic:runtime as there is no registered dynamic runtime fields builder",
+                e.getMessage());
+        }
+    }
+
     private static class RuntimeFieldPlugin extends Plugin implements MapperPlugin {
         @Override
         public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {

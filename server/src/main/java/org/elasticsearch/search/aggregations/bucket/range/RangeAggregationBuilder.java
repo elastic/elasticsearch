@@ -150,6 +150,9 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     protected RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                 AggregatorFactory parent,
                                                 AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        RangeAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
@@ -167,7 +170,9 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder, metadata);
+
+        return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory,
+                                          context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

@@ -598,11 +598,18 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 });
             }
         }
+
+        // TODO: Replace these verifyDocuments(...) assertions with searches via 'logs-http' alias and
+        // writes via 'logs-http' alias (ensuring write goes to write data stream).
+        // Currently aliases can't refer to data streams, so we can't fully test the bi-direction replication scenario.
+        // See: https://github.com/elastic/elasticsearch/pull/64710#discussion_r537210322
+
         // See all eu and na logs in leader and follower cluster:
         verifyDocuments(client(), "logs-http*", numDocs * 2);
         try (RestClient leaderClient = buildLeaderClient()) {
             verifyDocuments(leaderClient, "logs-http*", numDocs * 2);
         }
+
         int moreDocs = 48;
         // Index more docs into leader cluster
         {
@@ -634,6 +641,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 });
             }
         }
+
+        // TODO: Replace these verifyDocuments(...) assertions with searches via 'logs-http' alias and writes via 'logs-http'
+        // (see previous TODO)
+
         // See all eu and na logs in leader and follower cluster:
         verifyDocuments(client(), "logs-http*", (numDocs + moreDocs) * 2);
         try (RestClient leaderClient = buildLeaderClient()) {

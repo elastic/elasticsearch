@@ -25,12 +25,18 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * This class takes in a log4j configuration file, and transform it into a config that
+ * writes everything to the console. This is useful when running Elasticsearch in a Docker
+ * container, where the Docker convention is to log to stdout / stderr and let the
+ * orchestration layer direct the output.
+ */
 public class TransformLog4jConfig {
 
     public static void main(String[] args) throws IOException {
         List<String> lines = getConfigFile(args);
 
-        final List<String> output = transformFile(lines);
+        final List<String> output = transformConfig(lines);
 
         output.forEach(System.out::println);
     }
@@ -56,7 +62,7 @@ public class TransformLog4jConfig {
         return Files.readAllLines(configPath);
     }
 
-    public static List<String> transformFile(List<String> lines) {
+    public static List<String> transformConfig(List<String> lines) {
         final List<String> output = new ArrayList<>(lines.size());
 
         // This flag provides a way to handle properties whose values are split

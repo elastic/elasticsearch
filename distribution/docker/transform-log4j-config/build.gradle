@@ -1,7 +1,12 @@
-apply plugin: 'java'
+apply plugin: 'elasticsearch.build'
 
 repositories {
   jcenter()
+}
+
+dependencies {
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 jar {

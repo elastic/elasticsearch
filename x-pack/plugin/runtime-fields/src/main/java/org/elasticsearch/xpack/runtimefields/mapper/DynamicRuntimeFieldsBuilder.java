@@ -13,8 +13,7 @@ public final class DynamicRuntimeFieldsBuilder implements org.elasticsearch.inde
 
     public static final DynamicRuntimeFieldsBuilder INSTANCE = new DynamicRuntimeFieldsBuilder();
 
-    private DynamicRuntimeFieldsBuilder() {
-    }
+    private DynamicRuntimeFieldsBuilder() {}
 
     @Override
     public RuntimeFieldType newDynamicStringField(String name) {

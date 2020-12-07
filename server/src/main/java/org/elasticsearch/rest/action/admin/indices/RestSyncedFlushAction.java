@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -44,7 +42,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSyncedFlushAction extends BaseRestHandler {
 
-    private static final Logger logger = LogManager.getLogger(RestSyncedFlushAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestSyncedFlushAction.class);
 
     @Override

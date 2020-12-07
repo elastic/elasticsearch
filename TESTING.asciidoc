@@ -251,8 +251,8 @@ Pass arbitrary jvm arguments.
 Pass build arguments.
 
 ------------------------------
-# Run tests against a release build. License key must be provided, but can be anything.
-./gradlew test -Dbuild.snapshot=false -Dlicense.key=README.asciidoc
+# Run tests against a release build. License key must be provided, but usually can be anything.
+./gradlew test -Dbuild.snapshot=false -Dlicense.key="x-pack/license-tools/src/test/resources/public.key"
 ------------------------------
 
 == Running verification tasks

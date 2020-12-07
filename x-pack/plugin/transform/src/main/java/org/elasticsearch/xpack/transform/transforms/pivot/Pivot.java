@@ -228,7 +228,7 @@ public class Pivot implements Function {
         // >= 7.11 as string
         // note: it depends on the version when the transform has been created, not the version of the code
         boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null ? settings.getDatesAsEpochMillis()
-            : version.onOrAfter(Version.V_8_0_0) ? false // todo V_7_11_0
+            : version.onOrAfter(Version.V_7_11_0) ? false
             : true;
 
         return AggregationResultUtils.extractCompositeAggregationResults(

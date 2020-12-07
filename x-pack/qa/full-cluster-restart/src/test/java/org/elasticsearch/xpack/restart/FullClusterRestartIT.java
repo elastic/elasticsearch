@@ -180,7 +180,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             logger.info("checking that the Watches index is the correct version");
 
             // Verify .watches index format:
-            var getClusterStateResponse = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+            var getClusterStateResponse = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/metadata/.watches")));
             Map<?, ?> indices = ObjectPath.eval("metadata.indices", getClusterStateResponse);
             var dotWatchesIndex = indices.get(".watches"); // ObjectPath.eval(...) doesn't handle keys containing .
             var indexFormat = Integer.parseInt(ObjectPath.eval("settings.index.format", dotWatchesIndex));

@@ -18,6 +18,12 @@
               "description":"A comma-separated list of IDs of API keys to clear from the cache"
             }
           }
+        },
+        {
+          "path":"/_security/api_key/*/_clear_cache",
+          "methods":[
+            "POST"
+          ]
         }
       ]
     },

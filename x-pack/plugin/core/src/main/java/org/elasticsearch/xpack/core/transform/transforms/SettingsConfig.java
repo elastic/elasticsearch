@@ -60,9 +60,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     }
 
     public SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Boolean datesAsEpochMillis) {
-        this.maxPageSearchSize = maxPageSearchSize;
-        this.docsPerSecond = docsPerSecond;
-        this.datesAsEpochMillis = datesAsEpochMillis == null ? null : datesAsEpochMillis ? 1 : 0;
+        this(maxPageSearchSize, docsPerSecond, datesAsEpochMillis == null ? null : datesAsEpochMillis ? 1 : 0);
     }
 
     public SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis) {

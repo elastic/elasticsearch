@@ -452,7 +452,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
      */
     public static TransformConfig rewriteForUpdate(final TransformConfig transformConfig) {
 
-        // quick checks(optimization) if a rewrite is required, if none found just return the original
+        // quick check if a rewrite is required, if none found just return the original
         // a failing quick check, does not mean a rewrite is necessary
         if (transformConfig.getVersion() != null
             && transformConfig.getVersion().onOrAfter(Version.V_8_0_0) // todo: V_7_11_0

@@ -402,16 +402,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return clone;
     }
 
+    ObjectMapper copyAndReset() {
+        ObjectMapper copy = clone();
+        // reset the sub mappers
+        copy.mappers = new CopyOnWriteHashMap<>();
+        return copy;
+    }
+
     /**
      * Build a mapping update with the provided sub mapping update.
      */
-    public ObjectMapper mappingUpdate(Mapper mapper) {
-        ObjectMapper mappingUpdate = clone();
-        // reset the sub mappers
-        mappingUpdate.mappers = new CopyOnWriteHashMap<>();
-        if (mapper != null) {
-            mappingUpdate.putMapper(mapper);
-        }
+    final ObjectMapper mappingUpdate(Mapper mapper) {
+        ObjectMapper mappingUpdate = copyAndReset();
+        mappingUpdate.putMapper(mapper);
         return mappingUpdate;
     }
 

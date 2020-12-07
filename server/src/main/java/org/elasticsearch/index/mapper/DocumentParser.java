@@ -215,7 +215,7 @@ final class DocumentParser {
         if (dynamicMappers.isEmpty() == false) {
             root = createDynamicUpdate(mapping.root, docMapper, dynamicMappers);
         } else {
-            root = (RootObjectMapper)mapping.root.mappingUpdate(null);
+            root = mapping.root.copyAndReset();
         }
         root.addRuntimeFields(dynamicRuntimeFields);
         return mapping.mappingUpdate(root);

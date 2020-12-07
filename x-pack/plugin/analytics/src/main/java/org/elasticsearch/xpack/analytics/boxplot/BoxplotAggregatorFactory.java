@@ -15,7 +15,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
@@ -25,6 +24,7 @@ import java.util.Map;
 public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
+    private final BoxplotAggregatorSupplier aggregatorSupplier;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -40,28 +40,25 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
                              AggregationContext context,
                              AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metadata) throws IOException {
+                             Map<String, Object> metadata,
+                             BoxplotAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata)
-        throws IOException {
-        return new BoxplotAggregator(name, null, config.format(), compression, searchContext, parent, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new BoxplotAggregator(name, null, config.format(), compression, context, parent, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(BoxplotAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config.getValuesSource(), config.format(), compression, searchContext, parent, metadata);
+        return aggregatorSupplier
+                .build(name, config.getValuesSource(), config.format(), compression, context, parent, metadata);
     }
 }

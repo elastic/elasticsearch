@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,6 +42,7 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
         builder.register(IpRangeAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.IP, BinaryRangeAggregator::new, true);
     }
 
+    private final IpRangeAggregatorSupplier aggregatorSupplier;
     private final List<BinaryRangeAggregator.Range> ranges;
     private final boolean keyed;
 
@@ -51,15 +51,17 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
             List<BinaryRangeAggregator.Range> ranges, boolean keyed,
             AggregationContext context,
             AggregatorFactory parent, Builder subFactoriesBuilder,
-            Map<String, Object> metadata) throws IOException {
+            Map<String, Object> metadata,
+            IpRangeAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.ranges = ranges;
         this.keyed = keyed;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalBinaryRange(name, config.format(), keyed, emptyList(), metadata());
@@ -69,14 +71,13 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(IpRangeAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, factories, config.getValuesSource(), config.format(), ranges, keyed, searchContext, parent, cardinality, metadata);
+        return aggregatorSupplier
+            .build(name, factories, config.getValuesSource(), config.format(),
+                   ranges, keyed, context, parent, cardinality, metadata);
     }
 
 }

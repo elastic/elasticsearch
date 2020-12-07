@@ -116,7 +116,6 @@ setup:
 
 ---
 "Regexp length limit":
-
   - do:
       catch: /The length of regex \[1110\] used in the Regexp Query request has exceeded the allowed maximum of \[1000\]\. This maximum can be set by changing the \[index.max_regex_length\] index level setting\./
       search:

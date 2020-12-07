@@ -130,6 +130,18 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         }
     }
 
+    public boolean containsBrokenAnalysis() {
+        if (analyzer instanceof AnalyzerComponentsProvider) {
+            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
+            for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
+                if (tokenFilterFactory.breaksFastVectorHighlighter()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     @Override
     public String toString() {
         return "analyzer name[" + name + "], analyzer [" + analyzer + "], analysisMode [" + analysisMode + "]";

@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,6 +46,7 @@ import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBound
  */
 public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final HistogramAggregatorSupplier aggregatorSupplier;
     private final double interval, offset;
     private final BucketOrder order;
     private final boolean keyed;
@@ -76,8 +76,10 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                         AggregationContext context,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metadata) throws IOException {
+                                        Map<String, Object> metadata,
+                                        HistogramAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.interval = interval;
         this.offset = offset;
         this.order = order;
@@ -92,8 +94,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
@@ -108,12 +110,10 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
+    protected Aggregator doCreateInternal(Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(HistogramAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(
                 name,
                 factories,
@@ -125,7 +125,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                 extendedBounds,
                 hardBounds,
                 config,
-                searchContext,
+                context,
                 parent,
                 cardinality,
                 metadata

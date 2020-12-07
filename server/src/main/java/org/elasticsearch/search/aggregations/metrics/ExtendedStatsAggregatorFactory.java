@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +37,7 @@ import java.util.Map;
 
 class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final ExtendedStatsAggregatorProvider aggregatorSupplier;
     private final double sigma;
 
     ExtendedStatsAggregatorFactory(String name,
@@ -46,9 +46,11 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     AggregationContext context,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
+                                    Map<String, Object> metadata,
+                                    ExtendedStatsAggregatorProvider aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -60,8 +62,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY,
@@ -72,13 +74,10 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(ExtendedStatsAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, searchContext, parent, sigma, metadata);
+        return aggregatorSupplier.build(name, config, context, parent, sigma, metadata);
     }
 }

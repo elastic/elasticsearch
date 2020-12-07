@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,6 +50,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
     }
 
+    private final DateHistogramAggregationSupplier aggregatorSupplier;
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
@@ -70,9 +70,11 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        DateHistogramAggregationSupplier aggregationSupplier
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregationSupplier;
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
@@ -85,9 +87,10 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         return minDocCount;
     }
 
+
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
@@ -99,14 +102,12 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         };
     }
 
+    @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry()
-            .getAggregator(DateHistogramAggregationBuilder.REGISTRY_KEY, config);
         return aggregatorSupplier.build(
             name,
             factories,
@@ -117,7 +118,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             extendedBounds,
             hardBounds,
             config,
-            searchContext,
+            context,
             parent,
             cardinality,
             metadata

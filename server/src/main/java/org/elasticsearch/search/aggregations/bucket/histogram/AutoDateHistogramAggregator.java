@@ -40,9 +40,9 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -71,7 +71,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         int targetBuckets,
         RoundingInfo[] roundingInfos,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -83,7 +83,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 targetBuckets,
                 roundingInfos,
                 valuesSourceConfig,
-                aggregationContext,
+                context,
                 parent,
                 metadata
             )
@@ -93,7 +93,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 targetBuckets,
                 roundingInfos,
                 valuesSourceConfig,
-                aggregationContext,
+                context,
                 parent,
                 metadata
             );
@@ -117,12 +117,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         int targetBuckets,
         RoundingInfo[] roundingInfos,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
 
-        super(name, factories, aggregationContext, parent, metadata);
+        super(name, factories, context, parent, metadata);
         this.targetBuckets = targetBuckets;
         assert valuesSourceConfig.hasValues();
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
@@ -246,7 +246,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             int targetBuckets,
             RoundingInfo[] roundingInfos,
             ValuesSourceConfig valuesSourceConfig,
-            SearchContext aggregationContext,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException {
@@ -256,7 +256,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 targetBuckets,
                 roundingInfos,
                 valuesSourceConfig,
-                aggregationContext,
+                context,
                 parent,
                 metadata
             );
@@ -450,18 +450,17 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             int targetBuckets,
             RoundingInfo[] roundingInfos,
             ValuesSourceConfig valuesSourceConfig,
-            SearchContext aggregationContext,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException {
-
             super(
                 name,
                 factories,
                 targetBuckets,
                 roundingInfos,
                 valuesSourceConfig,
-                aggregationContext,
+                context,
                 parent,
                 metadata
             );

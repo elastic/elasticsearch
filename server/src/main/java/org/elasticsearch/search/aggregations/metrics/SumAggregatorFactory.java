@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,15 +37,19 @@ import java.util.Map;
 
 class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final MetricAggregatorSupplier aggregatorSupplier;
+
     SumAggregatorFactory(String name,
                             ValuesSourceConfig config,
                             AggregationContext context,
                             AggregatorFactory parent,
                             AggregatorFactories.Builder subFactoriesBuilder,
-                            Map<String, Object> metadata) throws IOException {
+                            Map<String, Object> metadata,
+                            MetricAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
-    }
 
+        this.aggregatorSupplier = aggregatorSupplier;
+    }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -56,10 +59,9 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                 true);
     }
 
-
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalSum(name, 0.0, config.format(), metadata());
@@ -67,16 +69,13 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
     }
 
-
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(SumAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, searchContext, parent, metadata);
+        return aggregatorSupplier
+            .build(name, config, context, parent, metadata);
     }
 }

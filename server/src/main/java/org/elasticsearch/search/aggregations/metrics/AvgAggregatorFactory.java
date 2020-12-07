@@ -30,19 +30,21 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
+    private final MetricAggregatorSupplier aggregatorSupplier;
 
     AvgAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metadata) throws IOException {
+                         Map<String, Object> metadata, MetricAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
     }
+
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -53,8 +55,8 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalAvg(name, 0.0, 0L, config.format(), metadata);
@@ -64,13 +66,10 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(AvgAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, searchContext, parent, metadata);
+        return aggregatorSupplier.build(name, config, context, parent, metadata);
     }
 }

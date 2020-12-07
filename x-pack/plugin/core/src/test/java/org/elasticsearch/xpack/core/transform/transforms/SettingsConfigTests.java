@@ -146,7 +146,7 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
 
-        config = new SettingsConfig.Builder().setDatesAsEpochMilli(null).build();
+        config = new SettingsConfig.Builder().setDatesAsEpochMillis(null).build();
         assertThat(config.getDatesAsEpochMillisForUpdate(), equalTo(-1));
 
         settingsAsMap = xContentToMap(config);

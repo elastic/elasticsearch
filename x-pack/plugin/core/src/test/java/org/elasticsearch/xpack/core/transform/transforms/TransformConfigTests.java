@@ -420,7 +420,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
 
         TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig).setSettings(
-            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMilli(true).build()
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
         ).setVersion(Version.V_8_0_0).build(); // todo: V_7_11_0
 
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter711);

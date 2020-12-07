@@ -161,7 +161,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true) + " wdaem: " + this.datesAsEpochMillis;
+        return Strings.toString(this, true, true);
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
@@ -171,7 +171,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public static class Builder {
         private Integer maxPageSearchSize;
         private Float docsPerSecond;
-        private Integer dateAsEpochMilli;
+        private Integer datesAsEpochMillis;
 
         /**
          * Default builder
@@ -186,7 +186,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         public Builder(SettingsConfig base) {
             this.maxPageSearchSize = base.maxPageSearchSize;
             this.docsPerSecond = base.docsPerSecond;
-            this.dateAsEpochMilli = base.datesAsEpochMillis;
+            this.datesAsEpochMillis = base.datesAsEpochMillis;
         }
 
         /**
@@ -225,11 +225,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          *
          * An explicit `null` resets to default.
          *
-         * @param datesAsEpochMilli true if dates should be written as epoch_millis.
+         * @param datesAsEpochMillis true if dates should be written as epoch_millis.
          * @return the {@link Builder} with datesAsEpochMilli set.
          */
-        public Builder setDatesAsEpochMilli(Boolean datesAsEpochMilli) {
-            this.dateAsEpochMilli = datesAsEpochMilli == null ? DEFAULT_DATES_AS_EPOCH_MILLIS : datesAsEpochMilli ? 1 : 0;
+        public Builder setDatesAsEpochMillis(Boolean datesAsEpochMillis) {
+            this.datesAsEpochMillis = datesAsEpochMillis == null ? DEFAULT_DATES_AS_EPOCH_MILLIS : datesAsEpochMillis ? 1 : 0;
             return this;
         }
 
@@ -251,7 +251,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     : update.getMaxPageSearchSize();
             }
             if (update.getDatesAsEpochMillisForUpdate() != null) {
-                this.dateAsEpochMilli = update.getDatesAsEpochMillisForUpdate().equals(DEFAULT_DATES_AS_EPOCH_MILLIS)
+                this.datesAsEpochMillis = update.getDatesAsEpochMillisForUpdate().equals(DEFAULT_DATES_AS_EPOCH_MILLIS)
                     ? null
                     : update.getDatesAsEpochMillisForUpdate();
             }
@@ -260,7 +260,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, dateAsEpochMilli);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis);
         }
     }
 }

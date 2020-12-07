@@ -118,7 +118,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
 
-        config = new SettingsConfig.Builder().setDatesAsEpochMilli(null).build();
+        config = new SettingsConfig.Builder().setDatesAsEpochMillis(null).build();
         // returns false, however it's `null` as in "use default", checked next
         assertFalse(config.getDatesAsEpochMillis());
 

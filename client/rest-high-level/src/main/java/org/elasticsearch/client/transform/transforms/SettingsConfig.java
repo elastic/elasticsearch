@@ -141,7 +141,7 @@ public class SettingsConfig implements ToXContentObject {
     public static class Builder {
         private Integer maxPageSearchSize;
         private Float docsPerSecond;
-        private Integer datesAsEpochMilli;
+        private Integer datesAsEpochMillis;
 
         /**
          * Sets the paging maximum paging maxPageSearchSize that transform can use when
@@ -179,16 +179,16 @@ public class SettingsConfig implements ToXContentObject {
          *
          * An explicit `null` resets to default.
          *
-         * @param datesAsEpochMilli true if dates should be written as epoch_millis.
+         * @param datesAsEpochMillis true if dates should be written as epoch_millis.
          * @return the {@link Builder} with datesAsEpochMilli set.
          */
-        public Builder setDatesAsEpochMilli(Boolean datesAsEpochMilli) {
-            this.datesAsEpochMilli = datesAsEpochMilli == null ? DEFAULT_DATES_AS_EPOCH_MILLIS : datesAsEpochMilli ? 1 : 0;
+        public Builder setDatesAsEpochMillis(Boolean datesAsEpochMillis) {
+            this.datesAsEpochMillis = datesAsEpochMillis == null ? DEFAULT_DATES_AS_EPOCH_MILLIS : datesAsEpochMillis ? 1 : 0;
             return this;
         }
 
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMilli);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis);
         }
     }
 }

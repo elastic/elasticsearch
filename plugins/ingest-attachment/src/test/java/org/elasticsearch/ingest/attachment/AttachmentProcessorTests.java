@@ -277,7 +277,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "randomTarget", null, 10, false, null, "resource_name");
+            "randomTarget", null, 10, false, null, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }

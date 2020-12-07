@@ -20,13 +20,15 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 List<String> services = ["peppa", "hdfs"]
 
-preProcessFixture.doLast {
-  // We need to create these up-front because if docker creates them they will be owned by root and we won't be
-  // able to clean them up
-  services.each { file("${testFixturesDir}/shared/${it}").mkdirs() }
+tasks.named("preProcessFixture").configure {
+  doLast {
+    // We need to create these up-front because if docker creates them they will be owned by root and we won't be
+    // able to clean them up
+    services.each { file("${testFixturesDir}/shared/${it}").mkdirs() }
+  }
 }
 
-postProcessFixture {
+tasks.named("postProcessFixture").configure {
   inputs.dir("${testFixturesDir}/shared")
   services.each { service ->
     File confTemplate = file("${testFixturesDir}/shared/${service}/krb5.conf.template")

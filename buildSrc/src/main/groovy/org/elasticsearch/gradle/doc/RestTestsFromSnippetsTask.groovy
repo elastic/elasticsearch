@@ -63,10 +63,8 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
     Set<String> names = new HashSet<>()
 
     RestTestsFromSnippetsTask() {
-        project.afterEvaluate {
-            // Wait to set this so testRoot can be customized
-            project.sourceSets.test.output.dir(testRoot, builtBy: this)
-        }
+        // TODO: This effectively makes testRoot not customizable, which we don't do anyway atm
+        project.sourceSets.test.output.dir(testRoot, builtBy: this)
         TestBuilder builder = new TestBuilder()
         doFirst { outputRoot().delete() }
         perSnippet builder.&handleSnippet

@@ -17,9 +17,6 @@ tasks.named("javaRestTest").configure {
   systemProperty 'tests.system_call_filter', 'false'
   nonInputProperties.systemProperty 'log', "${-> testClusters.javaRestTest.singleNode().getServerLog()}"
   systemProperty 'runtime.java.home', BuildParams.runtimeJavaHome
-}
-
-testClusters.javaRestTest {
   systemProperty "die.with.dignity.test", "whatever"
 }
 

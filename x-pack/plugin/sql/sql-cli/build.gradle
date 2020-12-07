@@ -42,7 +42,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jline-.*/, to: 'jline'
 }
 
-shadowJar {
+tasks.named("shadowJar").configure {
   manifest {
     attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
   }

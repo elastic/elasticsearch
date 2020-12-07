@@ -70,7 +70,7 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         Map<String, Object> metadata) throws IOException {
 
         return percentilesConfig.createPercentileRanksAggregator(name, null, searchContext, parent, percents, keyed,
-            config.format(), metadata);
+                config.format(), metadata);
     }
 
     @Override

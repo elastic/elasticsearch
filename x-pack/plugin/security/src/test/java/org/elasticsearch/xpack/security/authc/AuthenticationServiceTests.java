@@ -655,15 +655,20 @@ public class AuthenticationServiceTests extends ESTestCase {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
 
-        Tuple<Authentication, String> result = authenticateBlocking("_action", transportRequest, null);
-        if (requestIdAlreadyPresent) {
-            assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
-        }
-        assertThat(result, notNullValue());
-        assertThat(expectAuditRequestId(threadContext), is(result.v2()));
-        assertThat(result.v1().getUser(), is(user));
-        assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
-        verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
+        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
+            if (requestIdAlreadyPresent) {
+                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+            }
+            assertThat(result, notNullValue());
+            assertThat(result.getUser(), is(user));
+            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
+
+            String userStr = threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY);
+            assertThat(userStr, notNullValue());
+            Authentication ctxAuth = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+            assertThat(ctxAuth, is(result));
+            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
+        }, this::logAndFail));
     }
 
     public void testAuthenticateTransportAnonymous() throws Exception {

@@ -167,7 +167,7 @@ public class ClientYamlTestClient implements Closeable {
             String contentType = entity.getContentType().getValue();
             //randomly test the GET with source param instead of GET/POST with body
             if (sendBodyAsSourceParam(supportedMethods, contentType, entity)) {
-                logger.error("sending the request body as source param with GET method");
+                logger.debug("sending the request body as source param with GET method");
                 queryStringParams.put("source", EntityUtils.toString(entity));
                 queryStringParams.put("source_content_type", contentType);
                 requestMethod = HttpGet.METHOD_NAME;

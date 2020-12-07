@@ -303,7 +303,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testIndexedChars() throws Exception {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null, "resource_name");
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null, null);
 
         Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
 

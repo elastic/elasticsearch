@@ -148,10 +148,10 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}. The mappings of the destination 
-index are deduced based on the source fields when possible. If alternate 
-mappings are required, use the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+The _destination index_ for the {transform}. The mappings of the destination
+index are deduced based on the source fields when possible. If alternate
+mappings are required, use the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
 prior to starting the {transform}.
 end::dest-index[]
 
@@ -948,6 +948,13 @@ end::sync-time-delay[]
 tag::transform-settings[]
 Defines optional {transform} settings.
 end::transform-settings[]
+
+tag::transform-settings-dates-as-epoch-milli[]
+Defines if dates in the ouput should be written as ISO formatted string (default)
+or as millis since epoch. `epoch_millis` has been the default for transforms created
+before version `7.11`. For compatible output set this to `true`.
+The default value is `false`.
+end::transform-settings-dates-as-epoch-milli[]
 
 tag::transform-settings-docs-per-second[]
 Specifies a limit on the number of input documents per second. This setting

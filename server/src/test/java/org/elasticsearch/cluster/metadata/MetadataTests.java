@@ -1157,7 +1157,7 @@ public class MetadataTests extends ESTestCase {
         String dataStreamName = "foo-datastream";
         Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
             .put(
-                new IndexMetadata.Builder(DataStream.BACKING_INDEX_PREFIX+dataStreamName + "-something-000012")
+                new IndexMetadata.Builder(DataStream.BACKING_INDEX_PREFIX+dataStreamName + "-something-100012")
                     .settings(settings(Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(1)

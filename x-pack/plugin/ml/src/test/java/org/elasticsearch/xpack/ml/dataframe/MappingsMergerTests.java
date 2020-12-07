@@ -38,7 +38,12 @@ public class MappingsMergerTests extends ESTestCase {
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
-        assertThat(mergedMappings.getSourceAsMap(), equalTo(index1Mappings));
+        Map<String, Object> mergedMappingsMap = mergedMappings.getSourceAsMap();
+        assertThat(mergedMappingsMap.size(), equalTo(2));
+        assertThat(mergedMappingsMap.containsKey("dynamic"), is(true));
+        assertThat(mergedMappingsMap.get("dynamic"), equalTo(false));
+        assertThat(mergedMappingsMap.containsKey("properties"), is(true));
+        assertThat(mergedMappingsMap.get("properties"), equalTo(index1Mappings.get("properties")));
     }
 
     public void testMergeMappings_GivenFieldWithDifferentMapping() {
@@ -80,7 +85,9 @@ public class MappingsMergerTests extends ESTestCase {
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
         Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();
-        assertThat(mappingsAsMap.size(), equalTo(1));
+        assertThat(mappingsAsMap.size(), equalTo(2));
+        assertThat(mappingsAsMap.containsKey("dynamic"), is(true));
+        assertThat(mappingsAsMap.get("dynamic"), equalTo(false));
         assertThat(mappingsAsMap.containsKey("properties"), is(true));
 
         @SuppressWarnings("unchecked")

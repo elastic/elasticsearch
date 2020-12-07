@@ -6,6 +6,8 @@
 <titleabbrev>Put autoscaling policy</titleabbrev>
 ++++
 
+experimental[]
+
 Put autoscaling policy.
 
 [[autoscaling-put-autoscaling-policy-request]]

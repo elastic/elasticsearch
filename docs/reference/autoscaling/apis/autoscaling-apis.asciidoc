@@ -3,6 +3,8 @@
 [[autoscaling-apis]]
 == Autoscaling APIs
 
+experimental[]
+
 You can use the following APIs to perform autoscaling operations.
 
 [discrete]

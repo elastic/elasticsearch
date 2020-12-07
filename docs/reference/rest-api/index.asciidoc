@@ -11,9 +11,7 @@ We are working on including more {es} APIs in this section. Some content might
 not be included yet.
 
 * <<api-conventions, API conventions>>
-ifdef::permanently-unreleased-branch[]
 * <<autoscaling-apis, Autoscaling APIs>>
-endif::[]
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
@@ -43,9 +41,7 @@ endif::[]
 --
 
 include::{es-repo-dir}/api-conventions.asciidoc[]
-ifdef::permanently-unreleased-branch[]
 include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
-endif::[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]

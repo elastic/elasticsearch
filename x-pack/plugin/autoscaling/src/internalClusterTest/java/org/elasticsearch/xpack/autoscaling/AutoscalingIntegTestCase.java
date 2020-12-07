@@ -19,12 +19,4 @@ public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(LocalStateAutoscaling.class);
     }
-
-    @Override
-    protected Settings nodeSettings(final int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put(Autoscaling.AUTOSCALING_ENABLED_SETTING.getKey(), true);
-        return builder.build();
-    }
-
 }

@@ -6,6 +6,8 @@
 <titleabbrev>Get autoscaling policy</titleabbrev>
 ++++
 
+experimental[]
+
 Get autoscaling policy.
 
 [[autoscaling-get-autoscaling-policy-request]]

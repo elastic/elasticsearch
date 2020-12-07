@@ -24,6 +24,7 @@ import java.util.Map;
 public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
+    private final BoxplotAggregatorSupplier aggregatorSupplier;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -39,9 +40,11 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
                              AggregationContext context,
                              AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metadata) throws IOException {
+                             Map<String, Object> metadata,
+                             BoxplotAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
@@ -55,8 +58,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(BoxplotAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config.getValuesSource(), config.format(), compression, context, parent, metadata);
+        return aggregatorSupplier
+                .build(name, config.getValuesSource(), config.format(), compression, context, parent, metadata);
     }
 }

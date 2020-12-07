@@ -40,6 +40,7 @@ import java.util.Map;
  */
 public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final HistogramAggregatorSupplier aggregatorSupplier;
     private final double interval, offset;
     private final BucketOrder order;
     private final boolean keyed;
@@ -69,8 +70,10 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                         AggregationContext context,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metadata) throws IOException {
+                                        Map<String, Object> metadata,
+                                        HistogramAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.interval = interval;
         this.offset = offset;
         this.order = order;
@@ -85,10 +88,10 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-        throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(HistogramAggregationBuilder.REGISTRY_KEY, config)
+    protected Aggregator doCreateInternal(Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
+        return aggregatorSupplier
             .build(
                 name,
                 factories,

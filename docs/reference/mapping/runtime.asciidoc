@@ -74,7 +74,7 @@ You map runtime fields by adding a `"runtime"` section under the mapping
 definition. Within that section, you
 <<modules-scripting-using,define a Painless script>>, which has access to the
 original `_source` and `doc_values` (the mapped field plus its values). At
-search time, the script runs and generates values for each scripted field.
+search time, the script runs and generates values for each scripted field that is required for the query.
 
 NOTE: You can define a runtime field in the mapping definition without a
 script. {es} will look in `_source` for a field with the same name as the
@@ -109,7 +109,7 @@ PUT /my-index
 
 <1> Runtime fields are defined in the `"runtime"` section of the mapping
 definition.
-<2> Each runtime has its own field type, just like any other field.
+<2> Each runtime field has its own field type, just like any other field.
 <3> The script defines the evaluation to calculate at search time.
 
 The `"runtime"` section supports `boolean`, `date`, `double`, `ip`, `keyword`,

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCac
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;

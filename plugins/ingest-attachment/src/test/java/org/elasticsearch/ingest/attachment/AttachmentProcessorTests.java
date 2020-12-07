@@ -258,7 +258,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "randomTarget", null, 10, true, null, "resource_name");
+            "randomTarget", null, 10, true, null, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }

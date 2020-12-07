@@ -324,6 +324,7 @@ public class Constants {
         "indices:admin/data_stream/delete",
         "indices:admin/data_stream/get",
         "indices:admin/data_stream/migrate",
+        "indices:admin/data_stream/promote",
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",

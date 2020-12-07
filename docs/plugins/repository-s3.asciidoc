@@ -18,8 +18,18 @@ a repository. The repository defaults to using
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS
 IAM Role] or
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2
-IAM Role] credentials for authentication. The only mandatory setting is the
-bucket name:
+IAM Role] credentials for authentication. If you want to use
+https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[IAM roles for Kubernetes service accounts]
+credentials for authentication, you need add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable in the plugin
+config directory, so the plugin can have the read permissions for the token.
+
+[source,bash]
+----
+mkdir -p /etc/elasticsearch/repository-s3
+ln -s $AWS_WEB_IDENTITY_TOKEN_FILE /etc/elasticsearch/repository-s3/aws-web-identity-token-file
+----
+
+The only mandatory setting is the bucket name:
 
 [source,console]
 ----

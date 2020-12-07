@@ -122,3 +122,19 @@ services:
           - ./testfixtures_shared/shared:/fixture/shared
       ports:
           - "80"
+
+  s3-fixture-with-sts:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixtureWithSTS
+        port: 80
+        bucket: "sts_bucket"
+        basePath: "sts_base_path"
+        accessKey: "sts_access_key"
+        sessionToken: "sts_session_token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"

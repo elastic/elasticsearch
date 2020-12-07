@@ -1,0 +1,6 @@
+pr: 81255
+summary: Support AWS IAM Kubernetes service accounts
+area: Snapshot/Restore
+type: feature
+issues:
+ - 52625

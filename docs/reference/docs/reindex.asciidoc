@@ -440,7 +440,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request blocks until the operation is complete.
+Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 

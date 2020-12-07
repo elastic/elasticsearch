@@ -573,3 +573,62 @@ setup:
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
   - match: { aggregations.histo.buckets.20.key: 20 }
   - match: { aggregations.histo.buckets.20.doc_count: 1 }
+
+
+---
+"date_histogram with extended_bounds and offset and unmapped":
+  - skip:
+      version: " - 7.99.99"
+      reason:  fixed in 8.0 to be backported to 7.11
+
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          mappings:
+            properties:
+              foo:
+                type: nested
+
+  - do:
+      bulk:
+        index: test_nested
+        refresh: true
+        body:
+            - '{"index": {}}'
+            - '{"foo": {"date": "2016-01-02"}}'
+            - '{"index": {}}'
+            - '{"foo": {"date": "2016-01-03"}}'
+
+  - do:
+      indices.create:
+        index: test_unmapped
+
+  - do:
+      search:
+        index: test_*
+        body:
+          size: 0
+          aggs:
+            foo:
+              nested:
+                path: foo
+              aggs:
+                histo:
+                  date_histogram:
+                    field: foo.date
+                    calendar_interval: day
+                    offset: 1h
+                    extended_bounds:
+                      min: "2016-01-01"
+                      max: "2016-01-04"
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.foo.histo.buckets: 4 }
+  - match: { aggregations.foo.histo.buckets.0.key_as_string: 2016-01-01T01:00:00.000Z }
+  - match: { aggregations.foo.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.foo.histo.buckets.1.key_as_string: 2016-01-02T01:00:00.000Z }
+  - match: { aggregations.foo.histo.buckets.1.doc_count: 1 }
+  - match: { aggregations.foo.histo.buckets.2.key_as_string: 2016-01-03T01:00:00.000Z }
+  - match: { aggregations.foo.histo.buckets.2.doc_count: 0 }
+  - match: { aggregations.foo.histo.buckets.3.key_as_string: 2016-01-04T01:00:00.000Z }
+  - match: { aggregations.foo.histo.buckets.3.doc_count: 0 }

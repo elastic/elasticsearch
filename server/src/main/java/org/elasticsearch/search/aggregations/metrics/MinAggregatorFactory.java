@@ -21,7 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -61,7 +67,7 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
             }
 
             @Override
-            public final LeafBucketCollector getLeafCollector(LeafReaderContext reader, LeafBucketCollector sub) {
+            public LeafBucketCollector getLeafCollector(LeafReaderContext reader, LeafBucketCollector sub) {
                 if (parent == null) {
                     return LeafBucketCollector.NO_OP_COLLECTOR;
                 } else {

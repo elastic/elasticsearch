@@ -1177,7 +1177,8 @@ final class RequestConverters {
      */
     static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
         XContentType requestContentType = indexRequest.getContentType();
-        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE &&
+            requestContentType != XContentType.VND_JSON && requestContentType != XContentType.VND_SMILE) {
             throw new IllegalArgumentException("Unsupported content-type found for request with content-type [" + requestContentType
                     + "], only JSON and SMILE are supported");
         }

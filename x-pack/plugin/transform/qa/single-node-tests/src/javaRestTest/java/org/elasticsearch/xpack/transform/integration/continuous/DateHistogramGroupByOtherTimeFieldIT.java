@@ -4,6 +4,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.transform.transforms.DestConfig;
+import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.pivot.DateHistogramGroupSource;
@@ -23,7 +24,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.time.ZonedDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -41,15 +43,20 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
     private static final String NAME = "continuous-date-histogram-pivot-other-timefield-test";
 
     private final boolean addGroupByTerms;
+    private final boolean datesAsEpochMillis;
 
     public DateHistogramGroupByOtherTimeFieldIT() {
         addGroupByTerms = randomBoolean();
+        datesAsEpochMillis = randomBoolean();
     }
 
     @Override
     public TransformConfig createConfig() {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder();
         addCommonBuilderParameters(transformConfigBuilder);
+        if (datesAsEpochMillis) {
+            transformConfigBuilder.setSettings(addCommonSetings(new SettingsConfig.Builder()).setDatesAsEpochMillis(true).build());
+        }
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
         transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
@@ -121,20 +128,25 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
 
-            Long transformBucketKey = (Long) XContentMapValues.extractValue("second", source);
+            String transformBucketKey;
+            if (datesAsEpochMillis) {
+                transformBucketKey = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(Instant.ofEpochMilli((Long) XContentMapValues.extractValue("second", source)));
+            } else {
+                transformBucketKey = (String) XContentMapValues.extractValue("second", source);
+            }
 
             // aggs return buckets with 0 doc_count while composite aggs skip over them
             while (bucket.getDocCount() == 0L) {
                 assertTrue(sourceIterator.hasNext());
                 bucket = sourceIterator.next();
             }
-            long bucketKey = ((ZonedDateTime) bucket.getKey()).toEpochSecond() * 1000;
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
-                "Buckets did not match, source: " + source + ", expected: " + bucketKey + ", iteration: " + iteration,
+                "Buckets did not match, source: " + source + ", expected: " + bucket.getKeyAsString() + ", iteration: " + iteration,
                 transformBucketKey,
-                equalTo(bucketKey)
+                equalTo(bucket.getKeyAsString())
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
@@ -172,10 +184,9 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             if (b.getDocCount() == 0) {
                 continue;
             }
-            long second = ((ZonedDateTime) b.getKey()).toEpochSecond() * 1000;
             List<? extends Terms.Bucket> terms = ((Terms) b.getAggregations().get("event")).getBuckets();
             for (Terms.Bucket t : terms) {
-                flattenedBuckets.add(flattenedResult(second, t.getKeyAsString(), t.getDocCount()));
+                flattenedBuckets.add(flattenedResult(b.getKeyAsString(), t.getKeyAsString(), t.getDocCount()));
             }
         }
 
@@ -188,7 +199,13 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
 
-            Long transformBucketKey = (Long) XContentMapValues.extractValue("second", source);
+            String transformBucketKey;
+            if (datesAsEpochMillis) {
+                transformBucketKey = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(Instant.ofEpochMilli((Long) XContentMapValues.extractValue("second", source)));
+            } else {
+                transformBucketKey = (String) XContentMapValues.extractValue("second", source);
+            }
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
@@ -228,7 +245,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         assertFalse(destIterator.hasNext());
     }
 
-    private static Map<String, Object> flattenedResult(long second, String event, long count) {
+    private static Map<String, Object> flattenedResult(String second, String event, long count) {
         Map<String, Object> doc = new HashMap<>();
         doc.put("second", second);
         doc.put("event", event);

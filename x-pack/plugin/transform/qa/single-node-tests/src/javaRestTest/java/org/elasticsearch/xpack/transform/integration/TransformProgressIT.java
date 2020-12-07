@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -151,7 +153,7 @@ public class TransformProgressIT extends ESRestTestCase {
         PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         TransformConfig config = new TransformConfig(transformId, sourceConfig, destConfig, null, null, null, pivotConfig, null, null);
 
-        Pivot pivot = new Pivot(pivotConfig, transformId);
+        Pivot pivot = new Pivot(pivotConfig, transformId, new SettingsConfig(), Version.CURRENT);
 
         TransformProgress progress = getProgress(pivot, getProgressQuery(pivot, config.getSource().getIndex(), null));
 
@@ -179,7 +181,7 @@ public class TransformProgressIT extends ESRestTestCase {
             Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, missingBucket, 50.0))
         );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        pivot = new Pivot(pivotConfig, transformId);
+        pivot = new Pivot(pivotConfig, transformId, new SettingsConfig(), Version.CURRENT);
 
         progress = getProgress(
             pivot,

@@ -74,7 +74,7 @@ A watch has the following fields:
 | `condition`       | The <<watcher-conditions,condition>> that defines if
                       the actions should be run.
 
-| `actions`         | The list of <<watcher-actions,actions>> that will be
+| `actions`         | The list of <<actions,actions>> that will be
                       run if the condition matches
 
 | `metadata`        | Metadata json that will be copied into the history entries.

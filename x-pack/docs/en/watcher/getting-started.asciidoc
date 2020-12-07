@@ -154,7 +154,7 @@ GET .watcher-history*/_search?pretty
 
 Recording watch records in the watch history is nice, but the real power of
 {watcher} is being able to do something when the watch condition is met. A
-watch's <<watcher-actions,actions>> define what to do when the watch condition
+watch's <<actions,actions>> define what to do when the watch condition
 evaluates to `true`. You can send emails, call third-party webhooks, write
 documents to an Elasticsearch index, or log messages to the standard
 Elasticsearch log files.

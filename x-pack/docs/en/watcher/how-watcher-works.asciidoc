@@ -38,7 +38,7 @@ the condition defaults to `always`.
 Processes the watch payload to prepare it for the watch actions. You can define
 transforms at the watch level or define action-specific transforms. Optional.
 
-<<watcher-actions,Actions>>::
+<<actions,Actions>>::
 Specify what happens when the watch condition is met.
 
 [[watch-definition-example]]

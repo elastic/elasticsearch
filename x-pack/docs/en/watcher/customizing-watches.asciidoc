@@ -271,4 +271,4 @@ creates a new issue in GitHub
 <2> The username that creates the issue
 <3> The password of that user
 
-To learn how to create other actions see <<watcher-actions>>.
+To learn how to create other actions see <<actions>>.

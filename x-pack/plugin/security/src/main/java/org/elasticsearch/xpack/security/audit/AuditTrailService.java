@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AuditTrailService {
 
@@ -31,8 +32,7 @@ public class AuditTrailService {
     private final CompositeAuditTrail compositeAuditTrail;
     private final XPackLicenseState licenseState;
     private final Duration minLogPeriod = Duration.ofMinutes(30);
-    // protected for tests
-    protected Instant lastLogInstant = Instant.EPOCH;
+    protected AtomicReference<Instant> nextLogInstantAtomic = new AtomicReference<>(Instant.EPOCH);
 
     public AuditTrailService(List<AuditTrail> auditTrails, XPackLicenseState licenseState) {
         this.compositeAuditTrail = new CompositeAuditTrail(Collections.unmodifiableList(auditTrails));
@@ -40,16 +40,11 @@ public class AuditTrailService {
     }
 
     public AuditTrail get() {
-        if (compositeAuditTrail.isEmpty() == false) {
-            if (licenseState.isSecurityEnabled() && licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
+        if (compositeAuditTrail.isEmpty() == false && licenseState.isSecurityEnabled()) {
+            if (licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
                 return compositeAuditTrail;
             } else {
-                Instant nowInstant = Instant.now();
-                if (lastLogInstant.plus(minLogPeriod).isBefore(nowInstant)) {
-                    lastLogInstant = nowInstant;
-                    logger.warn("Security auditing is DISABLED because the currently active license [" +
-                            licenseState.getOperationMode() + "] does not permit it");
-                }
+                maybeLogAuditingDisabled();
                 return NOOP_AUDIT_TRAIL;
             }
         } else {
@@ -61,6 +56,17 @@ public class AuditTrailService {
     // DO NOT USE IT, IT WILL BE REMOVED IN THE FUTURE
     public List<AuditTrail> getAuditTrails() {
         return compositeAuditTrail.auditTrails;
+    }
+
+    private void maybeLogAuditingDisabled() {
+        Instant nowInstant = Instant.now();
+        Instant nextLogInstant = nextLogInstantAtomic.get();
+        if (nextLogInstant.isBefore(nowInstant)) {
+            if (nextLogInstantAtomic.compareAndSet(nextLogInstant, nowInstant.plus(minLogPeriod))) {
+                logger.warn("Auditing logging is DISABLED because the currently active license [" +
+                        licenseState.getOperationMode() + "] does not permit it");
+            }
+        }
     }
 
     private static class NoopAuditTrail implements AuditTrail {

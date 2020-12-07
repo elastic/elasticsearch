@@ -101,7 +101,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         mockLogAppender.start();
         Logger auditTrailServiceLogger = LogManager.getLogger(AuditTrailService.class);
         Loggers.addAppender(auditTrailServiceLogger, mockLogAppender);
-        service.lastLogInstant = randomFrom(Instant.now().minus(Duration.ofMinutes(5)), Instant.now());
+        service.nextLogInstantAtomic.set(randomFrom(Instant.now().minus(Duration.ofMinutes(5)), Instant.now()));
         mockLogAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(
                 "audit disabled because of license",
                 AuditTrailService.class.getName(),

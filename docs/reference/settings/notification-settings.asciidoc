@@ -114,7 +114,7 @@ via email, see <<configuring-email-actions>>.
 Default email account to use.
 +
 If you configure multiple email accounts, you must either configure this setting
-or specify the email account to use in the <<actions-email,`email`>> action. See
+or specify the email account to use in the <<action-email,`email`>> action. See
 <<configuring-email>>.
 
 `xpack.notification.email.account`::

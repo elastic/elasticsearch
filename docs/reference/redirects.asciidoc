@@ -1349,6 +1349,12 @@ See <<fielddata-mapping-param>>.
 
 See <<watcher-alerting>>.
 
+[role="exclude",id="actions-email"]
+=== Email action
+
+See <<action-email>>.
+
+
 [role="exclude",id="actions-index"]
 === Index action
 

@@ -88,7 +88,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             selectedProperties.add(AttachmentProcessor.Property.DATE);
         }
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "target_field", selectedProperties, 10000, false, null, "resource_name");
+            "target_field", selectedProperties, 10000, false, null, null);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
         assertThat(attachmentData.keySet(), hasSize(selectedFieldNames.length));

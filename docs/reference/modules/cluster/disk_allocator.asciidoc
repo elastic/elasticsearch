@@ -27,7 +27,10 @@ all other shard allocation rules such as
 <<cluster-shard-allocation-filtering,allocation filtering>> and
 <<forced-awareness,forced awareness>>. If these rules are too strict then they
 can also prevent the shard movements needed to keep the nodes' disk usage under
-control.
+control. If you are using <<data-tiers,data tiers>> then {es} automatically
+configures allocation filtering rules to place shards within the appropriate
+tier, which means that the disk-based shard allocator works independently
+within each tier.
 
 If a node is filling up its disk faster than {es} can move shards elsewhere
 then there is a risk that the disk will completely fill up. To prevent this, as

@@ -91,10 +91,35 @@ public interface IndexStorePlugin {
      * {@link IndexFoldersDeletionListener} are invoked before the folders of a shard or an index are deleted from disk.
      */
     interface IndexFoldersDeletionListener {
-        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, List<Path> indexPaths);
-        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, List<Path> shardPaths);
+        /**
+         * Invoked before the folders of an index are deleted from disk. The list of folders contains {@link Path}s that may or may not
+         * exist on disk. Shard locks are expected to be acquired at the time this method is invoked.
+         *
+         * @param index         the {@link Index} of the index whose folders are going to be deleted
+         * @param indexSettings settings for the index whose folders are going to be deleted
+         * @param indexPaths    the paths of the folders that are going to be deleted
+         */
+        default void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, List<Path> indexPaths) {
+        }
+
+        /**
+         * Invoked before the folders of a shard are deleted from disk. The list of folders contains {@link Path}s that may or may not
+         * exist on disk. Shard locks are expected to be acquired at the time this method is invoked.
+         *
+         * @param shardId       the {@link ShardId} of the shard whose folders are going to be deleted
+         * @param indexSettings index settings of the shard whose folders are going to be deleted
+         * @param shardPaths    the paths of the folders that are going to be deleted
+         */
+        default void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, List<Path> shardPaths) {
+        }
     }
 
+    /**
+     * The {@link IndexFoldersDeletionListener} listeners for this plugin. When the folders of an index or a shard are deleted from disk,
+     * these listeners are invoked before the deletion happens in order to allow plugin to clean up any resources if needed.
+     *
+     * @return a list of {@link IndexFoldersDeletionListener} listeners
+     */
     default List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
         return Collections.emptyList();
     }

@@ -20,6 +20,7 @@ package org.elasticsearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -211,7 +212,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testDeleteSafe() throws Exception {
         final NodeEnvironment env = newNodeEnvironment();
         final Index index = new Index("foo", "fooUUID");
-        ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
+        final ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
         assertEquals(new ShardId(index, 0), fooLock.getShardId());
 
         for (Path path : env.indexPaths(index)) {
@@ -219,11 +220,11 @@ public class NodeEnvironmentTests extends ESTestCase {
             Files.createDirectories(path.resolve("1"));
         }
 
-        try {
-            env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings);
-            fail("shard is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
+        {
+            SetOnce<List<Path>> listener = new SetOnce<>();
+            ShardLockObtainFailedException ex = expectThrows(ShardLockObtainFailedException.class,
+                () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, listener::set));
+            assertNull(listener.get());
         }
 
         for (Path path : env.indexPaths(index)) {
@@ -231,19 +232,28 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertTrue(Files.exists(path.resolve("1")));
         }
 
-        env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings);
+        {
+            SetOnce<List<Path>> listener = new SetOnce<>();
+            env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
+            List<Path> deletedPaths = listener.get();
+            assertNotNull(deletedPaths);
+            for (Path path : env.indexPaths(index)) {
+                assertTrue(deletedPaths.contains(path.resolve("1")));
+            }
+        }
 
         for (Path path : env.indexPaths(index)) {
             assertTrue(Files.exists(path.resolve("0")));
             assertFalse(Files.exists(path.resolve("1")));
         }
 
-        try {
-            env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings);
-            fail("shard is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
+        {
+            SetOnce<List<Path>> listener = new SetOnce<>();
+            ShardLockObtainFailedException ex = expectThrows(ShardLockObtainFailedException.class,
+                () -> env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings, listener::set));
+            assertNull(listener.get());
         }
+
         fooLock.close();
 
         for (Path path : env.indexPaths(index)) {
@@ -282,7 +292,14 @@ public class NodeEnvironmentTests extends ESTestCase {
         start.countDown();
         blockLatch.await();
 
-        env.deleteIndexDirectorySafe(index, 5000, idxSettings);
+        final SetOnce<List<Path>> listener = new SetOnce<>();
+        env.deleteIndexDirectorySafe(index, 5000, idxSettings, listener::set);
+
+        final List<Path> deletedPaths = listener.get();
+        assertNotNull(deletedPaths);
+        for (Path path : env.indexPaths(index)) {
+            assertTrue(deletedPaths.contains(path));
+        }
 
         assertNull(threadException.get());
 

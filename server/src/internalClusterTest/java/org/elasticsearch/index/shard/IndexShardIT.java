@@ -150,16 +150,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // Test without the regular shard lock to assume we can acquire it
         // (worst case, meaning that the shard lock could be acquired and
         // we're green to delete the shard's directory)
-        ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
-        try {
-            env.deleteShardDirectoryUnderLock(sLock, IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
-            fail("should not have been able to delete the directory");
-        } catch (LockObtainFailedException e) {
-            assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
-        }
+        final ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
+
+        final AtomicBoolean listener = new AtomicBoolean();
+        final LockObtainFailedException exception = expectThrows(LockObtainFailedException.class, () ->
+            env.deleteShardDirectoryUnderLock(sLock, indexSettings, indexPaths -> listener.set(true)));
+        assertThat(exception.getMessage(), exception.getMessage(), containsString("unable to acquire write.lock"));
+        assertFalse("Listener should not have been called", listener.get());
     }
 
-    public void testDurableFlagHasEffect() throws Exception {
+    public void testDurableFlagHasEffect() {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();

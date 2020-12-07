@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.transform.transforms.DestConfig;
+import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.pivot.DateHistogramGroupSource;
@@ -28,7 +29,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -43,15 +43,21 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         .format(Instant.ofEpochMilli(42));
 
     private final boolean missing;
+    private final boolean datesAsEpochMillis;
 
     public DateHistogramGroupByIT() {
         missing = randomBoolean();
+        datesAsEpochMillis = randomBoolean();
     }
 
     @Override
     public TransformConfig createConfig() {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder();
         addCommonBuilderParameters(transformConfigBuilder);
+        if (datesAsEpochMillis) {
+            transformConfigBuilder.setSettings(addCommonSetings(new SettingsConfig.Builder()).setDatesAsEpochMillis(true).build());
+        }
+
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
         transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
@@ -110,9 +116,16 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
 
-            Long transformBucketKey = (Long) XContentMapValues.extractValue("second", source);
+            String transformBucketKey;
+            if (datesAsEpochMillis) {
+                transformBucketKey = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(Instant.ofEpochMilli((Long) XContentMapValues.extractValue("second", source)));
+            } else {
+                transformBucketKey = (String) XContentMapValues.extractValue("second", source);
+            }
+
             if (transformBucketKey == null) {
-                transformBucketKey = 42L;
+                transformBucketKey = MISSING_BUCKET_KEY;
             }
 
             // aggs return buckets with 0 doc_count while composite aggs skip over them
@@ -120,13 +133,12 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
                 assertTrue(sourceIterator.hasNext());
                 bucket = sourceIterator.next();
             }
-            long bucketKey = ((ZonedDateTime) bucket.getKey()).toEpochSecond() * 1000;
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
-                "Buckets did not match, source: " + source + ", expected: " + bucketKey + ", iteration: " + iteration,
+                "Buckets did not match, source: " + source + ", expected: " + bucket.getKeyAsString() + ", iteration: " + iteration,
                 transformBucketKey,
-                equalTo(bucketKey)
+                equalTo(bucket.getKeyAsString())
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,

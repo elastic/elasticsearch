@@ -8,6 +8,10 @@ setup:
 
 ---
 "Test open old jobs":
+  - skip:
+      version: "all"
+      reason: "@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/65893)"
+
   - do:
       ml.open_job:
         job_id: old-cluster-job

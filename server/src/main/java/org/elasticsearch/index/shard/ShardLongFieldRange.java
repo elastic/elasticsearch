@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,8 +30,6 @@ import java.util.Objects;
  * Class representing an (inclusive) range of {@code long} values in a field in a single shard.
  */
 public class ShardLongFieldRange implements Writeable {
-
-    public static final Version LONG_FIELD_RANGE_VERSION_INTRODUCED = Version.V_8_0_0;
 
     /**
      * Sentinel value indicating an empty range, for instance because the field is missing or has no values.
@@ -91,11 +88,6 @@ public class ShardLongFieldRange implements Writeable {
     private static final byte WIRE_TYPE_EMPTY = (byte)2;
 
     public static ShardLongFieldRange readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().before(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
-            // conservative treatment for BWC
-            return UNKNOWN;
-        }
-
         final byte type = in.readByte();
         switch (type) {
             case WIRE_TYPE_UNKNOWN:
@@ -111,16 +103,14 @@ public class ShardLongFieldRange implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
-            if (this == UNKNOWN) {
-                out.writeByte(WIRE_TYPE_UNKNOWN);
-            } else if (this == EMPTY) {
-                out.writeByte(WIRE_TYPE_EMPTY);
-            } else {
-                out.writeByte(WIRE_TYPE_OTHER);
-                out.writeZLong(min);
-                out.writeZLong(max);
-            }
+        if (this == UNKNOWN) {
+            out.writeByte(WIRE_TYPE_UNKNOWN);
+        } else if (this == EMPTY) {
+            out.writeByte(WIRE_TYPE_EMPTY);
+        } else {
+            out.writeByte(WIRE_TYPE_OTHER);
+            out.writeZLong(min);
+            out.writeZLong(max);
         }
     }
 

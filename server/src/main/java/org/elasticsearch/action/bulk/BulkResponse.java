@@ -60,8 +60,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     @Nullable
     private final Boolean noItemsOnSuccess;
 
-    BulkResponse() {}
-
     public BulkResponse(StreamInput in) throws IOException {
         super(in);
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);

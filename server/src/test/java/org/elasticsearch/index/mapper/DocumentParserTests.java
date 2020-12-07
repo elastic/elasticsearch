@@ -138,6 +138,41 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("field.keyword"));
     }
 
+    public void testRuntimeFieldAndArrayChildren() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("runtime");
+            {
+                b.startObject("object").field("type", "test").endObject();
+            }
+            b.endObject();
+        }));
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("object");
+                b.array("array", 1, 2, 3);
+                b.field("foo", "bar");
+                b.endObject();
+            }));
+            assertNotNull(doc.rootDoc().getField("object.foo"));
+            assertNotNull(doc.rootDoc().getField("object.array"));
+        }
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startArray("object");
+                {
+                    b.startObject().array("array", 1, 2, 3).endObject();
+                    b.startObject().field("foo", "bar").endObject();
+                }
+                b.endArray();
+            }));
+            assertNotNull(doc.rootDoc().getField("object.foo"));
+            assertNotNull(doc.rootDoc().getField("object.array"));
+        }
+    }
+
     public void testRuntimeFieldDoesNotShadowObjectChildren() throws IOException {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.field("dynamic", "true");

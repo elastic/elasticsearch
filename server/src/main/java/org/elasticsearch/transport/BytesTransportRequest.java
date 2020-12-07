@@ -34,7 +34,7 @@ import java.io.IOException;
  */
 public class BytesTransportRequest extends TransportRequest implements RefCounted {
 
-    private final ReleasableBytesReference bytes;
+    final ReleasableBytesReference bytes;
     private final Version version;
 
     public BytesTransportRequest(StreamInput in) throws IOException {

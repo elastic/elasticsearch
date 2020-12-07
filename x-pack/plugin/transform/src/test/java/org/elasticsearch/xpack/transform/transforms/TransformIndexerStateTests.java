@@ -106,7 +106,6 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         MockedTransformIndexer(
             ThreadPool threadPool,
-            String executorName,
             TransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
             TransformAuditor auditor,
@@ -119,7 +118,6 @@ public class TransformIndexerStateTests extends ESTestCase {
         ) {
             super(
                 threadPool,
-                executorName,
                 transformsConfigManager,
                 checkpointProvider,
                 auditor,
@@ -134,7 +132,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 context
             );
             this.threadPool = threadPool;
-            this.executorName = executorName;
+            this.executorName = ThreadPool.Names.GENERIC;
 
             persistedState = new TransformState(
                 context.getTaskState(),
@@ -579,7 +577,6 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
-            executorName,
             transformConfigManager,
             checkpointProvider,
             auditor,

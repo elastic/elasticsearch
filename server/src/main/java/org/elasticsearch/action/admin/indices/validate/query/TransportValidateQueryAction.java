@@ -152,7 +152,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray shardsResponses,
+    protected ValidateQueryResponse newResponse(ValidateQueryRequest request, AtomicReferenceArray<?> shardsResponses,
                                                 ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;

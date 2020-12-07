@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -274,10 +273,10 @@ public class ResultsPersisterService {
 
         private final SearchRequest searchRequest;
         SearchRetryableAction(String jobId,
-                                     SearchRequest searchRequest,
-                                     Supplier<Boolean> shouldRetry,
-                                     Consumer<String> msgHandler,
-                                     ActionListener<SearchResponse> listener) {
+                              SearchRequest searchRequest,
+                              Supplier<Boolean> shouldRetry,
+                              Consumer<String> msgHandler,
+                              ActionListener<SearchResponse> listener) {
             super(jobId,
                 shouldRetry,
                 msgHandler,
@@ -393,18 +392,19 @@ public class ResultsPersisterService {
             // Its good to have a random window along the exponentially increasing curve
             // so that not all bulk requests rest for the same amount of time
             int randBound = (int)(1 + (currentMax - currentMin));
-            long randSleep = currentMin + Randomness.get().nextInt(randBound);
-            {
-                String msg = new ParameterizedMessage(
-                    "failed to {} after [{}] attempts. Will attempt again in [{}].",
-                    getName(),
-                    currentAttempt,
-                    TimeValue.timeValueMillis(randSleep).getStringRep())
-                    .getFormattedMessage();
-                LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
-                msgHandler.accept(msg);
-            }
-            return randSleep;
+            String msg = new ParameterizedMessage(
+                "failed to {} after [{}] attempts. Will attempt again.",
+                getName(),
+                currentAttempt)
+                .getFormattedMessage();
+            LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
+            msgHandler.accept(msg);
+            return randBound;
+        }
+
+        @Override
+        protected long minimumDelay() {
+            return currentMin;
         }
     }
 

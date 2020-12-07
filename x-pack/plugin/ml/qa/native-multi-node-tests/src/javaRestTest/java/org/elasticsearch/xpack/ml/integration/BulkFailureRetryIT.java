@@ -65,6 +65,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
                 .putNull("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output")
+                .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService")
                 .build()).get();
         cleanUp();
     }
@@ -121,6 +122,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             .setTransientSettings(Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output", "TRACE")
                 .put("xpack.ml.persist_results_max_retries", "15")
                 .build()).get();

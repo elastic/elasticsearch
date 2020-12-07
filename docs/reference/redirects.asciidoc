@@ -1409,11 +1409,6 @@ See <<watcher-condition-never>>.
 
 See <<watcher-condition-script>>.
 
-[role="exclude",id="actions"]
-=== Actions
-
-See <<watcher-actions>>.
-
 [role="exclude",id="condition"]
 === Conditions
 

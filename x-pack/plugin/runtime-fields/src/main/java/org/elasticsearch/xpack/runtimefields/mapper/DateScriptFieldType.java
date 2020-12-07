@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
@@ -98,6 +97,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         super(name, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), builder);
         this.dateTimeFormatter = dateTimeFormatter;
         this.dateMathParser = dateTimeFormatter.toDateMathParser();
+    }
+
+    DateScriptFieldType(String name) {
+        this(name, DateFieldScript.PARSE_FROM_SOURCE,
+            DateFormatter.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()).withLocale(Locale.ROOT),
+            null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 
     DateScriptFieldType(

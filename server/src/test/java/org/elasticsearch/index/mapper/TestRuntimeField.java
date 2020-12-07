@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -56,6 +57,36 @@ public class TestRuntimeField extends RuntimeFieldType {
         @Override
         public Map<String, Parser> getRuntimeFieldTypes() {
             return Collections.singletonMap("test", (name, node, parserContext) -> new TestRuntimeField(name));
+        }
+
+        @Override
+        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
+            return new DynamicRuntimeFieldsBuilder() {
+                @Override
+                public RuntimeFieldType newDynamicStringField(String name) {
+                    return new TestRuntimeField(name);
+                }
+
+                @Override
+                public RuntimeFieldType newDynamicLongField(String name) {
+                    return new TestRuntimeField(name);
+                }
+
+                @Override
+                public RuntimeFieldType newDynamicDoubleField(String name) {
+                    return new TestRuntimeField(name);
+                }
+
+                @Override
+                public RuntimeFieldType newDynamicBooleanField(String name) {
+                    return new TestRuntimeField(name);
+                }
+
+                @Override
+                public RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter) {
+                    return new TestRuntimeField(name);
+                }
+            };
         }
     }
 }

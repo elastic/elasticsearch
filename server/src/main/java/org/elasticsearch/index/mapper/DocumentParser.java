@@ -100,7 +100,7 @@ final class DocumentParser {
     }
 
     private static void internalParseDocument(Mapping mapping, MetadataFieldMapper[] metadataFieldsMappers,
-                                              ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
+                                              ParseContext context, XContentParser parser) throws IOException {
         final boolean emptyDoc = isEmptyDoc(mapping, parser);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
@@ -211,6 +211,20 @@ final class DocumentParser {
         if (dynamicMappers.isEmpty() && dynamicRuntimeFields.isEmpty()) {
             return null;
         }
+        RootObjectMapper root;
+        if (dynamicMappers.isEmpty() == false) {
+            root = createDynamicUpdate(mapping.root, docMapper, dynamicMappers);
+        } else {
+            root = (RootObjectMapper)mapping.root.mappingUpdate(null);
+        }
+        root.addRuntimeFields(dynamicRuntimeFields);
+        return mapping.mappingUpdate(root);
+    }
+
+    private static RootObjectMapper createDynamicUpdate(RootObjectMapper root,
+                                                        DocumentMapper docMapper,
+                                                        List<Mapper> dynamicMappers) {
+
         // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
         // will be processed in a contiguous block. When the prefix is no longer seen, we pop the extra elements
         // off the stack, merging them upwards into the existing mappers.
@@ -218,7 +232,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(mapping.root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
+        parentMappers.add(createUpdate(root, splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();
@@ -254,18 +268,16 @@ final class DocumentParser {
             }
 
             if (newMapper instanceof ObjectMapper) {
-                parentMappers.add((ObjectMapper)newMapper);
+                parentMappers.add((ObjectMapper) newMapper);
             } else {
                 addToLastMapper(parentMappers, newMapper, true);
             }
         }
         popMappers(parentMappers, 1, true);
         assert parentMappers.size() == 1;
-
-        RootObjectMapper rootObjectMapper = (RootObjectMapper)parentMappers.get(0);
-        rootObjectMapper.addRuntimeFields(dynamicRuntimeFields);
-        return mapping.mappingUpdate(rootObjectMapper);
+        return (RootObjectMapper)parentMappers.get(0);
     }
+
 
     private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore, boolean merge) {
         assert keepBefore >= 1; // never remove the root mapper
@@ -506,10 +518,10 @@ final class DocumentParser {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
             } else {
-                objectMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, currentFieldName);
-                context.addDynamicMapper(objectMapper);
+                Mapper dynamicObjectMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, currentFieldName);
+                context.addDynamicMapper(dynamicObjectMapper);
                 context.path().add(currentFieldName);
-                parseObjectOrField(context, objectMapper);
+                parseObjectOrField(context, dynamicObjectMapper);
                 context.path().remove();
             }
             for (int i = 0; i < parentMapperTuple.v1(); i++) {
@@ -739,10 +751,8 @@ final class DocumentParser {
             String parentName = parentMapper.name().substring(0, lastDotNdx);
             parentMapper = context.docMapper().mappers().objectMappers().get(parentName);
             if (parentMapper == null) {
-                // If parentMapper is ever null, it means the parent of the current mapper was dynamically created.
-                // But in order to be created dynamically, the dynamic setting of that parent was necessarily true
-                //TODO this is possibly a problem, add a test and fix if needed
-                return ObjectMapper.Dynamic.TRUE;
+                //If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
+                parentMapper = context.getObjectMapper(parentName);
             }
             dynamic = parentMapper.dynamic();
         }

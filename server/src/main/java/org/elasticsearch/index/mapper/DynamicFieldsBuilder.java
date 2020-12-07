@@ -167,6 +167,7 @@ final class DynamicFieldsBuilder {
                                            String name,
                                            DynamicTemplate.XContentFieldType matchType,
                                            CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException {
+        assert matchType != DynamicTemplate.XContentFieldType.DATE;
         createDynamicField(context, name, matchType, null, dynamicFieldStrategy);
     }
 
@@ -175,7 +176,6 @@ final class DynamicFieldsBuilder {
                                            DynamicTemplate.XContentFieldType matchType,
                                            DateFormatter dateFormatter,
                                            CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException {
-        assert matchType != DynamicTemplate.XContentFieldType.DATE;
         Mapper.Builder templateBuilder = findTemplateBuilder(context, name, matchType, dateFormatter);
         if (templateBuilder == null) {
             dynamicFieldStrategy.run();
@@ -286,31 +286,36 @@ final class DynamicFieldsBuilder {
     private static final class Runtime implements Strategy {
         @Override
         public void newDynamicStringField(ParseContext context, String name) {
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicStringField(name);
+            String fullName = context.path().pathAsText(name);
+            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicStringField(fullName);
             context.addDynamicRuntimeField(runtimeFieldType);
         }
 
         @Override
         public void newDynamicLongField(ParseContext context, String name) {
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicLongField(name);
+            String fullName = context.path().pathAsText(name);
+            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicLongField(fullName);
             context.addDynamicRuntimeField(runtimeFieldType);
         }
 
         @Override
         public void newDynamicDoubleField(ParseContext context, String name) {
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDoubleField(name);
+            String fullName = context.path().pathAsText(name);
+            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDoubleField(fullName);
             context.addDynamicRuntimeField(runtimeFieldType);
         }
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) {
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicBooleanField(name);
+            String fullName = context.path().pathAsText(name);
+            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicBooleanField(fullName);
             context.addDynamicRuntimeField(runtimeFieldType);
         }
 
         @Override
         public void newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDateField(name, dateFormatter);
+            String fullName = context.path().pathAsText(name);
+            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDateField(fullName, dateFormatter);
             context.addDynamicRuntimeField(runtimeFieldType);
         }
     }

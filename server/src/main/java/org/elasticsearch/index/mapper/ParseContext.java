@@ -33,10 +33,12 @@ import org.elasticsearch.plugins.MapperPlugin;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -163,6 +165,11 @@ public abstract class ParseContext {
 
         private FilterParseContext(ParseContext in) {
             this.in = in;
+        }
+
+        @Override
+        public ObjectMapper getObjectMapper(String name) {
+            return in.getObjectMapper(name);
         }
 
         @Override
@@ -304,14 +311,15 @@ public abstract class ParseContext {
     public static class InternalParseContext extends ParseContext {
         private final DocumentMapper docMapper;
         private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
-        private final ContentPath path;
+        private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
         private final Document document;
-        private final List<Document> documents;
+        private final List<Document> documents = new ArrayList<>();
         private final SourceToParse sourceToParse;
         private final long maxAllowedNumNestedDocs;
-        private final List<Mapper> dynamicMappers;
-        private final List<RuntimeFieldType> dynamicRuntimeFields;
+        private final List<Mapper> dynamicMappers =  new ArrayList<>();
+        private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
+        private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
         private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
         private final Set<String> ignoredFields = new HashSet<>();
         private Field version;
@@ -327,15 +335,11 @@ public abstract class ParseContext {
             this.docMapper = docMapper;
             this.parserContextFunction = parserContextFunction;
             this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
-            this.path = new ContentPath(0);
             this.parser = parser;
             this.document = new Document();
-            this.documents = new ArrayList<>();
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.dynamicMappers = new ArrayList<>();
-            this.dynamicRuntimeFields = new ArrayList<>();
             this.maxAllowedNumNestedDocs = docMapper.indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
@@ -428,12 +432,20 @@ public abstract class ParseContext {
 
         @Override
         public void addDynamicMapper(Mapper mapper) {
+            if (mapper instanceof ObjectMapper) {
+                dynamicObjectMappers.put(mapper.name(), (ObjectMapper)mapper);
+            }
             dynamicMappers.add(mapper);
         }
 
         @Override
         public List<Mapper> getDynamicMappers() {
             return dynamicMappers;
+        }
+
+        @Override
+        public ObjectMapper getObjectMapper(String name) {
+            return dynamicObjectMappers.get(name);
         }
 
         @Override
@@ -654,6 +666,8 @@ public abstract class ParseContext {
      * Add a new mapper dynamically created while parsing.
      */
     public abstract void addDynamicMapper(Mapper update);
+
+    public abstract ObjectMapper getObjectMapper(String name);
 
     /**
      * Get dynamic mappers created while parsing.

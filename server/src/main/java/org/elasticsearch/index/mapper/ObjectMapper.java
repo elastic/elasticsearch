@@ -409,7 +409,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
         ObjectMapper mappingUpdate = clone();
         // reset the sub mappers
         mappingUpdate.mappers = new CopyOnWriteHashMap<>();
-        mappingUpdate.putMapper(mapper);
+        if (mapper != null) {
+            mappingUpdate.putMapper(mapper);
+        }
         return mappingUpdate;
     }
 

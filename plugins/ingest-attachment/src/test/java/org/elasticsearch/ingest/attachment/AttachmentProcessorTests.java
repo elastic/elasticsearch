@@ -299,7 +299,8 @@ public class AttachmentProcessorTests extends ESTestCase {
         return attachmentData;
     }
 
-    private Map<String, Object> parseDocument(String file, AttachmentProcessor processor, Map<String, Object> optionalFields, boolean includeResourceName)
+    private Map<String, Object> parseDocument(String file, AttachmentProcessor processor, Map<String, Object> optionalFields,
+                                              boolean includeResourceName)
         throws Exception {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", getAsBinaryOrBase64(file));
@@ -362,7 +363,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 100,
             false, null, "resource_name");
 
-        Map<String, Object> attachmentData = parseDocument("text-cjk-big5.txt", processor, Collections.singletonMap("max_length", 100), true);
+        Map<String, Object> attachmentData = parseDocument("text-cjk-big5.txt", processor, Collections.singletonMap("max_length", 100),
+            true);
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
         assertThat(attachmentData.get("content").toString(), containsString("碩鼠碩鼠，無食我黍！"));

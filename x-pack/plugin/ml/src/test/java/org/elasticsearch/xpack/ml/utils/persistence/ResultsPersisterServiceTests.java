@@ -257,7 +257,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         assertThat(requests.get(0).numberOfActions(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(1));
-        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again in"));
+        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
     }
 
     public void testBulkRequestChangeOnIrrecoverableFailures() {
@@ -318,7 +318,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set));
         verify(client, times(maxFailureRetries + 1)).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again in"));
+        assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again"));
     }
 
     public void testBulkRequestRetriesMsgHandlerIsCalled() {
@@ -342,7 +342,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         assertThat(requests.get(0).numberOfActions(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(1));
-        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again in"));
+        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
     }
 
     private static <Response> Stubber doAnswerWithResponses(Response response1, Response response2) {

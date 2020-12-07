@@ -257,6 +257,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
         registerFieldTypes(mapperService, fieldNameToType);
+        when(mapperService.getObjectMapper(anyString())).thenAnswer(invocation -> {
+            String fieldName = (String) invocation.getArguments()[0];
+            if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
+                return new ObjectMapper.Builder(fieldName, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
+            }
+            return null;
+        });
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
             fieldType,
@@ -283,13 +290,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             valuesSourceRegistry,
             emptyMap()
         );
-        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
-            String fieldName = (String) invocation.getArguments()[0];
-            if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
-                return new ObjectMapper.Builder(fieldName, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
-            }
-            return null;
-        });
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, mock(Listener.class));

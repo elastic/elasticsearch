@@ -875,23 +875,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
 
-        // if its either the 1st run or not continuous, do not apply extra filters
-        if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
-            sourceBuilder.query(queryBuilder);
-            logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder);
 
-            return sourceBuilder;
+        if (isContinuous()) {
+            filteredQuery.filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
         }
 
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
-            .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
-
-        QueryBuilder filter = changeCollector != null
-            ? changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound())
-            : null;
-
-        if (filter != null) {
-            filteredQuery.filter(filter);
+        // Only apply extra filter if its the subsequent run of the continuous transform
+        if (isContinuous() && nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
+            filteredQuery.filter(changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound()));
         }
 
         sourceBuilder.query(filteredQuery);

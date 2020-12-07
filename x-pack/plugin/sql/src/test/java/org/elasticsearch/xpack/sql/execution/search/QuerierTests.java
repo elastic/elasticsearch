@@ -240,12 +240,13 @@ public class QuerierTests extends ESTestCase {
             }
         };
 
-        Cursor.Page page = new Cursor.Page(new TestResultRowSet<NamedWriteable>(List.of(randomHitExtractor(0)), new BitSet(), dataSize),
-            Cursor.EMPTY);
+        List<NamedWriteable> extractors = new ArrayList<>();
+        extractors.add(randomHitExtractor(0));
+        Cursor.Page page = new Cursor.Page(new TestResultRowSet<>(extractors, new BitSet(), dataSize), Cursor.EMPTY);
 
         AtomicInteger responses = new AtomicInteger();
         AtomicInteger failures = new AtomicInteger();
-        ActionListener<Cursor.Page> listener = new ActionListener<>() {
+        ActionListener<Cursor.Page> listener = new ActionListener<Cursor.Page>() {
             @Override
             public void onResponse(Cursor.Page page) {
                 responses.getAndIncrement();

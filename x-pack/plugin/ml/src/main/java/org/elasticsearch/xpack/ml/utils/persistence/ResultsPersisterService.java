@@ -40,7 +40,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -143,7 +142,7 @@ public class ResultsPersisterService {
                 ClientHelper.ML_ORIGIN,
                 client,
                 BulkAction.INSTANCE,
-                bulkRequest,
+                providedBulkRequest,
                 listener));
     }
 
@@ -315,7 +314,6 @@ public class ResultsPersisterService {
     // This encapsulates a retryable action that implements our custom backoff retry logic
     private abstract class MlRetryableAction<Request, Response> extends RetryableAction<Response> {
 
-        final Random random = Randomness.get();
         final String jobId;
         final Supplier<Boolean> shouldRetry;
         final Consumer<String> msgHandler;
@@ -325,10 +323,10 @@ public class ResultsPersisterService {
         volatile long currentMax = MIN_RETRY_SLEEP_MILLIS;
 
         MlRetryableAction(String jobId,
-                                 Supplier<Boolean> shouldRetry,
-                                 Consumer<String> msgHandler,
-                                 BiConsumer<Request, ActionListener<Response>> action,
-                                 ActionListener<Response> listener) {
+                          Supplier<Boolean> shouldRetry,
+                          Consumer<String> msgHandler,
+                          BiConsumer<Request, ActionListener<Response>> action,
+                          ActionListener<Response> listener) {
             super(
                 LOGGER,
                 threadPool,
@@ -395,7 +393,7 @@ public class ResultsPersisterService {
             // Its good to have a random window along the exponentially increasing curve
             // so that not all bulk requests rest for the same amount of time
             int randBound = (int)(1 + (currentMax - currentMin));
-            long randSleep = currentMin + random.nextInt(randBound);
+            long randSleep = currentMin + Randomness.get().nextInt(randBound);
             {
                 String msg = new ParameterizedMessage(
                     "failed to {} after [{}] attempts. Will attempt again in [{}].",
@@ -406,7 +404,7 @@ public class ResultsPersisterService {
                 LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
                 msgHandler.accept(msg);
             }
-            return Math.min(previousDelay * 2, Integer.MAX_VALUE);
+            return randSleep;
         }
     }
 

@@ -54,37 +54,55 @@
                     "$ref": "#/definitions/Body"
                 }
             },
-            "if": {
-              "properties": {
-                "stability": {
-                  "const": "stable"
-                }
-              }
-            },
-            "then": {
-              "properties": {
-                "documentation": {
-                  "$ref": "#/definitions/Documentation",
-                  "properties": {
-                    "url" : {
-                      "type": ["string"]
+            "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "stability": {
+                        "const": "stable"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "documentation": {
+                        "$ref": "#/definitions/Documentation",
+                        "properties": {
+                          "url" : {
+                            "type": ["string"]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "documentation": {
+                        "$ref": "#/definitions/Documentation",
+                        "properties": {
+                          "url" : {
+                            "type": ["string", "null"]
+                          }
+                        }
+                      }
                     }
                   }
-                }
-              }
-            },
-            "else": {
-              "properties": {
-                "documentation": {
-                  "$ref": "#/definitions/Documentation",
-                  "properties": {
-                    "url" : {
-                      "type": ["string", "null"]
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "visibility": {
+                        "const": "feature_flag"
+                      }
                     }
+                  },
+                  "then": {
+                    "required": [
+                      "feature_flag"
+                    ]
                   }
                 }
-              }
-            },
+            ],
             "required": [
                 "documentation",
                 "stability",

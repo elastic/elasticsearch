@@ -226,7 +226,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             minVersion = Version.readVersion(in);
         }
     }
@@ -256,7 +256,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             Version.writeVersion(minVersion, out);
         }
     }

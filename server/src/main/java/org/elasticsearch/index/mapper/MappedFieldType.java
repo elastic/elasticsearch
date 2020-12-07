@@ -72,7 +72,6 @@ public abstract class MappedFieldType {
     private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
-    private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
 
     public MappedFieldType(String name, boolean isIndexed, boolean isStored,
@@ -105,7 +104,7 @@ public abstract class MappedFieldType {
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
      */
-    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
+    public abstract ValueFetcher valueFetcher(QueryShardContext context, @Nullable String format);
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
@@ -121,14 +120,6 @@ public abstract class MappedFieldType {
 
     public boolean hasDocValues() {
         return docValues;
-    }
-
-    public NamedAnalyzer indexAnalyzer() {
-        return indexAnalyzer;
-    }
-
-    public void setIndexAnalyzer(NamedAnalyzer analyzer) {
-        this.indexAnalyzer = analyzer;
     }
 
     /**

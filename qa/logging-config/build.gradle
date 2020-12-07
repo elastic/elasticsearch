@@ -22,7 +22,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.standalone-test'
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   /**
    * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch
    * can successfully startup.
@@ -33,7 +33,7 @@ testClusters.integTest {
 integTest {
   nonInputProperties.systemProperty 'tests.logfile',
     "${-> testClusters.integTest.singleNode().getServerLog().absolutePath.replaceAll("_server.json", ".log")}"
-  
+
   nonInputProperties.systemProperty 'tests.jsonLogfile',
     "${-> testClusters.integTest.singleNode().getServerLog()}"
 }

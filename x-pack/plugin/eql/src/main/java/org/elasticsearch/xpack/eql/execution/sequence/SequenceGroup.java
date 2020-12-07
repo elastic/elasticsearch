@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 public class SequenceGroup extends OrdinalGroup<Sequence> {
 
-    SequenceGroup(SequenceKey key) {
-        super(key, Sequence::ordinal);
+    SequenceGroup() {
+        super(Sequence::ordinal);
     }
 }

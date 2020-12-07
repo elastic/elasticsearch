@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-component-template.html",
       "description":"Returns information about whether a particular component template exist"
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url":{
       "paths":[
         {

@@ -148,10 +148,6 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         assertFalse("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
-    @Override
-    protected boolean builderGeneratesCacheableQueries() {
-        return false;
-    }
 
     @Override
     public TermsSetQueryBuilder mutateInstance(final TermsSetQueryBuilder instance) throws IOException {

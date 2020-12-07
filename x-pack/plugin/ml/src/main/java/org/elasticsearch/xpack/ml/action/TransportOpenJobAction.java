@@ -27,7 +27,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,12 +47,10 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
+import java.util.Optional;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeAssignmentsNotAllowedException;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeCurrentlyBeingUpgradedException;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeNoSuitableNodesException;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 
 /*
  This class extends from TransportMasterNodeAction for cluster state observing purposes.
@@ -133,8 +130,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 @Override
                 public void onFailure(Exception e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException("Cannot open job [" + jobParams.getJobId() +
-                                "] because it has already been opened", RestStatus.CONFLICT, e);
+                        e = new ElasticsearchStatusException(
+                            "Cannot open job [{}] because it has already been opened",
+                            RestStatus.CONFLICT,
+                            e,
+                            jobParams.getJobId());
                     }
                     listener.onFailure(e);
                 }
@@ -193,8 +193,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                listener.onFailure(new ElasticsearchException("Opening job ["
-                        + jobParams.getJobId() + "] timed out after [" + timeout + "]"));
+                listener.onFailure(new ElasticsearchException("Opening job [{}] timed out after [{}]", jobParams.getJob(), timeout));
             }
         });
     }
@@ -241,8 +240,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error("[" + persistentTask.getParams().getJobId() + "] Failed to cancel persistent task that could " +
-                                "not be assigned due to [" + exception.getMessage() + "]", e);
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                                persistentTask.getParams().getJobId(),
+                                exception.getMessage()),
+                            e);
                         listener.onFailure(exception);
                     }
                 }
@@ -266,9 +269,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         @Override
         public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             JobState jobState = JobState.CLOSED;
+            String reason = null;
             if (persistentTask != null) {
                 JobTaskState jobTaskState = (JobTaskState) persistentTask.getState();
                 jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
+                reason = jobTaskState == null ? null : jobTaskState.getReason();
 
                 PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
 
@@ -279,17 +284,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 // This logic is only appropriate when opening a job, not when reallocating following a failure,
                 // and this is why this class must only be used when opening a job
-                if (assignment != null && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false &&
-                        assignment.isAssigned() == false) {
-                    OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
-                    // Assignment has failed on the master node despite passing our "fast fail" validation
-                    if (assignment.equals(AWAITING_UPGRADE)) {
-                        exception = makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
-                    } else if (assignment.getExplanation().contains("[" + EnableAssignmentDecider.ALLOCATION_NONE_EXPLANATION + "]")) {
-                        exception = makeAssignmentsNotAllowedException(logger, params.getJobId());
-                    } else {
-                        exception = makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
-                    }
+                OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
+                Optional<ElasticsearchException> assignmentException = checkAssignmentState(assignment, params.getJobId(), logger);
+                if (assignmentException.isPresent()) {
+                    exception = assignmentException.get();
                     // The persistent task should be cancelled so that the observed outcome is the
                     // same as if the "fast fail" validation on the coordinating node had failed
                     shouldCancel = true;
@@ -309,13 +307,20 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     node = persistentTask.getExecutorNode();
                     return true;
                 case CLOSING:
-                    exception = ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "
-                            + JobState.OPENED);
+                    exception = ExceptionsHelper.conflictStatusException(
+                        "The job has been {} while waiting to be {}",
+                        JobState.CLOSED,
+                        JobState.OPENED);
                     return true;
                 case FAILED:
                 default:
-                    exception = ExceptionsHelper.serverError("Unexpected job state [" + jobState
-                            + "] while waiting for job to be " + JobState.OPENED);
+                    // Default http status is SERVER ERROR
+                    exception = ExceptionsHelper.serverError(
+                        "Unexpected job state [{}] {}while waiting for job to be {}",
+                        jobState,
+                        reason == null ? "" : "with reason [" + reason + "] ",
+                        JobState.OPENED
+                    );
                     return true;
             }
         }

@@ -36,6 +36,11 @@ grant {
   // See https://github.com/aws/aws-sdk-java/issues/766
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
+  // AWS's SDK loads the web identity token from this path,
+  // which is where the token is mounted in the Kubernetes
+  // pod's containers by default
+  permission java.io.FilePermission "${/}var${/}run${/}secrets${/}eks.amazonaws.com${/}serviceaccount${/}token", "read";
+
   // s3 client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 

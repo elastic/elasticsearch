@@ -22,8 +22,10 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
+import com.amazonaws.auth.WebIdentityTokenCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.AmazonS3;
@@ -194,8 +196,9 @@ class S3Service implements Closeable {
     static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
         final S3BasicCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
-            logger.debug("Using instance profile credentials");
-            return new PrivilegedInstanceProfileCredentialsProvider();
+            logger.debug("Using credentials from the custom provider chain");
+            return new AWSCredentialsProviderChain(new PrivilegedCredentialsProvider(WebIdentityTokenCredentialsProvider.create()),
+                                                   new PrivilegedCredentialsProvider(new EC2ContainerCredentialsProviderWrapper()));
         } else {
             logger.debug("Using basic key/secret credentials");
             return new AWSStaticCredentialsProvider(credentials);
@@ -215,22 +218,21 @@ class S3Service implements Closeable {
         IdleConnectionReaper.shutdown();
     }
 
-    static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
-        private final AWSCredentialsProvider credentials;
+    static class PrivilegedCredentialsProvider implements AWSCredentialsProvider {
+        private final AWSCredentialsProvider credentialsProvider;
 
-        private PrivilegedInstanceProfileCredentialsProvider() {
-            // InstanceProfileCredentialsProvider as last item of chain
-            this.credentials = new EC2ContainerCredentialsProviderWrapper();
+        private PrivilegedCredentialsProvider(AWSCredentialsProvider credentialsProvider) {
+            this.credentialsProvider = credentialsProvider;
         }
 
         @Override
         public AWSCredentials getCredentials() {
-            return SocketAccess.doPrivileged(credentials::getCredentials);
+            return SocketAccess.doPrivileged(credentialsProvider::getCredentials);
         }
 
         @Override
         public void refresh() {
-            SocketAccess.doPrivilegedVoid(credentials::refresh);
+            SocketAccess.doPrivilegedVoid(credentialsProvider::refresh);
         }
     }
 

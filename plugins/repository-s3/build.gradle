@@ -38,6 +38,7 @@ versions << [
 
 dependencies {
   api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-sts:${versions.aws}"
   api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   api "com.amazonaws:jmespath-java:${versions.aws}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"

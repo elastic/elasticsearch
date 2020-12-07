@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -37,11 +38,11 @@ import static org.hamcrest.Matchers.is;
 
 public class AwsS3ServiceImplTests extends ESTestCase {
 
-    public void testAWSCredentialsDefaultToInstanceProviders() {
+    public void testAWSCredentialsDefaultToCustomProviderChain() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName);
         final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
-        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
+        assertThat(credentialsProvider, instanceOf(AWSCredentialsProviderChain.class));
     }
 
     public void testAWSCredentialsFromKeystore() {
@@ -65,10 +66,10 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             assertThat(credentialsProvider.getCredentials().getAWSAccessKeyId(), is(clientName + "_aws_access_key"));
             assertThat(credentialsProvider.getCredentials().getAWSSecretKey(), is(clientName + "_aws_secret_key"));
         }
-        // test default exists and is an Instance provider
+        // test default exists and is the custom provider chain
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
         final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
-        assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
+        assertThat(defaultCredentialsProvider, instanceOf(AWSCredentialsProviderChain.class));
     }
 
     public void testSetDefaultCredential() {

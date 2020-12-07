@@ -36,18 +36,61 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"F", "S"},
         {"z", "X"}
     };
+
+    private static final String[][] JAVA_TIME_FORMAT_REPLACEMENTS_FOR_MYSQL = {
+        {"%a", "EEE"},
+        {"%b", "MMM"},
+        {"%c", "MM"},
+        {"%D", "d"},
+        {"%d", "dd"},
+        {"%e", "dd"},
+        {"%f", ".SSSSSS"},
+        {"%H", "HH"},
+        {"%h", "hh"},
+        {"%I", "hh"},
+        {"%i", "mm"},
+        {"%j", "DDD"},
+        {"%k", "H"},
+        {"%l", "hh"},
+        {"%M", "MMMM"},
+        {"%m", "MM"},
+        {"%p", "a"},
+        {"%r", "hh:mm:ss a"},
+        {"%S", "ss"},
+        {"%s", "ss"},
+        {"%T", "HH:mm:ss"},
+        {"%U", "w"},
+        {"%u", "w"},
+        {"%V", "w"},
+        {"%v", "w"},
+        {"%W", "EEEE"},
+        {"%w", "e"},
+        {"%X", "Y"},
+        {"%x", "w"},
+        {"%Y", "yyyy"},
+        {"%y", "yy"}
+    };
+
     private final Formatter formatter;
 
 
     public enum Formatter {
         FORMAT,
-        DATE_TIME_FORMAT;
+        DATE_TIME_FORMAT,
+        DATE_FORMAT;
 
         private String getJavaPattern(String pattern) {
             if (this == FORMAT) {
-                for (String[] replacement : JAVA_TIME_FORMAT_REPLACEMENTS) {
-                    pattern = pattern.replace(replacement[0], replacement[1]);
-                }
+                pattern = replacePattern(pattern, JAVA_TIME_FORMAT_REPLACEMENTS);
+            } else if (this == DATE_FORMAT) {
+                pattern = replacePattern(pattern, JAVA_TIME_FORMAT_REPLACEMENTS_FOR_MYSQL);
+            }
+            return pattern;
+        }
+
+        private String replacePattern(String pattern, String[][] javaTimeFormatReplacements) {
+            for (String[] replacement : javaTimeFormatReplacements) {
+                pattern = pattern.replace(replacement[0], replacement[1]);
             }
             return pattern;
         }

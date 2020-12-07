@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.date;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.time;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
@@ -140,6 +141,42 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         );
     }
 
+    public void testDateFormatInvalidInputs() {
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new DateFormat(Source.EMPTY, l("foo"), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals("A date/datetime/time is required; received [foo]", siae.getMessage());
+
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new DateFormat(Source.EMPTY, randomDatetimeLiteral(), l(5), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals("A string is required; received [5]", siae.getMessage());
+
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new DateFormat(Source.EMPTY, l(dateTime(2020, 12, 6, 23, 44, 37, 0)), l("invalid"), randomZone())
+                .makePipe()
+                .asProcessor()
+                .process(null)
+        );
+        assertEquals("Invalid pattern [invalid] is received for formatting date/time [2020-12-06T23:44:37Z]; Unknown pattern letter: i",
+            siae.getMessage()
+        );
+
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new DateFormat(Source.EMPTY, l(time(23, 44, 37, 123000000)), l("MM/dd"), randomZone()).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+        assertEquals(
+            "Invalid pattern [MM/dd] is received for formatting date/time [23:44:37.123Z]; Unsupported field: MonthOfYear",
+            siae.getMessage()
+        );
+    }
+
     public void testWithNulls() {
         assertNull(new DateTimeFormat(Source.EMPTY, randomDatetimeLiteral(), NULL, randomZone()).makePipe().asProcessor().process(null));
         assertNull(new DateTimeFormat(Source.EMPTY, randomDatetimeLiteral(), l(""), randomZone()).makePipe().asProcessor().process(null));
@@ -148,6 +185,10 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         assertNull(new Format(Source.EMPTY, randomDatetimeLiteral(), NULL, randomZone()).makePipe().asProcessor().process(null));
         assertNull(new Format(Source.EMPTY, randomDatetimeLiteral(), l(""), randomZone()).makePipe().asProcessor().process(null));
         assertNull(new Format(Source.EMPTY, NULL, randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null));
+
+        assertNull(new DateFormat(Source.EMPTY, randomDatetimeLiteral(), NULL, randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateFormat(Source.EMPTY, randomDatetimeLiteral(), l(""), randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateFormat(Source.EMPTY, NULL, randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null));
     }
 
     public void testFormatting() {
@@ -291,5 +332,78 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new Format(Source.EMPTY, l(dateTime(45, 9, 3, 18, 10, 37, 123456789)), l("y-yyyy"), zoneId).makePipe()
                 .asProcessor()
                 .process(null));
+
+        zoneId = ZoneId.of("Etc/GMT-10");
+        dateTime = l(dateTime(2019, 9, 3, 18, 10, 37, 123456789));
+        assertEquals(
+            "2019-09-04",
+            new DateFormat(Source.EMPTY, dateTime, l("%Y-%m-%d"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "04:10:37",
+            new DateFormat(Source.EMPTY, dateTime, l("%H:%i:%s"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "4th 19 Wed 04 09 Sep 247", // I dont know how to format day of month with ordinal indicator
+            new DateFormat(Source.EMPTY, dateTime, l("%D %y %a %d %m %b %j"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "04 4 04 04:10:37 AM 04:10:37 37 3",
+            new DateFormat(Source.EMPTY, dateTime, l("%H %k %I %r %T %S %w"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "2019 36",
+            new DateFormat(Source.EMPTY, dateTime, l("%X %V"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "04",
+            new DateFormat(Source.EMPTY, dateTime, l("%d"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        zoneId = ZoneId.of("Etc/GMT");
+        dateTime = l(dateTime(2009, 10, 4, 22, 23, 0, 123456789));
+        assertEquals(
+            "Sunday October 2009",
+            new DateFormat(Source.EMPTY, dateTime, l("%W %M %Y"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        dateTime = l(dateTime(2007, 10, 4, 22, 23, 0, 123456789));
+        assertEquals(
+            "22:23:00",
+            new DateFormat(Source.EMPTY, dateTime, l("%H:%i:%s"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        dateTime = l(dateTime(1900, 10, 4, 22, 23, 0, 123456789));
+        assertEquals(
+            "4th 00 Thu 04 10 Oct 277",
+            new DateFormat(Source.EMPTY, dateTime, l("%D %y %a %d %m %b %j"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        dateTime = l(dateTime(1997, 10, 4, 22, 23, 0, 0));
+        assertEquals(
+            "22 22 10 10:23:00 PM 22:23:00 00 6",
+            new DateFormat(Source.EMPTY, dateTime, l("%H %k %I %r %T %S %w"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        // based on example at https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html#function_date-format
+        // the expected value is: 1998 52
+        dateTime = l(date(1999, 1, 1, zoneId));
+        assertEquals(
+            "1998 52", // Why the actual value always 1998 53
+            new DateFormat(Source.EMPTY, dateTime, l("%X %V"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+/*     // day 0 is not supported in LocalTime
+        dateTime = l(date(2006, 6, 0, zoneId));
+        assertEquals(
+            "00",
+            new DateFormat(Source.EMPTY, dateTime, l("%d"), zoneId).makePipe().asProcessor().process(null)
+        );
+*/
     }
 }

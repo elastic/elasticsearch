@@ -294,6 +294,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_DIFF('dz', int, date) FROM test"));
     }
 
+    public void testDateFormatValidArgs() {
+        accept("SELECT DATE_FORMAT(date, '%W %M %Y %H:%i:%s') FROM test");
+        accept("SELECT DATE_FORMAT(date::date, '%c/%d/%Y') FROM test");
+        accept("SELECT DATE_FORMAT(date::time, '%k:%i:%s') FROM test");
+    }
+
+    public void testDateFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATE_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATE_FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATE_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_FORMAT(date, int) FROM test")
+        );
+    }
+
     public void testDatePartInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_PART(int, date) FROM test"));

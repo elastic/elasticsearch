@@ -34,8 +34,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDa
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateFormat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateParse;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
@@ -178,8 +179,9 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
+                def(DateFormat.class, DateFormat::new, "DATE_FORMAT"),
                 def(DateParse.class, DateParse::new, "DATE_PARSE"),
-                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"), 
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
                 def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
                 def(DateTimeParse.class, DateTimeParse::new, "DATETIME_PARSE"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),

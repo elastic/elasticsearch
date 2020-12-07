@@ -140,10 +140,12 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     /**
-     * Forces an exporter to deploy (or clean up) cluster alerts immediately instead of waiting to do it
-     * lazily as part of accepting a bulk operation.
+     * Forces an exporter to remove cluster alerts immediately instead of waiting to do it
+     * lazily as part of the normal exporter setup.
+     *
+     * @param listener the listener to call with the result of the watch removal
      */
-    public abstract void refreshAlerts(Consumer<ExporterResourceStatus> listener);
+    public abstract void removeAlerts(Consumer<ExporterResourceStatus> listener);
 
     /**
      * Opens up a new export bulk.
@@ -151,6 +153,10 @@ public abstract class Exporter implements AutoCloseable {
      * @param listener Returns {@code null} to indicate that this exporter is not ready to export the docs.
      */
     public abstract void openBulk(ActionListener<ExportBulk> listener);
+
+    public final boolean isOpen() {
+        return closed.get() == false;
+    }
 
     protected final boolean isClosed() {
         return closed.get();

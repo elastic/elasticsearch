@@ -400,6 +400,8 @@ public class HttpExporter extends Exporter {
      *
      * @param config The HTTP Exporter's configuration
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
      * @throws SettingsException if any setting is malformed
      */
     public HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
@@ -412,7 +414,10 @@ public class HttpExporter extends Exporter {
      *
      * @param config The HTTP Exporter's configuration
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
      * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @param resource Both the resource for all things required for bulk operations and those for just cluster alerts
      * @throws SettingsException if any setting is malformed
      */
     private HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
@@ -426,7 +431,11 @@ public class HttpExporter extends Exporter {
      *
      * @param config The HTTP Exporter's configuration
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
      * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
+     * @param alertingResource The HTTP resource used to configure cluster alerts
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
@@ -441,7 +450,11 @@ public class HttpExporter extends Exporter {
      *
      * @param config The HTTP Exporter's configuration
      * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
      * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
+     * @param alertingResource The HTTP resource used to configure cluster alerts
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext,
@@ -457,8 +470,11 @@ public class HttpExporter extends Exporter {
      * @param config The HTTP Exporter's configuration
      * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
      * @param sniffer The optional sniffer, which has already been associated with the {@code listener}
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
      * @param listener The node failure listener used to notify resources
      * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
+     * @param alertingResource The HTTP resource used to configure cluster alerts
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
@@ -904,7 +920,7 @@ public class HttpExporter extends Exporter {
     }
 
     @Override
-    public void refreshAlerts(Consumer<ExporterResourceStatus> listener) {
+    public void removeAlerts(Consumer<ExporterResourceStatus> listener) {
         alertingResource.checkAndPublish(client, ActionListener.wrap(
             (result) -> {
                 ExporterResourceStatus status;

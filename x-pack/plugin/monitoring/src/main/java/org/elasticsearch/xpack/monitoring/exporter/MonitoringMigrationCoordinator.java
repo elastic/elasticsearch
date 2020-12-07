@@ -6,31 +6,29 @@
 
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import java.util.concurrent.Semaphore;
-
-import org.elasticsearch.common.unit.TimeValue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A shared coordination object for blocking execution of exporters when a migration that involves them is in progress
  */
 public class MonitoringMigrationCoordinator {
 
-    private final int MAX_PERMIT = 1;
-    private final Semaphore migrationLock;
+    // True value signals a migration is in progress
+    private final AtomicBoolean migrationBlock;
 
     public MonitoringMigrationCoordinator() {
-        this.migrationLock = new Semaphore(MAX_PERMIT);
+        this.migrationBlock = new AtomicBoolean(false);
     }
 
-    public boolean tryBlockInstallationTasks(TimeValue timeout) throws InterruptedException {
-        return migrationLock.tryAcquire(timeout.duration(), timeout.timeUnit());
+    public boolean tryBlockInstallationTasks() throws InterruptedException {
+        return migrationBlock.compareAndSet(false, true);
     }
 
     public void unblockInstallationTasks() {
-        migrationLock.release();
+        migrationBlock.set(false);
     }
 
     public boolean canInstall() {
-        return MAX_PERMIT == migrationLock.availablePermits();
+        return migrationBlock.get() == false;
     }
 }

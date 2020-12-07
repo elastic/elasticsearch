@@ -450,7 +450,7 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        public void refreshAlerts(Consumer<ExporterResourceStatus> listener) {
+        public void removeAlerts(Consumer<ExporterResourceStatus> listener) {
         }
 
         @Override
@@ -486,7 +486,7 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        public void refreshAlerts(Consumer<ExporterResourceStatus> listener) {
+        public void removeAlerts(Consumer<ExporterResourceStatus> listener) {
         }
 
         @Override

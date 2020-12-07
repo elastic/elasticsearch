@@ -512,7 +512,7 @@ public class HttpExporterTests extends ESTestCase {
         final HttpResource resource = new MockHttpResource(exporterName(), true, null, false);
         final HttpResource alertsResource = new MockHttpResource(exporterName(), false, null, false);
         final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
-        assertTrue(migrationCoordinator.tryBlockInstallationTasks(new TimeValue(1000)));
+        assertTrue(migrationCoordinator.tryBlockInstallationTasks());
 
         try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, migrationCoordinator, listener, resource,
             alertsResource)) {

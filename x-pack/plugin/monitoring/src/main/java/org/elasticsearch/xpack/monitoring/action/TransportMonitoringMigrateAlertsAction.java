@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -22,7 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -49,10 +49,6 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
     MonitoringMigrateAlertsResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportMonitoringMigrateAlertsAction.class);
-
-    private static final TimeValue ALERT_MIGRATION_INSTALLATION_WAIT_TIMEOUT = new TimeValue(10, TimeUnit.SECONDS);
-    private static final TimeValue ALERT_MIGRATION_BACK_OFF_RETRY = new TimeValue(5, TimeUnit.SECONDS);
-    private static final int ALERT_MIGRATION_MAX_RETRY = 3;
 
     private final Client client;
     private final MonitoringMigrationCoordinator migrationCoordinator;
@@ -74,7 +70,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
     protected void masterOperation(Task task, MonitoringMigrateAlertsRequest request, ClusterState state,
                                    ActionListener<MonitoringMigrateAlertsResponse> listener) throws Exception {
         // First, enable the migration coordinator block
-        if (migrationCoordinator.tryBlockInstallationTasks(ALERT_MIGRATION_INSTALLATION_WAIT_TIMEOUT) == false) {
+        if (migrationCoordinator.tryBlockInstallationTasks() == false) {
             throw new EsRejectedExecutionException("Could not migrate cluster alerts. Timed out waiting to block resource operations.");
         }
         // Wrap the listener to unblock resource installation before completing
@@ -82,7 +78,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         try {
             Settings.Builder decommissionAlertSetting = Settings.builder().put(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey(), true);
             client.admin().cluster().prepareUpdateSettings().setPersistentSettings(decommissionAlertSetting)
-                .execute(afterSettingUpdate(listener));
+                .execute(completeOnManagementThread(listener));
         } catch (Exception e) {
             // unblock resource installation if something fails here
             migrationCoordinator.unblockInstallationTasks();
@@ -90,40 +86,53 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         }
     }
 
+    private ActionListener<ClusterUpdateSettingsResponse> completeOnManagementThread(
+        ActionListener<MonitoringMigrateAlertsResponse> delegate) {
+        // Send failures to the final listener directly, and on success, fork to management thread and execute best effort alert removal
+        return ActionListener.wrap(
+            (response) -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
+                ActionRunnable.wrap(delegate, (listener) -> afterSettingUpdate(listener, response))),
+            delegate::onFailure
+        );
+    }
+
     /**
      * Executed after the settings update has been accepted, this collects the enabled and disabled exporters, requesting each of them
      * to explicitly remove their installed alerts if possible. This makes sure that alerts are removed in a timely fashion instead of
      * waiting for metrics to be bulked into the monitoring cluster.
      */
-    private ActionListener<ClusterUpdateSettingsResponse> afterSettingUpdate(ActionListener<MonitoringMigrateAlertsResponse> listener) {
-        return ActionListener.wrap(clusterUpdateSettingsResponse -> {
-            // Ensure positive result
-            if (!clusterUpdateSettingsResponse.isAcknowledged()) {
-                listener.onFailure(new ElasticsearchException("Failed to update monitoring migration settings"));
-            }
+    private void afterSettingUpdate(ActionListener<MonitoringMigrateAlertsResponse> listener,
+                                    ClusterUpdateSettingsResponse clusterUpdateSettingsResponse) {
+        logger.info("THREAD NAME: {}" + Thread.currentThread().getName());
 
-            // iterate over all the exporters and refresh the alerts
-            Collection<Exporter> enabledExporters = exporters.getEnabledExporters();
-            Collection<Exporter.Config> disabledExporterConfigs = exporters.getDisabledExporterConfigs();
+        // Ensure positive result
+        if (!clusterUpdateSettingsResponse.isAcknowledged()) {
+            listener.onFailure(new ElasticsearchException("Failed to update monitoring migration settings"));
+        }
 
-            List<Runnable> refreshTasks = new ArrayList<>();
-            AtomicInteger remaining = new AtomicInteger(enabledExporters.size() + disabledExporterConfigs.size());
-            List<ExporterResourceStatus> results = Collections.synchronizedList(new ArrayList<>(remaining.get()));
-            logger.debug("Exporters in need of refreshing [{}]; enabled [{}], disabled [{}]", remaining.get(), enabledExporters.size(),
-                disabledExporterConfigs.size());
+        // iterate over all the exporters and refresh the alerts
+        Collection<Exporter> enabledExporters = exporters.getEnabledExporters();
+        Collection<Exporter.Config> disabledExporterConfigs = exporters.getDisabledExporterConfigs();
 
-            for (Exporter enabledExporter : enabledExporters) {
-                refreshTasks.add(() -> refreshOpenExporter(enabledExporter,
-                    resultCollector(enabledExporter.config(), listener, remaining, results)));
-            }
-            for (Exporter.Config disabledExporter : disabledExporterConfigs) {
-                refreshTasks.add(() -> refreshDisabledExporter(disabledExporter,
-                    resultCollector(disabledExporter, listener, remaining, results)));
-            }
-            for (Runnable refreshTask : refreshTasks) {
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(refreshTask);
-            }
-        }, listener::onFailure);
+        List<Runnable> refreshTasks = new ArrayList<>();
+        AtomicInteger remaining = new AtomicInteger(enabledExporters.size() + disabledExporterConfigs.size());
+        List<ExporterResourceStatus> results = Collections.synchronizedList(new ArrayList<>(remaining.get()));
+        logger.debug("Exporters in need of refreshing [{}]; enabled [{}], disabled [{}]", remaining.get(), enabledExporters.size(),
+            disabledExporterConfigs.size());
+
+        for (Exporter enabledExporter : enabledExporters) {
+            refreshTasks.add(ActionRunnable.wrap(
+                resultCollector(enabledExporter.config(), listener, remaining, results),
+                (resultCollector) -> deleteAlertsFromOpenExporter(enabledExporter, resultCollector)));
+        }
+        for (Exporter.Config disabledExporter : disabledExporterConfigs) {
+            refreshTasks.add(ActionRunnable.wrap(
+                resultCollector(disabledExporter, listener, remaining, results),
+                (resultCollector) -> deleteAlertsFromDisabledExporter(disabledExporter, resultCollector)));
+        }
+        for (Runnable refreshTask : refreshTasks) {
+            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(refreshTask);
+        }
     }
 
     /**
@@ -194,13 +203,14 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
     }
 
     /**
-     * Attempts to migrate a given exporter's alerts, retrying a number of times in case the exporter is busy doing a previous setup task.
+     * Attempts to migrate a given exporter's alerts
      * @param exporter The exporter to migrate
      * @param listener Notified of success or failure
      */
-    private void refreshOpenExporter(Exporter exporter, ActionListener<ExporterResourceStatus> listener) {
+    private void deleteAlertsFromOpenExporter(Exporter exporter, ActionListener<ExporterResourceStatus> listener) {
+        assert exporter.isOpen();
         try {
-            exporter.refreshAlerts(status -> {
+            exporter.removeAlerts(status -> {
                 logger.debug("exporter [{}]: completed setup with status [{}]", exporter.config().name(), status.isComplete());
                 // Exporter completed its setup (teardown) successfully or unsuccessfully.
                 listener.onResponse(status);
@@ -214,9 +224,9 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
     /**
      * Opens a disabled exporter in order to migrate it (best-effort), then makes sure it is closed at completion.
      */
-    private void refreshDisabledExporter(Exporter.Config exporterConf, ActionListener<ExporterResourceStatus> listener) {
+    private void deleteAlertsFromDisabledExporter(Exporter.Config exporterConf, ActionListener<ExporterResourceStatus> listener) {
         Exporter disabledExporter = exporters.openExporter(exporterConf);
-        refreshOpenExporter(disabledExporter, ActionListener.runBefore(listener, disabledExporter::close));
+        deleteAlertsFromOpenExporter(disabledExporter, ActionListener.runBefore(listener, disabledExporter::close));
     }
 
     @Override

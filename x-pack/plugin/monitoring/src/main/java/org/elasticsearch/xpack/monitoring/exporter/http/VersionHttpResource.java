@@ -86,7 +86,7 @@ public class VersionHttpResource extends HttpResource {
      * {@link #minimumVersion}.
      *
      * @param response The response to parse.
-     * @return {@code true} if the remote cluster is running a supported version.
+     * @return A ready result if the remote cluster is running a supported version.
      * @throws NullPointerException if the response is malformed.
      * @throws ClassCastException if the response is malformed.
      * @throws IOException if any parsing issue occurs.

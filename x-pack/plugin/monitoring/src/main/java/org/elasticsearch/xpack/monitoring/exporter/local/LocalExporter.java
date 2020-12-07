@@ -175,7 +175,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     @Override
-    public void refreshAlerts(Consumer<ExporterResourceStatus> listener) {
+    public void removeAlerts(Consumer<ExporterResourceStatus> listener) {
         if (state.get() == State.TERMINATED) {
             throw new IllegalStateException("Cannot refresh alerts on terminated exporter");
         }
@@ -188,10 +188,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 throw new ElasticsearchException("waiting until metadata writes are unblocked");
             }
 
-            if (migrationCoordinator.canInstall()) {
-                // We haven't blocked off other resource installation from happening. That must be done first.
-                throw new IllegalStateException("migration attempted while resources could be erroneously installed");
-            }
+            // We haven't blocked off other resource installation from happening. That must be done first.
+            assert migrationCoordinator.canInstall() == false : "migration attempted while resources could be erroneously installed";
 
             final List<Runnable> asyncActions = new ArrayList<>();
             final AtomicInteger pendingResponses = new AtomicInteger(0);
@@ -448,7 +446,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                     errors.add(new ElasticsearchException("cannot manage cluster alerts because [.watches] index is not allocated"));
                     logger.trace("cannot manage cluster alerts because [.watches] index is not allocated");
                 } else if ((watches == null || indexExists) && watcherSetup.compareAndSet(false, true)) {
-                    getClusterAlertsRemovalAsyncActions(indexExists, asyncActions, pendingResponses, setupListener, errors);
+                    addClusterAlertsRemovalAsyncActions(indexExists, asyncActions, pendingResponses, setupListener, errors);
                 }
             } else {
                 errors.add(new ElasticsearchException("cannot manage cluster alerts because exporter is terminated"));
@@ -584,12 +582,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     /**
-     * Removes Cluster Alerts (Watches) from the cluster
+     * Creates actions that remove cluster alerts (watches) from the cluster
      *
+     * @param indexExists True for watch index existing, false otherwise.
      * @param asyncActions Asynchronous actions are added to for each Watch.
      * @param pendingResponses Pending response countdown we use to track completion.
+     * @param setupListener The listener to call with the status of the watch if there are watches to remove.
+     * @param errors A list to collect errors during the watch removal process.
      */
-    private void getClusterAlertsRemovalAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
+    private void addClusterAlertsRemovalAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
                                                           final AtomicInteger pendingResponses,
                                                           Consumer<ExporterResourceStatus> setupListener, final List<Exception> errors) {
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {

@@ -1150,7 +1150,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * to check if the query can match any documents. This method can have false positives while if it returns {@code false} the query
      * won't match any documents on the current shard.
      */
-    public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
+    CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         return canMatch(request, true);
     }
 
@@ -1176,22 +1176,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try (canMatchSearcher) {
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
                     request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
-                Rewriteable.rewrite(request.getRewriteable(), context, false);
-                final boolean aliasFilterCanMatch = request.getAliasFilter()
-                    .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-                FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-                MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                final boolean canMatch;
-                if (canRewriteToMatchNone(request.source())) {
-                    QueryBuilder queryBuilder = request.source().query();
-                    canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
-                } else {
-                    // null query means match_all
-                    canMatch = aliasFilterCanMatch;
-                }
-                return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
+                return new CanMatchResponse(canMatch(request, context) || hasRefreshPending, getMinMax(request, context));
             }
         }
+    }
+
+    public boolean canMatch(ShardSearchRequest request, QueryShardContext context) throws IOException {
+        Rewriteable.rewrite(request.getRewriteable(), context, false);
+        final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
+        final boolean canMatch;
+        if (canRewriteToMatchNone(request.source())) {
+            QueryBuilder queryBuilder = request.source().query();
+            canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
+        } else {
+            // null query means match_all
+            canMatch = aliasFilterCanMatch;
+        }
+        return canMatch;
+    }
+
+    private MinAndMax<?> getMinMax(ShardSearchRequest request, QueryShardContext context) throws IOException {
+        final FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
+        return sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
     }
 
     /**

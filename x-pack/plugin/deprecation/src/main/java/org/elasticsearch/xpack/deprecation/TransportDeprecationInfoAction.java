@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +44,7 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTIN
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
         DeprecationInfoAction.Response> {
-    private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker());
+    private static final List<DeprecationChecker> PLUGIN_CHECKERS = Arrays.asList(new MlDeprecationChecker());
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final XPackLicenseState licenseState;

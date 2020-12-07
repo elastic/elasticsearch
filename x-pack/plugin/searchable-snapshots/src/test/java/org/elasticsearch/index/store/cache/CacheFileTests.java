@@ -7,12 +7,16 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
 import org.elasticsearch.index.store.cache.TestUtils.FSyncTrackingFileSystemProvider;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
@@ -25,6 +29,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.SortedSet;
 import java.util.concurrent.Future;
@@ -44,10 +49,28 @@ import static org.hamcrest.Matchers.sameInstance;
 public class CacheFileTests extends ESTestCase {
 
     private static final Runnable NOOP = () -> {};
+    private static final CacheKey CACHE_KEY = new CacheKey(
+        new SnapshotId("_name", "_uuid"),
+        new IndexId("_name", "_uuid"),
+        new ShardId("_name", "_uuid", 0),
+        "_filename"
+    );
+
+    public void testGetCacheKey() throws Exception {
+        final CacheKey cacheKey = new CacheKey(
+            new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
+            new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
+            new ShardId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()), randomInt(5)),
+            randomAlphaOfLength(105).toLowerCase(Locale.ROOT)
+        );
+
+        final CacheFile cacheFile = new CacheFile(cacheKey, randomLongBetween(1, 100), createTempFile(), NOOP);
+        assertThat(cacheFile.getCacheKey(), sameInstance(cacheKey));
+    }
 
     public void testAcquireAndRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
 
         assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
@@ -86,7 +109,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testCacheFileNotAcquired() throws IOException {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
 
         assertThat(Files.exists(file), is(false));
         assertThat(cacheFile.getChannel(), nullValue());
@@ -108,7 +131,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testDeleteOnCloseAfterLastRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
 
         final List<TestEvictionListener> acquiredListeners = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
@@ -140,7 +163,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testConcurrentAccess() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
 
         final TestEvictionListener evictionListener = new TestEvictionListener();
         cacheFile.acquire(evictionListener);
@@ -190,7 +213,7 @@ public class CacheFileTests extends ESTestCase {
         try {
             final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
             final CacheFile cacheFile = new CacheFile(
-                "test",
+                CACHE_KEY,
                 randomLongBetween(100, 1000),
                 fileSystem.resolve("test"),
                 () -> assertFalse(needsFSyncCalled.getAndSet(true))
@@ -237,7 +260,7 @@ public class CacheFileTests extends ESTestCase {
         try {
             final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
             final CacheFile cacheFile = new CacheFile(
-                "test",
+                CACHE_KEY,
                 randomLongBetween(1L, 1000L),
                 fileSystem.resolve("test"),
                 () -> assertFalse(needsFSyncCalled.getAndSet(true))
@@ -291,7 +314,7 @@ public class CacheFileTests extends ESTestCase {
 
             final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
             final CacheFile cacheFile = new CacheFile(
-                "test",
+                CACHE_KEY,
                 randomLongBetween(1L, 1000L),
                 fileSystem.resolve("test"),
                 () -> assertFalse(needsFSyncCalled.getAndSet(true))

@@ -31,7 +31,6 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -100,7 +99,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             if (docValues) {
                 fieldType = new KeywordFieldMapper.Builder(fieldName).build(contentPath).fieldType();
             } else {
-                fieldType = new TextFieldMapper.Builder(fieldName, () -> Lucene.STANDARD_ANALYZER)
+                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers())
                     .fielddata(true).build(contentPath).fieldType();
             }
         } else if (type.equals("float")) {

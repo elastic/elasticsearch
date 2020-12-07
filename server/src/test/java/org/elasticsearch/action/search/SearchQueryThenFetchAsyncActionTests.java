@@ -268,7 +268,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), controller, executor,
+            Collections.emptyMap(), controller, executor,
             resultConsumer, withMinVersionSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onFailure(Exception e) {
@@ -277,8 +277,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 public void onResponse(SearchResponse response) {
                     responses.add(response);
                 };
-            }, shardsIter, timeProvider, null,
-            task, SearchResponse.Clusters.EMPTY);
+            }, shardsIter, timeProvider, null, task, SearchResponse.Clusters.EMPTY);
 
         newSearchAsyncAction.start();
         assertEquals(1, responses.size());
@@ -366,7 +365,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), controller, executor,
+            Collections.emptyMap(), controller, executor,
             resultConsumer, withMinVersionSearchRequest, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
@@ -468,7 +467,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), controller, executor,
+            Collections.emptyMap(), controller, executor,
             resultConsumer, withMinVersionSearchRequest, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
@@ -495,8 +494,15 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         assertThat(phase.totalHits.value, equalTo(2L));
         assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
-        Exception e = expectThrows(VersionMismatchException.class, () -> action.executePhaseOnShard(shardIt, new SearchShardTarget("node3",
-            shardIt.shardId(), null, OriginalIndices.NONE), null));
+        SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null, OriginalIndices.NONE);
+        SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
+            @Override
+            public void onFailure(Exception e) { }
+            
+            @Override
+            protected void innerOnResponse(SearchPhaseResult response) { }
+        };
+        Exception e = expectThrows(VersionMismatchException.class, () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener));
         assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
     }
 }

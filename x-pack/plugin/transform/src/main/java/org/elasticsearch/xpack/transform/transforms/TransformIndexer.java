@@ -1013,14 +1013,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private synchronized void startIndexerThreadShutdown() {
-        indexerThreadShuttingDown  = true;
+        indexerThreadShuttingDown = true;
         stopCalledDuringIndexerThreadShutdown = false;
     }
 
     private synchronized void finishIndexerThreadShutdown() {
-        indexerThreadShuttingDown  = false;
+        indexerThreadShuttingDown = false;
         if (stopCalledDuringIndexerThreadShutdown) {
-            doSaveState(IndexerState.STOPPED,  getPosition(), () -> {});
+            doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
         }
     }
 

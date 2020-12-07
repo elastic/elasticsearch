@@ -32,3 +32,13 @@ will be applied to the values of a keyword field; for example, a
 field configured with a lowercase normalizer will return highlighted
 snippets in lower case.
 ====
+[discrete]
+[[breaking_711_api_changes]]
+=== API changes
+
+[discrete]
+==== {dataframe-transform-cap} API changes
+
+Transform no longer writes dates used in a `group_by` as `epoch_millis` but as
+formatted ISO string. Previously constructed transforms will still use `epoch_millis`.
+You can configure and change the output format in the settings of the transform.

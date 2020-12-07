@@ -1690,7 +1690,7 @@ WHERE bytes_in = 0 AND bytes_out IS NULL;
 
 
 groupedByNullsAndZeros
-schema::bytes_in:i|COUNT(*):l|SUM(bytes_in):i|MIN(bytes_in):i|MAX(bytes_in):i|AVG(bytes_in):i
+schema::bytes_in:i|COUNT(*):l|SUM(bytes_in):i|MIN(bytes_in):i|MAX(bytes_in):i|AVG(bytes_in):d
 SELECT
     bytes_in
     , COUNT(*)
@@ -1706,5 +1706,5 @@ ORDER BY bytes_in;
    bytes_in    |   COUNT(*)    | SUM(bytes_in) | MIN(bytes_in) | MAX(bytes_in) | AVG(bytes_in) 
 ---------------+---------------+---------------+---------------+---------------+---------------
 null           |1              |null           |null           |null           |null           
-0              |2              |0.0            |0.0            |0.0            |0.0            
+0              |2              |0              |0              |0              |0.0            
 ;

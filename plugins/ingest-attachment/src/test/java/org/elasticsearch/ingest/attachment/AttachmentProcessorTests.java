@@ -211,7 +211,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         Map<String, Object> attachmentData = parseDocument("asciidoc.asciidoc", processor);
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content_type", "content", "content_length"));
-        assertThat(attachmentData.get("content_type").toString(), containsString("text/x-asciidoc"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
     }
 
     // See (https://issues.apache.org/jira/browse/COMPRESS-432) for information

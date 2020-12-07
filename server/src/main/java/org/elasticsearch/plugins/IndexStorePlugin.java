@@ -23,12 +23,16 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -81,5 +85,17 @@ public interface IndexStorePlugin {
      */
     default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * {@link IndexFoldersDeletionListener} are invoked before the folders of a shard or an index are deleted from disk.
+     */
+    interface IndexFoldersDeletionListener {
+        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, List<Path> indexPaths);
+        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, List<Path> shardPaths);
+    }
+
+    default List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        return Collections.emptyList();
     }
 }

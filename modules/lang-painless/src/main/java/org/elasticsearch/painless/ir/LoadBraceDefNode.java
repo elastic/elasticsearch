@@ -20,26 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class LoadBraceDefNode extends ExpressionNode {
 
-    private Class<?> indexType;
-
-    public void setIndexType(Class<?> indexType) {
-        this.indexType = indexType;
-    }
-
-    public Class<?> getIndexType() {
-        return indexType;
-    }
-
-    public String getIndexCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(indexType);
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

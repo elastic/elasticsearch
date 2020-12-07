@@ -122,7 +122,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper docMapper = createIndex("test",
                 Settings.builder()
-                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                        .put(IndexMetadata.SETTING_VERSION_CREATED,
                                 VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
                         .build()).mapperService()
             .parse("type", new CompressedXContent(mapping));
@@ -151,7 +151,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("_field_names").field("enabled", false).endObject()
             .endObject().endObject());
         MapperService mapperService = createIndex("test", Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                .put(IndexMetadata.SETTING_VERSION_CREATED,
                         VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
                 .build()).mapperService();
 
@@ -169,7 +169,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         /**
-         * This is needed to force the index version with {@link IndexMetadata.SETTING_INDEX_VERSION_CREATED}.
+         * This is needed to force the index version with {@link IndexMetadata.SETTING_VERSION_CREATED}.
          */
         return false;
     }

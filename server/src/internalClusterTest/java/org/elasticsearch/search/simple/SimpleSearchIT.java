@@ -54,6 +54,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class SimpleSearchIT extends ESIntegTestCase {
 
@@ -198,6 +200,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field", "2010-01-05T02:00").get();
         client().prepareIndex("test").setId("2").setSource("field", "2010-01-06T02:00").get();
+        client().prepareIndex("test").setId("3").setSource("field", "1967-01-01T00:00").get();
         ensureGreen();
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d")
@@ -223,6 +226,23 @@ public class SimpleSearchIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test").setQuery(
                 QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d/d]")).get();
         assertHitCount(searchResponse, 2L);
+
+        // a string value of "1000" should be parsed as the year 1000 and return all three docs
+        searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.rangeQuery("field").gt("1000"))
+            .get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 3L);
+
+        // a numeric value of 1000 should be parsed as 1000 millis since epoch and return only docs after 1970
+        searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.rangeQuery("field").gt(1000))
+            .get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2L);
+        String[] expectedIds = new String[] {"1", "2"};
+        assertThat(searchResponse.getHits().getHits()[0].getId(), is(oneOf(expectedIds)));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), is(oneOf(expectedIds)));
     }
 
     public void testRangeQueryKeyword() throws Exception {

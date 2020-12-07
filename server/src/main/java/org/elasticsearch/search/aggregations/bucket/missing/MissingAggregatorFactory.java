@@ -28,12 +28,13 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    private final MissingAggregatorSupplier aggregatorSupplier;
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(MissingAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, MissingAggregator::new, true);
@@ -41,24 +42,22 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
                                     AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
+                                    Map<String, Object> metadata,
+                                    MissingAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected MissingAggregator createUnmapped(SearchContext searchContext,
-                                                Aggregator parent,
-                                                Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
+    protected MissingAggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new MissingAggregator(name, factories, config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
+    protected Aggregator doCreateInternal(Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(MissingAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, factories, config, searchContext, parent, cardinality, metadata);
+        return aggregatorSupplier
+            .build(name, factories, config, context, parent, cardinality, metadata);
     }
 }

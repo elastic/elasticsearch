@@ -124,7 +124,12 @@ public class EnrichPolicyRunner implements Runnable {
         client.admin().indices().getIndex(getIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetIndexResponse getIndexResponse) {
-                validateMappings(getIndexResponse);
+                try {
+                    validateMappings(getIndexResponse);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
                 prepareAndCreateEnrichIndex();
             }
 

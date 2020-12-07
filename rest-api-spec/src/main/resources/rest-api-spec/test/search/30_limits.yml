@@ -99,7 +99,7 @@ setup:
 
 ---
 "Regexp length limit":
- - skip:
+  - skip:
       version: " - 6.99.99"
       reason: "The regex length limit was introduced in 7.0.0"
 

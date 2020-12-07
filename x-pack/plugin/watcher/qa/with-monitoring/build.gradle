@@ -2,6 +2,7 @@ apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:qa')
+  javaRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
 }
 
 testClusters.all {

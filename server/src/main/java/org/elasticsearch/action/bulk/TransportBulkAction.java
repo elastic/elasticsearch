@@ -516,6 +516,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
+                final Boolean noItemsOnSuccess = bulkRequest.noItemsOnSuccess();
                 client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
@@ -547,7 +548,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     private void finishHim() {
                         listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
-                            buildTookInMillis(startTimeNanos), bulkRequest.noItemsOnSuccess()));
+                            buildTookInMillis(startTimeNanos), noItemsOnSuccess));
                     }
                 });
             }

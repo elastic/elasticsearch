@@ -1235,6 +1235,25 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
+    public void testBuildEmpty() throws IOException {
+        withAggregator(
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).offset(10),
+            new MatchAllDocsQuery(),
+            iw -> {},
+            (searcher, aggregator) -> {
+                InternalDateHistogram histo = (InternalDateHistogram) aggregator.buildEmptyAggregation();
+                /*
+                 * There was a time where we including the offset in the
+                 * rounding in the emptyBucketInfo which would cause us to
+                 * include the offset twice. This verifies that we don't do
+                 * that.
+                 */
+                assertThat(histo.emptyBucketInfo.rounding.prepareForUnknown().round(0), equalTo(0L));
+            },
+            aggregableDateFieldType(false, true)
+        );
+    }
+
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<DateHistogramAggregationBuilder> configure,
                                 Consumer<InternalDateHistogram> verify, boolean useNanosecondResolution) throws IOException {

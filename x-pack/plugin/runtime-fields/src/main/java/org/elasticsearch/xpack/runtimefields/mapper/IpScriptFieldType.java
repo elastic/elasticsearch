@@ -45,6 +45,9 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
         @Override
         protected AbstractScriptFieldType<?> buildFieldType() {
+            if (script.get() == null) {
+                return new IpScriptFieldType(name, IpFieldScript.PARSE_FROM_SOURCE, this);
+            }
             IpFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), IpFieldScript.CONTEXT);
             return new IpScriptFieldType(name, factory, this);
         }

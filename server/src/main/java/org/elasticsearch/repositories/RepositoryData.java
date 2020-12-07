@@ -24,6 +24,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -280,10 +281,7 @@ public final class RepositoryData {
             if (snapshotIds == null) {
                 allIndexSnapshots.put(indexId, List.of(snapshotId));
             } else {
-                final List<SnapshotId> copy = new ArrayList<>(snapshotIds.size() + 1);
-                copy.addAll(snapshotIds);
-                copy.add(snapshotId);
-                allIndexSnapshots.put(indexId, Collections.unmodifiableList(copy));
+                allIndexSnapshots.put(indexId, CollectionUtils.appendToCopy(snapshotIds, snapshotId));
             }
         }
 
@@ -610,6 +608,7 @@ public final class RepositoryData {
                                        Map<String, Version> snapshotVersions,
                                        Map<SnapshotId, Map<String, String>> indexMetaLookup) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+        final Map<String, String> stringDeduplicator = new HashMap<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             String name = null;
             String uuid = null;
@@ -630,7 +629,7 @@ public final class RepositoryData {
                         state = SnapshotState.fromValue((byte) parser.intValue());
                         break;
                     case INDEX_METADATA_LOOKUP:
-                        metaGenerations = parser.mapStrings();
+                        metaGenerations = parser.map(HashMap::new, p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity()));
                         break;
                     case VERSION:
                         version = Version.fromString(parser.text());

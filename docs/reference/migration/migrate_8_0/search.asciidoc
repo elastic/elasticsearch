@@ -157,3 +157,21 @@ Change any use of `-1` as `from` parameter in request body or url parameters by 
 setting it to `0` or omitting it entirely. Requests containing negative values will
 return an error.
 ====
+
+.Range queries on date fields treat numeric values alwas as milliseconds-since-epoch.
+[%collapsible]
+====
+*Details* +
+Range queries on date fields used to misinterpret small numbers (e.g. four digits like 1000)
+as a year when no additional format was set, but would interpret other numeric values as
+milliseconds since epoch. We now treat all numeric values in absence of a specific `format` 
+parameter as milliseconds since epoch. If you want to query for years instead, with a missing
+`format` you now need to quote the input value (e.g. "1984").
+
+*Impact* +
+If you query date fields without a specified `format`, check if the values in your queries are
+actually meant to be milliseconds-since-epoch and use a numeric value in this case. If not, use
+a string value which gets parsed by either the date format set on the field in the mappings or
+by `strict_date_optional_time` by default.
+
+====

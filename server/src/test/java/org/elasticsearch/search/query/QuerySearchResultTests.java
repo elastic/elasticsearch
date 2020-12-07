@@ -58,7 +58,7 @@ public class QuerySearchResultTests extends ESTestCase {
         ShardId shardId = new ShardId("index", "uuid", randomInt());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(OriginalIndicesTests.randomOriginalIndices(), searchRequest,
-            shardId, 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, randomNonNegativeLong(), null, new String[0]);
+            shardId, 0, 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, randomNonNegativeLong(), null);
         QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
             new SearchShardTarget("node", shardId, null, OriginalIndices.NONE), shardSearchRequest);
         if (randomBoolean()) {

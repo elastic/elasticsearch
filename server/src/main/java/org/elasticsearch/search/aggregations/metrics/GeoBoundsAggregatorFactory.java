@@ -28,13 +28,13 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final GeoBoundsAggregatorSupplier aggregatorSupplier;
     private final boolean wrapLongitude;
 
     GeoBoundsAggregatorFactory(String name,
@@ -43,28 +43,25 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                 AggregationContext context,
                                 AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metadata) throws IOException {
+                                Map<String, Object> metadata,
+                                GeoBoundsAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.wrapLongitude = wrapLongitude;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, config, wrapLongitude, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new GeoBoundsAggregator(name, context, parent, config, wrapLongitude, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(GeoBoundsAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, searchContext, parent, config, wrapLongitude, metadata);
+        return aggregatorSupplier.build(name, context, parent, config, wrapLongitude, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {

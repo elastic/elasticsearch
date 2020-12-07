@@ -173,15 +173,15 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                             continue;
                         }
                         if (value instanceof Boolean) {
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "boolean"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("boolean"));
                             continue;
                         }
                         if (value instanceof Long || value instanceof Integer) {
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "long"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("long"));
                             continue;
                         }
                         if (value instanceof Double) {
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "double"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("double"));
                             continue;
                         }
                         if (false == value instanceof String) {
@@ -189,27 +189,27 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         }
                         try {
                             Long.parseLong(value.toString());
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "long"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("long"));
                             continue;
                         } catch (IllegalArgumentException iae) {
                             // Try the next one
                         }
                         try {
                             Double.parseDouble(value.toString());
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "double"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("double"));
                             continue;
                         } catch (IllegalArgumentException iae) {
                             // Try the next one
                         }
                         try {
                             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(value.toString());
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "date"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("date"));
                             continue;
                         } catch (IllegalArgumentException iae) {
                             // Try the next one
                         }
                         // Strings are funny, the regular dynamic mapping puts them in "name.keyword" so we follow along.
-                        indexRuntimeMappings.put(name + ".keyword", runtimeFieldLoadingFromSource(name, "keyword"));
+                        indexRuntimeMappings.put(name + ".keyword", runtimeFieldLoadingFromSource("keyword"));
                     }
                     return true;
                 }

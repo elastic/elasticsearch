@@ -304,6 +304,8 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                     AggregatorFactory parent,
                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        RangeAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
         RangeAggregator.Range[] ranges = processRanges(range -> {
@@ -331,6 +333,6 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
-                metadata);
+                metadata, aggregatorSupplier);
     }
 }

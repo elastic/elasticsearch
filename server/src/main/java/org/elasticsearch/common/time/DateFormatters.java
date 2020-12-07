@@ -345,7 +345,7 @@ public class DateFormatters {
     );
 
     private static final DateTimeFormatter BASIC_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.NORMAL)
+        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.NORMAL)
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
         .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT)
@@ -466,7 +466,7 @@ public class DateFormatters {
 
     private static final DateTimeFormatter STRICT_BASIC_WEEK_DATE_PRINTER = new DateTimeFormatterBuilder()
         .parseStrict()
-        .appendValue(IsoFields.WEEK_BASED_YEAR, 4)
+        .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 10, SignStyle.NEVER)
         .appendLiteral("W")
         .appendValue(IsoFields.WEEK_OF_WEEK_BASED_YEAR, 2, 2, SignStyle.NEVER)
         .appendValue(ChronoField.DAY_OF_WEEK)
@@ -999,7 +999,7 @@ public class DateFormatters {
      */
     private static final DateFormatter BASIC_DATE = new JavaDateFormatter("basic_date",
         new DateTimeFormatterBuilder()
-            .appendValue(ChronoField.YEAR, 4, 4, SignStyle.NORMAL)
+            .appendValue(ChronoField.YEAR, 4, 10, SignStyle.NORMAL)
             .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
             .toFormatter(Locale.ROOT)

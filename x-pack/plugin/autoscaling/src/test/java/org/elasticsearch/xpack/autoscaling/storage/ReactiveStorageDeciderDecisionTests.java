@@ -425,7 +425,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         return new TestAutoscalingDeciderContext(state, roles, randomCurrentCapacity());
     }
 
-    private static AutoscalingCapacity randomCurrentCapacity() {
+    static AutoscalingCapacity randomCurrentCapacity() {
         if (randomInt(4) > 0) {
             // we only rely on storage.
             boolean includeMemory = randomBoolean();

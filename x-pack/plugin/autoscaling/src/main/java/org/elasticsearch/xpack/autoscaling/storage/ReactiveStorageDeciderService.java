@@ -380,9 +380,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
 
             long avgSize = (totalSize - 1) / count + 1;
-            if (avgSize == 0) {
-                return null;
-            }
 
             long actualWindow = now - minCreationDate;
             if (actualWindow == 0) {

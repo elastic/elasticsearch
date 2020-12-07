@@ -6,25 +6,43 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,15 +51,106 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
+
 public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
+        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("test", between(1, 10))),
+            List.of(),
+            0
+        );
+        ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
+        IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
+        stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
+        long lastCreated = System.currentTimeMillis();
+        applyCreatedDates(
+            originalState,
+            stateBuilder,
+            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            lastCreated,
+            1
+        );
+        ClusterState interimState = stateBuilder.build();
+        final ClusterState state = startAll(interimState);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Collection<AllocationDecider> allocationDecidersList = new ArrayList<>(
+            ClusterModule.createAllocationDeciders(Settings.EMPTY, clusterSettings, Collections.emptyList())
+        );
+        allocationDecidersList.add(new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return allocation.decision(Decision.NO, DiskThresholdDecider.NAME, "test");
+            }
+        });
+        AllocationDeciders allocationDeciders = new AllocationDeciders(allocationDecidersList);
+        ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(Settings.EMPTY, clusterSettings, allocationDeciders);
+        AutoscalingCapacity currentCapacity = ReactiveStorageDeciderDecisionTests.randomCurrentCapacity();
+        ClusterInfo info = randomClusterInfo(state);
+        AutoscalingDeciderContext context = new AutoscalingDeciderContext() {
+            @Override
+            public ClusterState state() {
+                return state;
+            }
 
+            @Override
+            public AutoscalingCapacity currentCapacity() {
+                return currentCapacity;
+            }
+
+            @Override
+            public Set<DiscoveryNode> nodes() {
+                return Sets.newHashSet(state.nodes());
+            }
+
+            @Override
+            public ClusterInfo info() {
+                return info;
+            }
+
+            @Override
+            public SnapshotShardSizeInfo snapshotShardSizeInfo() {
+                return null;
+            }
+        };
+        AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
+
+        if (currentCapacity != null) {
+            assertThat(deciderResult.requiredCapacity().tier().storage(), Matchers.greaterThan(currentCapacity.tier().storage()));
+            assertThat(deciderResult.reason().summary(), startsWith("not enough storage available, needs "));
+            ProactiveStorageDeciderService.ProactiveReason reason = (ProactiveStorageDeciderService.ProactiveReason) deciderResult.reason();
+            assertThat(
+                reason.forecasted(),
+                equalTo(deciderResult.requiredCapacity().tier().storage().getBytes() - currentCapacity.tier().storage().getBytes())
+            );
+            assertThat(
+                reason.forecasted(),
+                lessThanOrEqualTo(totalSize(state.metadata().dataStreams().get("test").getIndices(), state.routingTable(), info))
+            );
+
+            deciderResult = service.scale(
+                Settings.builder().put(ProactiveStorageDeciderService.FORECAST_WINDOW.getKey(), TimeValue.ZERO).build(),
+                context
+            );
+            assertThat(deciderResult.requiredCapacity().tier().storage(), Matchers.equalTo(currentCapacity.tier().storage()));
+            assertThat(deciderResult.reason().summary(), equalTo("storage ok"));
+            reason = (ProactiveStorageDeciderService.ProactiveReason) deciderResult.reason();
+            assertThat(reason.forecasted(), equalTo(0L));
+        } else {
+            assertThat(deciderResult.requiredCapacity(), is(nullValue()));
+            assertThat(deciderResult.reason().summary(), equalTo("current capacity not available"));
+        }
     }
 
     public void testForecastNoDates() {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(Tuple.tuple("test", between(1, 10))),
-            List.of()
+            List.of(),
+            between(0, 4)
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
@@ -58,9 +167,43 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         assertThat(allocationState.forecast(Long.MAX_VALUE, System.currentTimeMillis()), Matchers.sameInstance(allocationState));
     }
 
+    public void testForecastZero() {
+        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("test", between(1, 10))),
+            List.of(),
+            between(0, 4)
+        );
+        ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
+        IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
+        stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
+        long lastCreated = randomNonNegativeLong();
+        applyCreatedDates(
+            originalState,
+            stateBuilder,
+            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            lastCreated,
+            1
+        );
+        ClusterState state = stateBuilder.build();
+        state = randomAllocate(state);
+        ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
+            state,
+            null,
+            null,
+            randomClusterInfo(state),
+            null,
+            Sets.newHashSet(state.nodes())
+        );
+
+        assertThat(allocationState.forecast(0, lastCreated + between(-3, 1)), Matchers.sameInstance(allocationState));
+        assertThat(allocationState.forecast(10, lastCreated + 1), Matchers.not(Matchers.sameInstance(allocationState)));
+    }
+
     public void testForecast() {
         int indices = between(1, 10);
-        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(Tuple.tuple("test", indices)), List.of());
+        int shardCopies = between(1, 2);
+        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(Tuple.tuple("test", indices)), List.of(),
+            shardCopies - 1);
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
@@ -99,10 +242,10 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             assertThat(forecastDataStream.getIndices().subList(0, indices), Matchers.equalTo(dataStream.getIndices()));
 
             RoutingTable forecastRoutingTable = forecast.state().routingTable();
-            assertThat(forecastRoutingTable.allShards().size(), Matchers.equalTo((expectedIndices) * 2)); // * 2 for 1 replica
+            assertThat(forecastRoutingTable.allShards().size(), Matchers.equalTo((expectedIndices) * shardCopies));
 
             forecastDataStream.getIndices().forEach(index -> {
-                assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(2)); // 1 primary + 1 replica
+                assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(shardCopies));
             });
 
             forecastRoutingTable.allShards().forEach(s -> assertThat(forecast.info().getShardSize(s), Matchers.notNullValue()));
@@ -121,7 +264,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                         shard -> {
                             assertThat(
                                 forecast.info().getShardSize(shard),
-                                Matchers.equalTo(((expectedTotal - 1) / addedIndices.size() + 1) / 2)
+                                Matchers.equalTo(((expectedTotal - 1) / addedIndices.size() + 1) / shardCopies)
                             );
                         }
                     );
@@ -164,6 +307,34 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         }
     }
 
+    private ClusterState startAll(ClusterState state) {
+        RoutingAllocation allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            new RoutingNodes(state, false),
+            state,
+            null,
+            null,
+            System.nanoTime()
+        );
+        startAll(allocation);
+        return ReactiveStorageDeciderServiceTests.updateClusterState(state, allocation);
+    }
+
+    private void startAll(RoutingAllocation allocation) {
+        for (RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator(); iterator
+            .hasNext();) {
+            ShardRouting unassignedShard = iterator.next();
+            assert unassignedShard.primary();
+            ShardRouting shardRouting = iterator.initialize(
+                randomFrom(Sets.newHashSet(allocation.routingNodes())).nodeId(),
+                null,
+                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                allocation.changes()
+            );
+            allocation.routingNodes().startShard(logger, shardRouting, allocation.changes());
+        }
+    }
+
     private RoutingTable.Builder addRouting(Iterable<IndexMetadata> indices, RoutingTable.Builder builder) {
         indices.forEach(builder::addAsNew);
         return builder;
@@ -174,8 +345,20 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .allShards()
             .stream()
             .map(ClusterInfo::shardIdentifierFromRouting)
-            .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000)));
-        return new ClusterInfo(null, null, ImmutableOpenMap.<String, Long>builder().putAll(collect).build(), null, null);
+            .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
+        ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
+        for (ObjectCursor<String> cursor : state.nodes().getDataNodes().keys()) {
+            String id = cursor.value;
+            builder.put(id, new DiskUsage(id, id, "/test", Long.MAX_VALUE, Long.MAX_VALUE));
+        }
+        ImmutableOpenMap<String, DiskUsage> diskUsage = builder.build();
+        return new ClusterInfo(
+            diskUsage,
+            diskUsage,
+            ImmutableOpenMap.<String, Long>builder().putAll(collect).build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
     }
 
     private ClusterState.Builder applyCreatedDates(

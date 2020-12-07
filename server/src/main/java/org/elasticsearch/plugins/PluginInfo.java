@@ -50,7 +50,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final Version BOOTSTRAP_PLUGINS_SUPPORT = Version.V_7_11_0;
+    private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
 
     private final String name;
     private final String description;
@@ -128,16 +128,13 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(BOOTSTRAP_PLUGINS_SUPPORT)) {
+        if (in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             type = PluginType.valueOf(in.readString());
             javaOpts = in.readOptionalString();
+            isLicensed = in.readBoolean();
         } else {
             type = PluginType.ISOLATED;
             javaOpts = null;
-        }
-        if (isLicensedPluginsSupported(in.getVersion())) {
-            isLicensed = in.readBoolean();
-        } else {
             isLicensed = false;
         }
     }
@@ -163,29 +160,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(BOOTSTRAP_PLUGINS_SUPPORT)) {
+        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             out.writeString(type.name());
             out.writeOptionalString(javaOpts);
-        }
-        if (isLicensedPluginsSupported(out.getVersion())) {
             out.writeBoolean(this.isLicensed);
         }
-    }
-
-    /**
-     * Checks whether licensed plugins are supported in the supplied version. Licensed plugins were
-     * introduced late in the 6.8 and 7.x lifecycle, so it is not possible to simply check whether
-     * the supplied version is higher than a specific version. Rather, the version could fall in
-     * one of two possible ranges.
-     * @param version the version to check
-     * @return whether licensed plugins are supported in the version
-     */
-    private static boolean isLicensedPluginsSupported(Version version) {
-        if (version.onOrAfter(Version.V_6_8_14) && version.before(Version.V_7_0_0)) {
-            return true;
-        }
-
-        return version.onOrAfter(Version.V_7_11_0);
     }
 
     /**
@@ -263,7 +242,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         boolean isLicensed = false;
-        if (isLicensedPluginsSupported(esVersion)) {
+        if (esVersion.onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
         }
 

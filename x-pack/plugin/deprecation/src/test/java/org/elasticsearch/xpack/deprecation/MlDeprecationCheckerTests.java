@@ -11,11 +11,14 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.Collections;
 
-public class MlDeprecationChecksTests extends ESTestCase {
+import static org.hamcrest.Matchers.is;
+
+public class MlDeprecationCheckerTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -28,11 +31,19 @@ public class MlDeprecationChecksTests extends ESTestCase {
         return false;
     }
 
+    public void testEnabled() {
+        MlDeprecationChecker mlDeprecationChecker = new MlDeprecationChecker();
+        assertThat(mlDeprecationChecker.enabled(Settings.EMPTY), is(true));
+        assertThat(mlDeprecationChecker.enabled(Settings.builder()
+            .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), Boolean.toString(false))
+            .build()), is(false));
+    }
+
     public void testCheckDataFeedQuery() {
         DatafeedConfig.Builder goodDatafeed = new DatafeedConfig.Builder("good-df", "job-id");
         goodDatafeed.setIndices(Collections.singletonList("some-index"));
         goodDatafeed.setParsedQuery(QueryBuilders.termQuery("foo", "bar"));
-        assertNull(MlDeprecationChecks.checkDataFeedQuery(goodDatafeed.build(), xContentRegistry()));
+        assertThat(MlDeprecationChecker.checkDataFeedQuery(goodDatafeed.build(), xContentRegistry()).isPresent(), is(false));
 
         DatafeedConfig.Builder deprecatedDatafeed = new DatafeedConfig.Builder("df-with-deprecated-query", "job-id");
         deprecatedDatafeed.setIndices(Collections.singletonList("some-index"));

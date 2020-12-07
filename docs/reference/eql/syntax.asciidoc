@@ -806,27 +806,27 @@ order:
 
 [source,js]
 ----
-{ "index" : { "_id" : "1" } }
+{ "index" : { "_id": "1" } }
 { "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
-{ "index" : { "_id" : "2" } }
+{ "index" : { "_id": "2" } }
 { "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
-{ "index" : { "_id" : "3" } }
+{ "index" : { "_id": "3" } }
 { "user": { "name": "elkbee" }, "process": { "name": "bash" }, ...}
-{ "index" : { "_id" : "4" } }
+{ "index" : { "_id": "4" } }
 { "user": { "name": "root" }, "process": { "name": "bash" }, ...}
-{ "index" : { "_id" : "5" } }
+{ "index" : { "_id": "5" } }
 { "user": { "name": "root" }, "process": { "name": "bash" }, ...}
-{ "index" : { "_id" : "6" } }
+{ "index" : { "_id": "6" } }
 { "user": { "name": "elkbee" }, "process": { "name": "attrib" }, ...}
-{ "index" : { "_id" : "7" } }
+{ "index" : { "_id": "7" } }
 { "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
-{ "index" : { "_id" : "8" } }
+{ "index" : { "_id": "8" } }
 { "user": { "name": "elkbee" }, "process": { "name": "bash" }, ...}
-{ "index" : { "_id" : "9" } }
+{ "index" : { "_id": "9" } }
 { "user": { "name": "root" }, "process": { "name": "cat" }, ...}
-{ "index" : { "_id" : "10" } }
+{ "index" : { "_id": "10" } }
 { "user": { "name": "elkbee" }, "process": { "name": "cat" }, ...}
-{ "index" : { "_id" : "11" } }
+{ "index" : { "_id": "11" } }
 { "user": { "name": "root" }, "process": { "name": "cat" }, ...}
 ----
 // NOTCONSOLE
@@ -847,81 +847,166 @@ The query's event items correspond to the following states:
 * State B:  `[process where process.name == "bash"]`
 * Complete: `[process where process.name == "cat"]`
 
+image::images/eql/sequence-state-machine.svg[align="center"]
+
 To find matching sequences, the query uses separate state machines for each
-unique `user.name` value. Pending sequence matches move through each machine's
-states as follows:
+unique `user.name` value. Based on the data set, you can expect two state
+machines: one for the `root` user and one for `elkbee`.
+
+image::images/eql/separate-state-machines.svg[align="center"]
+
+Pending sequence matches move through each machine's states as follows:
 
 [source,txt]
 ----
-{ "index" : { "_id" : "1" } }
+{ "index" : { "_id": "1" } }
 { "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
 // Creates sequence [1] in state A for the "root" user.
 //
-// root: A=[1]
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [1]    |     |           |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "2" } }
+{ "index" : { "_id": "2" } }
 { "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
 // Creates sequence [2] in state A for "root", overwriting sequence [1].
 //
-// root: A=[2]
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [2]    |     |           |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "3" } }
+{ "index" : { "_id": "3" } }
 { "user": { "name": "elkbee" }, "process": { "name": "bash" }, ...}
-// Nothing happens. The "elkbee" user has no pending sequence to move from state A to state B
-
-{ "index" : { "_id" : "4" } }
-{ "user": { "name": "root" }, "process": { "name": "bash" }, ...}
-// Sequence [2] moves out of state A for "root". State B for "root" now contains [2, 4]
-// State A for "root" is now empty.
+// Nothing happens. The "elkbee" user has no pending sequence to move
+// from state A to state B.
 //
-// root: A=[]
-// root: B=[2, 4]
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |           |     |           |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "5" } }
+{ "index" : { "_id": "4" } }
+{ "user": { "name": "root" }, "process": { "name": "bash" }, ...}
+// Sequence [2] moves out of state A for "root".
+// State B for "root" now contains [2, 4].
+// State A for "root" is empty.
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+ --> +-----------+     +------------+  |
+// |  |           |     |   [2, 4]  |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+
+{ "index" : { "_id": "5" } }
 { "user": { "name": "root" }, "process": { "name": "bash" }, ...}
 // Nothing happens. State A is empty for "root".
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |           |     |   [2, 4]  |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "6" } }
+{ "index" : { "_id": "6" } }
 { "user": { "name": "elkbee" }, "process": { "name": "attrib" }, ...}
 // Creates sequence [6] in state A for "elkbee".
 //
-// elkbee: A=[6]
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [6]    |     |           |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "7" } }
+{ "index" : { "_id": "7" } }
 { "user": { "name": "root" }, "process": { "name": "attrib" }, ...}
 // Creates sequence [7] in state A for "root".
 // Sequence [2, 4] remains in state B for "root".
 //
-// root: A=[7]
-// root: B=[2, 4]
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [7]    |     |   [2, 4]  |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "8" } }
+{ "index" : { "_id": "8" } }
 { "user": { "name": "elkbee" }, "process": { "name": "bash" }, ...}
 // Sequence [6, 8] moves to state B for "elkbee".
 // State A for "elkbee" is now empty.
 //
-// elkbee: A=[]
-// elkbee: B=[6, 8]
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+ --> +-----------+     +------------+  |
+// |  |           |     |   [6, 8]  |     |            |  |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "9" } }
+{ "index" : { "_id": "9" } }
 { "user": { "name": "root" }, "process": { "name": "cat" }, ...}
 // Sequence [2, 4, 9] is complete for "root".
 // State B for "root" is now empty.
 // Sequence [7] remains in state A.
 //
-// root: A=[7]
-// root: B=[]
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+ --> +------------+  |
+// |  |    [7]    |     |           |     |  [2, 4, 9] |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "10" } }
+{ "index" : { "_id": "10" } }
 { "user": { "name": "elkbee" }, "process": { "name": "cat" }, ...}
 // Sequence [6, 8, 10] is complete for "elkbee".
 // State A and B for "elkbee" are now empty.
 //
-// elkbee: A=[]
-// elkbee: B=[]
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+ --> +------------+  |
+// |  |           |     |           |     | [6, 8, 10] |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 
-{ "index" : { "_id" : "11" } }
+{ "index" : { "_id": "11" } }
 { "user": { "name": "root" }, "process": { "name": "cat" }, ...}
-// Nothing happens. State B for "root" is empty.
+// Nothing happens.
+// The machines for "root" and "elkbee" remain the same.
+//
+// +------------------------"root"------------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |    [7]    |     |           |     |  [2, 4, 9] |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
+//
+// +-----------------------"elkbee"-----------------------+
+// |  +-----------+     +-----------+     +------------+  |
+// |  |  State A  |     |  State B  |     |  Complete  |  |
+// |  +-----------+     +-----------+     +------------+  |
+// |  |           |     |           |     | [6, 8, 10] |
+// |  +-----------+     +-----------+     +------------+  |
+// +------------------------------------------------------+
 ----
+
 ====

@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -83,9 +82,7 @@ final class DefaultSearchContext extends SearchContext {
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
     private SearchType searchType;
-    private final BigArrays bigArrays;
     private final IndexShard indexShard;
-    private final ClusterService clusterService;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
@@ -146,8 +143,6 @@ final class DefaultSearchContext extends SearchContext {
     DefaultSearchContext(ReaderContext readerContext,
                          ShardSearchRequest request,
                          SearchShardTarget shardTarget,
-                         ClusterService clusterService,
-                         BigArrays bigArrays,
                          LongSupplier relativeTimeSupplier,
                          TimeValue timeout,
                          FetchPhase fetchPhase,
@@ -157,14 +152,11 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
-        // SearchContexts use a BigArrays that can circuit break
-        this.bigArrays = bigArrays.withCircuitBreaking();
         this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget, request);
         this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget, request);
         this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
-        this.clusterService = clusterService;
 
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
@@ -455,11 +447,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IndexShard indexShard() {
         return this.indexShard;
-    }
-
-    @Override
-    public BigArrays bigArrays() {
-        return bigArrays;
     }
 
     @Override

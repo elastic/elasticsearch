@@ -72,7 +72,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public SettingsConfig(final StreamInput in) throws IOException {
         this.maxPageSearchSize = in.readOptionalInt();
         this.docsPerSecond = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: change to V_7_11
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             this.datesAsEpochMillis = in.readOptionalInt();
         } else {
             this.datesAsEpochMillis = DEFAULT_DATES_AS_EPOCH_MILLIS;
@@ -115,7 +115,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(maxPageSearchSize);
         out.writeOptionalFloat(docsPerSecond);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo: change to V_7_11_0
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             out.writeOptionalInt(datesAsEpochMillis);
         }
     }

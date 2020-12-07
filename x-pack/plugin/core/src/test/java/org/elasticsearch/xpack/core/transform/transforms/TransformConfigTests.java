@@ -421,12 +421,12 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig).setSettings(
             new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
-        ).setVersion(Version.V_8_0_0).build(); // todo: V_7_11_0
+        ).setVersion(Version.V_7_11_0).build();
 
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter711);
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
-        assertEquals(Version.V_8_0_0, transformConfigRewritten.getVersion()); // todo: V_7_11_0
+        assertEquals(Version.V_7_11_0, transformConfigRewritten.getVersion());
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

@@ -486,7 +486,11 @@ public class Setting<T> implements ToXContentObject {
      * @param defaultSettings the default settings object to diff against
      */
     public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-        if (exists(source) == false) {
+        if (exists(source) == false && exists(defaultSettings) == false) {
+            // If the setting is in neither source nor default, get the value from source as it may depend on the value of other settings
+            builder.put(getKey(), getRaw(source));
+        } else if (exists(source) == false && exists(defaultSettings)) {
+            // If the setting is only in the defaults, use the value from the defaults
             builder.put(getKey(), getRaw(defaultSettings));
         }
     }

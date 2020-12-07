@@ -248,7 +248,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             assertThat(forecastRoutingTable.allShards().size(), Matchers.equalTo((expectedIndices) * shardCopies));
 
             forecastDataStream.getIndices()
-                .forEach(index -> { assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(shardCopies)); });
+                .forEach(index -> assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(shardCopies)));
 
             forecastRoutingTable.allShards().forEach(s -> assertThat(forecast.info().getShardSize(s), Matchers.notNullValue()));
 
@@ -263,12 +263,10 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             for (int i = 0; i < addedIndices.size() - 1; ++i) {
                 forecastRoutingTable.allShards(addedIndices.get(i).getName())
                     .forEach(
-                        shard -> {
-                            assertThat(
-                                forecast.info().getShardSize(shard),
-                                Matchers.equalTo(((expectedTotal - 1) / addedIndices.size() + 1) / shardCopies)
-                            );
-                        }
+                        shard -> assertThat(
+                            forecast.info().getShardSize(shard),
+                            Matchers.equalTo(((expectedTotal - 1) / addedIndices.size() + 1) / shardCopies)
+                        )
                     );
             }
         }

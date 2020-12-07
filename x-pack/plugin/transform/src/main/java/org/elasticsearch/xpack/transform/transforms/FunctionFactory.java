@@ -24,7 +24,7 @@ public final class FunctionFactory {
      */
     public static Function create(TransformConfig config) {
         if (config.getPivotConfig() != null) {
-            return new Pivot(config.getPivotConfig(), config.getId());
+            return new Pivot(config.getPivotConfig(), config.getId(), config.getSettings(), config.getVersion());
         } else {
             throw new IllegalArgumentException("unknown transform function");
         }

@@ -118,8 +118,12 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
                                                        AggregatorFactory parent,
                                                        AggregatorFactories.Builder subFactoriesBuilder)
         throws IOException {
+
+        MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         return new MedianAbsoluteDeviationAggregatorFactory(name, config, context,
-            parent, subFactoriesBuilder, metadata, compression);
+            parent, subFactoriesBuilder, metadata, compression, aggregatorSupplier);
     }
 
     @Override

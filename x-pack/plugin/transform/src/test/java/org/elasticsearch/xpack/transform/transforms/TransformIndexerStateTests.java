@@ -465,7 +465,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             null,
             randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f))
+            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null)
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
 

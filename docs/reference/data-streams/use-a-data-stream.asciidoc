@@ -38,8 +38,6 @@ PUT /my-data-stream/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
   },
   "message": "Login successful"
 }
-
-PUT /_data_stream/my-data-stream-alt
 ----
 // TESTSETUP
 

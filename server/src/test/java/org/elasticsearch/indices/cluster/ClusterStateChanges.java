@@ -158,6 +158,7 @@ public class ClusterStateChanges {
             = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, logger);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        SystemIndices systemIndices = new SystemIndices(Map.of());
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
         Transport transport = mock(Transport.class); // it's not used
@@ -233,11 +234,12 @@ public class ClusterStateChanges {
         transportDeleteIndexAction = new TransportDeleteIndexAction(transportService,
             clusterService, threadPool, deleteIndexService, actionFilters, indexNameExpressionResolver, destructiveOperations);
         transportUpdateSettingsAction = new TransportUpdateSettingsAction(
-            transportService, clusterService, threadPool, metadataUpdateSettingsService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, metadataUpdateSettingsService, actionFilters, indexNameExpressionResolver,
+            systemIndices);
         transportClusterRerouteAction = new TransportClusterRerouteAction(
             transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
         transportCreateIndexAction = new TransportCreateIndexAction(
-            transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver, systemIndices);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {});

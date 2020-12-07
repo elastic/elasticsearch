@@ -742,8 +742,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         if (messageLength > THIRTY_PER_HEAP_SIZE) {
-            throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(messageLength) + "] exceeded ["
-                + new ByteSizeValue(THIRTY_PER_HEAP_SIZE) + "]");
+            throw new IllegalArgumentException("illegal transport message of size [" + new ByteSizeValue(messageLength) +
+                    "] which exceeds 30% of this node's heap size [" + new ByteSizeValue(THIRTY_PER_HEAP_SIZE) + "], closing connection");
         }
 
         return messageLength;

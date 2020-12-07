@@ -2730,10 +2730,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void createModelSnapshot(String jobId, String snapshotId) throws IOException {
-        createModelSnapshot(jobId, snapshotId, Version.CURRENT);
-    }
-
-    public void createModelSnapshot(String jobId, String snapshotId, Version minVersion) throws IOException {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
@@ -2747,7 +2743,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
             "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
             "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
-            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, \"min_version\":\"" + minVersion.toString() + "\"}",
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, \"min_version\":\"" + Version.CURRENT.toString() + "\"}",
             XContentType.JSON);
 
         highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
@@ -2828,12 +2824,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             getModelSnapshotsResponse2.snapshots().get(0).getDescription());
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65699")
     public void testUpgradeJobSnapshot() throws Exception {
         String jobId = "test-upgrade-model-snapshot";
         String snapshotId = "1541587919";
 
-        createModelSnapshot(jobId, snapshotId, Version.CURRENT);
+        createModelSnapshot(jobId, snapshotId);
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, true);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,

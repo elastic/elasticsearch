@@ -104,7 +104,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";
-        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F);
+        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true);
         update = new TransformConfigUpdate(sourceConfig, destConfig, frequency, syncConfig, newDescription, settings);
 
         Map<String, String> headers = Collections.singletonMap("foo", "bar");
@@ -136,7 +136,14 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomBoolean() ? null : Version.V_7_2_0.toString()
         );
 
-        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(4_000, null));
+        TransformConfigUpdate update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig(4_000, null, (Boolean) null)
+        );
         TransformConfig updatedConfig = update.apply(config);
 
         // for settings we allow partial updates, so changing 1 setting should not overwrite the other
@@ -144,18 +151,18 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(4_000));
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(config.getSettings().getDocsPerSecond()));
 
-        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(null, 43.244F));
+        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(null, 43.244F, (Boolean) null));
         updatedConfig = update.apply(updatedConfig);
         assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(4_000));
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
 
         // now reset to default using the magic -1
-        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, null));
+        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, null, (Boolean) null));
         updatedConfig = update.apply(updatedConfig);
         assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
 
-        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, -1F));
+        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, -1F, (Boolean) null));
         updatedConfig = update.apply(updatedConfig);
         assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
         assertNull(updatedConfig.getSettings().getDocsPerSecond());

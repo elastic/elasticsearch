@@ -149,9 +149,10 @@ template's index patterns.
 
 [source,console]
 ----
-PUT /_data_stream/my-data-stream-alt
+PUT /_data_stream/my-data-stream
 ----
 // TEST[continued]
+// TEST[s/my-data-stream/my-data-stream-alt/]
 
 [discrete]
 [[secure-a-data-stream]]

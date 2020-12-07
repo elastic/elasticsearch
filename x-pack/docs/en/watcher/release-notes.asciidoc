@@ -287,7 +287,7 @@ June 19, 2015
 June 10, 2015
 
 .New Features
-* <<watcher-actions-ack-throttle,Acking and throttling>> are now applied at the action
+* <<actions-ack-throttle,Acking and throttling>> are now applied at the action
   level rather than the watch level.
 * Added support for <<anatomy-actions-index-multi-doc-support,multi-doc>>
   indexing to the index action.
@@ -308,6 +308,6 @@ June 10, 2015
 * Add plain text response body support for the <<watcher-input-http,HTTP input>>.
 
 .Bug Fixes
-* Disallow negative time value settings for <<watcher-actions-ack-throttle,`throttle_period`>>
+* Disallow negative time value settings for <<actions-ack-throttle,`throttle_period`>>
 * Added support for separate keystore and truststore in <<watcher-action-webhook,webhook action>>
   and <<watcher-input-http,HTTP input>>.

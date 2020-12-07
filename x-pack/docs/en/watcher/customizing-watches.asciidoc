@@ -203,7 +203,7 @@ See <<watcher-transform>> for more details.
 Actions are associated with a watch and are executed as part of the watch execution
 only when the watch condition is met.
 
-{watcher} supports the following action types: <<watcher-action-email,email>>,
+{watcher} supports the following action types: <<action-email,email>>,
 <<watcher-action-slack,slack>>, <<watcher-action-pagerduty,pagerduty>>,
 <<watcher-action-index,index>>, <<watcher-action-logging,logging>>, and <<watcher-action-webhook,webhook>>.
 

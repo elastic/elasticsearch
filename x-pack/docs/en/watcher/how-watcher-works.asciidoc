@@ -214,7 +214,7 @@ notifications about a watch as long as its condition is met. Once the condition
 evaluates to `false`, the acknowledgment is cleared and {watcher} resumes executing
 the watch actions normally.
 
-For more information, see <<watcher-actions-ack-throttle>>.
+For more information, see <<actions-ack-throttle>>.
 
 [discrete]
 [[watch-active-state]]

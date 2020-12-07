@@ -6,7 +6,7 @@
 ++++
 
 Use the `always` condition to set the condition to `true`. This forces the watch 
-actions to be executed unless they are <<watcher-actions-ack-throttle,throttled>>. 
+actions to be executed unless they are <<actions-ack-throttle,throttled>>. 
 
 The `always` condition enables you to perform watch actions on a fixed schedule, 
 such as, _"Every Friday at noon, send a status report email to 

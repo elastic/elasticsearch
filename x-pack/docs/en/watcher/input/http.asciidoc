@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-input-http]]
+[[input-http]]
 === {watcher} HTTP input
 ++++
 <titleabbrev>HTTP input</titleabbrev>

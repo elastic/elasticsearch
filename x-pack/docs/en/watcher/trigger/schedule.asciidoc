@@ -1,11 +1,11 @@
 [role="xpack"]
-[[watcher-trigger-schedule]]
+[[trigger-schedule]]
 === {watcher} schedule trigger
 ++++
 <titleabbrev>Schedule trigger</titleabbrev>
 ++++
 
-Schedule <<watcher-triggers,triggers>> define when the watch execution should start based
+Schedule <<triggers,triggers>> define when the watch execution should start based
 on date and time. All times are specified in UTC time.
 
 {watcher} uses the system clock to determine the current time. To ensure schedules
@@ -22,13 +22,13 @@ once per minute. For more information about throttling, see
 
 {watcher} provides several types of schedule triggers:
 
-* <<watcher-schedule-hourly, `hourly`>>
-* <<watcher-schedule-daily, `daily`>>
-* <<watcher-schedule-weekly, `weekly`>>
-* <<watcher-schedule-monthly, `monthly`>>
-* <<watcher-schedule-yearly, `yearly`>>
-* <<watcher-schedule-cron, `cron`>>
-* <<watcher-schedule-interval, `interval`>>
+* <<schedule-hourly, `hourly`>>
+* <<schedule-daily, `daily`>>
+* <<schedule-weekly, `weekly`>>
+* <<schedule-monthly, `monthly`>>
+* <<schedule-yearly, `yearly`>>
+* <<schedule-cron, `cron`>>
+* <<schedule-interval, `interval`>>
 
 include::schedule/hourly.asciidoc[]
 

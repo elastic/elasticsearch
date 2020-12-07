@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-input-simple]]
+[[input-simple]]
 === {watcher} simple input
 ++++
 <titleabbrev>Simple input</titleabbrev>

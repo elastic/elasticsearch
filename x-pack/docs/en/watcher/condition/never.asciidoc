@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-condition-never]]
+[[condition-never]]
 === {watcher} never condition
 ++++
 <titleabbrev>Never condition</titleabbrev>

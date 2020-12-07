@@ -1,20 +1,20 @@
 [role="xpack"]
-[[watcher-transform-script]]
+[[transform-script]]
 === {watcher} script {watcher-transform}
 ++++
 <titleabbrev>Script {watcher-transform}</titleabbrev>
 ++++
 
-A <<watcher-transforms,{watcher-transform}>> that executes a script on the current
+A <<transforms,{watcher-transform}>> that executes a script on the current
 payload in the watch execution context and replaces it with a newly generated
 one. The following snippet shows how a simple script {watcher-transform} can be
 defined on the watch level:
 
 TIP:  The `script` {watcher-transform} is often useful when used in combination
-      with the <<watcher-transform-search,`search`>> {watcher-transform}, where the
+      with the <<transform-search,`search`>> {watcher-transform}, where the
       script can extract only the significant data from a search result, and by
       that, keep the payload minimal. This can be achieved with the
-      <<watcher-transform-chain,`chain`>> {watcher-transform}.
+      <<transform-chain,`chain`>> {watcher-transform}.
 
 
 [source,js]

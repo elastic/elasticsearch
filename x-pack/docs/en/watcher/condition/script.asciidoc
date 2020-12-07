@@ -1,11 +1,11 @@
 [role="xpack"]
-[[watcher-condition-script]]
+[[condition-script]]
 === {watcher} script condition
 ++++
 <titleabbrev>Script condition</titleabbrev>
 ++++
 
-A watch <<watcher-conditions,condition>> that evaluates a script. The default scripting
+A watch <<conditions,condition>> that evaluates a script. The default scripting
 language is `painless`. You can use any of the scripting languages supported by
 Elasticsearch as long as the language supports evaluating expressions to Boolean
 values. Note that the `mustache` and `expression` languages are too limited to be
@@ -105,7 +105,7 @@ A script can access the current watch execution context, including the payload
 data, as well as any parameters passed in through the condition definition.
 
 For example, the following snippet defines a watch that uses a
-<<watcher-input-search,`search` input>> and uses a `script` condition to check if the
+<<input-search,`search` input>> and uses a `script` condition to check if the
 number of hits is above a specified threshold:
 
 [source,js]

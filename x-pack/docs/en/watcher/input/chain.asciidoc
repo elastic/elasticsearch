@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-input-chain]]
+[[input-chain]]
 === {watcher} chain input
 ++++
 <titleabbrev>Chain input</titleabbrev>

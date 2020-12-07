@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-action-pagerduty]]
+[[actions-pagerduty]]
 === {watcher} PagerDuty action
 ++++
 <titleabbrev>PagerDuty action</titleabbrev>
@@ -181,7 +181,7 @@ xpack.notification.pagerduty:
 
 If you configure multiple PagerDuty accounts, you either need to set a default 
 account or specify which account the event should be sent with in the
-<<watcher-action-pagerduty,`pagerduty`>> action.
+<<actions-pagerduty,`pagerduty`>> action.
 
 [source,yaml]
 --------------------------------------------------

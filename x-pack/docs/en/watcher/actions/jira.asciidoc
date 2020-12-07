@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-action-jira]]
+[[actions-jira]]
 === {watcher} Jira action
 ++++
 <titleabbrev>Jira action</titleabbrev>
@@ -162,7 +162,7 @@ xpack.notification.jira:
 
 If you configure multiple Jira accounts, you either need to configure a default
 account or specify which account the notification should be sent with in the
-<<watcher-action-jira,`jira`>> action.
+<<actions-jira,`jira`>> action.
 
 [source,yaml]
 --------------------------------------------------

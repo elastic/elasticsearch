@@ -21,11 +21,11 @@ serve as a model for a templated email body.
 {watcher} supports the following actions:
 
 * <<actions-email,`email`>>
-* <<watcher-action-webhook,`webhook`>>
-* <<watcher-action-index,`index`>>
-* <<watcher-action-logging,`logging`>>
-* <<watcher-action-slack,`slack`>>
-* <<watcher-action-pagerduty,`pagerduty`>>
+* <<actions-webhook,`webhook`>>
+* <<actions-index,`index`>>
+* <<actions-logging,`logging`>>
+* <<actions-slack,`slack`>>
+* <<actions-pagerduty,`pagerduty`>>
 
 [discrete]
 [[actions-ack-throttle]]
@@ -258,7 +258,7 @@ PUT _watcher/watch/log_event_watch
 <1> The logging statement will be executed for each of the returned search hits.
 
 [role="xpack"]
-[[watcher-action-conditions]]
+[[actions-conditions]]
 === Adding conditions to {watcher} actions
 ++++
 <titleabbrev>Adding conditions to actions</titleabbrev>

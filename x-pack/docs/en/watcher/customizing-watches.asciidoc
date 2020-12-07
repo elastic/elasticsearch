@@ -19,13 +19,13 @@ be evaluated based on the data in this payload).
 
 {watcher} supports four types of inputs <<loading-static-data,simple>>,
 <<loading-search-results,search>>, <<loading-http-data,http>>, and
-<<watcher-inputs-chain,chain>>.
+<<input-chain,chain>>.
 
 [[loading-static-data]]
 ==== Loading a static payload with the simple input
 
 To load static data into the watch payload for testing purposes, you can use the
-<<watcher-inputs-simple,simple>> input. For example, the following input stores three
+<<input-simple,simple>> input. For example, the following input stores three
 fields in the payload:
 
 [source,js]
@@ -40,7 +40,7 @@ fields in the payload:
 -------------------------------------
 // NOTCONSOLE
 
-See <<watcher-inputs-simple>> for more details.
+See <<input-simple>> for more details.
 
 [[loading-search-results]]
 ==== Loading a payload from Elasticsearch with the search input
@@ -48,7 +48,7 @@ See <<watcher-inputs-simple>> for more details.
 You can use the `search` input to load Elasticsearch search results as the watch
 initial payload.
 
-A <<watcher-input-search,search>> input contains a `request` object that specifies the
+A <<input-search,search>> input contains a `request` object that specifies the
 indices you want to search, the <<search-type,search type>>,
 and the search request body. The `body` field of a search input is the same as
 the body of an Elasticsearch `_search` request, making the full Elasticsearch
@@ -80,7 +80,7 @@ For example, the following `search` input loads the latest VIX quote:
 // NOTCONSOLE
 <1> Will resolve to today's daily quotes index
 
-See <<watcher-input-search>> for more details.
+See <<input-search>> for more details.
 
 [[loading-http-data]]
 ==== Loading a payload from a remote HTTP service with HTTP input
@@ -110,16 +110,16 @@ Amsterdam using http://openweathermap.org/appid[OpenWeatherMap] online service:
 }
 --------------------------------------------------
 // NOTCONSOLE
-See <<watcher-input-http>> for more details.
+See <<input-http>> for more details.
 
 [[chaining-inputs]]
 ==== Chaining inputs
 
-You can create an <<watcher-inputs-chain,input chain>> to load data from multiple sources
+You can create an <<input-chain,input chain>> to load data from multiple sources
 into a watch payload. The inputs in a chain are processed in order, so the
 data loaded by one input can be used by subsequent inputs.
 
-See <<watcher-inputs-chain>> for more details.
+See <<input-chain>> for more details.
 
 [[changing-conditions]]
 === Changing conditions
@@ -127,9 +127,9 @@ See <<watcher-inputs-chain>> for more details.
 The Watch Condition is evaluated as part of the watch execution. The condition
 determines whether the actions associated with the watch should execute or not.
 
-{watcher} supports four types of conditions <<watcher-condition-always,always>>,
-<<watcher-condition-never,never>>, <<watcher-condition-compare,compare>>, and
-<<watcher-condition-script,script>>.
+{watcher} supports four types of conditions <<condition-always,always>>,
+<<condition-never,never>>, <<condition-compare,compare>>, and
+<<condition-script,script>>.
 
 The first two are pretty self-explanatory--they are shortcuts for setting a
 watch's condition to `true` or `false`.
@@ -151,7 +151,7 @@ returned any hits:
   },
 --------------------------------------------------
 // NOTCONSOLE
-See <<watcher-condition-compare>> for more details.
+See <<condition-compare>> for more details.
 
 ==== Powerful comparison logic with the script condition
 
@@ -181,7 +181,7 @@ VIX quote loaded by the `http` input is either greater than 5% or lower than -5%
 }
 --------------------------------------------------
 // NOTCONSOLE
-See <<watcher-condition-script>> for more details.
+See <<condition-script>> for more details.
 
 [[using-transforms]]
 === Using transforms
@@ -189,13 +189,13 @@ See <<watcher-condition-script>> for more details.
 Transforms are constructs in a watch that can change the current payload
 associated with the watch execution context.
 
-{watcher} supports three types of transforms <<watcher-transform-search,search>>,
-<<watcher-transform-script,script>> and <<watcher-transform-chain,chain>>. A `search` transform
+{watcher} supports three types of transforms <<transform-search,search>>,
+<<transform-script,script>> and <<transform-chain,chain>>. A `search` transform
 replaces the existing payload with the response of a new search request. You can
 use `script` transforms to modify the existing payload. A `chain` transform
 enables you to perform a series of `search` and `script` transforms.
 
-See <<watcher-transform>> for more details.
+See <<transform>> for more details.
 
 [[customizing-actions]]
 === Customizing actions
@@ -204,8 +204,8 @@ Actions are associated with a watch and are executed as part of the watch execut
 only when the watch condition is met.
 
 {watcher} supports the following action types: <<actions-email,email>>,
-<<watcher-action-slack,slack>>, <<watcher-action-pagerduty,pagerduty>>,
-<<watcher-action-index,index>>, <<watcher-action-logging,logging>>, and <<watcher-action-webhook,webhook>>.
+<<actions-slack,slack>>, <<actions-pagerduty,pagerduty>>,
+<<actions-index,index>>, <<actions-logging,logging>>, and <<actions-webhook,webhook>>.
 
 To use the `email` action, you need to <<configuring-email,configure an email account>>
 in `elasticsearch.yml` that {watcher} can use to send email. Your custom email

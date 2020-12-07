@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-condition-always]]
+[[condition-always]]
 === {watcher} always condition
 ++++
 <titleabbrev>Always condition</titleabbrev>

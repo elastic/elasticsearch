@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-action-slack]]
+[[actions-slack]]
 === {watcher} Slack Action
 ++++
 <titleabbrev>Slack action</titleabbrev>
@@ -227,7 +227,7 @@ and multiple Slack accounts in {es} (one for each webhook URL).
 
 If you configure multiple Slack accounts, you either need to configure a default 
 account or specify which account the notification should be sent with in the
-<<watcher-action-slack,`slack`>> action. 
+<<actions-slack,`slack`>> action. 
 
 [source,yaml]
 --------------------------------------------------

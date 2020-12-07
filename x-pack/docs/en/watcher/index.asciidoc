@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-alerting]]
+[[xpack-alerting]]
 = Watch for cluster and index events
 
 [partintro]

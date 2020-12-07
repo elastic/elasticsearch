@@ -1,11 +1,11 @@
 [role="xpack"]
-[[watcher-transform-search]]
+[[transform-search]]
 === {watcher} search {watcher-transform}
 ++++
 <titleabbrev>Search {watcher-transform}</titleabbrev>
 ++++
 
-A <<watcher-transforms,{watcher-transform}>> that executes a search on the cluster and
+A <<transforms,{watcher-transform}>> that executes a search on the cluster and
 replaces the current payload in the watch execution context with the returned
 search response. The following snippet shows how a simple search transform can
 be defined on the watch level:

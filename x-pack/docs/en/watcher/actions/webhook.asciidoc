@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-action-webhook]]
+[[actions-webhook]]
 === {watcher} webhook action
 ++++
 <titleabbrev>Webhook action</titleabbrev>
@@ -35,7 +35,7 @@ The following snippet shows a simple webhook action definition:
 --------------------------------------------------
 // NOTCONSOLE
 <1> The id of the action
-<2> An optional <<watcher-transforms,transform>> to transform the payload before
+<2> An optional <<transforms,transform>> to transform the payload before
     executing the `webhook` action
 <3> An optional <<actions-ack-throttle,throttle period>> for the action
     (5 minutes in this example)

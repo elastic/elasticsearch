@@ -1,11 +1,11 @@
 [role="xpack"]
-[[watcher-schedule-monthly]]
+[[schedule-monthly]]
 ==== {watcher} monthly schedule
 ++++
 <titleabbrev>Monthly schedule</titleabbrev>
 ++++
 
-A <<watcher-trigger-schedule,`schedule`>> that triggers at a specific day and time
+A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
 every month. To use the `monthly` schedule, you specify the day of the month and
 time (or days and times) when you want the scheduler to start the watch execution
 with the `on` and `at` attributes.

@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-action-logging]]
+[[actions-logging]]
 === {watcher} logging Action
 ++++
 <titleabbrev>Logging action</titleabbrev>
@@ -31,7 +31,7 @@ The following snippet shows a simple logging action definition:
 --------------------------------------------------
 // NOTCONSOLE
 <1> The id of the action.
-<2> An optional <<watcher-transforms, transform>> to transform the payload before
+<2> An optional <<transforms, transform>> to transform the payload before
     executing the `logging` action.
 <3> The text to be logged.
 

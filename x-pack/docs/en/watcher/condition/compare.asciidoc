@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-condition-compare]]
+[[condition-compare]]
 === {watcher} compare condition
 ++++
 <titleabbrev>Compare condition</titleabbrev>
@@ -40,7 +40,7 @@ To use the `compare` condition, you specify the value in the execution context
 that you want to evaluate, a <<condition-compare-operators,comparison operator>>, 
 and the value you want to compare against. For example, the following `compare` 
 condition returns `true` if the number of the total hits in the
-<<watcher-input-search,search result>> is greater than or equal to 5:
+<<input-search,search result>> is greater than or equal to 5:
 
 [source,js]
 --------------------------------------------------

@@ -1,11 +1,11 @@
 [role="xpack"]
-[[watcher-transform-chain]]
+[[transform-chain]]
 === {watcher} chain {watcher-transform}
 ++++
 <titleabbrev>Chain {watcher-transform}</titleabbrev>
 ++++
 
-A <<watcher-transforms,{watcher-transform}>> that executes an ordered list of configured
+A <<transforms,{watcher-transform}>> that executes an ordered list of configured
 {watcher-transforms} in a chain, where the output of one transform serves as the
 input of the next transform in the chain. The payload that is accepted by this
 transform serves as the input of the first transform in the chain and the output
@@ -14,8 +14,8 @@ whole.
 
 You can use chain {watcher-transforms} to build more complex transforms out of
 the other available transforms. For example, you can combine a
-<<watcher-transform-search,`search`>> {watcher-transform} and a
-<<watcher-transform-script,`script`>> {watcher-transform}, as shown in the following snippet:
+<<transform-search,`search`>> {watcher-transform} and a
+<<transform-script,`script`>> {watcher-transform}, as shown in the following snippet:
 
 [source,js]
 --------------------------------------------------

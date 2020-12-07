@@ -1837,8 +1837,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
         assertThrowsAuthorizationException(
-            () -> authorize(authentication, "cluster:admin/whatever", mock(TransportRequest.class)),
-            "cluster:admin/whatever", "user1");
+                () -> authorize(authentication, "cluster:admin/whatever", mock(TransportRequest.class), mock(BiConsumer.class)),
+                "cluster:admin/whatever", "user1");
         // The operator related exception is verified in the authorize(...) call
         verifyZeroInteractions(auditTrail);
     }

@@ -655,22 +655,20 @@ public class AuthenticationServiceTests extends ESTestCase {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
 
-        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
-            if (requestIdAlreadyPresent) {
-                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
-            }
-            assertThat(expectAuditRequestId(threadContext), is(result.v2()));
-            assertThat(result, notNullValue());
-            assertThat(result.v1().getUser(), is(user));
-            assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
+        Tuple<Authentication, String> result = authenticateBlocking("_action", transportRequest, null);
+        if (requestIdAlreadyPresent) {
+            assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+        }
+        assertThat(expectAuditRequestId(threadContext), is(result.v2()));
+        assertThat(result, notNullValue());
+        assertThat(result.v1().getUser(), is(user));
+        assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
 
-            String userStr = threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY);
-            assertThat(userStr, notNullValue());
-            assertThat(userStr, equalTo("_signed_auth"));
-            Authentication ctxAuth = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-            assertThat(ctxAuth, is(result));
-            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
-        }, this::logAndFail));
+        String userStr = threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY);
+        assertThat(userStr, notNullValue());
+        Authentication ctxAuth = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
+        assertThat(ctxAuth, is(result));
+        verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
     }
 
     public void testAuthenticateTransportAnonymous() throws Exception {
@@ -1072,7 +1070,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(expectAuditRequestId(threadContext), is(result.v2()));
         verify(auditTrail).authenticationSuccess(result.v2(), result.v1(), request);
         verifyNoMoreInteractions(auditTrail);
-        verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
+        verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
     }
 
     public void testAuthenticateRestRequestDisallowAnonymous() throws Exception {
@@ -1846,7 +1844,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.v1().getUser().fullName(), is("john doe"));
             assertThat(result.v1().getUser().email(), is("john@doe.com"));
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.API_KEY));
-            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), eq(threadContext));
+            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
         }
     }
 

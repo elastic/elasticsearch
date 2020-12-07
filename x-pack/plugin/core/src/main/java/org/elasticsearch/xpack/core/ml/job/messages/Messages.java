@@ -105,7 +105,7 @@ public final class Messages {
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
     public static final String INFERENCE_CANNOT_DELETE_MODEL =
-        "Unable to delete model [{0}]";
+        "Unable to delete model [{0}] as it is self-contained in the machine learning plugin";
     public static final String MODEL_DEFINITION_TRUNCATED =
         "Model definition truncated. Unable to deserialize trained model definition [{0}]";
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";

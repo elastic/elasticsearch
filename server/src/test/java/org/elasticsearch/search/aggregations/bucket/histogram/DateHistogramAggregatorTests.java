@@ -1242,6 +1242,12 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             iw -> {},
             (searcher, aggregator) -> {
                 InternalDateHistogram histo = (InternalDateHistogram) aggregator.buildEmptyAggregation();
+                /*
+                 * There was a time where we including the offset in the
+                 * rounding in the emptyBucketInfo which would cause us to
+                 * include the offset twice. This verifies that we don't do
+                 * that.
+                 */
                 assertThat(histo.emptyBucketInfo.rounding.prepareForUnknown().round(0), equalTo(0L));
             },
             aggregableDateFieldType(false, true)

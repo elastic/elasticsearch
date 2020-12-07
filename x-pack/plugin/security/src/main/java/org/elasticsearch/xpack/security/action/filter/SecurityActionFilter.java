@@ -88,38 +88,19 @@ public class SecurityActionFilter implements ActionFilter {
         if (licenseState.isSecurityEnabled()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-            final ActionListener<Void> postAuthzListener = ActionListener.delegateFailure(contextPreservingListener,
-                    (ignore, aVoid) -> {
-                        // extract the requestId and the authentication from the threadContext before executing the action
-                        final String requestId = AuditUtil.extractRequestId(threadContext);
-                        if (requestId == null) {
-                            contextPreservingListener.onFailure(new ElasticsearchSecurityException("requestId is unexpectedly missing"));
-                            return;
-                        }
-                        final Authentication authentication = securityContext.getAuthentication();
-                        if (authentication == null) {
-                            contextPreservingListener.onFailure(new ElasticsearchSecurityException("authn is unexpectedly missing"));
-                            return;
-                        }
-                        chain.proceed(task, action, request, ActionListener.delegateFailure(contextPreservingListener,
-                                (ignore2, response) -> {
-                                    auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
-                                    contextPreservingListener.onResponse(response);
-                                }));
-                    });
             final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
             try {
                 if (useSystemUser) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
-                        applyInternal(action, request, postAuthzListener);
+                        applyInternal(task, chain, action, request, contextPreservingListener);
                     }, Version.CURRENT);
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, (original) -> {
-                        applyInternal(action, request, postAuthzListener);
+                        applyInternal(task, chain, action, request, contextPreservingListener);
                     });
                 } else {
                     try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
-                        applyInternal(action, request, postAuthzListener);
+                        applyInternal(task, chain, action, request, contextPreservingListener);
                     }
                 }
             } catch (Exception e) {
@@ -144,12 +125,13 @@ public class SecurityActionFilter implements ActionFilter {
         return Integer.MIN_VALUE;
     }
 
-    private <Request extends ActionRequest> void applyInternal(String action, Request request, ActionListener<Void> listener) {
+    private <Request extends ActionRequest, Response extends ActionResponse> void applyInternal(Task task, ActionFilterChain<Request,
+            Response> chain, String action, Request request, ActionListener<Response> listener) {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
                 destructiveOperations.failDestructive(indicesRequest.indices());
-            } catch(IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 listener.onFailure(e);
                 return;
             }
@@ -169,8 +151,16 @@ public class SecurityActionFilter implements ActionFilter {
         authcService.authenticate(securityAction, request, SystemUser.INSTANCE,
                 ActionListener.wrap((authc) -> {
                     if (authc != null) {
-                        assert Strings.hasText(AuditUtil.extractRequestId(threadContext));
-                        authorizeRequest(authc, securityAction, request, listener);
+                        final String requestId = AuditUtil.extractRequestId(threadContext);
+                        assert Strings.hasText(requestId);
+                        authorizeRequest(authc, securityAction, request, ActionListener.delegateFailure(listener,
+                                (ignore, aVoid) -> {
+                                    chain.proceed(task, action, request, ActionListener.delegateFailure(listener,
+                                            (ignore2, response) -> {
+                                                auditTrailService.get().actionResponse(requestId, authc, action, request, response);
+                                                listener.onResponse(response);
+                                            }));
+                                }));
                     } else if (licenseState.isSecurityEnabled() == false) {
                         listener.onResponse(null);
                     } else {
@@ -179,8 +169,9 @@ public class SecurityActionFilter implements ActionFilter {
                 }, listener::onFailure));
     }
 
+
     private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,
-                                                          ActionListener<Void> listener) {
+                                                                  ActionListener<Void> listener) {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {

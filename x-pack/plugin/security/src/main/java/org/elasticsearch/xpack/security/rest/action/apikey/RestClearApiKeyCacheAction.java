@@ -33,8 +33,10 @@ public class RestClearApiKeyCacheAction extends ApiKeyBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(POST, "/_security/api_key/{ids}/_clear_cache"));
+        return List.of(
+            new Route(POST, "/_security/api_key/_clear_cache"),
+            new Route(POST, "/_security/api_key/{ids}/_clear_cache")
+        );
     }
 
     @Override

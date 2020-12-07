@@ -27,7 +27,7 @@ public final class RestClearRealmCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
+        return Collections.singletonList(new Route(POST, "/_security/realm/_clear_cache"));
     }
 
     @Override

@@ -21,6 +21,12 @@
               "description":"Role name"
             }
           }
+        },
+        {
+          "path":"/_security/role/_clear_cache",
+          "methods":[
+            "POST"
+          ]
         }
       ]
     },

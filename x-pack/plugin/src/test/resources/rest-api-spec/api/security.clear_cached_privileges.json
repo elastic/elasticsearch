@@ -21,6 +21,12 @@
               "description":"A comma-separated list of application names"
             }
           }
+        },
+        {
+          "path":"/_security/privilege/_clear_cache",
+          "methods":[
+            "POST"
+          ]
         }
       ]
     },

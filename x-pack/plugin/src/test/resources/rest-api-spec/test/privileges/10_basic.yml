@@ -338,5 +338,4 @@ teardown:
 
   - do:
       security.clear_cached_privileges:
-        application: "*"
   - match: { _nodes.failed: 0 }

@@ -27,7 +27,7 @@ public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
+        return Collections.singletonList(new Route(POST, "/_security/role/_clear_cache"));
     }
 
     @Override

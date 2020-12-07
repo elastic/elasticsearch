@@ -21,6 +21,12 @@
               "description":"Comma-separated list of realms to clear"
             }
           }
+        },
+        {
+          "path":"/_security/realm/_clear_cache",
+          "methods":[
+            "POST"
+          ]
         }
       ]
     },

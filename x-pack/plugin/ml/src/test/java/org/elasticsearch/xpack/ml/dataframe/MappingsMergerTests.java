@@ -14,6 +14,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -38,12 +39,10 @@ public class MappingsMergerTests extends ESTestCase {
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
-        Map<String, Object> mergedMappingsMap = mergedMappings.getSourceAsMap();
-        assertThat(mergedMappingsMap.size(), equalTo(2));
-        assertThat(mergedMappingsMap.containsKey("dynamic"), is(true));
-        assertThat(mergedMappingsMap.get("dynamic"), equalTo(false));
-        assertThat(mergedMappingsMap.containsKey("properties"), is(true));
-        assertThat(mergedMappingsMap.get("properties"), equalTo(index1Mappings.get("properties")));
+        Map<String, Object> expectedMappings = new HashMap<>();
+        expectedMappings.put("dynamic", false);
+        expectedMappings.put("properties", index1Mappings.get("properties"));
+        assertThat(mergedMappings.getSourceAsMap(), equalTo(expectedMappings));
     }
 
     public void testMergeMappings_GivenFieldWithDifferentMapping() {

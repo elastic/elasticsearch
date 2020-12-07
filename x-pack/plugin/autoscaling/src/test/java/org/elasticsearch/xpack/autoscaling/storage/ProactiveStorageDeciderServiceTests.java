@@ -202,8 +202,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testForecast() {
         int indices = between(1, 10);
         int shardCopies = between(1, 2);
-        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(Tuple.tuple("test", indices)), List.of(),
-            shardCopies - 1);
+        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("test", indices)),
+            List.of(),
+            shardCopies - 1
+        );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
@@ -244,9 +247,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             RoutingTable forecastRoutingTable = forecast.state().routingTable();
             assertThat(forecastRoutingTable.allShards().size(), Matchers.equalTo((expectedIndices) * shardCopies));
 
-            forecastDataStream.getIndices().forEach(index -> {
-                assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(shardCopies));
-            });
+            forecastDataStream.getIndices()
+                .forEach(index -> { assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(shardCopies)); });
 
             forecastRoutingTable.allShards().forEach(s -> assertThat(forecast.info().getShardSize(s), Matchers.notNullValue()));
 

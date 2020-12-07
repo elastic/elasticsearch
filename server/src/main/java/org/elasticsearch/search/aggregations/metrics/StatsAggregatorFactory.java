@@ -68,7 +68,6 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
     }
 
-
     @Override
     protected Aggregator doCreateInternal(
         SearchContext searchContext,

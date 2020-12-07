@@ -56,7 +56,6 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
         final DocValueBits docsWithValue;
-
         if (valuesSource != null) {
             docsWithValue = valuesSource.docsWithValue(ctx);
         } else {

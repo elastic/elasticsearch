@@ -69,6 +69,7 @@ values.
 ==== Text search types
 
 <<text,`text`>>:: Analyzed, unstructured text.
+<<match-only-text,`match_only_text`>>:: A more space-efficient variant of `text`.
 {plugins}/mapper-annotated-text.html[`annotated-text`]:: Text containing special
 markup. Used for identifying named entities.
 <<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
@@ -153,6 +154,8 @@ include::types/ip.asciidoc[]
 include::types/parent-join.asciidoc[]
 
 include::types/keyword.asciidoc[]
+
+include::types/match-only-text.asciidoc[]
 
 include::types/nested.asciidoc[]
 

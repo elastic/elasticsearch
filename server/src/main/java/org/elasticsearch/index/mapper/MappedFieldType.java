@@ -72,7 +72,6 @@ public abstract class MappedFieldType {
     private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
-    private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
 
     public MappedFieldType(String name, boolean isIndexed, boolean isStored,
@@ -266,17 +265,18 @@ public abstract class MappedFieldType {
         }
     }
 
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+            QueryShardContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }

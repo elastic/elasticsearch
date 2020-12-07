@@ -1,0 +1,302 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.matchonlytext.mapper;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.mapper.TextParams;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xpack.matchonlytext.query.SourceConfirmedTextQuery;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+/**
+ * A {@link FieldMapper} for full-text fields that only indexes
+ * {@link IndexOptions#DOCS} and runs positional queries by looking at the
+ * _source.
+ */
+public class MatchOnlyTextFieldMapper extends FieldMapper {
+
+    public static final String CONTENT_TYPE = "match_only_text";
+
+    public static class Defaults {
+        public static final FieldType FIELD_TYPE = new FieldType();
+
+        static {
+            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.freeze();
+        }
+
+    }
+
+    private static Builder builder(FieldMapper in) {
+        return ((MatchOnlyTextFieldMapper) in).builder;
+    }
+
+    public static class Builder extends FieldMapper.Builder {
+
+        private final Version indexCreatedVersion;
+
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
+
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private final TextParams.Analyzers analyzers;
+
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+            this(name, Version.CURRENT, indexAnalyzers);
+        }
+
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+            super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
+        }
+
+        public Builder store(boolean store) {
+            this.store.setValue(store);
+            return this;
+        }
+
+        public Builder addMultiField(FieldMapper.Builder builder) {
+            this.multiFieldsBuilder.add(builder);
+            return this;
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(store, analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, meta);
+        }
+
+        private MatchOnlyTextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
+            NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
+            NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
+            NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
+            TextSearchInfo tsi = new TextSearchInfo(fieldType, null, searchAnalyzer, searchQuoteAnalyzer);
+            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
+                buildFullName(contentPath),
+                store.getValue(),
+                tsi,
+                indexAnalyzer,
+                meta.getValue()
+            );
+            return ft;
+        }
+
+        @Override
+        public MatchOnlyTextFieldMapper build(ContentPath contentPath) {
+            FieldType fieldType = new FieldType(Defaults.FIELD_TYPE);
+            fieldType.setStored(store.get());
+            MatchOnlyTextFieldType tft = buildFieldType(fieldType, contentPath);
+            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
+            return new MatchOnlyTextFieldMapper(name, fieldType, tft, analyzers.getIndexAnalyzer(), multiFields, copyTo.build(), this);
+        }
+    }
+
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+
+    public static class MatchOnlyTextFieldType extends StringFieldType {
+
+        private final Analyzer indexAnalyzer;
+        private final TextFieldType textFieldType;
+
+        public MatchOnlyTextFieldType(String name, boolean stored, TextSearchInfo tsi, Analyzer indexAnalyzer, Map<String, String> meta) {
+            super(name, true, stored, false, tsi, meta);
+            this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
+            this.textFieldType = new TextFieldType(name);
+        }
+
+        public MatchOnlyTextFieldType(String name, boolean stored, Map<String, String> meta) {
+            super(
+                name,
+                true,
+                stored,
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                meta
+            );
+            this.indexAnalyzer = Lucene.STANDARD_ANALYZER;
+            this.textFieldType = new TextFieldType(name);
+        }
+
+        public MatchOnlyTextFieldType(String name) {
+            this(
+                name,
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                Lucene.STANDARD_ANALYZER,
+                Collections.emptyMap()
+            );
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public String familyTypeName() {
+            return TextFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
+        }
+
+        private Query toQuery(Query query, QueryShardContext queryShardContext) {
+            Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider = context -> {
+                SourceLookup sourceLookup = new SourceLookup();
+                ValueFetcher valueFetcher = valueFetcher(queryShardContext, null);
+                valueFetcher.setNextReader(context);
+                return docID -> {
+                    try {
+                        sourceLookup.setSegmentAndDocument(context, docID);
+                        return valueFetcher.fetchValues(sourceLookup);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                };
+            };
+            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, valueFetcherProvider, indexAnalyzer));
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            // Disable scoring
+            return new ConstantScoreQuery(super.termQuery(value, context));
+        }
+
+        @Override
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, QueryShardContext queryShardContext)
+            throws IOException {
+            final Query query = textFieldType.phraseQuery(stream, slop, enablePosIncrements, queryShardContext);
+            return toQuery(query, queryShardContext);
+        }
+
+        @Override
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext queryShardContext)
+            throws IOException {
+            final Query query = textFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext);
+            return toQuery(query, queryShardContext);
+        }
+
+        @Override
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext queryShardContext)
+            throws IOException {
+            final Query query = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
+            return toQuery(query, queryShardContext);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
+        }
+
+    }
+
+    private final Builder builder;
+    private final FieldType fieldType;
+
+    private MatchOnlyTextFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        MatchOnlyTextFieldType mappedFieldType,
+        NamedAnalyzer indexAnalyzer,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
+        super(simpleName, mappedFieldType, indexAnalyzer, multiFields, copyTo);
+        assert mappedFieldType.getTextSearchInfo().isTokenized();
+        assert mappedFieldType.hasDocValues() == false;
+        this.fieldType = fieldType;
+        this.builder = builder;
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) throws IOException {
+        final String value;
+        if (context.externalValueSet()) {
+            value = context.externalValue().toString();
+        } else {
+            value = context.parser().textOrNull();
+        }
+
+        if (value == null) {
+            return;
+        }
+
+        Field field = new Field(fieldType().name(), value, fieldType);
+        context.doc().add(field);
+        createFieldNamesField(context);
+    }
+
+    @Override
+    protected String contentType() {
+        return CONTENT_TYPE;
+    }
+
+    @Override
+    public MatchOnlyTextFieldType fieldType() {
+        return (MatchOnlyTextFieldType) super.fieldType();
+    }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        // this is a pain, but we have to do this to maintain BWC
+        builder.field("type", contentType());
+        this.builder.store.toXContent(builder, includeDefaults);
+        this.multiFields.toXContent(builder, params);
+        this.copyTo.toXContent(builder, params);
+        this.builder.meta.toXContent(builder, includeDefaults);
+        this.builder.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+        this.builder.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+        this.builder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+    }
+}

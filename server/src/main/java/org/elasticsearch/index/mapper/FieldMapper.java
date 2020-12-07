@@ -670,7 +670,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
         }
 
-        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        public void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             if (serializerCheck.check(includeDefaults, isConfigured(), get())) {
                 serializer.serialize(builder, name, getValue());
             }

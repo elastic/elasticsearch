@@ -158,17 +158,17 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     @Override
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
     @Override
-    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) {
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
     @Override
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) {
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) {
         throw new IllegalArgumentException(unsupported("phrase prefix", "text"));
     }
 

@@ -1,0 +1,161 @@
+setup:
+
+  - skip:
+      version: " - 7.99.99"
+      reason: "match_only_text was added in 7.11"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  {}
+
+  - do:
+      index:
+        index: test
+        id:    2
+        body:  { "foo": "Apache Lucene powers Elasticsearch" }
+
+  - do:
+      index:
+        index: test
+        id:    3
+        body:  { "foo": "Elasticsearch is based on Apache Lucene" }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Field caps":
+
+  - do:
+      field_caps:
+        index: test
+        fields: [ foo ]
+
+  - match: { fields.foo.text.searchable: true }
+  - match: { fields.foo.text.aggregatable: false }
+
+---
+"Exist query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            exists:
+              field: foo
+
+  - match: { "hits.total.value": 2 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Match query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              foo: powers
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Match Phrase query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "lucene powers"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Match Phrase Prefix query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              foo: "lucene pow"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Query String query with phrase":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: '"lucene powers"'
+              default_field: "foo"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+
+
+---
+"Regexp query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              foo: "lu.*ne"
+
+  - match: { "hits.total.value": 2 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Wildcard query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              foo: "lu*ne"
+
+  - match: { "hits.total.value": 2 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Prefix query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            prefix:
+              foo: "luc"
+
+  - match: { "hits.total.value": 2 }
+  - match: { "hits.hits.0._score": 1.0 }

@@ -165,7 +165,7 @@ Prior to {es} 7.9, you would typically use an <<indices-aliases,index alias>>
 with a write index to manage time series data. Data streams replace most of
 this functionality and usually require less maintenance.
 
-To convert an index alias with a write index to a data stream with the same
+To convert an index alias with a write index to a new data stream with the same
 name, use the <<indices-migrate-to-data-stream,migrate to data stream API>>.
 During conversion, the alias's indices become backing indices for the data
 stream. Note the data stream still requires a matching

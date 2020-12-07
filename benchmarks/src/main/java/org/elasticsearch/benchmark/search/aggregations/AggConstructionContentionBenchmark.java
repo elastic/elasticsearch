@@ -139,6 +139,15 @@ public class AggConstructionContentionBenchmark {
         );
     }
 
+    @Benchmark
+    public void termsSixtySums() throws IOException {
+        TermsAggregationBuilder b = new TermsAggregationBuilder("t").field("int_1");
+        for (int i = 0; i < 60; i++) {
+            b.subAggregation(new SumAggregationBuilder("s" + i).field("int_" + i));
+        }
+        buildFactories(new AggregatorFactories.Builder().addAggregator(b));
+    }
+
     private void buildFactories(AggregatorFactories.Builder factories) throws IOException {
         try (DummyAggregationContext context = new DummyAggregationContext()) {
             factories.build(context, null).createTopLevelAggregators();

@@ -1197,6 +1197,9 @@ public class JobResultsProvider {
      * - Have low variability of model bytes in model size stats documents in the time period covered by the last
      *   <code>BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE</code> buckets, which is defined as having a coefficient of variation
      *   of no more than <code>ESTABLISHED_MEMORY_CV_THRESHOLD</code>
+     * If necessary this calculation will be done by performing searches against the results index.  However, the
+     * calculation may have already been done in the C++ code, in which case the answer can just be read from the latest
+     * model size stats.
      * @param jobId the id of the job for which established memory usage is required
      * @param latestBucketTimestamp the latest bucket timestamp to be used for the calculation, if known, otherwise
      *                              <code>null</code>, implying the latest bucket that exists in the results index
@@ -1208,6 +1211,36 @@ public class JobResultsProvider {
      */
     public void getEstablishedMemoryUsage(String jobId, Date latestBucketTimestamp, ModelSizeStats latestModelSizeStats,
                                           Consumer<Long> handler, Consumer<Exception> errorHandler) {
+
+        if (latestModelSizeStats != null) {
+            calculateEstablishedMemoryUsage(jobId, latestBucketTimestamp, latestModelSizeStats, handler, errorHandler);
+        } else {
+            modelSizeStats(jobId,
+                modelSizeStats -> calculateEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStats, handler, errorHandler),
+                errorHandler);
+        }
+    }
+
+    void calculateEstablishedMemoryUsage(String jobId, Date latestBucketTimestamp, ModelSizeStats latestModelSizeStats,
+                                         Consumer<Long> handler, Consumer<Exception> errorHandler) {
+
+        assert latestModelSizeStats != null;
+
+        // There might be an easy short-circuit if the latest model size stats say which number to use
+        if (latestModelSizeStats.getAssignmentMemoryBasis() != null) {
+            switch (latestModelSizeStats.getAssignmentMemoryBasis()) {
+                case MODEL_MEMORY_LIMIT:
+                    handler.accept(0L);
+                    return;
+                case CURRENT_MODEL_BYTES:
+                    handler.accept(latestModelSizeStats.getModelBytes());
+                    return;
+                case PEAK_MODEL_BYTES:
+                    Long storedPeak = latestModelSizeStats.getPeakModelBytes();
+                    handler.accept((storedPeak != null) ? storedPeak : latestModelSizeStats.getModelBytes());
+                    return;
+            }
+        }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
@@ -1231,13 +1264,11 @@ public class JobResultsProvider {
                                     if (aggregations.size() == 1) {
                                         ExtendedStats extendedStats = (ExtendedStats) aggregations.get(0);
                                         long count = extendedStats.getCount();
-                                        if (count <= 0) {
-                                            // model size stats haven't changed in the last N buckets,
-                                            // so the latest (older) ones are established
-                                            handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
-                                        } else if (count == 1) {
-                                            // no need to do an extra search in the case of exactly one document being aggregated
-                                            handler.accept((long) extendedStats.getAvg());
+                                        if (count <= 1) {
+                                            // model size stats either haven't changed in the last N buckets,
+                                            // so the latest (older) ones are established, or have only changed
+                                            // once, so again there's no recent variation
+                                            handler.accept(latestModelSizeStats.getModelBytes());
                                         } else {
                                             double coefficientOfVaration = extendedStats.getStdDeviation() / extendedStats.getAvg();
                                             LOGGER.trace("[{}] Coefficient of variation [{}] when calculating established memory use",
@@ -1245,7 +1276,7 @@ public class JobResultsProvider {
                                             // is there sufficient stability in the latest model size stats readings?
                                             if (coefficientOfVaration <= ESTABLISHED_MEMORY_CV_THRESHOLD) {
                                                 // yes, so return the latest model size as established
-                                                handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
+                                                handler.accept(latestModelSizeStats.getModelBytes());
                                             } else {
                                                 // no - we don't have an established model size
                                                 handler.accept(0L);
@@ -1567,15 +1598,6 @@ public class JobResultsProvider {
             }
         },
         client::get);
-    }
-
-    private void handleLatestModelSizeStats(String jobId, ModelSizeStats latestModelSizeStats, Consumer<Long> handler,
-                                            Consumer<Exception> errorHandler) {
-        if (latestModelSizeStats != null) {
-            handler.accept(latestModelSizeStats.getModelBytes());
-        } else {
-            modelSizeStats(jobId, modelSizeStats -> handler.accept(modelSizeStats.getModelBytes()), errorHandler);
-        }
     }
 
     /**

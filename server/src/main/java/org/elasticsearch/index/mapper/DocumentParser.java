@@ -753,6 +753,9 @@ final class DocumentParser {
             if (parentMapper == null) {
                 //If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
                 parentMapper = context.getObjectMapper(parentName);
+                if (parentMapper == null) {
+                    break;
+                }
             }
             dynamic = parentMapper.dynamic();
         }

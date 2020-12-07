@@ -621,7 +621,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         private final String prop2;
 
         protected RuntimeField(String name, String prop1, String prop2) {
-            super(name);
+            super(name, "test");
             this.prop1 = prop1;
             this.prop2 = prop2;
         }

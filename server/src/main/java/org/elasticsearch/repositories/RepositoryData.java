@@ -608,6 +608,7 @@ public final class RepositoryData {
                                        Map<String, Version> snapshotVersions,
                                        Map<SnapshotId, Map<String, String>> indexMetaLookup) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+        final Map<String, String> stringDeduplicator = new HashMap<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             String name = null;
             String uuid = null;
@@ -628,7 +629,7 @@ public final class RepositoryData {
                         state = SnapshotState.fromValue((byte) parser.intValue());
                         break;
                     case INDEX_METADATA_LOOKUP:
-                        metaGenerations = parser.mapStrings();
+                        metaGenerations = parser.map(HashMap::new, p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity()));
                         break;
                     case VERSION:
                         version = Version.fromString(parser.text());

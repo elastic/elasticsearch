@@ -50,6 +50,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
@@ -271,7 +272,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public interface RecoveryListener {
-        void onRecoveryDone(RecoveryState state);
+        void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange);
 
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }

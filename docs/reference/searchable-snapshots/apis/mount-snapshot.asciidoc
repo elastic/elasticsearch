@@ -45,7 +45,9 @@ to mount.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request blocks until the operation is complete.
+Defaults to `false`.
 
 [[searchable-snapshots-api-mount-request-body]]
 ==== {api-request-body-title}

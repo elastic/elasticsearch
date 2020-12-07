@@ -344,8 +344,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         final boolean excludeGenerated = params.paramAsBoolean(TransformField.EXCLUDE_GENERATED, false);
         final boolean forInternalStorage = params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false);
-        assert (forInternalStorage && excludeGenerated) == false:
-            "unsupported behavior, exclude_generated is true and for_internal_storage is true";
+        assert (forInternalStorage
+            && excludeGenerated) == false : "unsupported behavior, exclude_generated is true and for_internal_storage is true";
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
         if (excludeGenerated == false) {
@@ -440,37 +440,63 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     }
 
     /**
-     * Rewrites the transform config according to the latest format, for example moving deprecated
-     * settings to its new place.
+     * Rewrites the transform config according to the latest format.
+     *
+     * Operations cover:
+     *
+     *  - move deprecated settings to its new place
+     *  - change configuration options so it stays compatible (given a newer version)
      *
      * @param transformConfig original config
      * @return a rewritten transform config if a rewrite was necessary, otherwise the given transformConfig
      */
     public static TransformConfig rewriteForUpdate(final TransformConfig transformConfig) {
 
-        // quick checks for deprecated features, if none found just return the original
-        if (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null) {
+        // quick check if a rewrite is required, if none found just return the original
+        // a failing quick check, does not mean a rewrite is necessary
+        if (transformConfig.getVersion() != null
+            && transformConfig.getVersion().onOrAfter(Version.V_8_0_0) // todo: V_7_11_0
+            && (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null)) {
             return transformConfig;
         }
 
         Builder builder = new Builder(transformConfig);
 
-        if (transformConfig.getPivotConfig() != null && transformConfig.getPivotConfig().getMaxPageSearchSize() != null) {
-            // create a new pivot config but set maxPageSearchSize to null
-            PivotConfig newPivotConfig = new PivotConfig(
-                transformConfig.getPivotConfig().getGroupConfig(),
-                transformConfig.getPivotConfig().getAggregationConfig(),
-                null
-            );
-            builder.setPivotConfig(newPivotConfig);
+        // call apply rewrite without config, to only allow reading from the builder
+        return applyRewriteForUpdate(builder);
+    }
 
-            Integer maxPageSearchSizeDeprecated = transformConfig.getPivotConfig().getMaxPageSearchSize();
-            Integer maxPageSearchSize = transformConfig.getSettings().getMaxPageSearchSize() != null
-                ? transformConfig.getSettings().getMaxPageSearchSize()
+    private static TransformConfig applyRewriteForUpdate(Builder builder) {
+        // 1. Move pivot.max_page_size_search to settings.max_page_size_search
+        if (builder.getPivotConfig() != null && builder.getPivotConfig().getMaxPageSearchSize() != null) {
+
+            // find maxPageSearchSize value
+            Integer maxPageSearchSizeDeprecated = builder.getPivotConfig().getMaxPageSearchSize();
+            Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize() != null
+                ? builder.getSettings().getMaxPageSearchSize()
                 : maxPageSearchSizeDeprecated;
 
-            builder.setSettings(new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond()));
+            // create a new pivot config but set maxPageSearchSize to null
+            builder.setPivotConfig(
+                new PivotConfig(builder.getPivotConfig().getGroupConfig(), builder.getPivotConfig().getAggregationConfig(), null)
+            );
+            // create new settings with maxPageSearchSize
+            builder.setSettings(
+                new SettingsConfig(
+                    maxPageSearchSize,
+                    builder.getSettings().getDocsPerSecond(),
+                    builder.getSettings().getDatesAsEpochMillis()
+                )
+            );
         }
+
+        // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
+        if (builder.getVersion() != null && builder.getVersion().before(Version.V_8_0_0)) { // todo: V_7_11_0
+            builder.setSettings(
+                new SettingsConfig(builder.getSettings().getMaxPageSearchSize(), builder.getSettings().getDocsPerSecond(), true)
+            );
+        }
+
         return builder.setVersion(Version.CURRENT).build();
     }
 
@@ -507,9 +533,17 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return this;
         }
 
+        String getId() {
+            return id;
+        }
+
         public Builder setSource(SourceConfig source) {
             this.source = source;
             return this;
+        }
+
+        SourceConfig getSource() {
+            return source;
         }
 
         public Builder setDest(DestConfig dest) {
@@ -517,9 +551,17 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return this;
         }
 
+        DestConfig getDest() {
+            return dest;
+        }
+
         public Builder setFrequency(TimeValue frequency) {
             this.frequency = frequency;
             return this;
+        }
+
+        TimeValue getFrequency() {
+            return frequency;
         }
 
         public Builder setSyncConfig(SyncConfig syncConfig) {
@@ -527,9 +569,17 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return this;
         }
 
+        SyncConfig getSyncConfig() {
+            return syncConfig;
+        }
+
         public Builder setDescription(String description) {
             this.description = description;
             return this;
+        }
+
+        String getDescription() {
+            return description;
         }
 
         public Builder setSettings(SettingsConfig settings) {
@@ -537,9 +587,17 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return this;
         }
 
+        SettingsConfig getSettings() {
+            return settings;
+        }
+
         public Builder setHeaders(Map<String, String> headers) {
             this.headers = headers;
             return this;
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
         }
 
         public Builder setPivotConfig(PivotConfig pivotConfig) {
@@ -547,9 +605,17 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return this;
         }
 
+        PivotConfig getPivotConfig() {
+            return pivotConfig;
+        }
+
         Builder setVersion(Version version) {
             this.transformVersion = version;
             return this;
+        }
+
+        Version getVersion() {
+            return transformVersion;
         }
 
         public TransformConfig build() {

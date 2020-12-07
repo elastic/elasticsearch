@@ -228,10 +228,12 @@ public class ClientYamlSuiteRestApiParser {
         }
         if (restApi.getVisibility() == ClientYamlSuiteRestApi.Visibility.FEATURE_FLAG
             && (restApi.getFeatureFlag() == null || restApi.getFeatureFlag().isEmpty())) {
-            throw new IllegalArgumentException(apiName + " API has visibility `feature_flag` but does not document its feature flag in [" + location + "]");
+            throw new IllegalArgumentException(apiName
+                + " API has visibility `feature_flag` but does not document its feature flag in [" + location + "]");
         }
         if (restApi.getFeatureFlag() != null && restApi.getVisibility() != ClientYamlSuiteRestApi.Visibility.FEATURE_FLAG) {
-            throw new IllegalArgumentException(apiName + " API does not have visibility `feature_flag` but documents a feature flag [" + location + "]");
+            throw new IllegalArgumentException(apiName
+                + " API does not have visibility `feature_flag` but documents a feature flag [" + location + "]");
         }
         return restApi;
     }

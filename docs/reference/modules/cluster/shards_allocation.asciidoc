@@ -100,7 +100,7 @@ Specify when shard rebalancing is allowed:
 A cluster is _balanced_ when it has an equal number of shards on each node
 without having a concentration of shards from any index on any node. {es} runs
 an automatic process called _rebalancing_ which moves shards between the nodes
-in your cluster in order to improve its balance. Rebalancing obeys all other
+in your cluster to improve its balance. Rebalancing obeys all other
 shard allocation rules such as <<cluster-shard-allocation-filtering,allocation
 filtering>> and <<forced-awareness,forced awareness>> which may prevent it from
 completely balancing the cluster. In that case, rebalancing strives to acheve

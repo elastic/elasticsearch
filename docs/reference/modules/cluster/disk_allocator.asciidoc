@@ -21,9 +21,9 @@ too full.
 The disk-based shard allocator ensures that all nodes have enough disk space
 without performing more shard movements than necessary. It allocates shards
 based on a pair of thresholds known as the _low watermark_ and the _high
-watermark_. Its primary goal is to ensure that no node breaches the high
-watermark, or at least that any such breach is only temporary. If a node
-breaches the high watermark then {es} will solve this by moving some of its
+watermark_. Its primary goal is to ensure that no node exceeds the high
+watermark, or at least that any such overage is only temporary. If a node
+exceeds the high watermark then {es} will solve this by moving some of its
 shards onto other nodes in the cluster.
 
 NOTE: It is normal for nodes to temporarily exceed the high watermark from time
@@ -34,8 +34,8 @@ forbidding the allocation of more shards on a node that exceeds the low
 watermark. Importantly, if all of your nodes have exceeded the low watermark
 then no new shards can be allocated and {es} will not be able to move any
 shards between nodes in order to keep the disk usage below the high watermark.
-You must ensure that your cluster has enough disk space in total and that that
-there are always some nodes that are below the low watermark.
+You must ensure that your cluster has enough disk space in total and that
+there are always some nodes below the low watermark.
 
 Shard movements triggered by the disk-based shard allocator must also satisfy
 all other shard allocation rules such as
@@ -47,15 +47,15 @@ control.
 If a node is filling up its disk faster than {es} can move shards elsewhere
 then there is a risk that the disk will completely fill up. To prevent this, as
 a last resort, once the disk usage reaches the _flood-stage_ watermark {es}
-will block further writes to the indices which have a shard on the affected
+will block writes to indices with a shard on the affected
 node. It will also continue to move shards onto the other nodes in the cluster.
-Once the disk usage on the affected node has dropped below the high watermark,
-the write block will be removed automatically.
+When disk usage on the affected node drops below the high watermark,
+{es} automatically removes the write block.
 
 [[disk-based-shard-allocation-does-not-balance]]
-IMPORTANT: It is completely normal for the nodes in your cluster to be using
-very different amounts of disk space. As long as any breaches of the high
-watermark are only temporary, {es} is working as expected.
+IMPORTANT: It is normal for a cluster's nodes to use different amounts of disk
+space. As long as any high watermark overages are temporary, {es} is
+working as expected.
 
 You can use the following settings to control disk-based allocation:
 

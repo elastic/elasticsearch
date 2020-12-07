@@ -1034,13 +1034,13 @@ public class OptimizerTests extends ESTestCase {
         
         Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), asList(sumAlias));
         LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
-        assertEquals(Aggregate.class, optimizedPlan.getClass());
+        assertTrue(optimizedPlan instanceof Aggregate);
         Aggregate p = (Aggregate) optimizedPlan; 
         assertEquals(1, p.aggregates().size());
-        assertEquals(Alias.class, p.aggregates().get(0).getClass());
+        assertTrue(p.aggregates().get(0) instanceof Alias);
         Alias alias = (Alias) p.aggregates().get(0);
-        assertEquals(InnerAggregate.class, alias.child().getClass());
-        assertEquals(sum, ((InnerAggregate)alias.child()).inner());
+        assertTrue(alias.child() instanceof InnerAggregate);
+        assertEquals(sum, ((InnerAggregate) alias.child()).inner());
     }
 
     /**
@@ -1056,7 +1056,7 @@ public class OptimizerTests extends ESTestCase {
 
         Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), asList(sumAlias));
         LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
-        assertEquals(Aggregate.class, optimizedPlan.getClass());
+        assertTrue(optimizedPlan instanceof Aggregate);
         Aggregate p = (Aggregate) optimizedPlan;
         assertEquals(1, p.aggregates().size());
         assertEquals(sumAlias, p.aggregates().get(0));

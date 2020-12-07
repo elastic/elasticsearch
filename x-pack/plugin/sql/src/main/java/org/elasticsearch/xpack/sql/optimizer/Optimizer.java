@@ -984,12 +984,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    // This is a workaround for the https://github.com/elastic/elasticsearch/issues/45251 issue
+    // Should be removed as soon as the above issue is fixed
+    // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
     static class ReplaceSumWithStats extends OptimizerBasicRule {
-        // this is a workaround for the https://github.com/elastic/elasticsearch/issues/45251 issue
-        // should be removed as soon as the issue is fixed
-        // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
-
-        @Override public LogicalPlan apply(LogicalPlan plan) {
+        
+        @Override 
+        public LogicalPlan apply(LogicalPlan plan) {
             final Map<Expression, Stats> statsPerField = new LinkedHashMap<>();
             
             plan.forEachExpressionsUp(e -> {
@@ -1001,17 +1002,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             });
             
-            if (statsPerField.isEmpty()) {
-                return plan;
+            if (statsPerField.isEmpty() == false) {
+                plan = plan.transformExpressionsUp(e -> {
+                    if (e instanceof Sum) {
+                        Sum sum = (Sum) e;
+                        return new InnerAggregate(sum, statsPerField.get(sum.field()));
+                    }
+                    return e;
+                });
             }
-
-            return plan.transformExpressionsUp(e -> {
-                if (e instanceof Sum) {
-                    Sum sum = (Sum) e;
-                    return new InnerAggregate(sum, statsPerField.get(sum.field()));
-                }
-                return e;
-            });
+            
+            return plan;
         }
     }
 

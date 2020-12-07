@@ -1,5 +1,5 @@
 [role="xpack"]
-[[action-email]]
+[[actions-email]]
 === Watcher email action
 ++++
 <titleabbrev>Email action</titleabbrev>
@@ -281,7 +281,7 @@ systems, see:
 
 If you configure multiple email accounts, you must either configure a default
 account or specify which account the email should be sent with in the
-<<action-email,`email`>> action.
+<<actions-email,`email`>> action.
 
 [source,yaml]
 --------------------------------------------------

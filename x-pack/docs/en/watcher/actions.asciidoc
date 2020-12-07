@@ -20,7 +20,7 @@ serve as a model for a templated email body.
 
 {watcher} supports the following actions:
 
-* <<action-email,`email`>>
+* <<actions-email,`email`>>
 * <<watcher-action-webhook,`webhook`>>
 * <<watcher-action-index,`index`>>
 * <<watcher-action-logging,`logging`>>
@@ -101,7 +101,7 @@ PUT _watcher/watch/error_logs_alert
 
 <1> There will be at least 15 minutes between subsequent `email_administrator`
 		action executions.
-<2> See <<action-email>> for more information.
+<2> See <<actions-email>> for more information.
 
 You can also define a throttle period at the watch level. The watch-level
 throttle period serves as the default throttle period for all of the actions

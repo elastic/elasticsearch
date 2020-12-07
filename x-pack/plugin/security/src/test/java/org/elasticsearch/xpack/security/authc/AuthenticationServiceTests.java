@@ -659,15 +659,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         if (requestIdAlreadyPresent) {
             assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
         }
-        assertThat(expectAuditRequestId(threadContext), is(result.v2()));
         assertThat(result, notNullValue());
+        assertThat(expectAuditRequestId(threadContext), is(result.v2()));
         assertThat(result.v1().getUser(), is(user));
         assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
-
-        String userStr = threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY);
-        assertThat(userStr, notNullValue());
-        Authentication ctxAuth = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-        assertThat(ctxAuth, is(result));
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
     }
 

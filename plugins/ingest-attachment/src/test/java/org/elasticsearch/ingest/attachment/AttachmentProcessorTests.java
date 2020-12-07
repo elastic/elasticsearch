@@ -314,7 +314,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_length"), is(19L));
 
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, "max_length", "resource_name");
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, "max_length", null);
 
         attachmentData = parseDocument("text-in-english.txt", processor);
 

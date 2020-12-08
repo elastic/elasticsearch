@@ -104,11 +104,6 @@ public final class CardinalityAggregationBuilder
         }
     }
 
-    @Override
-    protected boolean serializeTargetValueType(Version version) {
-        return true;
-    }
-
     /**
      * Set a precision threshold. Higher values improve accuracy but also
      * increase memory usage.

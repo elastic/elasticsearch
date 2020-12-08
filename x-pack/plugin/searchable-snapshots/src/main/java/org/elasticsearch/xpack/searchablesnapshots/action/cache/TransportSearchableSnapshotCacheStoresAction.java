@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -45,8 +44,6 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Writeable.Reader<TransportSearchableSnapshotCacheStoresAction.Request> request,
-        Writeable.Reader<TransportSearchableSnapshotCacheStoresAction.NodeRequest> nodeRequest,
         String nodeExecutor,
         String finalExecutor,
         Class<NodeCacheFilesMetadata> nodeStoreFilesMetadataClass
@@ -57,8 +54,8 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             clusterService,
             transportService,
             actionFilters,
-            request,
-            nodeRequest,
+            Request::new,
+            NodeRequest::new,
             nodeExecutor,
             finalExecutor,
             nodeStoreFilesMetadataClass
@@ -67,27 +64,25 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
     @Override
     protected NodesCacheFilesMetadata newResponse(
-        TransportSearchableSnapshotCacheStoresAction.Request request,
-        List<NodeCacheFilesMetadata> nodeStoreFilesMetadata,
+        Request request,
+        List<NodeCacheFilesMetadata> nodesCacheFilesMetadata,
         List<FailedNodeException> failures
     ) {
-        throw new AssertionError("TODO");
+        return new NodesCacheFilesMetadata(clusterService.getClusterName(), nodesCacheFilesMetadata, failures);
     }
 
     @Override
-    protected TransportSearchableSnapshotCacheStoresAction.NodeRequest newNodeRequest(
-        TransportSearchableSnapshotCacheStoresAction.Request request
-    ) {
-        throw new AssertionError("TODO");
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
-    protected NodeCacheFilesMetadata newNodeResponse(StreamInput in) {
-        throw new AssertionError("TODO");
+    protected NodeCacheFilesMetadata newNodeResponse(StreamInput in) throws IOException {
+        return new NodeCacheFilesMetadata(in);
     }
 
     @Override
-    protected NodeCacheFilesMetadata nodeOperation(TransportSearchableSnapshotCacheStoresAction.NodeRequest request, Task task) {
+    protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
         throw new AssertionError("TODO");
     }
 
@@ -189,5 +184,4 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             out.writeList(nodes);
         }
     }
-
 }

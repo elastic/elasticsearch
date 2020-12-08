@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 
@@ -60,15 +58,9 @@ public class IndexingPressure {
     private final long primaryAndCoordinatingLimits;
     private final long replicaLimits;
 
-    private final ExponentiallyWeightedMovingAverage writeQueueLag = new ExponentiallyWeightedMovingAverage(0.1, 0);
-
     public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
-    }
-
-    public Releasable markCoordinatingOperationStarted(long bytes, boolean forceExecution) {
-        return markCoordinatingOperationStarted(0, bytes, forceExecution);
     }
 
     public Releasable markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
@@ -99,10 +91,6 @@ public class IndexingPressure {
         };
     }
 
-    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(long bytes) {
-        return markPrimaryOperationLocalToCoordinatingNodeStarted(1, bytes);
-    }
-
     public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(int operations, long bytes) {
         currentPrimaryBytes.getAndAdd(bytes);
         currentPrimaryOps.getAndAdd(operations);
@@ -112,10 +100,6 @@ public class IndexingPressure {
             this.currentPrimaryBytes.getAndAdd(-bytes);
             this.currentPrimaryOps.getAndAdd(-operations);
         };
-    }
-
-    public Releasable markPrimaryOperationStarted(long bytes, boolean forceExecution) {
-        return markPrimaryOperationStarted(1, bytes, forceExecution);
     }
 
     public Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution) {
@@ -146,10 +130,6 @@ public class IndexingPressure {
         };
     }
 
-    public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
-        return markReplicaOperationStarted(1, bytes, forceExecution);
-    }
-
     public Releasable markReplicaOperationStarted(int operations, long bytes, boolean forceExecution) {
         long replicaWriteBytes = this.currentReplicaBytes.addAndGet(bytes);
         if (forceExecution == false && replicaWriteBytes > replicaLimits) {
@@ -168,22 +148,6 @@ public class IndexingPressure {
             this.currentReplicaBytes.getAndAdd(-bytes);
             this.currentReplicaOps.getAndAdd(-operations);
         };
-    }
-
-    public long getCurrentCombinedCoordinatingAndPrimaryBytes() {
-        return currentCombinedCoordinatingAndPrimaryBytes.get();
-    }
-
-    public long getCurrentCoordinatingBytes() {
-        return currentCoordinatingBytes.get();
-    }
-
-    public long getCurrentPrimaryBytes() {
-        return currentPrimaryBytes.get();
-    }
-
-    public long getCurrentReplicaBytes() {
-        return currentReplicaBytes.get();
     }
 
     public IndexingPressureStats stats() {

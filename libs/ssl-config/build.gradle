@@ -35,7 +35,7 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
   exclude '**/*.pem'
   exclude '**/*.p12'

@@ -27,12 +27,12 @@ subprojects {
       }
     }
 
-    testClusters.yamlRestTest {
+    testClusters.matching { it.name == "yamlRestTest" }.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
     }
 
-    yamlRestTest {
+    tasks.named("yamlRestTest").configure {
       def suites = [
         'async_search',
         'search',

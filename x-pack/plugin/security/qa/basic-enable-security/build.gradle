@@ -9,28 +9,31 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-javaRestTest {
+tasks.named("javaRestTest").configure {
   description = "Run tests against a cluster that doesn't have security"
   systemProperty 'tests.has_security', 'false'
 }
 
-testClusters.javaRestTest {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.security.enabled', 'false'
+testClusters {
+  javaRestTest {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'basic'
+    setting 'xpack.security.enabled', 'false'
+  }
 }
 
-task javaRestTestWithSecurity(type: StandaloneRestIntegTestTask) {
+tasks.register("javaRestTestWithSecurity", StandaloneRestIntegTestTask) {
   description = "Run tests against a cluster that has security enabled"
+  dependsOn "javaRestTest"
   useCluster testClusters.javaRestTest
-  dependsOn javaRestTest
   systemProperty 'tests.has_security', 'true'
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
   doFirst {
     testClusters.javaRestTest {
+      // TODO Rene: revisit if using dedicated new cluster definitions would be more efficient.
       // Reconfigure cluster to enable security
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.authc.anonymous.roles', 'anonymous'
@@ -53,5 +56,5 @@ task javaRestTestWithSecurity(type: StandaloneRestIntegTestTask) {
     nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
   }
 }
-tasks.named("check").configure { dependsOn(javaRestTestWithSecurity) }
+tasks.named("check").configure { dependsOn("javaRestTestWithSecurity") }
 

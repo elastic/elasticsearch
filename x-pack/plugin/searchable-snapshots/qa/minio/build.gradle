@@ -27,7 +27,7 @@ def fixtureAddress = {
   '127.0.0.1:' + ephemeralPort
 }
 
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'test.minio.bucket', 'bucket'
   systemProperty 'test.minio.base_path', 'searchable_snapshots_tests'
 }

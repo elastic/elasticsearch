@@ -43,7 +43,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
     'com.google.protobuf.ExtensionRegistry',

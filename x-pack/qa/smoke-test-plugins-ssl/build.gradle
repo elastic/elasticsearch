@@ -39,9 +39,12 @@ def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
-
-integTest.dependsOn(copyKeyCerts)
+tasks.named("processTestResources").configure {
+  dependsOn(copyKeyCerts)
+}
+tasks.named("integTest").configure {
+  dependsOn(copyKeyCerts)
+}
 
 def pluginsCount = 0
 testClusters.matching { it.name == "integTest" }.configureEach {

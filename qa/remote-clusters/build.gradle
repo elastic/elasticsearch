@@ -51,7 +51,7 @@ elasticsearch_distributions {
   }
 }
 
-preProcessFixture {
+tasks.named("preProcessFixture").configure {
   dependsOn "copyKeystore", elasticsearch_distributions.docker
   doLast {
     // tests expect to have an empty repo

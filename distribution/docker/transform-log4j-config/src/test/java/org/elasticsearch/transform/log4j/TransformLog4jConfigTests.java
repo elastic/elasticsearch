@@ -102,11 +102,9 @@ public class TransformLog4jConfigTests extends TestCase {
      * Check that rolling file appenders have redundant properties removed.
      */
     public void testTransformRemovedRedundantProperties() {
-        List<String> input = List.of(
-            "appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.json",
-            "appender.rolling.layout.type = ECSJsonLayout",
-            "appender.rolling.layout.type_name = server",
-            "appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.json.gz",
+        List<String> input = List.of("appender.rolling.fileName = ${sys:es.logs.base_path}/${sys:es.logs.cluster_name}_server.json",
+            "appender.rolling.layout.type = ECSJsonLayout", "appender.rolling.layout.type_name = server",
+            "appender.rolling.filePattern = ${sys:es.logs.base_path}/${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.json.gz",
             "appender.rolling.policies.type = Policies",
             "appender.rolling.strategy.type = DefaultRolloverStrategy"
         );

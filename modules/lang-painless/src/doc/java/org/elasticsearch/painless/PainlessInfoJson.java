@@ -38,8 +38,8 @@ public class PainlessInfoJson {
         private final List<Constructor> constructors;
         private final List<Method> staticMethods;
         private final List<Method> methods;
-        private final List<PainlessContextFieldInfo> staticFields;
-        private final List<PainlessContextFieldInfo> fields;
+        private final List<Field> staticFields;
+        private final List<Field> fields;
 
         public Class(PainlessContextClassInfo info, Map<String, String> javaNamesToDisplayNames) {
             this.name = info.getName();
@@ -47,8 +47,8 @@ public class PainlessInfoJson {
             this.constructors = Constructor.fromInfos(info.getConstructors(), javaNamesToDisplayNames);
             this.staticMethods = Method.fromInfos(info.getStaticMethods(), javaNamesToDisplayNames);
             this.methods = Method.fromInfos(info.getMethods(), javaNamesToDisplayNames);
-            this.staticFields = info.getStaticFields();
-            this.fields = info.getFields();
+            this.staticFields = Field.fromInfos(info.getStaticFields(), javaNamesToDisplayNames);
+            this.fields = Field.fromInfos(info.getFields(), javaNamesToDisplayNames);
         }
 
         public static List<Class> fromInfos(List<PainlessContextClassInfo> infos, Map<String, String> javaNamesToDisplayNames) {
@@ -129,6 +129,35 @@ public class PainlessInfoJson {
             builder.startObject();
             builder.field(PainlessContextConstructorInfo.DECLARING.getPreferredName(), declaring);
             builder.field(PainlessContextConstructorInfo.PARAMETERS.getPreferredName(), parameters);
+            builder.endObject();
+
+            return builder;
+        }
+    }
+
+    public static class Field implements ToXContentObject {
+        private final String declaring;
+        private final String name;
+        private final String type;
+
+        public Field(PainlessContextFieldInfo info, Map<String, String> javaNamesToDisplayNames) {
+            this.declaring = info.getDeclaring();
+            this.name = info.getName();
+            this.type = ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getType());
+        }
+
+        public static List<Field> fromInfos(List<PainlessContextFieldInfo> infos, Map<String, String> javaNamesToDisplayNames) {
+            return infos.stream()
+                .map(f -> new Field(f, javaNamesToDisplayNames))
+                .collect(Collectors.toList());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(PainlessContextFieldInfo.DECLARING.getPreferredName(), declaring);
+            builder.field(PainlessContextFieldInfo.NAME.getPreferredName(), name);
+            builder.field(PainlessContextFieldInfo.TYPE.getPreferredName(), type);
             builder.endObject();
 
             return builder;

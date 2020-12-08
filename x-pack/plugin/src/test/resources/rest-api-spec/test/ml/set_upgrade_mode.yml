@@ -99,6 +99,10 @@ teardown:
 
 ---
 "Setting upgrade_mode to enabled":
+  - skip:
+      version: all
+      reason: Bug fix url https://github.com/elastic/elasticsearch/issues/65947
+
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed

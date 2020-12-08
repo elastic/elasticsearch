@@ -145,7 +145,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithValidPasswordHash() throws IOException {
-        final Hasher hasher = inFipsJvm() ? Hasher.PBKDF2_1000 : Hasher.BCRYPT4; // this is the fastest hasher we officially support
+        final Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString("secretpassword".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +
@@ -160,8 +160,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithMismatchedPasswordHash() throws IOException {
-        final Hasher systemHasher = inFipsJvm() ? Hasher.PBKDF2_10000 : Hasher.BCRYPT8;
-        final Hasher userHasher = inFipsJvm() ? Hasher.PBKDF2_1000 : Hasher.BCRYPT4; // this is the fastest hasher we officially support
+        final Hasher systemHasher = getFastStoredHashAlgoForTests();
+        final Hasher userHasher = getFastStoredHashAlgoForTests();
         final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +

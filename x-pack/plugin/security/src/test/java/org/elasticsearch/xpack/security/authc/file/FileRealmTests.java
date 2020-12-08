@@ -25,6 +25,7 @@ import org.mockito.stubbing.Answer;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -60,9 +61,10 @@ public class FileRealmTests extends ESTestCase {
     public void init() throws Exception {
         userPasswdStore = mock(FileUserPasswdStore.class);
         userRolesStore = mock(FileUserRolesStore.class);
-        globalSettings = Settings.builder().put("path.home", createTempDir()).put("xpack.security.authc.password_hashing.algorithm",
-            inFipsJvm() ? "pbkdf2" : "bcrypt9").
-            put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "order", 0).build();
+        globalSettings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.password_hashing.algorithm", getFastStoredHashAlgoForTests().name())
+            .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "order", 0).build();
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(globalSettings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);

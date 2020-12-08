@@ -9,6 +9,7 @@ esplugin {
 }
 
 dependencies {
+  javaRestTestImplementation project(':client:rest-high-level')
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
 }
@@ -25,6 +26,7 @@ restResources {
 testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
 }
 
 tasks.named("test").configure { enabled = false }

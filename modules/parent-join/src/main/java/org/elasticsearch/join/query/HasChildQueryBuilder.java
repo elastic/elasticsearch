@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -381,8 +382,16 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
                 indexSearcher.setSimilarity(similarity);
-                IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal((DirectoryReader) reader);
-                OrdinalMap ordinalMap = indexParentChildFieldData.getOrdinalMap();
+                IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal(reader);
+                //TODO: This is incorrect. Instead of passing ordinalMap to JoinUtil.createJoinQuery,
+                // we should pass IndexOrdinalsFieldData#getGlobalOrdinals
+                // as ordinalMap may have incorrect mapping order of segments
+                OrdinalMap ordinalMap = null;
+                if (indexParentChildFieldData instanceof GlobalOrdinalsIndexFieldData) {
+                    ordinalMap = ((GlobalOrdinalsIndexFieldData) indexParentChildFieldData).getOrdinalMap();
+                } else if (indexParentChildFieldData instanceof GlobalOrdinalsIndexFieldData.Consumer) {
+                    ordinalMap = ((GlobalOrdinalsIndexFieldData.Consumer) indexParentChildFieldData).getOrdinalMap();
+                }
                 return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
                     ordinalMap, minChildren, maxChildren);
             } else {

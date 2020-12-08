@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -43,11 +43,13 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
+import java.util.function.ToIntFunction;
 
 /**
  * Concrete implementation of {@link IndexOrdinalsFieldData} for global ordinals.
- * A single instance of this class should be used to cache global ordinals per {@link DirectoryReader}.
- * However {@link #loadGlobal(DirectoryReader)} always creates a new instance of {@link Consumer} from the cached
+ * A single instance of this class should be used to cache global ordinals per {@link IndexReader}.
+ * However {@link #loadGlobal(IndexReader)} always creates a new instance of {@link Consumer} from the cached
  * value in order to reuse the segment's {@link TermsEnum} that are needed to retrieve terms from global ordinals.
  * Each instance of {@link Consumer} uses a new set of {@link TermsEnum} that can be reused during the collection,
  * this is done to avoid creating all segment's {@link TermsEnum} each time we want to access the values of a single
@@ -62,22 +64,31 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     private final OrdinalMap ordinalMap;
     private final LeafOrdinalsFieldData[] segmentAfd;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+    private final ToIntFunction<IndexReader.CacheKey> coreKeyToSegmentOrd;
+    private final Function<LeafReaderContext, LongUnaryOperator> segmentOrdToGlobalOrd;
 
     protected GlobalOrdinalsIndexFieldData(String fieldName,
                                            ValuesSourceType valuesSourceType,
+                                           ToIntFunction<IndexReader.CacheKey> coreKeyToSegmentOrd,
                                            LeafOrdinalsFieldData[] segmentAfd,
                                            OrdinalMap ordinalMap,
                                            long memorySizeInBytes,
                                            Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
+        this.coreKeyToSegmentOrd = coreKeyToSegmentOrd;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
         this.scriptFunction = scriptFunction;
+        this.segmentOrdToGlobalOrd = (context) -> {
+            IndexReader.CacheKey cacheKey = context.reader().getReaderCacheHelper().getKey();
+            int ord = coreKeyToSegmentOrd.applyAsInt(cacheKey);
+            return ordinalMap.getGlobalOrds(ord)::get;
+        };
     }
 
-    public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
+    public IndexOrdinalsFieldData newConsumer(IndexReader source) {
         return new Consumer(source);
     }
 
@@ -87,12 +98,12 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
         return this;
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(IndexReader indexReader) throws Exception {
         return this;
     }
 
@@ -134,6 +145,10 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     }
 
     @Override
+    public Function<LeafReaderContext, LongUnaryOperator> getGlobalOrdinals() {
+        return segmentOrdToGlobalOrd;
+    }
+
     public OrdinalMap getOrdinalMap() {
         return ordinalMap;
     }
@@ -148,10 +163,10 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
      * segment once and use them to provide a single lookup per segment.
      */
     public class Consumer implements IndexOrdinalsFieldData, Accountable {
-        private final DirectoryReader source;
+        private final IndexReader source;
         private TermsEnum[] lookups;
 
-        Consumer(DirectoryReader source) {
+        Consumer(IndexReader source) {
             this.source = source;
         }
 
@@ -178,12 +193,12 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         }
 
         @Override
-        public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+        public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
             return this;
         }
 
         @Override
-        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
+        public IndexOrdinalsFieldData loadGlobalDirect(IndexReader indexReader) throws Exception {
             return this;
         }
 
@@ -221,27 +236,28 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             assert source.getReaderCacheHelper().getKey() == context.parent.reader().getReaderCacheHelper().getKey();
+            final IndexReader.CacheKey cacheKey = context.reader().getReaderCacheHelper().getKey();
+            int segmentOrd = coreKeyToSegmentOrd.applyAsInt(cacheKey);
             return new AbstractLeafOrdinalsFieldData(scriptFunction) {
                 @Override
                 public SortedSetDocValues getOrdinalsValues() {
-                    final SortedSetDocValues values = segmentAfd[context.ord].getOrdinalsValues();
+                    final SortedSetDocValues values = segmentAfd[segmentOrd].getOrdinalsValues();
                     if (values.getValueCount() == ordinalMap.getValueCount()) {
                         // segment ordinals match global ordinals
                         return values;
                     }
                     final TermsEnum[] atomicLookups = getOrLoadTermsEnums();
-                    return new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, context.ord);
+                    return new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, segmentOrd);
                 }
 
                 @Override
                 public long ramBytesUsed() {
-                    return segmentAfd[context.ord].ramBytesUsed();
+                    return segmentAfd[segmentOrd].ramBytesUsed();
                 }
-
 
                 @Override
                 public Collection<Accountable> getChildResources() {
-                    return segmentAfd[context.ord].getChildResources();
+                    return segmentAfd[segmentOrd].getChildResources();
                 }
 
                 @Override
@@ -255,8 +271,12 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         }
 
         @Override
+        public Function<LeafReaderContext, LongUnaryOperator> getGlobalOrdinals() {
+            return GlobalOrdinalsIndexFieldData.this.getGlobalOrdinals();
+        }
+
         public OrdinalMap getOrdinalMap() {
-            return ordinalMap;
+            return GlobalOrdinalsIndexFieldData.this.getOrdinalMap();
         }
 
     }

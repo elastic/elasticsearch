@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
@@ -37,6 +38,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -57,8 +60,11 @@ public enum GlobalOrdinalsBuilder {
 
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];
         final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
+        Map<IndexReader.CacheKey, Integer> coreKeyToOrd = new HashMap<>();
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
-            atomicFD[i] = indexFieldData.load(indexReader.leaves().get(i));
+            LeafReaderContext context = indexReader.leaves().get(i);
+            coreKeyToOrd.put(context.reader().getReaderCacheHelper().getKey(), i);
+            atomicFD[i] = indexFieldData.load(context);
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
@@ -74,16 +80,19 @@ public enum GlobalOrdinalsBuilder {
             );
         }
         return new GlobalOrdinalsIndexFieldData(indexFieldData.getFieldName(), indexFieldData.getValuesSourceType(),
-                atomicFD, ordinalMap, memorySizeInBytes, scriptFunction
+            coreKeyToOrd::get, atomicFD, ordinalMap, memorySizeInBytes, scriptFunction
         );
     }
 
     public static IndexOrdinalsFieldData buildEmpty(IndexReader indexReader, IndexOrdinalsFieldData indexFieldData) throws IOException {
         assert indexReader.leaves().size() > 1;
 
+        final Map<IndexReader.CacheKey, Integer> coreKeyToOrd = new HashMap<>();
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];
         final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
+            IndexReader.CacheKey cacheKey = indexReader.leaves().get(i).reader().getReaderCacheHelper().getKey();
+            coreKeyToOrd.put(cacheKey, i);
             atomicFD[i] = new AbstractLeafOrdinalsFieldData(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION) {
                 @Override
                 public SortedSetDocValues getOrdinalsValues() {
@@ -108,7 +117,7 @@ public enum GlobalOrdinalsBuilder {
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
         return new GlobalOrdinalsIndexFieldData(indexFieldData.getFieldName(), indexFieldData.getValuesSourceType(),
-                atomicFD, ordinalMap, 0, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+            coreKeyToOrd::get, atomicFD, ordinalMap, 0, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
         );
     }
 

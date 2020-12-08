@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
@@ -41,6 +40,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
@@ -114,8 +114,8 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
     }
 
     @Override
-    public OrdinalMap getOrdinalMap() {
-        return null;
+    public Function<LeafReaderContext, LongUnaryOperator> getGlobalOrdinals() {
+        return c -> LongUnaryOperator.identity();
     }
 
     @Override

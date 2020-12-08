@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -162,12 +162,12 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
         return this;
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobalDirect(IndexReader indexReader) {
         return loadGlobal(indexReader);
     }
 

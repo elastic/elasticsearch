@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -223,7 +222,7 @@ public abstract class ValuesSource {
 
                 @Override
                 public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) {
-                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal(context.parent.reader());
                     final LeafOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
                 }
@@ -235,14 +234,9 @@ public abstract class ValuesSource {
 
                 @Override
                 public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
-                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
-                    final OrdinalMap map = global.getOrdinalMap();
-                    if (map == null) {
-                        // segments and global ordinals are the same
-                        return LongUnaryOperator.identity();
-                    }
-                    final org.apache.lucene.util.LongValues segmentToGlobalOrd = map.getGlobalOrds(context.ord);
-                    return segmentToGlobalOrd::get;
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal(context.parent.reader());
+                    final Function<LeafReaderContext, LongUnaryOperator> func = global.getGlobalOrdinals();
+                    return func.apply(context);
                 }
             }
         }

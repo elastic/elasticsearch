@@ -20,9 +20,8 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -40,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
@@ -75,8 +75,9 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     }
 
     @Override
-    public OrdinalMap getOrdinalMap() {
-        return null;
+    public Function<LeafReaderContext, LongUnaryOperator> getGlobalOrdinals() {
+        // segments and global ordinals are the same
+        return c -> LongUnaryOperator.identity();
     }
 
     @Override
@@ -101,7 +102,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
         IndexOrdinalsFieldData fieldData = loadGlobalInternal(indexReader);
         if (fieldData instanceof GlobalOrdinalsIndexFieldData) {
             // we create a new instance of the cached value for each consumer in order
@@ -112,7 +113,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         }
     }
 
-    private IndexOrdinalsFieldData loadGlobalInternal(DirectoryReader indexReader) {
+    private IndexOrdinalsFieldData loadGlobalInternal(IndexReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -147,7 +148,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(IndexReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(
             indexReader,
             this,

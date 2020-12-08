@@ -6,9 +6,8 @@
 
 package org.elasticsearch.xpack.flattened.mapper;
 
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -54,6 +53,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 /**
@@ -272,7 +273,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
      * for the same flattened field share the same global ordinals.
      *
      * Because of the code-level complexity it would introduce, it is currently not possible
-     * to retrieve the underlying global ordinals map through {@link #getOrdinalMap()}.
+     * to retrieve the underlying global ordinals map through {@link #getGlobalOrdinals()}.
      */
     public static class KeyedFlattenedFieldData implements IndexOrdinalsFieldData {
         private final String key;
@@ -325,19 +326,19 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+        public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
             return new KeyedFlattenedFieldData(key, fieldData);
         }
 
         @Override
-        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
+        public IndexOrdinalsFieldData loadGlobalDirect(IndexReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobalDirect(indexReader);
             return new KeyedFlattenedFieldData(key, fieldData);
         }
 
         @Override
-        public OrdinalMap getOrdinalMap() {
+        public Function<LeafReaderContext, LongUnaryOperator> getGlobalOrdinals() {
             throw new UnsupportedOperationException("The field data for the flattened field ["
                 + delegate.getFieldName() + "] does not allow access to the underlying ordinal map.");
         }

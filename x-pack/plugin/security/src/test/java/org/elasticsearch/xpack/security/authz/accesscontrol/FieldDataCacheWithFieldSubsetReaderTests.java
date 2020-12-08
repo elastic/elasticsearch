@@ -10,6 +10,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -161,7 +162,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         }
 
         @Override
-        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(IndexReader indexReader,
                                                                                           IFD indexFieldData) throws Exception {
             topLevelBuilds++;
             return (IFD) indexFieldData.loadGlobalDirect(indexReader);

@@ -21,7 +21,6 @@ package org.elasticsearch.indices.fielddata.cache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.index.LeafReaderContext;
@@ -156,7 +155,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader,
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader,
                                                                                           final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();

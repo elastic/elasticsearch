@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -250,9 +250,9 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
     interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
-        IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
+        IndexFieldData<FD> loadGlobal(IndexReader indexReader);
 
-        IndexFieldData<FD> loadGlobalDirect(DirectoryReader indexReader) throws Exception;
+        IndexFieldData<FD> loadGlobalDirect(IndexReader indexReader) throws Exception;
 
     }
 }

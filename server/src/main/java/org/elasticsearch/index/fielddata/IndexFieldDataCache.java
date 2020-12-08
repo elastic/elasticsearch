@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,7 +31,7 @@ public interface IndexFieldDataCache {
 
     <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception;
 
-    <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData)
+    <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(IndexReader indexReader, IFD indexFieldData)
         throws Exception;
 
     /**
@@ -67,7 +67,7 @@ public interface IndexFieldDataCache {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(IndexReader indexReader,
                                                                                           IFD indexFieldData) throws Exception {
             return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }

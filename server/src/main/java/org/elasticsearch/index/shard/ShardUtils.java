@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -48,7 +48,7 @@ public final class ShardUtils {
      * will return null.
      */
     @Nullable
-    public static ShardId extractShardId(DirectoryReader reader) {
+    public static ShardId extractShardId(IndexReader reader) {
         final ElasticsearchDirectoryReader esReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader);
         if (esReader != null) {
             return esReader.shardId();

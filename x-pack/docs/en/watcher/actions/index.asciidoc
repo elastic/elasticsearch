@@ -1,6 +1,6 @@
 [role="xpack"]
 [[actions-index]]
-=== Watcher index action
+=== {watcher} index action
 ++++
 <titleabbrev>Index action</titleabbrev>
 ++++

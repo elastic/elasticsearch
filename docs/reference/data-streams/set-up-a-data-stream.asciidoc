@@ -167,9 +167,10 @@ this functionality and usually require less maintenance.
 
 To convert an index alias with a write index to a new data stream with the same
 name, use the <<indices-migrate-to-data-stream,migrate to data stream API>>.
-During conversion, the alias's indices become backing indices for the data
-stream. Note the data stream still requires a matching
-<<create-a-data-stream-template,index template>>.
+During conversion, the alias’s indices become hidden backing indices for the
+stream. The alias’s write index becomes the stream’s write index. Note the data
+stream still requires a matching <<create-a-data-stream-template,index
+template>>.
 
 ////
 [source,console]

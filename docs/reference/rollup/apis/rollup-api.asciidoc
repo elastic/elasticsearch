@@ -187,3 +187,7 @@ values run faster but require more memory.
 +
 NOTE: This argument only affects the speed and memory usage of the rollup
 operation. It does not affect the rollup results.
+
+`timeout`::
+(Optional, <<time-units,time value>>)
+Time to wait for the request to complete. Defaults to `20s` (20 seconds).

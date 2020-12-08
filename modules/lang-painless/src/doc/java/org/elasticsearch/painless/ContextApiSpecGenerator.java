@@ -41,8 +41,28 @@ public class ContextApiSpecGenerator {
     public static void main(String[] args) throws IOException {
         List<PainlessContextInfo> contexts = ContextGeneratorCommon.getContextInfos();
         ContextGeneratorCommon.PainlessInfos infos = new ContextGeneratorCommon.PainlessInfos(contexts);
-        for (PainlessContextClassInfo common : infos.common) {
-            System.out.println("STU common: " + common.getName());
+        Path rootDir = resetRootDir();
+        Path json = rootDir.resolve("painless-common.json");
+        try (PrintStream jsonStream = new PrintStream(
+             Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+             false, StandardCharsets.UTF_8.name())) {
+
+            XContentBuilder builder = XContentFactory.jsonBuilder(jsonStream);
+            builder.startObject();
+            // TODO(stu): sort the class infos
+            builder.field(PainlessContextInfo.CLASSES.getPreferredName(), infos.common);
+            builder.endObject();
+            builder.flush();
         }
+        System.out.println("STU common path: " + json.toAbsolutePath());
+    }
+
+    @SuppressForbidden(reason = "resolve context api directory with environment")
+    private static Path resetRootDir() throws IOException {
+        Path rootDir = PathUtils.get("./src/main/generated/whitelist-json");
+        IOUtils.rm(rootDir);
+        Files.createDirectories(rootDir);
+
+        return rootDir;
     }
 }

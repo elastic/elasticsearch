@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,11 +53,12 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     @Before
     public void init() {
-        final Hasher hasher = getFastStoredHashAlgoForTests();
+        final String hashingAlgorithm = inFipsJvm() ? randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_50000", "pbkdf2_stretch") :
+            randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000", "pbkdf2_50000", "pbkdf2_stretch");
         settings = Settings.builder()
             .put("resource.reload.interval.high", "100ms")
             .put("path.home", createTempDir())
-            .put("xpack.security.authc.password_hashing.algorithm", hasher.name())
+            .put("xpack.security.authc.password_hashing.algorithm", hashingAlgorithm)
             .build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
@@ -177,7 +177,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path path = getDataPath("users");
         Map<String, char[]> users = FileUserPasswdStore.parseFile(path, null, Settings.EMPTY);
         assertThat(users, notNullValue());
-        assertThat(users.size(), is(11));
+        assertThat(users.size(), is(12));
         assertThat(users.get("bcrypt"), notNullValue());
         assertThat(new String(users.get("bcrypt")), equalTo("$2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e"));
         assertThat(users.get("bcrypt10"), notNullValue());
@@ -199,6 +199,8 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(users.get("pbkdf2_50000"), notNullValue());
         assertThat(new String(users.get("pbkdf2_50000")),
             equalTo("{PBKDF2}50000$riPhBgfrNIpsN91QmF5mQNCwxHfJm0q2XtGt0x5+PRM=$v2j/DD+aFIRrusEeSDUO+eX3IrBPiG+ysgc9y0RDmhs="));
+        assertThat(new String(users.get("pbkdf2_stretch")),
+            equalTo("{PBKDF2_STRETCH}10000$s1y/xv1T1iJxS9BKQ1FkZpSO19dSs6vsGgOb14d+KkU=$PtdgZoRGCSaim033lz/RcEoyhXQ/3WU4E6hfeKGsGes="));
     }
 
     public void testParseFile_Empty() throws Exception {

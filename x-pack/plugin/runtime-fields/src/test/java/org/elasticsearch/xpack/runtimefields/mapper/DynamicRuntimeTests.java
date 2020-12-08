@@ -33,13 +33,15 @@ public class DynamicRuntimeTests extends MapperServiceTestCase {
             b.field("boolean", true);
             b.field("date", "2020-12-15");
         }));
-        assertEquals("{\"_doc\":{\"dynamic\":\"runtime\"," +
-            "\"runtime\":{\"boolean\":{\"type\":\"boolean\"}," +
-            "\"date\":{\"type\":\"date\"}," +
-            "\"double\":{\"type\":\"double\"}," +
-            "\"long\":{\"type\":\"long\"}," +
-            "\"string\":{\"type\":\"keyword\"}}}}",
-            Strings.toString(doc.dynamicMappingsUpdate()));
+        assertEquals(
+            "{\"_doc\":{\"dynamic\":\"runtime\","
+                + "\"runtime\":{\"boolean\":{\"type\":\"boolean\"},"
+                + "\"date\":{\"type\":\"date\"},"
+                + "\"double\":{\"type\":\"double\"},"
+                + "\"long\":{\"type\":\"long\"},"
+                + "\"string\":{\"type\":\"keyword\"}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate())
+        );
     }
 
     public void testWithDynamicDateFormats() throws IOException {
@@ -51,10 +53,12 @@ public class DynamicRuntimeTests extends MapperServiceTestCase {
             b.field("date1", "15/12/2020");
             b.field("date2", "15-12-2020");
         }));
-        assertEquals("{\"_doc\":{\"dynamic\":\"runtime\"," +
-                "\"runtime\":{\"date1\":{\"type\":\"date\",\"format\":\"dd/MM/yyyy\"}," +
-                "\"date2\":{\"type\":\"date\",\"format\":\"dd-MM-yyyy\"}}}}",
-            Strings.toString(doc.dynamicMappingsUpdate()));
+        assertEquals(
+            "{\"_doc\":{\"dynamic\":\"runtime\","
+                + "\"runtime\":{\"date1\":{\"type\":\"date\",\"format\":\"dd/MM/yyyy\"},"
+                + "\"date2\":{\"type\":\"date\",\"format\":\"dd-MM-yyyy\"}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate())
+        );
     }
 
     public void testWithObjects() throws IOException {
@@ -70,14 +74,16 @@ public class DynamicRuntimeTests extends MapperServiceTestCase {
             b.startObject("dynamic_true").field("field1", "text").startObject("child").field("field2", "text").endObject().endObject();
             b.startObject("dynamic_runtime").field("field3", "text").startObject("child").field("field4", "text").endObject().endObject();
         }));
-        assertEquals("{\"_doc\":{\"dynamic\":\"false\"," +
-                "\"runtime\":{\"dynamic_runtime.child.field4\":{\"type\":\"keyword\"}," +
-                "\"dynamic_runtime.field3\":{\"type\":\"keyword\"}}," +
-                "\"properties\":{\"dynamic_runtime\":{\"dynamic\":\"runtime\",\"properties\":{\"child\":{\"type\":\"object\"}}}," +
-                "\"dynamic_true\":{\"dynamic\":\"true\",\"properties\":{\"child\":{\"properties\":{" +
-                "\"field2\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}," +
-                "\"field1\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}}}",
-            Strings.toString(doc.dynamicMappingsUpdate()));
+        assertEquals(
+            "{\"_doc\":{\"dynamic\":\"false\","
+                + "\"runtime\":{\"dynamic_runtime.child.field4\":{\"type\":\"keyword\"},"
+                + "\"dynamic_runtime.field3\":{\"type\":\"keyword\"}},"
+                + "\"properties\":{\"dynamic_runtime\":{\"dynamic\":\"runtime\",\"properties\":{\"child\":{\"type\":\"object\"}}},"
+                + "\"dynamic_true\":{\"dynamic\":\"true\",\"properties\":{\"child\":{\"properties\":{"
+                + "\"field2\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}},"
+                + "\"field1\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate())
+        );
     }
 
     public void testWithDynamicTemplate() throws IOException {
@@ -102,8 +108,11 @@ public class DynamicRuntimeTests extends MapperServiceTestCase {
             b.field("s", "hello");
             b.field("l", 1);
         }));
-        assertEquals("{\"_doc\":{\"dynamic\":\"runtime\"," +
-            "\"runtime\":{\"l\":{\"type\":\"long\"}}," +
-            "\"properties\":{\"s\":{\"type\":\"keyword\"}}}}", Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+        assertEquals(
+            "{\"_doc\":{\"dynamic\":\"runtime\","
+                + "\"runtime\":{\"l\":{\"type\":\"long\"}},"
+                + "\"properties\":{\"s\":{\"type\":\"keyword\"}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate())
+        );
     }
 }

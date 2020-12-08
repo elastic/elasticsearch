@@ -169,7 +169,6 @@ public class SecurityActionFilter implements ActionFilter {
                 }, listener::onFailure));
     }
 
-
     private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,
                                                                   ActionListener<Void> listener) {
         if (authentication == null) {

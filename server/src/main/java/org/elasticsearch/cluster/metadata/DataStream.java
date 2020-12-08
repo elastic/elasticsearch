@@ -47,7 +47,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     /**
      * The version when data stream metadata, hidden data streams and replicated data streams was introduced.
      */
-    public static final Version NEW_DS_VERSION = Version.V_7_11_0;
+    public static final Version NEW_FEATURES_VERSION = Version.V_7_11_0;
 
     private final String name;
     private final TimestampField timeStampField;
@@ -193,9 +193,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(StreamInput in) throws IOException {
         this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
-            in.getVersion().onOrAfter(NEW_DS_VERSION) ? in.readMap(): null,
-            in.getVersion().onOrAfter(NEW_DS_VERSION) && in.readBoolean(),
-            in.getVersion().onOrAfter(NEW_DS_VERSION) && in.readBoolean());
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) ? in.readMap(): null,
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) && in.readBoolean(),
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) && in.readBoolean());
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -208,7 +208,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
-        if (out.getVersion().onOrAfter(NEW_DS_VERSION)) {
+        if (out.getVersion().onOrAfter(NEW_FEATURES_VERSION)) {
             out.writeMap(metadata);
             out.writeBoolean(hidden);
             out.writeBoolean(replicated);

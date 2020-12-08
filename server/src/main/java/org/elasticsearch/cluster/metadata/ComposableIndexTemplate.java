@@ -300,7 +300,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
-            hidden = in.getVersion().onOrAfter(DataStream.NEW_DS_VERSION) && in.readBoolean();
+            hidden = in.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION) && in.readBoolean();
         }
 
         public String getTimestampField() {
@@ -321,7 +321,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(DataStream.NEW_DS_VERSION)) {
+            if (out.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
                 out.writeBoolean(hidden);
             }
         }

@@ -212,6 +212,9 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         }
 
         TestFileStore getTestFileStore(Path path) {
+            if (path.endsWith(path.getFileSystem().getPath("nodes", "0"))) {
+                path = path.getParent().getParent();
+            }
             final TestFileStore fileStore = trackedPaths.get(path);
             if (fileStore != null) {
                 return fileStore;

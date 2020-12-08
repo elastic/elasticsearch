@@ -14,7 +14,7 @@ if (BuildParams.inFipsJvm) {
     def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2')
     def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')
 
-    pluginManager.withPlugin('java') {
+    pluginManager.withPlugin('java-base') {
       TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
       fipsResourcesTask.configure {
         outputDir = fipsResourcesDir

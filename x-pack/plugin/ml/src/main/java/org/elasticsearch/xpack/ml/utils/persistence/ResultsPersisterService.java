@@ -204,7 +204,6 @@ public class ResultsPersisterService {
             if (bulkResponse.hasFailures() == false) {
                 return;
             }
-            // To lines to make it obvious that this is two operations and non-atomic
             bulkRequest = buildNewRequestFromFailures(bulkRequest, bulkResponse);
         }
 
@@ -403,7 +402,7 @@ public class ResultsPersisterService {
         }
 
         @Override
-        protected long minimumDelay() {
+        protected long minimumDelayMillis() {
             return currentMin;
         }
     }

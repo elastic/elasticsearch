@@ -2,3 +2,5 @@ limited_operator:
   cluster:
     - "cluster:admin/voting_config/add_exclusions"
     - "monitor"
+    - "manage_autoscaling"
+    - "cluster:admin/snapshot/*"

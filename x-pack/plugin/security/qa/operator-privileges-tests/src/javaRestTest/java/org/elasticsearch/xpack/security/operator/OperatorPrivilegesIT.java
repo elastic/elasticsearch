@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.security.operator;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -27,6 +29,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OperatorPrivilegesIT extends ESRestTestCase {
+
+    private static final String OPERATOR_AUTH_HEADER =
+        "Basic " + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
 
     @Override
     protected Settings restClientSettings() {
@@ -46,17 +51,13 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyApi() throws IOException {
         final Request postVotingConfigExclusionsRequest = new Request("POST", "_cluster/voting_config_exclusions?node_names=foo");
-        final String authHeader = "Basic "
-            + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        postVotingConfigExclusionsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        postVotingConfigExclusionsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
         client().performRequest(postVotingConfigExclusionsRequest);
     }
 
     public void testOperatorUserWillFailToCallOperatorOnlyApiIfRbacFails() throws IOException {
         final Request deleteVotingConfigExclusionsRequest = new Request("DELETE", "_cluster/voting_config_exclusions");
-        final String authHeader = "Basic "
-            + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        deleteVotingConfigExclusionsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        deleteVotingConfigExclusionsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
         final ResponseException responseException = expectThrows(
             ResponseException.class,
             () -> client().performRequest(deleteVotingConfigExclusionsRequest)
@@ -67,9 +68,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
     public void testOperatorUserCanCallNonOperatorOnlyApi() throws IOException {
         final Request mainRequest = new Request("GET", "/");
-        final String authHeader = "Basic "
-            + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        mainRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        mainRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
         client().performRequest(mainRequest);
     }
 
@@ -100,4 +99,81 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         assertTrue((boolean) operatorPrivileges.get("available"));
         assertTrue((boolean) operatorPrivileges.get("enabled"));
     }
+
+    public void testAutoscalingPolicyWillNotBeRestored() throws IOException {
+        final String repoName = "repo";
+        final String snapshotName = "snap";
+        final String policyName = "policy";
+        createSnapshotRepo(repoName);
+        createAutoscalingPolicy(policyName);
+        takeSnapshot(repoName, snapshotName);
+        deleteAutoscalingPolicy(policyName);
+        restoreSnapshot(repoName, snapshotName);
+
+        final Request getPolicyRequest = new Request("GET", "/_autoscaling/policy/" + policyName);
+        getPolicyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        final ResponseException e =
+            expectThrows(ResponseException.class, () -> client().performRequest(getPolicyRequest));
+        assertThat(e.getMessage(), containsString("autoscaling policy with name [" + policyName + "] does not exist"));
+    }
+
+    private void createSnapshotRepo(String repoName) throws IOException {
+        Request request = new Request("PUT", "/_snapshot/" + repoName);
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("location", System.getProperty("tests.path.repo"))
+                .endObject()
+                .endObject()));
+        assertOK(client().performRequest(request));
+    }
+
+    private void createAutoscalingPolicy(String policyName) throws IOException {
+        final Request request = new Request("PUT", "/_autoscaling/policy/" + policyName);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
+            .startObject()
+            .array("roles", "master")
+            .startObject("deciders")
+            .startObject("fixed")
+            .endObject()
+            .endObject()
+            .endObject()));
+        assertOK(client().performRequest(request));
+    }
+
+    private void takeSnapshot(String repoName, String snapshotName) throws IOException {
+        final Request request = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName);
+        if (randomBoolean()) {
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        }
+        request.addParameter("wait_for_completion", "true");
+        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
+            .startObject()
+            .field("include_global_state", true)
+            .endObject()));
+        assertOK(client().performRequest(request));
+    }
+
+    private void deleteAutoscalingPolicy(String policyName) throws IOException {
+        final Request request = new Request("DELETE", "/_autoscaling/policy/" + policyName);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        assertOK(client().performRequest(request));
+    }
+
+    private void restoreSnapshot(String repoName, String snapshotName) throws IOException {
+        final Request request = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
+        if (randomBoolean()) {
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        }
+        request.addParameter("wait_for_completion", "true");
+        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
+            .startObject()
+            .field("include_global_state", true)
+            .endObject()));
+        assertOK(client().performRequest(request));
+    }
+
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -166,6 +166,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         parser.declareObject(Builder::setIndicesOptions,
             (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
             INDICES_OPTIONS);
+        parser.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         return parser;
     }
 
@@ -192,11 +193,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
     private final IndicesOptions indicesOptions;
+    private final Map<String, Object> runtimeMappings;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices,
                            QueryProvider queryProvider, AggProvider aggProvider, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers,
-                           DelayedDataCheckConfig delayedDataCheckConfig, Integer maxEmptySearches, IndicesOptions indicesOptions) {
+                           DelayedDataCheckConfig delayedDataCheckConfig, Integer maxEmptySearches, IndicesOptions indicesOptions,
+                           Map<String, Object> runtimeMappings) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -211,6 +214,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
         this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
+        this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -260,6 +264,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         } else {
             indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            runtimeMappings = in.readMap();
+        } else {
+            runtimeMappings = Collections.emptyMap();
         }
     }
 
@@ -437,6 +446,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return indicesOptions;
     }
 
+    public Map<String, Object> getRuntimeMappings() {
+        return runtimeMappings;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
@@ -480,6 +493,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             indicesOptions.writeIndicesOptions(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            out.writeMap(runtimeMappings);
         }
     }
 
@@ -539,6 +555,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
+        if (runtimeMappings.isEmpty() == false) {
+            builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
+        }
         builder.endObject();
         return builder;
     }
@@ -591,13 +610,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.headers, that.headers)
                 && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
                 && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
-                && Objects.equals(this.indicesOptions, that.indicesOptions);
+                && Objects.equals(this.indicesOptions, that.indicesOptions)
+                && Objects.equals(this.runtimeMappings, that.runtimeMappings);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, queryProvider, scrollSize, aggProvider, scriptFields, chunkingConfig,
-                headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
+                headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions, runtimeMappings);
     }
 
     @Override
@@ -668,6 +688,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
+        private Map<String, Object> runtimeMappings = Collections.emptyMap();
 
         public Builder() { }
 
@@ -692,6 +713,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
             this.maxEmptySearches = config.getMaxEmptySearches();
             this.indicesOptions = config.indicesOptions;
+            this.runtimeMappings = new HashMap<>(config.runtimeMappings);
         }
 
         public Builder setId(String datafeedId) {
@@ -819,6 +841,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return this.indicesOptions;
         }
 
+        public void setRuntimeMappings(Map<String, Object> runtimeMappings) {
+            this.runtimeMappings = ExceptionsHelper.requireNonNull(runtimeMappings,
+                SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName());
+        }
+
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
@@ -830,6 +857,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
 
             validateScriptFields();
+            validateRuntimeMappings();
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
@@ -837,7 +865,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
             }
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, queryProvider, aggProvider, scriptFields, scrollSize,
-                    chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
+                    chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions, runtimeMappings);
         }
 
         void validateScriptFields() {
@@ -847,6 +875,28 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (scriptFields != null && !scriptFields.isEmpty()) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+            }
+        }
+
+        /**
+         * Perform a light check that the structure resembles runtime_mappings.
+         * The full check cannot happen until search
+         */
+        void validateRuntimeMappings() {
+            for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
+                // top level objects are fields
+                String fieldName = entry.getKey();
+                if (entry.getValue() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
+                    Object typeNode = propNode.get("type");
+                    if (typeNode == null) {
+                        throw ExceptionsHelper.badRequestException("No type specified for runtime field [" + fieldName + "]");
+                    }
+                } else {
+                    throw ExceptionsHelper.badRequestException("Expected map for runtime field [" + fieldName + "] " +
+                        "definition but got a " + fieldName.getClass().getSimpleName());
+                }
             }
         }
 

@@ -984,8 +984,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    // This is a workaround for the https://github.com/elastic/elasticsearch/issues/45251 issue
-    // Should be removed as soon as the above issue is fixed
+    // This class is a workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // and SUM(all nulls)
     // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
     static class ReplaceSumWithStats extends OptimizerBasicRule {
         

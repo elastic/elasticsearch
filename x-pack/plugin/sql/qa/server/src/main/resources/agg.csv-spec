@@ -1673,13 +1673,13 @@ null
 nullsAndZerosCombined
 schema::COUNT(*):l|COUNT_AllZeros:l|COUNT_AllNulls:l|FIRST_AllZeros:i|FIRST_AllNulls:i|SUM_AllZeros:i|SUM_AllNulls:i
 SELECT
-    COUNT(*)
-    , COUNT(bytes_in) AS "COUNT_AllZeros"
-    , COUNT(bytes_out) AS "COUNT_AllNulls"
-    , FIRST(bytes_in) AS "FIRST_AllZeros"
-    , FIRST(bytes_out) AS "FIRST_AllNulls"
-    , SUM(bytes_in) AS "SUM_AllZeros"
-    , SUM(bytes_out) AS "SUM_AllNulls"
+    COUNT(*), 
+    COUNT(bytes_in) AS "COUNT_AllZeros", 
+    COUNT(bytes_out) AS "COUNT_AllNulls", 
+    FIRST(bytes_in) AS "FIRST_AllZeros", 
+    FIRST(bytes_out) AS "FIRST_AllNulls", 
+    SUM(bytes_in) AS "SUM_AllZeros", 
+    SUM(bytes_out) AS "SUM_AllNulls"
 FROM logs
 WHERE bytes_in = 0 AND bytes_out IS NULL;
 
@@ -1692,19 +1692,53 @@ WHERE bytes_in = 0 AND bytes_out IS NULL;
 groupedByNullsAndZeros
 schema::bytes_in:i|COUNT(*):l|SUM(bytes_in):i|MIN(bytes_in):i|MAX(bytes_in):i|AVG(bytes_in):d
 SELECT
-    bytes_in
-    , COUNT(*)
-    , SUM(bytes_in)
-    , MIN(bytes_in)
-    , MAX(bytes_in)
-    , AVG(bytes_in)
+    bytes_in, 
+    COUNT(*), 
+    SUM(bytes_in), 
+    MIN(bytes_in), 
+    MAX(bytes_in), 
+    AVG(bytes_in)
 FROM logs
 WHERE NVL(bytes_in, 0) = 0
 GROUP BY bytes_in
-ORDER BY bytes_in;
+ORDER BY bytes_in DESC NULLS LAST;
 
    bytes_in    |   COUNT(*)    | SUM(bytes_in) | MIN(bytes_in) | MAX(bytes_in) | AVG(bytes_in) 
 ---------------+---------------+---------------+---------------+---------------+---------------
-null           |1              |null           |null           |null           |null           
 0              |2              |0              |0              |0              |0.0            
+null           |1              |null           |null           |null           |null           
+;
+
+groupedByMultipleSumsWithNullsAndZeros
+schema::SUM(bytes_in):i|SUM(bytes_out):i|client_ip:s|c:l
+SELECT
+  SUM(bytes_in),
+  SUM(bytes_out),
+  client_ip,
+  COUNT(*) AS c
+FROM logs
+WHERE client_ip = '10.0.0.0/16' AND NVL(bytes_out, 0) = 0
+GROUP BY client_ip
+ORDER BY c DESC, SUM(bytes_in) ASC NULLS FIRST;
+
+ SUM(bytes_in) |SUM(bytes_out) |   client_ip   |       c       
+---------------+---------------+---------------+---------------
+232            |null           |10.0.1.199     |10             
+124            |null           |10.0.1.166     |7              
+336            |null           |10.0.1.122     |7              
+8              |null           |10.0.1.205     |2              
+16             |null           |10.0.1.201     |2              
+16             |null           |10.0.1.203     |2              
+28             |null           |10.0.1.207     |2              
+40             |null           |10.0.1.222     |2              
+56             |null           |10.0.0.130     |2              
+null           |null           |10.0.2.129     |1              
+8              |null           |10.0.1.202     |1              
+8              |null           |10.0.1.206     |1              
+8              |null           |10.0.1.208     |1              
+16             |null           |10.0.1.13      |1              
+28             |null           |10.0.0.107     |1              
+30             |null           |10.0.0.147     |1              
+32             |null           |10.0.1.177     |1              
+48             |null           |10.0.0.109     |1              
 ;

@@ -1044,8 +1044,9 @@ public class OptimizerTests extends ESTestCase {
     }
 
     /**
-     * Once the bug is fixed, the above {@link OptimizerTests#testSumIsReplacedWithStats()} should be
-     * invalid and should be deleted, and the test below should apply.
+     * Once the root cause of https://github.com/elastic/elasticsearch/issues/45251 is fixed in the <code>sum</code> ES aggregation 
+     * (can differentiate between <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>), 
+     * remove the {@link OptimizerTests#testSumIsReplacedWithStats()}, and re-enable the following test.
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45251")
     public void testSumIsNotReplacedWithStats() {

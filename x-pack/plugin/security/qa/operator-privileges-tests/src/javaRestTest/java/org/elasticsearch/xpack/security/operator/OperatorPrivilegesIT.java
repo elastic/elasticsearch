@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class OperatorPrivilegesIT extends ESRestTestCase {
 
-    private static final String OPERATOR_AUTH_HEADER =
-        "Basic " + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
+    private static final String OPERATOR_AUTH_HEADER = "Basic "
+        + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
 
     @Override
     protected Settings restClientSettings() {
@@ -112,35 +112,41 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
         final Request getPolicyRequest = new Request("GET", "/_autoscaling/policy/" + policyName);
         getPolicyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
-        final ResponseException e =
-            expectThrows(ResponseException.class, () -> client().performRequest(getPolicyRequest));
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getPolicyRequest));
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + policyName + "] does not exist"));
     }
 
     private void createSnapshotRepo(String repoName) throws IOException {
         Request request = new Request("PUT", "/_snapshot/" + repoName);
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
-                .field("type", "fs")
-                .startObject("settings")
-                .field("location", System.getProperty("tests.path.repo"))
-                .endObject()
-                .endObject()));
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("type", "fs")
+                    .startObject("settings")
+                    .field("location", System.getProperty("tests.path.repo"))
+                    .endObject()
+                    .endObject()
+            )
+        );
         assertOK(client().performRequest(request));
     }
 
     private void createAutoscalingPolicy(String policyName) throws IOException {
         final Request request = new Request("PUT", "/_autoscaling/policy/" + policyName);
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
-        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
-            .startObject()
-            .array("roles", "master")
-            .startObject("deciders")
-            .startObject("fixed")
-            .endObject()
-            .endObject()
-            .endObject()));
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .array("roles", "master")
+                    .startObject("deciders")
+                    .startObject("fixed")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         assertOK(client().performRequest(request));
     }
 
@@ -150,10 +156,9 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
             request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
         }
         request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
-            .startObject()
-            .field("include_global_state", true)
-            .endObject()));
+        request.setJsonEntity(
+            Strings.toString(JsonXContent.contentBuilder().startObject().field("include_global_state", true).endObject())
+        );
         assertOK(client().performRequest(request));
     }
 
@@ -169,10 +174,9 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
             request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
         }
         request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
-            .startObject()
-            .field("include_global_state", true)
-            .endObject()));
+        request.setJsonEntity(
+            Strings.toString(JsonXContent.contentBuilder().startObject().field("include_global_state", true).endObject())
+        );
         assertOK(client().performRequest(request));
     }
 

@@ -1,5 +1,5 @@
 [role="xpack"]
-[[inputs]]
+[[input]]
 == {watcher} inputs
 ++++
 <titleabbrev>Inputs</titleabbrev>

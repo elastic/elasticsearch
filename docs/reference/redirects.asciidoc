@@ -1343,4 +1343,3 @@ instead.
 === `fielddata` mapping parameter
 
 See <<fielddata-mapping-param>>.
-

@@ -18,7 +18,7 @@ Elasticsearch cluster:
 ==== Schedule the watch and add an input
 
 A watch <<trigger-schedule,schedule>> controls how often a watch is triggered.
-The watch <<inputs,input>> gets the data that you want to evaluate.
+The watch <<input,input>> gets the data that you want to evaluate.
 
 The simplest way to define a schedule is to specify an interval. For example,
 the following schedule runs every 10 seconds:

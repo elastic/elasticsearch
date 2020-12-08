@@ -21,7 +21,7 @@ condition is met.
 === Schedule the watch and define an input
 
 A watch <<trigger-schedule,schedule>> controls how often a watch is triggered.
-The watch <<inputs,input>> gets the data that you want to evaluate.
+The watch <<input,input>> gets the data that you want to evaluate.
 
 To periodically search log data and load the results into the
 watch, you could use an <<schedule-interval,interval>> schedule and a

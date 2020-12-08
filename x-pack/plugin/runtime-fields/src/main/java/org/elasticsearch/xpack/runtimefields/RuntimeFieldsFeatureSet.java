@@ -4,31 +4,29 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.datastreams;
+package org.elasticsearch.xpack.runtimefields;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
+import org.elasticsearch.xpack.core.runtimefields.RuntimeFieldsFeatureSetUsage;
 
 import java.util.Map;
 
-public class DataStreamFeatureSet implements XPackFeatureSet {
+public class RuntimeFieldsFeatureSet implements XPackFeatureSet {
 
     private final ClusterService clusterService;
 
     @Inject
-    public DataStreamFeatureSet(ClusterService clusterService) {
+    public RuntimeFieldsFeatureSet(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
     @Override
     public String name() {
-        return XPackField.DATA_STREAMS;
+        return XPackField.RUNTIME_FIELDS;
     }
 
     @Override
@@ -48,14 +46,6 @@ public class DataStreamFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<Usage> listener) {
-        final ClusterState state = clusterService.state();
-        final Map<String, DataStream> dataStreams = state.metadata().dataStreams();
-        final DataStreamFeatureSetUsage.DataStreamStats stats = new DataStreamFeatureSetUsage.DataStreamStats(
-            dataStreams.size(),
-            dataStreams.values().stream().map(ds -> ds.getIndices().size()).reduce(Integer::sum).orElse(0)
-        );
-        final DataStreamFeatureSetUsage usage = new DataStreamFeatureSetUsage(stats);
-        listener.onResponse(usage);
+        listener.onResponse(RuntimeFieldsFeatureSetUsage.fromMetadata(clusterService.state().metadata()));
     }
-
 }

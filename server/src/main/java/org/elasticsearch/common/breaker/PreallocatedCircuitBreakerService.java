@@ -7,7 +7,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 
 /**
  * {@link CircuitBreakerService} that preallocates some bytes on construction.
- * Use this when you know you'll be allocating many small 
+ * Use this when you know you'll be allocating many small
  */
 public class PreallocatedCircuitBreakerService extends CircuitBreakerService implements Releasable {
     private final CircuitBreakerService next;
@@ -43,6 +43,32 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
         preallocated.close();
     }
 
+    /**
+     * The preallocated breaker.
+     * <p>
+     * This breaker operates in two states:
+     * <ol>
+     * <li>We've used fewer bytes than we've preallocated.
+     * <li>We've used all of the preallocated bytes.
+     * </ol>
+     * <p>
+     * If we're in the "used fewer bytes" state than we've allocated then
+     * allocating new bytes just adds to
+     * {@link PreallocedCircuitBreaker#preallocationUsed}, maxing out at
+     * {@link PreallocedCircuitBreaker#preallocated}. If we max
+     * out we irreversibly switch to "used all" state. In that state any
+     * additional allocations are passed directly to the underlying breaker.
+     * <p>
+     * De-allocating is just allocating a negative number of bytes. De-allocating
+     * can not transition us from the "used all" state back into the
+     * "used fewer bytes" state. It is a one way trip. Once we're in the
+     * "used all" state all de-allocates are done directly on the underlying
+     * breaker. So well behaved callers will naturally de-allocate everything.
+     * <p>
+     * {@link PreallocedCircuitBreaker#close()} is only used to de-allocate
+     * bytes from the underlying breaker if we're still in the "used fewer bytes"
+     * state. There is nothing to de-allocate if we are in the "used all" state. 
+     */
     private static class PreallocedCircuitBreaker implements CircuitBreaker, Releasable {
         private final CircuitBreaker next;
         private final long preallocated;
@@ -66,7 +92,11 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
                 preallocationUsed = preallocated;
-                return next.addEstimateBytesAndMaybeBreak(newUsed - preallocated, label);
+                long toAllocate = newUsed - preallocated;
+                if (toAllocate > 0) {
+                    return next.addEstimateBytesAndMaybeBreak(toAllocate, label);
+                }
+                return 0;
             }
             // This is the fast case. No volatile reads or writes here, ma!
             preallocationUsed = newUsed;
@@ -75,14 +105,18 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {   //NOCOMMIT tests for giving back
+        public long addWithoutBreaking(long bytes) {
             if (preallocationUsed == preallocated) {
                 return next.addWithoutBreaking(bytes);
             }
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
                 preallocationUsed = preallocated;
-                return next.addWithoutBreaking(newUsed - preallocated);
+                long toAllocate = newUsed - preallocated;
+                if (toAllocate > 0) {
+                    return next.addWithoutBreaking(toAllocate);
+                }
+                return 0;
             }
             // This is the fast case. No volatile reads or writes here, ma!
             preallocationUsed = newUsed;
@@ -97,7 +131,9 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
 
         @Override
         public void close() {
-            next.addWithoutBreaking(-preallocated);
+            if (preallocationUsed < preallocated) {
+                next.addWithoutBreaking(-preallocated);
+            }
         }
 
         @Override

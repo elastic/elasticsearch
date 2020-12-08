@@ -301,7 +301,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             private final Map<IndexMetadata, Long> additionalIndices;
             private final DataStream updatedDataStream;
 
-            public SingleForecast(Map<IndexMetadata, Long> additionalIndices, DataStream updatedDataStream) {
+            private SingleForecast(Map<IndexMetadata, Long> additionalIndices, DataStream updatedDataStream) {
                 this.additionalIndices = additionalIndices;
                 this.updatedDataStream = updatedDataStream;
             }
@@ -465,7 +465,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private static class ExtendedClusterInfo extends ClusterInfo {
             private final ClusterInfo delegate;
 
-            public ExtendedClusterInfo(ImmutableOpenMap<String, Long> extraShardSizes, ClusterInfo info) {
+            private ExtendedClusterInfo(ImmutableOpenMap<String, Long> extraShardSizes, ClusterInfo info) {
                 super(info.getNodeLeastAvailableDiskUsages(), info.getNodeMostAvailableDiskUsages(), extraShardSizes, null, null);
                 this.delegate = info;
             }

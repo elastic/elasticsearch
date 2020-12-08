@@ -27,4 +27,9 @@ public class Sub extends DateTimeArithmeticOperation {
     protected Sub replaceChildren(Expression newLeft, Expression newRight) {
         return new Sub(source(), newLeft, newRight);
     }
+
+    @Override
+    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+        return new Add(source, left, right);
+    }
 }

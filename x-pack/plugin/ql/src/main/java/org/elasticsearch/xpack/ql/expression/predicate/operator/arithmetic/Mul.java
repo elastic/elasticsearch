@@ -52,4 +52,9 @@ public class Mul extends ArithmeticOperation {
     public Mul swapLeftAndRight() {
         return new Mul(source(), right(), left());
     }
+
+    @Override
+    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+        return new Div(source, left, right);
+    }
 }

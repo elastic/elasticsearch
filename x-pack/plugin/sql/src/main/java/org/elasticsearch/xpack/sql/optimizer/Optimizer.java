@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyArithmeticsInBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -139,6 +140,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ConstantFolding(),
                 new SimplifyConditional(),
                 new SimplifyCase(),
+                new SimplifyArithmeticsInBinaryComparisons(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -1026,11 +1028,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         PercentileKey(PercentileRank per) {
             super(per.field(), per.percentilesConfig());
         }
-        
+
         private Expression field() {
             return v1();
         }
-        
+
         private PercentilesConfig percentilesConfig() {
             return v2();
         }
@@ -1054,7 +1056,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<PercentileKey, Percentiles> percentilesPerAggKey = new LinkedHashMap<>();
             percentsPerAggKey.forEach((aggKey, percents) -> percentilesPerAggKey.put(
                     aggKey,
-                    new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents), 
+                    new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents),
                         aggKey.percentilesConfig())));
 
             return p.transformExpressionsUp(e -> {
@@ -1088,7 +1090,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<PercentileKey, PercentileRanks> ranksPerAggKey = new LinkedHashMap<>();
             valuesPerAggKey.forEach((aggKey, values) -> ranksPerAggKey.put(
                 aggKey,
-                new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values), 
+                new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values),
                     aggKey.percentilesConfig())));
 
             return p.transformExpressionsUp(e -> {

@@ -6,13 +6,14 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Modulo_operation">Modulo</a>
  * function ({@code a % b}).
- * 
+ *
  * Note this operator is also registered as a function (needed for ODBC/SQL) purposes.
  */
 public class Mod extends SqlArithmeticOperation {
@@ -29,5 +30,11 @@ public class Mod extends SqlArithmeticOperation {
     @Override
     protected Mod replaceChildren(Expression newLeft, Expression newRight) {
         return new Mod(source(), newLeft, newRight);
+    }
+
+    @Override
+    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+        // TODO: Modular Multiplicative Inverse, if ever needed?
+        throw new UnsupportedOperationException("inverting modulo operation is not supported");
     }
 }

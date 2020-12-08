@@ -38,4 +38,9 @@ public class GreaterThan extends BinaryComparison implements Negatable<BinaryCom
     public LessThanOrEqual negate() {
         return new LessThanOrEqual(source(), left(), right(), zoneId());
     }
+
+    @Override
+    public BinaryComparison reverse() {
+        return new LessThan(source(), left(), right(), zoneId());
+    }
 }

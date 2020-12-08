@@ -34,4 +34,9 @@ public class Div extends ArithmeticOperation {
     public DataType dataType() {
         return DataTypeConverter.commonType(left().dataType(), right().dataType());
     }
+
+    @Override
+    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+        return new Mul(source, left, right);
+    }
 }

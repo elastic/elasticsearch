@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -42,5 +43,10 @@ public class Sub extends DateTimeArithmeticOperation {
                 right().dataType().typeName(), right().source().text(), left().source().text()));
         }
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
+    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+        return new Add(source, left, right);
     }
 }

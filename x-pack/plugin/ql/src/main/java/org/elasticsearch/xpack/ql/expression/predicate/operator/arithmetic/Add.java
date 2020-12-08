@@ -30,4 +30,9 @@ public class Add extends DateTimeArithmeticOperation {
     public Add swapLeftAndRight() {
         return new Add(source(), right(), left());
     }
+
+    @Override
+    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+        return new Sub(source, left, right);
+    }
 }

@@ -49,4 +49,6 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     public static Integer compare(Object left, Object right) {
         return Comparisons.compare(left, right);
     }
+
+    public abstract BinaryComparison reverse();
 }

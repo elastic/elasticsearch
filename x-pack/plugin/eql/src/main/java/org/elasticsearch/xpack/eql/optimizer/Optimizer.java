@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyArithmeticsInBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
@@ -80,6 +81,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
                 new BooleanFunctionEqualsElimination(),
+                new SimplifyArithmeticsInBinaryComparisons(),
                 // needs to occur before BinaryComparison combinations
                 new ReplaceNullChecks(),
                 new PropagateEquals(),

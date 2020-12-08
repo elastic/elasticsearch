@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -57,6 +60,7 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.inCommo
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.subtract;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
@@ -1135,6 +1139,49 @@ public final class OptimizerRules {
             }
             return e;
         }
+    }
+
+    public static final class SimplifyArithmeticsInBinaryComparisons extends OptimizerExpressionRule {
+
+        public SimplifyArithmeticsInBinaryComparisons() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof BinaryComparison) {
+                return reduce((BinaryComparison) e);
+            }
+            return e;
+        }
+
+        private Expression reduce(BinaryComparison bc) {
+            // optimize only once the expression looks like: AnyNode [ArithmOp] AnyNode [BiComp] Literal
+            if (bc.right() instanceof Literal == false) {
+                return bc;
+            }
+            Literal bcRight = (Literal) bc.right();
+
+            if (bc.left() instanceof ArithmeticOperation) {
+                ArithmeticOperation opLeft = (ArithmeticOperation) bc.left();
+                if (opLeft instanceof Mod) {
+                    return bc; // can't optimise Mods
+                }
+
+                if (opLeft.left() instanceof Literal || opLeft.right() instanceof Literal) { // 5 [op] a >= 4 || a [op] 5 >= 4
+                    // force double division
+                    if (opLeft.symbol().equals("*")) { // use symbol comp for SQL's Mul
+                        bcRight = new Literal(bcRight.source(), ((Number) bcRight.value()).doubleValue(), DOUBLE);
+                    }
+                    return bc.replaceChildren(List.of(opLeft.left(), opLeft.inverse(bcRight.source(), bcRight, opLeft.right())));
+                }
+            } else if (bc.left() instanceof Neg) {
+                return bc.reverse().replaceChildren(List.of(bc.left().children().get(0), new Neg(bcRight.source(), bcRight)));
+            }
+
+            return bc;
+        }
+
     }
 
     public abstract static class PruneFilters extends OptimizerRule<Filter> {

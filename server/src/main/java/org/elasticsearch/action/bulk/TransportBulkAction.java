@@ -541,10 +541,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
 
                     private void finishHim() {
-                        final int length = responses.length();
-                        BulkItemResponse[] bulkItemResponses = responses.toArray(new BulkItemResponse[length]);
-                        final boolean hasError = Arrays.stream(bulkItemResponses).anyMatch(BulkItemResponse::isFailed);
-                        bulkItemResponses = noItemsOnSuccess && hasError == false ? new BulkItemResponse[0] : bulkItemResponses;
+                        BulkItemResponse[] bulkItemResponses = responses.toArray(new BulkItemResponse[responses.length()]);
                         listener.onResponse(new BulkResponse(bulkItemResponses, buildTookInMillis(startTimeNanos), noItemsOnSuccess));
                     }
                 });

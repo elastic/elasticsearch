@@ -52,9 +52,6 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
         for (int idx = 0; idx < itemCount; idx++) {
             bulkItemResponses[idx] = ITEM_RESPONSE;
         }
-        // if noItemsOnSuccess and there are no failures send an empty array to bulkresponse's constructor
-        final boolean hasError = Arrays.stream(bulkItemResponses).anyMatch(BulkItemResponse::isFailed);
-        bulkItemResponses = request.noItemsOnSuccess() && hasError == false ? new BulkItemResponse[0] : bulkItemResponses;
         listener.onResponse(new BulkResponse(bulkItemResponses, 0, BulkResponse.NO_INGEST_TOOK, request.noItemsOnSuccess()));
     }
 }

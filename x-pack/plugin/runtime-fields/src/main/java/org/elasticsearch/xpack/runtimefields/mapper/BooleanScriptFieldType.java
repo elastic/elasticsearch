@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldTermQuery;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -46,6 +47,10 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     private BooleanScriptFieldType(String name, BooleanFieldScript.Factory scriptFactory, Builder builder) {
         super(name, scriptFactory::newFactory, builder);
+    }
+
+    BooleanScriptFieldType(String name) {
+        this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 
     BooleanScriptFieldType(

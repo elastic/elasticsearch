@@ -76,10 +76,10 @@ public interface Function {
          * TODO: it might be useful to have the full checkpoint data.
          *
          * @param lastCheckpointTimestamp the timestamp of the last checkpoint
-         * @param nextcheckpointTimestamp the timestamp of the next (in progress) checkpoint
+         * @param nextCheckpointTimestamp the timestamp of the next (in progress) checkpoint
          * @return a filter query, null in case of no filter
          */
-        QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
+        QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp);
 
         /**
          * Clear the internal state to free up memory.

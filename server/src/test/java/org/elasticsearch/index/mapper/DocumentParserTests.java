@@ -61,8 +61,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testParseWithRuntimeField() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "test")));
+        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "string")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+        //field defined as runtime field but not under properties: no dynamic updates, the field does not get indexed
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testParseWithRuntimeFieldArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "string")));
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "value1", "value2")));
         //field defined as runtime field but not under properties: no dynamic updates, the field does not get indexed
         assertNull(doc.dynamicMappingsUpdate());
         assertNull(doc.rootDoc().getField("field"));
@@ -71,7 +79,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseWithShadowedField() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");
-        builder.startObject("field").field("type", "test").endObject();
+        builder.startObject("field").field("type", "string").endObject();
         builder.endObject();
         builder.startObject("properties");
         builder.startObject("field").field("type", "keyword").endObject();
@@ -87,7 +95,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseWithRuntimeFieldDottedNameDisabledObject() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");
-        builder.startObject("path1.path2.path3.field").field("type", "test").endObject();
+        builder.startObject("path1.path2.path3.field").field("type", "string").endObject();
         builder.endObject();
         builder.startObject("properties");
         builder.startObject("path1").field("type", "object").field("enabled", false).endObject();
@@ -105,7 +113,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseWithShadowedSubField() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");
-        builder.startObject("field.keyword").field("type", "test").endObject();
+        builder.startObject("field.keyword").field("type", "string").endObject();
         builder.endObject();
         builder.startObject("properties");
         builder.startObject("field").field("type", "text");
@@ -123,7 +131,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseWithShadowedMultiField() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");
-        builder.startObject("field").field("type", "test").endObject();
+        builder.startObject("field").field("type", "string").endObject();
         builder.endObject();
         builder.startObject("properties");
         builder.startObject("field").field("type", "text");
@@ -408,7 +416,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testNestedHaveIdAndTypeFields() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("foo");
             {
@@ -449,7 +456,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testPropagateDynamicWithExistingMapper() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.field("dynamic", false);
             b.startObject("properties");
@@ -493,6 +499,36 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
         assertNotNull(doc.dynamicMappingsUpdate());
         assertNotNull(doc.rootDoc().getField("foo.bar.baz"));
+    }
+
+    public void testPropagateDynamicRuntimeWithDynamicMapper() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            {
+                b.startObject("foo");
+                {
+                    b.field("type", "object");
+                    b.field("dynamic", "runtime");
+                    b.startObject("properties").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("foo");
+            {
+                b.field("baz", "test");
+                b.startObject("bar").field("baz", "something").endObject();
+            }
+            b.endObject();
+        }));
+        assertNull(doc.rootDoc().getField("foo.bar.baz"));
+        assertEquals("{\"_doc\":{\"dynamic\":\"false\"," +
+            "\"runtime\":{\"foo.bar.baz\":{\"type\":\"string\"},\"foo.baz\":{\"type\":\"string\"}}," +
+            "\"properties\":{\"foo\":{\"dynamic\":\"runtime\",\"properties\":{\"bar\":{\"type\":\"object\"}}}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate()));
     }
 
     public void testDynamicRootFallback() throws Exception {
@@ -544,7 +580,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) {
-        ParseContext context = new ParseContext.InternalParseContext(mapperService.documentMapper(), null, null, null);
+        ParseContext context = new ParseContext.InternalParseContext(mapperService.documentMapper(), null, null, null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);
@@ -555,21 +591,30 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testEmptyMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
-        assertNull(DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, Collections.emptyList()));
+        assertNull(DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, Collections.emptyList(), Collections.emptyList()));
     }
 
     public void testSingleMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<Mapper> updates = Collections.singletonList(new MockFieldMapper("foo"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
         assertNotNull(mapping);
         assertNotNull(mapping.root().getMapper("foo"));
+    }
+
+    public void testSingleRuntimeFieldMappingUpdate() throws Exception {
+        DocumentMapper docMapper = createDummyMapping();
+        List<RuntimeFieldType> updates = Collections.singletonList(new TestRuntimeField("foo", "any"));
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, Collections.emptyList(), updates);
+        assertNotNull(mapping);
+        assertNull(mapping.root().getMapper("foo"));
+        assertNotNull(mapping.root().getRuntimeFieldType("foo"));
     }
 
     public void testSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<Mapper> updates = Collections.singletonList(new MockFieldMapper("x.foo"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNotNull(xMapper);
@@ -578,12 +623,22 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(((ObjectMapper)xMapper).getMapper("subx"));
     }
 
+    public void testRuntimeSubfieldMappingUpdate() throws Exception {
+        DocumentMapper docMapper = createDummyMapping();
+        List<RuntimeFieldType> updates = Collections.singletonList(new TestRuntimeField("x.foo", "any"));
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, Collections.emptyList(), updates);
+        assertNotNull(mapping);
+        Mapper xMapper = mapping.root().getMapper("x");
+        assertNull(xMapper);
+        assertNotNull(mapping.root.getRuntimeFieldType("x.foo"));
+    }
+
     public void testMultipleSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<Mapper> updates = new ArrayList<>();
         updates.add(new MockFieldMapper("x.foo"));
         updates.add(new MockFieldMapper("x.bar"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNotNull(xMapper);
@@ -596,7 +651,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testDeepSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<Mapper> updates = Collections.singletonList(new MockFieldMapper("x.subx.foo"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNotNull(xMapper);
@@ -612,7 +667,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         List<Mapper> updates = new ArrayList<>();
         updates.add(new MockFieldMapper("x.a"));
         updates.add(new MockFieldMapper("x.subx.b"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNotNull(xMapper);
@@ -631,7 +686,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         updates.add(createObjectMapper(mapperService, "foo.bar"));
         updates.add(new MockFieldMapper("foo.bar.baz"));
         updates.add(new MockFieldMapper("foo.field"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates);
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper fooMapper = mapping.root().getMapper("foo");
         assertNotNull(fooMapper);
@@ -715,6 +770,46 @@ public class DocumentParserTests extends MapperServiceTestCase {
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(source(b -> b.startArray("foo").value(0).value(1).endArray())));
         assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+    }
+
+    public void testDynamicRuntimeLongArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0).value(1).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("foo").length);
+        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("long", foo.typeName());
+    }
+
+    public void testDynamicRuntimeDoubleArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0.25).value(1.43).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("foo").length);
+        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("double", foo.typeName());
+    }
+
+    public void testDynamicRuntimeStringArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("test1").value("test2").endArray()));
+        assertEquals(0, doc.rootDoc().getFields("foo").length);
+        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("string", foo.typeName());
+    }
+
+    public void testDynamicRuntimeBooleanArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(true).value(false).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("foo").length);
+        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("boolean", foo.typeName());
+    }
+
+    public void testDynamicRuntimeDateArray() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("2020-12-15").value("2020-12-09").endArray()));
+        assertEquals(0, doc.rootDoc().getFields("foo").length);
+        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("date", foo.typeName());
     }
 
     public void testMappedGeoPointArray() throws Exception {
@@ -1455,7 +1550,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDynamicFieldsStartingAndEndingWithDot() throws Exception {
-
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, dynamicMapping(mapperService.documentMapper().parse(source(b -> {
             b.startArray("top.");
@@ -1503,7 +1597,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDynamicFieldsEmptyName() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
 
         IllegalArgumentException emptyFieldNameException = expectThrows(IllegalArgumentException.class,
@@ -1524,7 +1617,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testBlankFieldNames() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         MapperParsingException err = expectThrows(MapperParsingException.class, () ->
                 mapper.parse(source(b -> b.field("", "foo"))));

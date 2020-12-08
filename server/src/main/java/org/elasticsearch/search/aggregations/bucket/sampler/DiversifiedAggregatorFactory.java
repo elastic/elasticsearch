@@ -93,25 +93,29 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
             true);
     }
 
+    private final DiversifiedAggregatorSupplier aggregatorSupplier;
     private final int shardSize;
     private final int maxDocsPerValue;
     private final String executionHint;
 
     DiversifiedAggregatorFactory(String name, ValuesSourceConfig config, int shardSize, int maxDocsPerValue,
                                  String executionHint, AggregationContext context, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata,
+                                 DiversifiedAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.shardSize = shardSize;
         this.maxDocsPerValue = maxDocsPerValue;
         this.executionHint = executionHint;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-        throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(DiversifiedAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, shardSize, factories, context, parent, metadata, config, maxDocsPerValue, executionHint);
+    protected Aggregator doCreateInternal(Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
+
+        return aggregatorSupplier.build(name, shardSize, factories, context,
+                                        parent, metadata, config, maxDocsPerValue, executionHint);
     }
 
     @Override

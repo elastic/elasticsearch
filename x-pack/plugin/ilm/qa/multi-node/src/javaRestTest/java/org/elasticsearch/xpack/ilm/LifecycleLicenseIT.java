@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
@@ -48,9 +49,10 @@ public class LifecycleLicenseIT extends ESRestTestCase {
     private String dataStream;
 
     @Before
-    public void refreshDatastream() {
+    public void refreshDatastream() throws Exception {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
+        waitForActiveLicense(adminClient());
     }
 
     @After
@@ -130,11 +132,20 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder = signedLicense.toXContent(builder, ToXContent.EMPTY_PARAMS);
         putTrialRequest.setJsonEntity("{\"licenses\":[\n " + Strings.toString(builder) + "\n]}");
-        client().performRequest(putTrialRequest);
+        assertBusy(() -> {
+            Response putLicenseResponse = client().performRequest(putTrialRequest);
+            logger.info("put trial license response body is [{}]", EntityUtils.toString(putLicenseResponse.getEntity()));
+            assertOK(putLicenseResponse);
+        });
     }
 
     private void checkCurrentLicenseIs(String type) throws Exception {
-        assertBusy(() -> assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_license")).getEntity()),
-            containsStringIgnoringCase("\"type\" : \"" + type + "\"")));
+        assertBusy(() ->  {
+            Response getLicense = client().performRequest(new Request("GET", "/_license"));
+            String responseBody = EntityUtils.toString(getLicense.getEntity());
+            logger.info("get license response body is [{}]", responseBody);
+            assertThat(responseBody,
+                containsStringIgnoringCase("\"type\" : \"" + type + "\""));
+        });
     }
 }

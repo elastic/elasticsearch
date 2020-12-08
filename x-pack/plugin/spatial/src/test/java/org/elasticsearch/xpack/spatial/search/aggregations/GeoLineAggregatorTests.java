@@ -17,7 +17,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -44,7 +43,6 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65473")
 public class GeoLineAggregatorTests extends AggregatorTestCase {
 
     @Override
@@ -110,6 +108,96 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
 
     public void testDescending() throws IOException {
         testAggregator(SortOrder.DESC);
+    }
+
+    public void testComplete() throws IOException {
+        // max size is the same as the number of points
+        testCompleteForSizeAndNumDocuments(10, 10, true);
+        // max size is more than the number of points
+        testCompleteForSizeAndNumDocuments(11, 10, true);
+        // max size is less than the number of points
+        testCompleteForSizeAndNumDocuments(9, 10, false);
+    }
+
+    public void testCompleteForSizeAndNumDocuments(int size, int numPoints, boolean complete) throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name")
+            .point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .sort(sortConfig)
+            .size(size);
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
+            .field("group_id")
+            .subAggregation(lineAggregationBuilder);
+
+        Map<String, InternalGeoLine> lines = new HashMap<>(1);
+        String groupOrd = "0";
+        long[] points = new long[numPoints];
+        double[] sortValues = new double[numPoints];
+        for (int i = 0; i < numPoints; i++) {
+            Point point = GeometryTestUtils.randomPoint(false);
+            int encodedLat = GeoEncodingUtils.encodeLatitude(point.getLat());
+            int encodedLon = GeoEncodingUtils.encodeLongitude(point.getLon());
+            long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
+            points[i] = lonLat;
+            sortValues[i] = i;
+        }
+
+        int lineSize = Math.min(numPoints, size);
+        // re-sort line to be ascending
+        long[] linePoints = Arrays.copyOf(points, lineSize);
+        double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
+        new PathArraySorter(linePoints, lineSorts, SortOrder.ASC).sort();
+
+        lines.put(groupOrd, new InternalGeoLine("_name",
+            linePoints, lineSorts, null, complete, true, SortOrder.ASC, size));
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            for (int i = 0; i < points.length; i++) {
+                int x = (int) (points[i] >> 32);
+                int y = (int) points[i];
+                iw.addDocument(Arrays.asList(new LatLonDocValuesField("value_field",
+                        GeoEncodingUtils.decodeLatitude(y),
+                        GeoEncodingUtils.decodeLongitude(x)),
+                    new SortedNumericDocValuesField("sort_field", NumericUtils.doubleToSortableLong(sortValues[i])),
+                    new SortedDocValuesField("group_id", new BytesRef(groupOrd))));
+            }
+        }, terms -> {
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                InternalGeoLine expectedGeoLine = lines.get(bucket.getKeyAsString());
+                InternalGeoLine geoLine = bucket.getAggregations().get("_name");
+                assertThat(geoLine.length(), equalTo(expectedGeoLine.length()));
+                assertThat(geoLine.isComplete(), equalTo(expectedGeoLine.isComplete()));
+                for (int i = 0; i < geoLine.sortVals().length; i++) {
+                    geoLine.sortVals()[i] = NumericUtils.sortableLongToDouble((long) geoLine.sortVals()[i]);
+                }
+                assertArrayEquals(expectedGeoLine.sortVals(), geoLine.sortVals(), 0d);
+                assertArrayEquals(expectedGeoLine.line(), geoLine.line());
+            }
+        });
+    }
+
+    public void testEmpty() throws IOException {
+        int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name")
+            .point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .sort(sortConfig)
+            .size(size);
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
+            .field("group_id")
+            .subAggregation(lineAggregationBuilder);
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        }, terms -> {
+            assertTrue(terms.getBuckets().isEmpty());
+        });
     }
 
     private void testAggregator(SortOrder sortOrder) throws IOException {

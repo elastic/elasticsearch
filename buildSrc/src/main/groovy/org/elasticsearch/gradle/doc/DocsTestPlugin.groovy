@@ -23,7 +23,9 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
+import org.gradle.api.file.Directory
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskProvider
 
 /**
@@ -72,8 +74,13 @@ class DocsTestPlugin implements Plugin<Project> {
             }
         }
 
-        project.tasks.register('buildRestTests', RestTestsFromSnippetsTask) {
+        Provider<Directory> restRootDir = project.getLayout().buildDirectory.dir("rest")
+        TaskProvider<RestTestsFromSnippetsTask> buildRestTests = project.tasks.register('buildRestTests', RestTestsFromSnippetsTask) {
             defaultSubstitutions = commonDefaultSubstitutions
+            testRoot.convention(restRootDir)
         }
+
+        // TODO: This effectively makes testRoot not customizable, which we don't do anyway atm
+        project.sourceSets.test.output.dir(restRootDir, builtBy: buildRestTests)
     }
 }

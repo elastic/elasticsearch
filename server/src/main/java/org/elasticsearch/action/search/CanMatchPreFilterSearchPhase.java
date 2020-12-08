@@ -36,7 +36,6 @@ import org.elasticsearch.transport.Transport;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -64,14 +63,13 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
                                  BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                  Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                                 Map<String, Set<String>> indexRoutings,
                                  Executor executor, SearchRequest request,
                                  ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                  TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
                                  SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
                                  SearchResponse.Clusters clusters, boolean preFilterRollup) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
-        super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
+        super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
                 new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
         this.phaseFactory = phaseFactory;
@@ -88,7 +86,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                        SearchActionListener<CanMatchResponse> listener) {
         getSearchTransport().sendCanMatch(getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            buildShardSearchRequest(shardIt), getTask(), listener);
+            buildShardSearchRequest(shardIt, listener.requestIndex), getTask(), listener);
     }
 
     @Override
@@ -151,7 +149,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                                                        MinAndMax<?>[] minAndMaxes,
                                                        SortOrder order) {
         final Comparator<Integer> comparator = Comparator.comparing(index -> minAndMaxes[index], MinAndMax.getComparator(order));
-        return comparator.thenComparing(index -> shardsIts.get(index).shardId());
+        return comparator.thenComparing(index -> shardsIts.get(index));
     }
 
     private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {

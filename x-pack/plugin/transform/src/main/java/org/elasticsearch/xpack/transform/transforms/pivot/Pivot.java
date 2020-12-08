@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -63,13 +65,17 @@ public class Pivot implements Function {
 
     private final PivotConfig config;
     private final String transformId;
+    private final SettingsConfig settings;
+    private final Version version;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
 
-    public Pivot(PivotConfig config, String transformId) {
+    public Pivot(PivotConfig config, String transformId, SettingsConfig settings, Version version) {
         this.config = config;
         this.transformId = transformId;
+        this.settings = settings;
+        this.version = version == null ? Version.CURRENT : version;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
     }
 
@@ -217,13 +223,22 @@ public class Pivot implements Function {
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
 
+        // defines how dates are written, if not specified in settings
+        // < 7.11 as epoch millis
+        // >= 7.11 as string
+        // note: it depends on the version when the transform has been created, not the version of the code
+        boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null ? settings.getDatesAsEpochMillis()
+            : version.onOrAfter(Version.V_8_0_0) ? false // todo V_7_11_0
+            : true;
+
         return AggregationResultUtils.extractCompositeAggregationResults(
             agg,
             groups,
             aggregationBuilders,
             pipelineAggregationBuilders,
             fieldTypeMap,
-            transformIndexerStats
+            transformIndexerStats,
+            datesAsEpoch
         );
     }
 

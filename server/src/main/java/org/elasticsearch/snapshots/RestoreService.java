@@ -97,6 +97,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest.FEATURE_STATES_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
@@ -290,8 +291,9 @@ public class RestoreService implements ClusterStateApplier {
                     metadataBuilder.put(snapshotIndexMetaData, false);
                 }
 
-                // log a deprecation warning if the any of the indexes to delete were included in the request
-                if (explicitlyRequestedSystemIndices.isEmpty() == false) {
+                // log a deprecation warning if the any of the indexes to delete were included in the request and the snapshot
+                // is from a version that should have feature states
+                if (snapshotInfo.version().onOrAfter(FEATURE_STATES_VERSION) && explicitlyRequestedSystemIndices.isEmpty() == false) {
                     deprecationLogger.deprecate("restore-system-index-from-snapshot",
                         "Restoring system indices by name is deprecated. Use feature states instead. System indices: "
                             + explicitlyRequestedSystemIndices);

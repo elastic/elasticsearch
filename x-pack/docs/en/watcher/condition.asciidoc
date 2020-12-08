@@ -30,7 +30,7 @@ conditions can use the payload data to determine whether or not the necessary
 conditions are met.
 
 In addition to the watch wide condition, you can also configure conditions
-per <<action-condition,action>>.
+per <<action-conditions,action>>.
 
 include::condition/always.asciidoc[]
 

@@ -14,12 +14,18 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.gateway.AsyncShardFetch;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.List;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
@@ -28,6 +34,9 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 
 public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
+
+    private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata>> asyncFetchStore =
+        ConcurrentCollections.newConcurrentMap();
 
     public static final String ALLOCATOR_NAME = "searchable_snapshot_allocator";
 
@@ -103,7 +112,10 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void cleanCaches() {}
+    public void cleanCaches() {
+        Releasables.close(asyncFetchStore.values());
+        asyncFetchStore.clear();
+    }
 
     @Override
     public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {}
@@ -113,6 +125,10 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     @Override
     public int getNumberOfInFlightFetches() {
-        return 0;
+        int count = 0;
+        for (AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetch : asyncFetchStore.values()) {
+            count += fetch.getNumberOfInFlightFetches();
+        }
+        return count;
     }
 }

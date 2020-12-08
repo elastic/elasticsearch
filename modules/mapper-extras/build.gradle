@@ -17,7 +17,7 @@
  * under the License.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Adds advanced field mappers'

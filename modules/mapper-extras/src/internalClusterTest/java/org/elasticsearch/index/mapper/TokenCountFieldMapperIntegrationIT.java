@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -37,6 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -64,6 +66,11 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
             @Name("loadCountedFields") boolean loadCountedFields) {
         this.storeCountedFields = storeCountedFields;
         this.loadCountedFields = loadCountedFields;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(MapperExtrasPlugin.class);
     }
 
     /**

@@ -107,6 +107,10 @@ Example response:
          "available": true,
          "enabled": true
       },
+      "runtime_fields": {
+         "available": true,
+         "enabled": true
+      },
       "searchable_snapshots" : {
          "available" : true,
          "enabled" : true

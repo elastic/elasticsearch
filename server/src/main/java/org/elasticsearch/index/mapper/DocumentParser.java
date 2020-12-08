@@ -524,7 +524,7 @@ final class DocumentParser {
                                    String[] paths) throws IOException {
         String arrayFieldName = lastFieldName;
 
-        Mapper mapper = getMapper(context, parentMapper, lastFieldName, paths);
+        Mapper mapper = getLeafMapper(context, parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
@@ -600,7 +600,7 @@ final class DocumentParser {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with"
                 + " no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
-        Mapper mapper = getMapper(context, parentMapper, currentFieldName, paths);
+        Mapper mapper = getLeafMapper(context, parentMapper, currentFieldName, paths);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
@@ -617,7 +617,7 @@ final class DocumentParser {
     private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName,
                                        String[] paths) throws IOException {
         // we can only handle null values if we have mappings for them
-        Mapper mapper = getMapper(context, parentMapper, lastFieldName, paths);
+        Mapper mapper = getLeafMapper(context, parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
@@ -883,7 +883,13 @@ final class DocumentParser {
     }
 
     // looks up a child mapper, but takes into account field names that expand to objects
-    private static Mapper getMapper(final ParseContext context, ObjectMapper objectMapper, String fieldName, String[] subfields) {
+    // returns null if no such child mapper exists - note that unlike getLeafMapper,
+    // we do not check for shadowing runtime fields because they only apply to leaf
+    // fields
+    private static Mapper getMapper(final ParseContext context,
+                                    ObjectMapper objectMapper,
+                                    String fieldName,
+                                    String[] subfields) {
         String fieldPath = context.path().pathAsText(fieldName);
         // Check if mapper is a metadata mapper first
         Mapper mapper = context.docMapper().mapping().getMetadataMapper(fieldPath);
@@ -904,15 +910,27 @@ final class DocumentParser {
             }
         }
         String leafName = subfields[subfields.length - 1];
-        mapper = objectMapper.getMapper(leafName);
+        return objectMapper.getMapper(leafName);
+    }
+
+    // looks up a child mapper, taking into account field names that expand to objects
+    // if no mapper is found, checks to see if a runtime field with the specified
+    // field name exists and if so returns a no-op mapper to prevent indexing
+    private static Mapper getLeafMapper(final ParseContext context,
+                                        ObjectMapper objectMapper,
+                                        String fieldName,
+                                        String[] subfields) {
+        Mapper mapper = getMapper(context, objectMapper, fieldName, subfields);
         if (mapper != null) {
             return mapper;
         }
-        //concrete fields take the precedence over runtime fields when parsing documents, though when a field is defined as runtime field
-        //only, and not under properties, it is ignored when it is sent as part of _source
+        // concrete fields take precedence over runtime fields when parsing documents
+        // if a leaf field is not mapped, and is defined as a runtime field, then we
+        // don't create a dynamic mapping for it and don't index it.
+        String fieldPath = context.path().pathAsText(fieldName);
         RuntimeFieldType runtimeFieldType = context.docMapper().mapping().root.getRuntimeFieldType(fieldPath);
         if (runtimeFieldType != null) {
-            return new NoOpFieldMapper(leafName, runtimeFieldType);
+            return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeFieldType);
         }
         return null;
     }

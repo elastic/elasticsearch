@@ -138,6 +138,123 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("field.keyword"));
     }
 
+    public void testRuntimeFieldAndArrayChildren() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("runtime");
+            {
+                b.startObject("object").field("type", "test").endObject();
+            }
+            b.endObject();
+        }));
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("object");
+                b.array("array", 1, 2, 3);
+                b.field("foo", "bar");
+                b.endObject();
+            }));
+            assertNotNull(doc.rootDoc().getField("object.foo"));
+            assertNotNull(doc.rootDoc().getField("object.array"));
+        }
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startArray("object");
+                {
+                    b.startObject().array("array", 1, 2, 3).endObject();
+                    b.startObject().field("foo", "bar").endObject();
+                }
+                b.endArray();
+            }));
+            assertNotNull(doc.rootDoc().getField("object.foo"));
+            assertNotNull(doc.rootDoc().getField("object.array"));
+        }
+    }
+
+    public void testRuntimeFieldDoesNotShadowObjectChildren() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("runtime");
+            {
+                b.startObject("location").field("type", "test").endObject();
+                b.startObject("country").field("type", "test").endObject();
+            }
+            b.endObject();
+            b.startObject("properties");
+            {
+                b.startObject("timestamp").field("type", "date").endObject();
+                b.startObject("concrete").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("timestamp", "1998-04-30T14:30:17-05:00");
+                b.startObject("location");
+                {
+                    b.field("lat", 13.5);
+                    b.field("lon", 34.89);
+                }
+                b.endObject();
+                b.field("country", "de");
+                b.field("concrete", "foo");
+            }));
+
+            assertNotNull(doc.rootDoc().getField("timestamp"));
+            assertNotNull(doc.rootDoc().getField("_source"));
+            assertNotNull(doc.rootDoc().getField("location.lat"));
+            assertNotNull(doc.rootDoc().getField("location.lon"));
+            assertNotNull(doc.rootDoc().getField("concrete"));
+            assertNull(doc.rootDoc().getField("country"));
+        }
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("timestamp", "1998-04-30T14:30:17-05:00");
+                b.startArray("location");
+                {
+                    b.startObject().field("lat", 13.5).field("lon", 34.89).endObject();
+                    b.startObject().field("lat", 14.5).field("lon", 89.33).endObject();
+                }
+                b.endArray();
+                b.field("country", "de");
+                b.field("concrete", "foo");
+            }));
+
+            assertNotNull(doc.rootDoc().getField("timestamp"));
+            assertNotNull(doc.rootDoc().getField("_source"));
+            assertThat(doc.rootDoc().getFields("location.lat").length, equalTo(4));
+            assertThat(doc.rootDoc().getFields("location.lon").length, equalTo(4));
+            assertNotNull(doc.rootDoc().getField("concrete"));
+            assertNull(doc.rootDoc().getField("country"));
+        }
+
+        {
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("timestamp", "1998-04-30T14:30:17-05:00");
+                b.startObject("location");
+                {
+                    b.array("lat", 13.5, 14.5);
+                    b.array("lon", 34.89, 89.33);
+                }
+                b.endObject();
+                b.field("country", "de");
+                b.field("concrete", "foo");
+            }));
+
+            assertNotNull(doc.rootDoc().getField("timestamp"));
+            assertNotNull(doc.rootDoc().getField("_source"));
+            assertThat(doc.rootDoc().getFields("location.lat").length, equalTo(4));
+            assertThat(doc.rootDoc().getFields("location.lon").length, equalTo(4));
+            assertNotNull(doc.rootDoc().getField("concrete"));
+            assertNull(doc.rootDoc().getField("country"));
+        }
+
+    }
+
     public void testFieldDisabled() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("foo").field("enabled", false).endObject();

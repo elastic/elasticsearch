@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -243,11 +242,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            runtimeMappings = in.readMap();
-        } else {
-            runtimeMappings = Collections.emptyMap();
-        }
+        runtimeMappings = in.readMap();
     }
 
     /**
@@ -466,9 +461,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(runtimeMappings);
-        }
+        out.writeMap(runtimeMappings);
     }
 
     @Override

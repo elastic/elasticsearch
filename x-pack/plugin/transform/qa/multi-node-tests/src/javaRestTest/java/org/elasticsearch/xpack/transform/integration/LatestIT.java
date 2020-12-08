@@ -57,7 +57,7 @@ public class LatestIT extends TransformIntegTestCase {
     private static final String STARS = "stars";
 
     private static final Map<String, Object> row(String userId, String businessId, int count, int stars, String timestamp) {
-        return new HashMap<>() {{
+        return new HashMap<String, Object>() {{
             if (userId != null) {
                 put(USER_ID, userId);
             }

@@ -52,9 +52,13 @@ public class MappingsMergerTests extends ESTestCase {
 
         ImmutableOpenMap<String, MappingMetadata> mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
+        Map<String, Object> expectedMappings = new HashMap<>();
+        expectedMappings.put("dynamic", false);
+        expectedMappings.put("properties", index1Mappings.get("properties"));
+
         assertThat(mergedMappings.size(), equalTo(1));
         assertThat(mergedMappings.containsKey("_doc"), is(true));
-        assertThat(mergedMappings.valuesIt().next().getSourceAsMap(), equalTo(index1Mappings));
+        assertThat(mergedMappings.valuesIt().next().getSourceAsMap(), equalTo(expectedMappings));
     }
 
     public void testMergeMappings_GivenIndicesWithDifferentTypes() throws IOException {
@@ -142,7 +146,9 @@ public class MappingsMergerTests extends ESTestCase {
         assertThat(mergedMappings.size(), equalTo(1));
         assertThat(mergedMappings.containsKey("_doc"), is(true));
         Map<String, Object> mappingsAsMap = mergedMappings.valuesIt().next().getSourceAsMap();
-        assertThat(mappingsAsMap.size(), equalTo(1));
+        assertThat(mappingsAsMap.size(), equalTo(2));
+        assertThat(mappingsAsMap.containsKey("dynamic"), is(true));
+        assertThat(mappingsAsMap.get("dynamic"), equalTo(false));
         assertThat(mappingsAsMap.containsKey("properties"), is(true));
 
         @SuppressWarnings("unchecked")

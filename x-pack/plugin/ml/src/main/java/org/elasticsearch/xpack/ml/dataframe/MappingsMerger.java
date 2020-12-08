@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -102,9 +101,12 @@ public final class MappingsMerger {
         return result.build();
     }
 
-    private static MappingMetadata createMappingMetadata(String type, Map<String, Object> mappings) {
+    private static MappingMetadata createMappingMetadata(String type, Map<String, Object> properties) {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("dynamic", false);
+        mappings.put("properties", properties);
         try {
-            return new MappingMetadata(type, Collections.singletonMap("properties", mappings));
+            return new MappingMetadata(type, mappings);
         } catch (IOException e) {
             throw ExceptionsHelper.serverError("Failed to parse mappings: " + mappings);
         }

@@ -21,6 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
 
@@ -107,7 +108,7 @@ public class ClassNode extends IRNode {
         super(location);
 
         clinitBlockNode = new BlockNode(new Location("internal$clinit$blocknode", 0));
-        clinitBlockNode.setAllEscape(true);
+        clinitBlockNode.attachCondition(IRCAllEscape.class);
     }
 
 }

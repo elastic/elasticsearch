@@ -430,7 +430,7 @@ public class BigArrays {
         return this.circuitBreakingInstance;
     }
 
-    public CircuitBreakerService breakerService() {
+    public CircuitBreakerService breakerService() {   // TODO this feels like it is for tests but it has escaped
         return this.circuitBreakingInstance.breakerService;
     }
 

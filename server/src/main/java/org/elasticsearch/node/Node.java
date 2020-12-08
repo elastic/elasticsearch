@@ -490,13 +490,18 @@ public class Node implements Closeable {
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            final Map<String, SystemIndices.Feature> systemIndexDescriptorMap = pluginsService
+            final Map<String, SystemIndices.Feature> featuresMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(
                     plugin -> plugin.getFeatureName(),
-                    plugin -> new SystemIndices.Feature(plugin.getFeatureDescription(), plugin.getSystemIndexDescriptors(settings))));
-            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
+                    plugin -> new SystemIndices.Feature(
+                        plugin.getFeatureDescription(),
+                        plugin.getSystemIndexDescriptors(settings),
+                        plugin.getAssociatedIndexPatterns()
+                    ))
+                );
+            final SystemIndices systemIndices = new SystemIndices(featuresMap);
 
             final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
             clusterService.addListener(systemIndexManager);
@@ -587,7 +592,7 @@ public class Node implements Closeable {
             repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
                     clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters(),
-                    systemIndices.getSystemIndexDescriptorsByFeature());
+                    systemIndices.getFeatures());
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, repositoryService,
                     transportService, indicesService);
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),

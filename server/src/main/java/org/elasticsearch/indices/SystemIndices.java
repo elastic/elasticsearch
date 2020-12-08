@@ -29,6 +29,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.Index;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -214,10 +215,16 @@ public class SystemIndices {
     public static class Feature {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
+        private final Collection<String> associatedIndexPatterns;
 
-        public Feature(String description, Collection<SystemIndexDescriptor> indexDescriptors) {
+        public Feature(String description, Collection<SystemIndexDescriptor> indexDescriptors, Collection<String> associatedIndexPatterns) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
+            this.associatedIndexPatterns = associatedIndexPatterns;
+        }
+
+        public Feature(String description, Collection<SystemIndexDescriptor> indexDescriptors) {
+            this(description, indexDescriptors, Collections.emptyList());
         }
 
         public String getDescription() {
@@ -226,6 +233,10 @@ public class SystemIndices {
 
         public Collection<SystemIndexDescriptor> getIndexDescriptors() {
             return indexDescriptors;
+        }
+
+        public Collection<String> getAssociatedIndexPatterns() {
+            return associatedIndexPatterns;
         }
     }
 }

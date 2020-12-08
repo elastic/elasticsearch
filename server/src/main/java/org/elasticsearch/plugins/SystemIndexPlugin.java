@@ -50,4 +50,14 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * @return A description of the feature, as used for the Get Snapshottable Features API.
      */
     String getFeatureDescription();
+
+    /**
+     * Returns a list of index patterns for "associated indices": indices which depend on this plugin's system indices, but are not
+     * themselves system indices.
+     *
+     * @return A list of index patterns which depend on the contents of this plugin's system indices, but are not themselves system indices
+     */
+    default Collection<String> getAssociatedIndexPatterns() {
+        return Collections.emptyList();
+    }
 }

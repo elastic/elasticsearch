@@ -48,8 +48,6 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
@@ -77,9 +75,11 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -172,7 +172,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
-    private final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap;
+    private final Map<String, SystemIndices.Feature> systemIndexDescriptorMap;
 
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
@@ -186,7 +186,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                             RepositoriesService repositoriesService, TransportService transportService, ActionFilters actionFilters,
-                            Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap) {
+                            Map<String, SystemIndices.Feature> systemIndexDescriptorMap) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
@@ -326,13 +326,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
-    private List<String> resolveFeatureIndexNames(ClusterState currentState, String feature) {
-        if (systemIndexDescriptorMap.containsKey(feature) == false) {
-            throw new IllegalArgumentException("requested snapshot of feature state for unknown feature [" + feature + "]");
+    private List<String> resolveFeatureIndexNames(ClusterState currentState, String featureName) {
+        if (systemIndexDescriptorMap.containsKey(featureName) == false) {
+            throw new IllegalArgumentException("requested snapshot of feature state for unknown feature [" + featureName + "]");
         }
 
-        return systemIndexDescriptorMap.get(feature).stream()
-            .map(SystemIndexDescriptor::getIndexPattern)
+        final SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
+        final Stream<String> systemIndexPatterns = feature.getIndexDescriptors().stream().map(SystemIndexDescriptor::getIndexPattern);
+        final Stream<String> associatedIndexPatterns = feature.getAssociatedIndexPatterns().stream();
+        return Stream.concat(systemIndexPatterns, associatedIndexPatterns)
             .flatMap(pattern -> Arrays.stream(indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState,
                 LENIENT_EXPAND_OPEN_CLOSED, pattern)))
             .collect(Collectors.toList());

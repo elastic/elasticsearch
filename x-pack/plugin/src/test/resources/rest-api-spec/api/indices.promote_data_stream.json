@@ -2,7 +2,7 @@
   "indices.promote_data_stream":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Promotes a data stream from a replicate data stream managed by CCR to a regular data stream"
+      "description":"Promotes a data stream from a replicated data stream managed by CCR to a regular data stream"
     },
     "stability":"stable",
     "url":{

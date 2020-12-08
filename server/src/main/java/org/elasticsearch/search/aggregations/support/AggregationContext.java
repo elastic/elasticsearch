@@ -231,6 +231,12 @@ public abstract class AggregationContext {
     public abstract Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer);
 
     /**
+     * Is this request cacheable? Requests that have
+     * non-deterministic queries or scripts aren't cachable.
+     */
+    public abstract boolean isCacheable();
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link QueryShardContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
@@ -239,6 +245,7 @@ public abstract class AggregationContext {
      */
     public static class ProductionAggregationContext extends AggregationContext {
         private final QueryShardContext context;
+        private final BigArrays bigArrays;
         private final Query topLevelQuery;
         private final AggregationProfiler profiler;
         private final MultiBucketConsumer multiBucketConsumer;
@@ -277,6 +284,7 @@ public abstract class AggregationContext {
             Supplier<Boolean> isCancelled
         ) {
             this.context = context;
+            this.bigArrays = context.bigArrays().withCircuitBreaking();  // We can break in searches.
             this.topLevelQuery = topLevelQuery;
             this.profiler = profiler;
             this.multiBucketConsumer = multiBucketConsumer;
@@ -343,7 +351,7 @@ public abstract class AggregationContext {
 
         @Override
         public BigArrays bigArrays() {
-            return context.bigArrays();
+            return bigArrays;
         }
 
         @Override
@@ -424,6 +432,11 @@ public abstract class AggregationContext {
         @Override
         public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
             return context.getIndexAnalyzer(unindexedFieldAnalyzer);
+        }
+
+        @Override
+        public boolean isCacheable() {
+            return context.isCacheable();
         }
     }
 }

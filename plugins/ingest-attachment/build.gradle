@@ -93,6 +93,7 @@ forbiddenPatterns {
   exclude '**/*.pdf'
   exclude '**/*.epub'
   exclude '**/*.vsdx'
+  exclude '**/text-cjk-*.txt'
 }
 
 thirdPartyAudit {

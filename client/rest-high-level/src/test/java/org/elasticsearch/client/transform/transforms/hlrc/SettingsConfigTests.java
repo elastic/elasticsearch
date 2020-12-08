@@ -33,7 +33,8 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
     public static org.elasticsearch.xpack.core.transform.transforms.SettingsConfig randomSettingsConfig() {
         return new org.elasticsearch.xpack.core.transform.transforms.SettingsConfig(
             randomBoolean() ? null : randomIntBetween(10, 10_000),
-            randomBoolean() ? null : randomFloat()
+            randomBoolean() ? null : randomFloat(),
+            randomBoolean() ? null : randomIntBetween(0, 1)
         );
     }
 
@@ -43,6 +44,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
     ) {
         assertEquals(serverTestInstance.getMaxPageSearchSize(), clientInstance.getMaxPageSearchSize());
         assertEquals(serverTestInstance.getDocsPerSecond(), clientInstance.getDocsPerSecond());
+        assertEquals(serverTestInstance.getDatesAsEpochMillis(), clientInstance.getDatesAsEpochMillis());
     }
 
     @Override

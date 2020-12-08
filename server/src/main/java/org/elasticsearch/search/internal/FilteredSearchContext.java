@@ -25,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -198,11 +197,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public IndexShard indexShard() {
         return in.indexShard();
-    }
-
-    @Override
-    public BigArrays bigArrays() {
-        return in.bigArrays();
     }
 
     @Override

@@ -6,7 +6,7 @@
 <titleabbrev>Rollup</titleabbrev>
 ++++
 
-Aggregates an index's time series data and stores the results in another index.
+Aggregates an index's time series data and stores the results in a new index.
 For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
@@ -67,12 +67,13 @@ syntax>> or wildcards (`*`).
 
 `rollup_index`::
 (Required, string)
-Index that stores the rollup results. Cannot be a <<data-streams,data stream>>
-or <<indices-aliases,index alias>>.
+New index that stores the rollup results. Cannot be an existing index,
+a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
 +
-If this index does not exist, the request creates it. If the `<index>` is a
-backing index for a data stream, this new index is a backing index for the same
-stream.
+The request creates this index with
+<<index-modules-blocks,`index.blocks.write`>> set to `true`. If the original
+`<index>` is a backing index for a data stream, this index is a backing index
+for the same stream.
 
 `groups`::
 (Required, object)

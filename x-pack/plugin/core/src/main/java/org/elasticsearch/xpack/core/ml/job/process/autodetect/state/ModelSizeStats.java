@@ -226,6 +226,15 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         totalPartitionFieldCount = in.readVLong();
         bucketAllocationFailuresCount = in.readVLong();
         memoryStatus = MemoryStatus.readFromStream(in);
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            if (in.readBoolean()) {
+                assignmentMemoryBasis = AssignmentMemoryBasis.readFromStream(in);
+            } else {
+                assignmentMemoryBasis = null;
+            }
+        } else {
+            assignmentMemoryBasis = null;
+        }
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             categorizedDocCount = in.readVLong();
             totalCategoryCount = in.readVLong();
@@ -246,15 +255,6 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             deadCategoryCount = 0;
             failedCategoryCount = 0;
             categorizationStatus = CategorizationStatus.OK;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-            if (in.readBoolean()) {
-                assignmentMemoryBasis = AssignmentMemoryBasis.readFromStream(in);
-            } else {
-                assignmentMemoryBasis = null;
-            }
-        } else {
-            assignmentMemoryBasis = null;
         }
         logTime = new Date(in.readVLong());
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -286,6 +286,14 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         out.writeVLong(totalPartitionFieldCount);
         out.writeVLong(bucketAllocationFailuresCount);
         memoryStatus.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            if (assignmentMemoryBasis != null) {
+                out.writeBoolean(true);
+                assignmentMemoryBasis.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeVLong(categorizedDocCount);
             out.writeVLong(totalCategoryCount);
@@ -296,14 +304,6 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
                 out.writeVLong(failedCategoryCount);
             }
             categorizationStatus.writeTo(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            if (assignmentMemoryBasis != null) {
-                out.writeBoolean(true);
-                assignmentMemoryBasis.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
         }
         out.writeVLong(logTime.getTime());
         boolean hasTimestamp = timestamp != null;

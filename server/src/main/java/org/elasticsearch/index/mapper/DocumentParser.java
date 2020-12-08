@@ -754,6 +754,7 @@ final class DocumentParser {
                 //If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
                 parentMapper = context.getObjectMapper(parentName);
                 if (parentMapper == null) {
+                    //it can still happen that the path is ambiguous and we are not able to locate the parent
                     break;
                 }
             }

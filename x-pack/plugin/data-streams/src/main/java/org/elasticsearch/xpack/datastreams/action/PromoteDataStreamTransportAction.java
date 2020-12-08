@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
@@ -50,7 +49,6 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
 
     @Override
     protected void masterOperation(
-        Task task,
         PromoteDataStreamAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener

@@ -12,6 +12,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 public class RestPromoteDataStreamAction extends BaseRestHandler {
@@ -22,7 +23,7 @@ public class RestPromoteDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.POST, "/_data_stream/_promote/{name}"));
+        return Collections.singletonList(new Route(RestRequest.Method.POST, "/_data_stream/_promote/{name}"));
     }
 
     @Override

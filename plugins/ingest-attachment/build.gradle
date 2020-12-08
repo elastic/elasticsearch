@@ -87,7 +87,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.doc'
   exclude '**/*.docx'
   exclude '**/*.pdf'
@@ -96,7 +96,7 @@ forbiddenPatterns {
   exclude '**/text-cjk-*.txt'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
 }
 

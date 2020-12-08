@@ -42,7 +42,7 @@ public class PainlessInfoJson {
         private final List<Field> fields;
 
         public Class(PainlessContextClassInfo info, Map<String, String> javaNamesToDisplayNames) {
-            this.name = info.getName();
+            this.name = javaNamesToDisplayNames.get(info.getName());
             this.imported = info.isImported();
             this.constructors = Constructor.fromInfos(info.getConstructors(), javaNamesToDisplayNames);
             this.staticMethods = Method.fromInfos(info.getStaticMethods(), javaNamesToDisplayNames);
@@ -80,7 +80,7 @@ public class PainlessInfoJson {
         private final List<String> parameters;
 
         public Method(PainlessContextMethodInfo info, Map<String, String> javaNamesToDisplayNames) {
-            this.declaring = info.getDeclaring();
+            this.declaring = javaNamesToDisplayNames.get(info.getDeclaring());
             this.name = info.getName();
             this.rtn = ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getRtn());
             this.parameters = info.getParameters().stream()
@@ -112,7 +112,7 @@ public class PainlessInfoJson {
         private final List<String> parameters;
 
         public Constructor(PainlessContextConstructorInfo info, Map<String, String> javaNamesToDisplayNames) {
-            this.declaring = info.getDeclaring();
+            this.declaring = javaNamesToDisplayNames.get(info.getDeclaring());
             this.parameters = info.getParameters().stream()
                 .map(p -> ContextGeneratorCommon.getType(javaNamesToDisplayNames, p))
                 .collect(Collectors.toList());
@@ -141,7 +141,7 @@ public class PainlessInfoJson {
         private final String type;
 
         public Field(PainlessContextFieldInfo info, Map<String, String> javaNamesToDisplayNames) {
-            this.declaring = info.getDeclaring();
+            this.declaring = javaNamesToDisplayNames.get(info.getDeclaring());
             this.name = info.getName();
             this.type = ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getType());
         }

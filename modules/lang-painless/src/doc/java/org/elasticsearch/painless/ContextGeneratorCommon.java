@@ -117,6 +117,24 @@ public class ContextGeneratorCommon {
         return javaType;
     }
 
+    private static Map<String, String> getDisplayNames(Collection<PainlessContextInfo> contextInfos) {
+        Map<String, String> javaNamesToDisplayNames = new HashMap<>();
+
+        for (PainlessContextInfo contextInfo : contextInfos) {
+            for (PainlessContextClassInfo classInfo : contextInfo.getClasses()) {
+                String className = classInfo.getName();
+                if (javaNamesToDisplayNames.containsKey(className) == false) {
+                    if (classInfo.isImported()) {
+                        javaNamesToDisplayNames.put(className,
+                            className.substring(className.lastIndexOf('.') + 1).replace('$', '.'));
+                    } else {
+                        javaNamesToDisplayNames.put(className, className.replace('$', '.'));
+                    }
+                }
+            }
+        }
+        return javaNamesToDisplayNames;
+    }
 
     public static class PainlessInfos {
         public final Set<PainlessContextClassInfo> classes;
@@ -127,15 +145,18 @@ public class ContextGeneratorCommon {
         public final List<PainlessInfoJson.Class> common;
         public final Map<String, List<PainlessContextClassInfo>> sorted;
 
+        public final Map<String, String> javaNamesToDisplayNames;
 
         public PainlessInfos(List<PainlessContextInfo> contexts) {
+            javaNamesToDisplayNames = getDisplayNames(contexts);
+
             classes = getCommon(contexts, PainlessContextInfo::getClasses);
             importedMethods = getCommon(contexts, PainlessContextInfo::getImportedMethods);
             classBindings = getCommon(contexts, PainlessContextInfo::getClassBindings);
             instanceBindings = getCommon(contexts, PainlessContextInfo::getInstanceBindings);
 
-            Map<String, String> javaNamesToDisplayNames = Collections.emptyMap();
             common = PainlessInfoJson.Class.fromInfos(sortClassInfos(classes), javaNamesToDisplayNames);
+
             Map<String, List<PainlessContextClassInfo>> sorted = new HashMap<>();
             for (PainlessContextInfo context : contexts) {
                 sorted.put(context.getName(), sortClassInfos(excludeCommonClassInfos(classes, context.getClasses())));

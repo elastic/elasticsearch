@@ -295,7 +295,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             final ClusterState clusterState = clusterService.state();
             if (remoteClusterIndices.isEmpty()) {
-                executeLocalSearch(
+                 executeLocalSearch(
                     task, timeProvider, searchRequest, localIndices, clusterState, listener, searchContext, searchAsyncActionProvider);
             } else {
                 if (shouldMinimizeRoundtrips(searchRequest)) {
@@ -675,6 +675,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             task, searchRequest, asyncSearchExecutor, shardIterators, timeProvider, connectionLookup, clusterState,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener,
             preFilterSearchShards, false, threadPool, clusters).start();
+
+
     }
 
     Executor asyncSearchExecutor(final String[] indices, final ClusterState clusterState) {
@@ -751,8 +753,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchTask task, SearchRequest searchRequest, Executor executor, GroupShardsIterator<SearchShardIterator> shardIterators,
             SearchTimeProvider timeProvider, BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState, Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-            Map<String, Set<String>> indexRoutings, ActionListener<SearchResponse> listener, boolean preFilter,
-            boolean preFilterRollup, ThreadPool threadPool, SearchResponse.Clusters clusters);
+            ActionListener<SearchResponse> listener, boolean preFilter, boolean preFilterRollup,
+            ThreadPool threadPool, SearchResponse.Clusters clusters);
     }
 
     private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(

@@ -32,14 +32,14 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
+//import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+//import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+//import org.elasticsearch.search.aggregations.support.AggregationContext;
 
-import java.io.IOException;
+//import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -63,13 +63,13 @@ public class RollupShardDecider {
             return false;
         } else if (aggFactoryBuilders != null && rollupMetadata != null && indexRollupMetadata != null && queryBuilder != null) {
             Query query = context.toQuery(queryBuilder).query();
-            try {
-                AggregatorFactory[] factories = aggFactoryBuilders
-                    .build(new AggregationContext.ProductionAggregationContext(context, query), null)
-                    .factories();
-            } catch (IOException e) {
-                throw new AggregationInitializationException("Failed to create aggregators, shard not supported", e);
-            }
+//            try {
+//                AggregatorFactory[] factories = aggFactoryBuilders
+//                    .build(new AggregationContext.ProductionAggregationContext(context, query), null)
+//                    .factories();
+//            } catch (IOException e) {
+//                throw new AggregationInitializationException("Failed to create aggregators, shard not supported", e);
+//            }
 
             if (queryShard(rollupMetadata, indices, requestIndexMetadata, aggFactoryBuilders) == false) {
                 return false;

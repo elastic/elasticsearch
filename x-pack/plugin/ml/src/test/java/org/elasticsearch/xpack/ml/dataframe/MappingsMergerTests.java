@@ -85,15 +85,12 @@ public class MappingsMergerTests extends ESTestCase {
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
         Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();
-        assertThat(mappingsAsMap.size(), equalTo(2));
-        assertThat(mappingsAsMap.containsKey("dynamic"), is(true));
+        assertThat(mappingsAsMap.keySet(), containsInAnyOrder("dynamic", "properties"));
         assertThat(mappingsAsMap.get("dynamic"), equalTo(false));
-        assertThat(mappingsAsMap.containsKey("properties"), is(true));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> fieldMappings = (Map<String, Object>) mappingsAsMap.get("properties");
 
-        assertThat(fieldMappings.size(), equalTo(3));
         assertThat(fieldMappings.keySet(), containsInAnyOrder("field_1", "field_2", "field_3"));
         assertThat(fieldMappings.get("field_1"), equalTo("field_1_mappings"));
         assertThat(fieldMappings.get("field_2"), equalTo("field_2_mappings"));
@@ -161,16 +158,13 @@ public class MappingsMergerTests extends ESTestCase {
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
         Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();
-        assertThat(mappingsAsMap.size(), equalTo(2));
-        assertThat(mappingsAsMap.containsKey("dynamic"), is(true));
-        assertThat(mappingsAsMap.containsKey("runtime"), is(true));
+        assertThat(mappingsAsMap.keySet(), containsInAnyOrder("dynamic", "runtime"));
 
         assertThat(mappingsAsMap.get("dynamic"), is(false));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> fieldMappings = (Map<String, Object>) mappingsAsMap.get("runtime");
 
-        assertThat(fieldMappings.size(), equalTo(3));
         assertThat(fieldMappings.keySet(), containsInAnyOrder("field_1", "field_2", "field_3"));
         assertThat(fieldMappings.get("field_1"), equalTo("field_1_mappings"));
         assertThat(fieldMappings.get("field_2"), equalTo("field_2_mappings"));
@@ -210,23 +204,18 @@ public class MappingsMergerTests extends ESTestCase {
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(newSource(), getMappingsResponse);
 
         Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();
-        assertThat(mappingsAsMap.size(), equalTo(3));
-        assertThat(mappingsAsMap.containsKey("dynamic"), is(true));
-        assertThat(mappingsAsMap.containsKey("properties"), is(true));
-        assertThat(mappingsAsMap.containsKey("runtime"), is(true));
+        assertThat(mappingsAsMap.keySet(), containsInAnyOrder("dynamic", "properties", "runtime"));
 
         assertThat(mappingsAsMap.get("dynamic"), is(false));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> mergedProperties = (Map<String, Object>) mappingsAsMap.get("properties");
-        assertThat(mergedProperties.size(), equalTo(2));
         assertThat(mergedProperties.keySet(), containsInAnyOrder("p_1", "p_2"));
         assertThat(mergedProperties.get("p_1"), equalTo("p_1_mappings"));
         assertThat(mergedProperties.get("p_2"), equalTo("p_2_mappings"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> mergedRuntime = (Map<String, Object>) mappingsAsMap.get("runtime");
-        assertThat(mergedRuntime.size(), equalTo(3));
         assertThat(mergedRuntime.keySet(), containsInAnyOrder("r_1", "r_2", "p_1"));
         assertThat(mergedRuntime.get("r_1"), equalTo("r_1_mappings"));
         assertThat(mergedRuntime.get("r_2"), equalTo("r_2_mappings"));
@@ -253,13 +242,11 @@ public class MappingsMergerTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> propertyMappings = (Map<String, Object>) mappingsAsMap.get("properties");
-        assertThat(propertyMappings.size(), equalTo(1));
-        assertThat(propertyMappings.containsKey("field_2"), is(true));
+        assertThat(propertyMappings.keySet(), containsInAnyOrder("field_2"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> runtimeMappings = (Map<String, Object>) mappingsAsMap.get("runtime");
-        assertThat(runtimeMappings.size(), equalTo(1));
-        assertThat(runtimeMappings.containsKey("runtime_field_1"), is(true));
+        assertThat(runtimeMappings.keySet(), containsInAnyOrder("runtime_field_1"));
     }
 
     private static DataFrameAnalyticsSource newSource() {

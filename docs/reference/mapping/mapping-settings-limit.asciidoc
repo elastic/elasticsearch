@@ -1,15 +1,5 @@
-[[mapping-limit-settings]]
-== Settings to prevent mappings explosion
-
-Defining too many fields in an index can lead to a
-mapping explosion, which can cause out of memory errors and difficult
-situations to recover from.
-
-Consider a situation where every new document inserted
-introduces new fields, such as with <<dynamic-mapping,dynamic mapping>>.
-Each new field is added to the index mapping, which can become a
-problem as the mapping grows.
-
+[[mapping-settings-limit]]
+== Mapping limit settings
 Use the following settings to limit the number of field mappings (created manually or dynamically) and prevent documents from causing a mapping explosion:
 
 `index.mapping.total_fields.limit`::

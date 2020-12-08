@@ -31,6 +31,21 @@ NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
 For more details, please see <<removal-of-types>>.
 
 [discrete]
+[[mapping-limit-settings]]
+== Settings to prevent mapping explosion
+Defining too many fields in an index can lead to a mapping explosion, which can
+cause out of memory errors and difficult situations to recover from.
+
+Consider a situation where every new document inserted
+introduces new fields, such as with <<dynamic-mapping,dynamic mapping>>.
+Each new field is added to the index mapping, which can become a
+problem as the mapping grows.
+
+Use the <<mapping-settings-limit,mapping limit settings>> to limit the number
+of field mappings (created manually or dynamically) and prevent documents from
+causing a mapping explosion.
+
+[discrete]
 [[runtime-fields]]
 == Runtime fields
 Typically, you index data into {es} to promote faster search. However, indexing
@@ -206,7 +221,7 @@ The API returns the following response:
 
 include::mapping/removal_of_types.asciidoc[]
 
-include::mapping/settings-mapping-explosion.asciidoc[]
+include::mapping/mapping-settings-limit.asciidoc[]
 
 include::mapping/types.asciidoc[]
 

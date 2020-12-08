@@ -1344,7 +1344,3 @@ instead.
 
 See <<fielddata-mapping-param>>.
 
-[role="exclude",id="xpack-alerting"]
-=== Alerting on cluster and index events
-
-See <<watcher-alerting>>.

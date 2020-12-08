@@ -105,8 +105,9 @@ public class SystemIndicesTests extends ESTestCase {
     }
 
     public void testPatternWithSimpleRange() {
-
-        final SystemIndices systemIndices = new SystemIndices(singletonMap("test", singletonList(new SystemIndexDescriptor(".test-[abc]", ""))));
+        final SystemIndices systemIndices = new SystemIndices(
+            singletonMap("test", singletonList(new SystemIndexDescriptor(".test-[abc]", "")))
+        );
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
         assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(true));
@@ -119,7 +120,9 @@ public class SystemIndicesTests extends ESTestCase {
     }
 
     public void testPatternWithSimpleRangeAndRepeatOperator() {
-        final SystemIndices systemIndices = new SystemIndices(singletonMap("test", singletonList(new SystemIndexDescriptor(".test-[a]+", ""))));
+        final SystemIndices systemIndices = new SystemIndices(
+            singletonMap("test", singletonList(new SystemIndexDescriptor(".test-[a]+", "")))
+        );
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
         assertThat(systemIndices.isSystemIndex(".test-aa"), equalTo(true));
@@ -129,7 +132,9 @@ public class SystemIndicesTests extends ESTestCase {
     }
 
     public void testPatternWithComplexRange() {
-        final SystemIndices systemIndices = new SystemIndices(singletonMap("test", singletonList(new SystemIndexDescriptor(".test-[a-c]", ""))));
+        final SystemIndices systemIndices = new SystemIndices(
+            singletonMap("test", singletonList(new SystemIndexDescriptor(".test-[a-c]", "")))
+        );
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
         assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(true));

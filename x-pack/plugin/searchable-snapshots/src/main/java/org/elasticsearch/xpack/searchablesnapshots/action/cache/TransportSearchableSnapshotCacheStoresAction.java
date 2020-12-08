@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,27 +39,24 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
     public static final ActionType<NodesCacheFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesCacheFilesMetadata::new);
 
-    protected TransportSearchableSnapshotCacheStoresAction(
-        String actionName,
+    @Inject
+    public TransportSearchableSnapshotCacheStoresAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters,
-        String nodeExecutor,
-        String finalExecutor,
-        Class<NodeCacheFilesMetadata> nodeStoreFilesMetadataClass
+        ActionFilters actionFilters
     ) {
         super(
-            actionName,
+            ACTION_NAME,
             threadPool,
             clusterService,
             transportService,
             actionFilters,
             Request::new,
             NodeRequest::new,
-            nodeExecutor,
-            finalExecutor,
-            nodeStoreFilesMetadataClass
+            ThreadPool.Names.SAME,
+            ThreadPool.Names.SAME,
+            NodeCacheFilesMetadata.class
         );
     }
 

@@ -159,6 +159,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+    private final SetOnce<Client> client = new SetOnce<>();
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
     private final Settings settings;
 
@@ -228,6 +229,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             this.blobStoreCacheService.set(blobStoreCacheService);
             components.add(blobStoreCacheService);
         }
+        this.client.set(client);
         return Collections.unmodifiableList(components);
     }
 
@@ -308,7 +310,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
-        return Map.of(SearchableSnapshotAllocator.ALLOCATOR_NAME, new SearchableSnapshotAllocator());
+        return Map.of(SearchableSnapshotAllocator.ALLOCATOR_NAME, new SearchableSnapshotAllocator(client.get()));
     }
 
     // overridable by tests

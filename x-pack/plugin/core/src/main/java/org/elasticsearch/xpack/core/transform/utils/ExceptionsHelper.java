@@ -19,4 +19,11 @@ public class ExceptionsHelper {
         }
         return obj;
     }
+
+    /**
+     * @see org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper#unwrapCause(Throwable)
+     */
+    public static Throwable unwrapCause(Throwable t) {
+        return org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause(t);
+    }
 }

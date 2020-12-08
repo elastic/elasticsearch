@@ -6,26 +6,20 @@
 
 package org.elasticsearch.xpack.transform.utils;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.TranslogException;
-import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class ExceptionRootCauseFinderTests extends ESTestCase {
 
@@ -147,16 +141,6 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         bulkItemResponses.remove(7);
 
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
-    }
-
-    public void testGetRootCauseException_GivenWrappedSearchPhaseException() {
-        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException("test-phase",
-            "partial shards failure", new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) });
-
-        Throwable rootCauseException = ExceptionRootCauseFinder.getRootCauseException(
-            new IndexCreationException("test-index", searchPhaseExecutionException));
-
-        assertThat(rootCauseException.getMessage(), equalTo("for the cause!"));
     }
 
     private static void assertFirstException(Collection<BulkItemResponse> bulkItemResponses, Class<?> expectedClass, String message) {

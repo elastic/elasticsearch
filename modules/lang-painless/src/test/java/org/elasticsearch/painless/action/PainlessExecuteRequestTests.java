@@ -107,7 +107,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
         String index = randomBoolean() ? randomAlphaOfLength(4) : null;
         QueryBuilder query = randomBoolean() ? new MatchAllQueryBuilder() : null;
         BytesReference doc = null;
-        XContentType xContentType = randomFrom(XContentType.values());
+        XContentType xContentType = randomFrom(XContentType.values()).canonical();
         if (randomBoolean()) {
             try {
                 XContentBuilder xContentBuilder = XContentBuilder.builder(xContentType.xContent());

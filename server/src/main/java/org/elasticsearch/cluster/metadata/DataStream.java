@@ -45,7 +45,6 @@ import java.util.Objects;
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
-    public static final Version HIDDEN_VERSION = Version.V_7_11_0;
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName());
 
     /**

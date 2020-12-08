@@ -90,7 +90,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
-    public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
+    public static final Pattern BACKING_INDEX_SUFFIX = Pattern.compile("(\\d{4}-\\d{2}-\\d{2}-)?[0-9]+$");
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -1487,7 +1487,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     Set<String> conflicts =
                         indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
                             .keySet().stream()
-                            .filter(s -> NUMBER_PATTERN.matcher(s.substring(prefix.length())).matches())
+                            .filter(s -> BACKING_INDEX_SUFFIX.matcher(s.substring(prefix.length())).matches())
                             .filter(s -> IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
                             .collect(Collectors.toSet());
 

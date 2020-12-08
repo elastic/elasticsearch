@@ -68,7 +68,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.names = in.readStringArray();
             this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_7_10_0) && in.readBoolean();
-            if (in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+            if (in.getVersion().onOrAfter(DataStream.NEW_DS_VERSION)) {
                 this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
         }
@@ -80,7 +80,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                 out.writeBoolean(wildcardExpressionsOriginallySpecified);
             }
-            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+            if (out.getVersion().onOrAfter(DataStream.NEW_DS_VERSION)) {
                 indicesOptions.writeIndicesOptions(out);
             }
         }

@@ -56,7 +56,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
-            if (in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+            if (in.getVersion().onOrAfter(DataStream.NEW_DS_VERSION)) {
                 this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
         }
@@ -65,7 +65,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalStringArray(names);
-            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+            if (out.getVersion().onOrAfter(DataStream.NEW_DS_VERSION)) {
                 indicesOptions.writeIndicesOptions(out);
             }
         }

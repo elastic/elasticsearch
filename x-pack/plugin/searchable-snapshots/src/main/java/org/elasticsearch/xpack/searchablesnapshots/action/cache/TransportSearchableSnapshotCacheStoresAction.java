@@ -17,7 +17,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 
 public class TransportSearchableSnapshotCacheStoresAction extends TransportNodesAction<
@@ -74,7 +73,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     }
 
     @Override
-    protected TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata newNodeResponse(StreamInput in) throws IOException {
+    protected TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata newNodeResponse(StreamInput in) {
         throw new AssertionError("TODO");
     }
 

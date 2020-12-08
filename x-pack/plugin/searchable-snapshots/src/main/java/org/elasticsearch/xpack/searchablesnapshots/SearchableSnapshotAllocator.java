@@ -118,10 +118,18 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {}
+    public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
+        for (ShardRouting startedShard : startedShards) {
+            Releasables.close(asyncFetchStore.remove(startedShard.shardId()));
+        }
+    }
 
     @Override
-    public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {}
+    public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
+        for (FailedShard failedShard : failedShards) {
+            Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));
+        }
+    }
 
     @Override
     public int getNumberOfInFlightFetches() {

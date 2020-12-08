@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -62,6 +63,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
+        when(queryShardContext.bigArrays()).thenReturn(BigArrays.NON_RECYCLING_INSTANCE);
         when(indexShard.shardId()).thenReturn(new ShardId(new Index("test", "test"), 1));
         SearchContext context = new TestSearchContext(queryShardContext, indexShard);
 

@@ -471,6 +471,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public Version indexVersionCreated() {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public boolean isCacheable() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 

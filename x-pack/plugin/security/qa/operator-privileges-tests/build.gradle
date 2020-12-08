@@ -1,0 +1,33 @@
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
+
+esplugin {
+  name 'operator-privileges-test'
+  description 'An test plugin for testing hard to get internals'
+  classname 'org.elasticsearch.xpack.security.operator.OperatorPrivilegesTestPlugin'
+}
+
+dependencies {
+  compileOnly project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':client:rest-high-level')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 3
+
+  extraConfigFile 'operator_users.yml', file('src/javaRestTest/resources/operator_users.yml')
+  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
+
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'false'
+  setting 'xpack.security.operator_privileges.enabled', "true"
+
+  user username: "test_admin", password: 'x-pack-test-password', role: "superuser"
+  user username: "test_operator", password: 'x-pack-test-password', role: "limited_operator"
+}

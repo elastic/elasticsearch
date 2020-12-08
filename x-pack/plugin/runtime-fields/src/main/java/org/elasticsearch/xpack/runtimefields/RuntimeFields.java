@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -13,10 +15,13 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.BooleanScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
@@ -35,7 +40,7 @@ import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 import java.util.List;
 import java.util.Map;
 
-public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptPlugin {
+public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptPlugin, ActionPlugin {
 
     @Override
     public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
@@ -60,6 +65,14 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
             IpFieldScript.CONTEXT,
             LongFieldScript.CONTEXT,
             StringFieldScript.CONTEXT
+        );
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(
+            new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.RUNTIME_FIELDS, RuntimeFieldsUsageTransportAction.class),
+            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.RUNTIME_FIELDS, RuntimeFieldsInfoTransportAction.class)
         );
     }
 }

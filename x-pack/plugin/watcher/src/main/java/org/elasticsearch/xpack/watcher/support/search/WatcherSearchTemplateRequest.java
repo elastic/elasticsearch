@@ -131,9 +131,9 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         if (indices != null) {
             builder.array(INDICES_FIELD.getPreferredName(), indices);
         }
-        if (restTotalHitsAsInt) {
-            builder.field(REST_TOTAL_HITS_AS_INT_FIELD.getPreferredName(), restTotalHitsAsInt);
-        }
+
+        builder.field(REST_TOTAL_HITS_AS_INT_FIELD.getPreferredName(), restTotalHitsAsInt);
+
         if (searchSource != null && searchSource.length() > 0) {
             try (InputStream stream = searchSource.streamInput()) {
                 builder.rawField(BODY_FIELD.getPreferredName(), stream);

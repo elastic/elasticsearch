@@ -964,6 +964,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
              * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
              */
             NO_LONGER_ASSIGNED,
+
             /**
              * The index is deleted. Persistent parts of the index  like the shards files, state and transaction logs are removed once
              * all resources are released.
@@ -988,6 +989,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
              * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
              */
             REOPENED,
+
+            /**
+             * The index is closed as part of the node shutdown process. The index should be removed and all associated resources released.
+             * Persistent parts of the index like the shards files, state and transaction logs should be kept around in the case the node
+             * restarts.
+             */
+            SHUTDOWN,
         }
     }
 }

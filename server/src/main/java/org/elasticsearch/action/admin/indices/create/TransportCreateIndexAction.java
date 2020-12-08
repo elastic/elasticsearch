@@ -20,7 +20,9 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -29,9 +31,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Create index action.
@@ -39,14 +47,17 @@ import org.elasticsearch.transport.TransportService;
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
     private final MetadataCreateIndexService createIndexService;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportCreateIndexAction(TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetadataCreateIndexService createIndexService,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                      SystemIndices systemIndices) {
         super(CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new,
             indexNameExpressionResolver, CreateIndexResponse::new, ThreadPool.Names.SAME);
         this.createIndexService = createIndexService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -58,20 +69,55 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     protected void masterOperation(Task task, final CreateIndexRequest request, final ClusterState state,
                                    final ActionListener<CreateIndexResponse> listener) {
         String cause = request.cause();
-        if (cause.length() == 0) {
+        if (cause.isEmpty()) {
             cause = "api";
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final CreateIndexClusterStateUpdateRequest updateRequest =
-            new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index())
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .settings(request.settings()).mappings(request.mappings())
-                .aliases(request.aliases())
-                .waitForActiveShards(request.waitForActiveShards());
+
+        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+        final CreateIndexClusterStateUpdateRequest updateRequest = descriptor != null && descriptor.isAutomaticallyManaged()
+            ? buildSystemIndexUpdateRequest(request, cause, descriptor)
+            : buildUpdateRequest(request, cause, indexName);
 
         createIndexService.createIndex(updateRequest, listener.map(response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
     }
 
+    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause, String indexName) {
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .settings(request.settings())
+            .mappings(request.mappings())
+            .aliases(request.aliases())
+            .waitForActiveShards(request.waitForActiveShards());
+    }
+
+    private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+        CreateIndexRequest request,
+        String cause,
+        SystemIndexDescriptor descriptor
+    ) {
+        final Settings settings = Objects.requireNonNullElse(descriptor.getSettings(), Settings.EMPTY);
+
+        final Set<Alias> aliases;
+        if (descriptor.getAliasName() == null) {
+            aliases = Set.of();
+        } else {
+            aliases = Set.of(new Alias(descriptor.getAliasName()));
+        }
+
+        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+            cause,
+            descriptor.getPrimaryIndex(),
+            request.index()
+        );
+
+        return updateRequest.ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout())
+            .aliases(aliases)
+            .waitForActiveShards(ActiveShardCount.ALL)
+            .mappings(descriptor.getMappings())
+            .settings(settings);
+    }
 }

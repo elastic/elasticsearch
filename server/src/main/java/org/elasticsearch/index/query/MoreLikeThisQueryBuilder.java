@@ -242,7 +242,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (doc != null) {
                 out.writeGenericValue(doc);
                 XContentHelper.writeTo(out, xContentType);
-
             } else {
                 out.writeString(id);
             }

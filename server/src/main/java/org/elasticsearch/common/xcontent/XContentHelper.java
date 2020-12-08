@@ -457,17 +457,7 @@ public class XContentHelper {
     }
 
     public static XContentType readFromWire(org.elasticsearch.common.io.stream.StreamInput in) throws IOException {
-//        int ordinal = in.readVInt();// have to be reading int, value can be either 0-4 or 0-7
-//
-//
-//        XContentType[] values = XContentType.values();
-//        if (ordinal < 0 || ordinal >= values.length) {
-//            throw new IOException("Unknown " + XContentType.class.getSimpleName() + " ordinal [" + ordinal + "]");
-//        }
-//        return values[ordinal];
         return in.readEnum(XContentType.class);
-
-
     }
 
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {

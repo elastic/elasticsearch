@@ -167,6 +167,11 @@ public enum XContentType implements MediaType {
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
+
+        @Override
+        public XContentType canonical() {
+            return JSON;
+        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -192,6 +197,11 @@ public enum XContentType implements MediaType {
             return Set.of(
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "smile",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
+
+        @Override
+        public XContentType canonical() {
+            return SMILE;
         }
     },
     /**
@@ -219,6 +229,11 @@ public enum XContentType implements MediaType {
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
+
+        @Override
+        public XContentType canonical() {
+            return YAML;
+        }
     },
     /**
      * A CBOR based content type.
@@ -244,6 +259,11 @@ public enum XContentType implements MediaType {
             return Set.of(
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "cbor",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
+
+        @Override
+        public XContentType canonical() {
+            return CBOR;
         }
     };
     public static final MediaTypeRegistry<XContentType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<XContentType>()
@@ -313,5 +333,9 @@ public enum XContentType implements MediaType {
             .map(e -> e.getKey() + "=" + e.getValue())
             .collect(Collectors.joining(";"));
         return joined.isEmpty() ? "" : ";" + joined;
+    }
+
+    public XContentType canonical(){
+        return this;
     }
 }

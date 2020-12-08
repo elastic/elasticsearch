@@ -43,8 +43,7 @@ public class TextTemplate implements ToXContent {
         if (type == ScriptType.INLINE) {
             options = new HashMap<>();
             if (contentType != null) {
-                // vnd_json->xcontent->json->application/json - ugly hack :(
-                options.put(Script.CONTENT_TYPE_OPTION, contentType.xContent().type().mediaType());
+                options.put(Script.CONTENT_TYPE_OPTION, contentType.canonical().mediaType());
             }
         }
         if (params == null) {

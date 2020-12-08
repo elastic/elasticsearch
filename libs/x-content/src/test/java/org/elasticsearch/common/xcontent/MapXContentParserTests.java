@@ -101,7 +101,7 @@ public class MapXContentParserTests extends ESTestCase {
                         assertEquals(token, mapToken);
                         assertEquals(parser.currentName(), mapParser.currentName());
                         if (token != null && (token.isValue() || token == XContentParser.Token.VALUE_NULL)) {
-                            if ((xContentType != XContentType.YAML && xContentType != XContentType.VND_YAML) ||
+                            if ((xContentType.canonical() != XContentType.YAML) ||
                                 token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                                 // YAML struggles with converting byte arrays into text, because it
                                 // does weird base64 decoding to the values. We don't do this

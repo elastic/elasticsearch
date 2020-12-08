@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -24,6 +25,13 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
     TransportNodesListShardStoreMetadata.NodeRequest,
     TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
+
+    public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/store";
+
+    public static final ActionType<TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata> TYPE = new ActionType<>(
+        ACTION_NAME,
+        TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata::new
+    );
 
     protected TransportSearchableSnapshotCacheStoresAction(
         String actionName,

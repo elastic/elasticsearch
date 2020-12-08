@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
-import org.elasticsearch.xpack.ql.util.UnsignedLongUtils;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 
@@ -64,7 +64,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         Processor pn = new Add(EMPTY, l(BigInteger.valueOf(7)), l(-8)).makePipe().asProcessor();
         expectThrows(ArithmeticException.class, () -> pn.process(null));
 
-        Processor pm = new Add(EMPTY, l(UnsignedLongUtils.UNSIGNED_LONG_MAX), l(1)).makePipe().asProcessor();
+        Processor pm = new Add(EMPTY, l(NumericUtils.UNSIGNED_LONG_MAX), l(1)).makePipe().asProcessor();
         expectThrows(ArithmeticException.class, () -> pm.process(null));
     }
 

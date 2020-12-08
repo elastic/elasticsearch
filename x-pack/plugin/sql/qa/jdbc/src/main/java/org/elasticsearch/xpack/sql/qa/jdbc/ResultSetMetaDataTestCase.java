@@ -48,7 +48,17 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
         });
     }
 
-    public void doTestValidGetObjectCalls(List<String> fieldsNames) throws IOException, SQLException {
+    public void testValidGetObjectCalls() throws IOException, SQLException {
+        doTestValidGetObjectCalls(FIELDS_NAMES);
+    }
+
+    public void testValidGetObjectCallsWithUnsignedLong() throws IOException, SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
+
+        doTestValidGetObjectCalls(singletonList(UNSIGNED_LONG_FIELD));
+    }
+
+    private void doTestValidGetObjectCalls(List<String> fieldsNames) throws IOException, SQLException {
         createMappedIndex(fieldsNames);
 
         String q = "SELECT " + String.join(", ", fieldsNames) + " FROM test";
@@ -59,16 +69,6 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
         q = "SELECT " + selectedFields + " FROM test";
         doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames.stream()
             .map(x -> x.replace("_", "")).collect(Collectors.toList())));
-    }
-
-    public void testValidGetObjectCalls() throws IOException, SQLException {
-        doTestValidGetObjectCalls(FIELDS_NAMES);
-    }
-
-    public void testValidGetObjectCallsWithUnsignedLong() throws IOException, SQLException {
-        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
-
-        doTestValidGetObjectCalls(singletonList(UNSIGNED_LONG_FIELD));
     }
 
     public void testUnsignedLongConditionallyReturnedOnStarExpansion() throws IOException, SQLException {

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ql.util;
 
 import java.math.BigInteger;
 
-public abstract class UnsignedLongUtils {
+public abstract class NumericUtils {
     // 18446744073709551615
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 

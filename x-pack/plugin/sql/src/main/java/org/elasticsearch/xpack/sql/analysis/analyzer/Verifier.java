@@ -891,16 +891,12 @@ public final class Verifier {
     }
 
     private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersion version) {
-        List<LogicalPlan> projects = p.collectFirstChildren(x -> x instanceof Project);
-        if (projects.size() > 0) {
-            ((Project) projects.get(0)).projections().forEach(e -> {
-                if (e.resolved() && isTypeSupportedInVersion(e.dataType(), version) == false) {
-                    localFailures.add(fail(e, "Cannot use field [" + e.name() + "] with type [" + e.dataType() + "] unsupported " +
-                        "in version [" + version + "], upgrade required (to version [" + INTRODUCING_UNSIGNED_LONG +
-                        "] or higher)"));
-                }
-            });
-        }
-
+        p.output().forEach(e -> {
+            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), version) == false) {
+                localFailures.add(fail(e, "Cannot use field [" + e.name() + "] with type [" + e.dataType() + "] unsupported " +
+                    "in version [" + version + "], upgrade required (to version [" + INTRODUCING_UNSIGNED_LONG +
+                    "] or higher)"));
+            }
+        });
     }
 }

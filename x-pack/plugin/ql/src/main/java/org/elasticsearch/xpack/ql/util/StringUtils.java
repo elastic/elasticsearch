@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.isUnsignedLong;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.isUnsignedLong;
 
 public final class StringUtils {
 

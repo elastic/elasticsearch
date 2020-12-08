@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import java.math.BigInteger;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.asUnsignedLong;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely

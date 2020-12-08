@@ -296,9 +296,8 @@ public class FieldAttributeTests extends ESTestCase {
         String queryWithArithmetic = "SELECT unsigned_long + 1 AS unsigned_long FROM test";
         String queryWithCast = "SELECT long + 1::unsigned_long AS unsigned_long FROM test";
 
-        SqlVersion introducingUnsignedLong = INTRODUCING_UNSIGNED_LONG;
-        SqlVersion preUnsignedLong = SqlVersion.fromId(introducingUnsignedLong.id - SqlVersion.MINOR_MULTIPLIER);
-        SqlVersion postUnsignedLong = SqlVersion.fromId(introducingUnsignedLong.id + SqlVersion.MINOR_MULTIPLIER);
+        SqlVersion preUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
+        SqlVersion postUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
 
 
         for (String sql : List.of(query, queryWithLiteral, queryWithAlias, queryWithArithmetic, queryWithCast)) {
@@ -310,9 +309,8 @@ public class FieldAttributeTests extends ESTestCase {
                     preUnsignedLong + "], upgrade required (to version [" + INTRODUCING_UNSIGNED_LONG + "] or higher)",
                 ex.getMessage());
 
-            for (SqlVersion v : List.of(introducingUnsignedLong, postUnsignedLong)) {
-                analyzer = new Analyzer(SqlTestUtils.randomConfiguration(v), functionRegistry, getIndexResult,
-                    verifier);
+            for (SqlVersion v : List.of(INTRODUCING_UNSIGNED_LONG, postUnsignedLong)) {
+                analyzer = new Analyzer(SqlTestUtils.randomConfiguration(v), functionRegistry, getIndexResult, verifier);
                 LogicalPlan plan = plan(sql);
                 assertThat(plan, instanceOf(Project.class));
                 Project p = (Project) plan;

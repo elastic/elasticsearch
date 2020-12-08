@@ -35,8 +35,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
-import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.inUnsignedLongRange;
-import static org.elasticsearch.xpack.ql.util.UnsignedLongUtils.isUnsignedLong;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.inUnsignedLongRange;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.isUnsignedLong;
 
 /**
  * Conversion utility from one Elasticsearch data type to another Elasticsearch data types.

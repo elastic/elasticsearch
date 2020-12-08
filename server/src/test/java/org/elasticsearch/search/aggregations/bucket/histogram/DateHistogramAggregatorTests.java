@@ -38,8 +38,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.internal.SearchContext;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -1210,7 +1210,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 );
             }
             try (IndexReader reader = indexWriter.getReader()) {
-                SearchContext context = createSearchContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
+                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
                 Aggregator agg = createAggregator(builder, context);
                 Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
                 if (usesFromRange == false) {

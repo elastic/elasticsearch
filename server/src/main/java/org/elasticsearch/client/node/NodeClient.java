@@ -35,6 +35,7 @@ import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -54,6 +55,7 @@ public class NodeClient extends AbstractClient {
      * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
      */
     private Supplier<String> localNodeId;
+    private Transport.Connection localConnection;
     private RemoteClusterService remoteClusterService;
     private NamedWriteableRegistry namedWriteableRegistry;
 
@@ -63,10 +65,12 @@ public class NodeClient extends AbstractClient {
 
     @SuppressWarnings("rawtypes")
     public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
-                           RemoteClusterService remoteClusterService, NamedWriteableRegistry namedWriteableRegistry) {
+                           Transport.Connection localConnection, RemoteClusterService remoteClusterService,
+                           NamedWriteableRegistry namedWriteableRegistry) {
         this.actions = actions;
         this.taskManager = taskManager;
         this.localNodeId = localNodeId;
+        this.localConnection = localConnection;
         this.remoteClusterService = remoteClusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
@@ -101,7 +105,7 @@ public class NodeClient extends AbstractClient {
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
             > Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request,
+        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection,
                 (t, r) -> {
                     try {
                         listener.onResponse(r);
@@ -129,7 +133,7 @@ public class NodeClient extends AbstractClient {
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
             > Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request,
+        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection,
             listener::onResponse, listener::onFailure);
     }
 

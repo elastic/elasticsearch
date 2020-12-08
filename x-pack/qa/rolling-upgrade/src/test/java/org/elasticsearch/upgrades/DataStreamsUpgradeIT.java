@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Booleans;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -69,7 +70,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 );
                 index.setJsonEntity("{\"@timestamp\":\"2020-12-12\",\"test\":\"value1000\"}");
                 Response response = client().performRequest(index);
-                assertTrue(expectedIndices.contains(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
+                assertThat(expectedIndices, Matchers.hasItem(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
             } else {
                 // include both today and tomorrow in case of clock skew
                 var expectedIndices = List.of(
@@ -78,7 +79,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 );
                 index.setJsonEntity("{\"@timestamp\":\"2020-12-12\",\"test\":\"value1001\"}");
                 Response response = client().performRequest(index);
-                assertTrue(expectedIndices.contains(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
+                assertThat(expectedIndices, Matchers.hasItem(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
             }
         }
 

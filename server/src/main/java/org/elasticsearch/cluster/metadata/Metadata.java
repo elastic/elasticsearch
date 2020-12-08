@@ -1471,13 +1471,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         /**
-         * Validates there isn't any index with a name that would clash with the future backing indices of the existing data streams.
+         * Validates there isn't any index with a name that could clash with the future backing indices of the existing data streams.
          *
-         * E.g., if data stream `foo` has backing indices [`.ds-foo-000001`, `.ds-foo-000002`] and the indices lookup contains indices
-         * `.ds-foo-000001`, `.ds-foo-000002` and `.ds-foo-000006` this will throw an IllegalStateException (as attempting to rollover the
-         * `foo` data stream from generation 5 to 6 will not be possible)
+         * E.g., if data stream `foo` has backing indices [`.ds-foo-yyyy-MM-dd-000001`, `.ds-foo-yyyy-MM-dd-000002`] and the indices lookup
+         * contains indices `.ds-foo-yyyy-MM-dd-000001`, `.ds-foo-yyyy-MM-dd-000002` and `.ds-foo-yyyy-MM-dd-000006` this will throw an
+         * IllegalStateException as attempting to rollover the `foo` data stream from generation 5 to 6 may not be possible
          *
-         * @param indicesLookup the indices in the system (this includes the data stream backing indices)
+         * @param indicesLookup the indices in the system including the data stream backing indices
          * @param dsMetadata    the data streams in the system
          */
         static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {

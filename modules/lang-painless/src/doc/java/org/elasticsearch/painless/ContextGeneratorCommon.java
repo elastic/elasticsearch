@@ -34,7 +34,6 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -136,32 +135,94 @@ public class ContextGeneratorCommon {
         return javaNamesToDisplayNames;
     }
 
+    public static List<PainlessContextClassInfo> sortClassInfos(Collection<PainlessContextClassInfo> unsortedClassInfos) {
+
+        List<PainlessContextClassInfo> classInfos = new ArrayList<>(unsortedClassInfos);
+        classInfos.removeIf(v ->
+            "void".equals(v.getName())  || "boolean".equals(v.getName()) || "byte".equals(v.getName())   ||
+                "short".equals(v.getName()) || "char".equals(v.getName())    || "int".equals(v.getName())    ||
+                "long".equals(v.getName())  || "float".equals(v.getName())   || "double".equals(v.getName()) ||
+                "org.elasticsearch.painless.lookup.def".equals(v.getName())  ||
+                isInternalClass(v.getName())
+        );
+
+        classInfos.sort((c1, c2) -> {
+            String n1 = c1.getName();
+            String n2 = c2.getName();
+            boolean i1 = c1.isImported();
+            boolean i2 = c2.isImported();
+
+            String p1 = n1.substring(0, n1.lastIndexOf('.'));
+            String p2 = n2.substring(0, n2.lastIndexOf('.'));
+
+            int compare = p1.compareTo(p2);
+
+            if (compare == 0) {
+                if (i1 && i2) {
+                    compare = n1.substring(n1.lastIndexOf('.') + 1).compareTo(n2.substring(n2.lastIndexOf('.') + 1));
+                } else if (i1 == false && i2 == false) {
+                    compare = n1.compareTo(n2);
+                } else {
+                    compare = Boolean.compare(i1, i2) * -1;
+                }
+            }
+
+            return compare;
+        });
+
+        // TODO(stu): unmodifiable list
+        return classInfos;
+    }
+
+    private static boolean isInternalClass(String javaName) {
+        return  javaName.equals("org.elasticsearch.script.ScoreScript") ||
+            javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape") ||
+            javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils") ||
+            javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime") ||
+            javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth") ||
+            javaName.equals("org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils") ||
+            javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils") ||
+            javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils") ||
+            javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
+    }
+
+    public static List<PainlessContextClassInfo> excludeCommonClassInfos(
+        Set<PainlessContextClassInfo> exclude,
+        List<PainlessContextClassInfo> classInfos
+    ) {
+        List<PainlessContextClassInfo> uniqueClassInfos = new ArrayList<>(classInfos);
+        uniqueClassInfos.removeIf(exclude::contains);
+        return uniqueClassInfos;
+    }
+
     public static class PainlessInfos {
-        public final Set<PainlessContextClassInfo> classes;
         public final Set<PainlessContextMethodInfo> importedMethods;
         public final Set<PainlessContextClassBindingInfo> classBindings;
         public final Set<PainlessContextInstanceBindingInfo> instanceBindings;
 
         public final List<PainlessInfoJson.Class> common;
-        public final Map<String, List<PainlessContextClassInfo>> sorted;
+        public final List<PainlessInfoJson.Context> contexts;
 
         public final Map<String, String> javaNamesToDisplayNames;
 
-        public PainlessInfos(List<PainlessContextInfo> contexts) {
-            javaNamesToDisplayNames = getDisplayNames(contexts);
+        public PainlessInfos(List<PainlessContextInfo> contextInfos) {
+            javaNamesToDisplayNames = getDisplayNames(contextInfos);
 
-            classes = getCommon(contexts, PainlessContextInfo::getClasses);
-            importedMethods = getCommon(contexts, PainlessContextInfo::getImportedMethods);
-            classBindings = getCommon(contexts, PainlessContextInfo::getClassBindings);
-            instanceBindings = getCommon(contexts, PainlessContextInfo::getInstanceBindings);
+            Set<PainlessContextClassInfo> commonClassInfos = getCommon(contextInfos, PainlessContextInfo::getClasses);
+            common = PainlessInfoJson.Class.fromInfos(sortClassInfos(commonClassInfos), javaNamesToDisplayNames);
 
-            common = PainlessInfoJson.Class.fromInfos(sortClassInfos(classes), javaNamesToDisplayNames);
+            importedMethods = getCommon(contextInfos, PainlessContextInfo::getImportedMethods);
+//            System.out.println("Stu importedMethods: " + importedMethods.size());
 
-            Map<String, List<PainlessContextClassInfo>> sorted = new HashMap<>();
-            for (PainlessContextInfo context : contexts) {
-                sorted.put(context.getName(), sortClassInfos(excludeCommonClassInfos(classes, context.getClasses())));
-            }
-            this.sorted = sorted; // TODO(stu): unmodifiable map
+            classBindings = getCommon(contextInfos, PainlessContextInfo::getClassBindings);
+//            System.out.println("Stu classBindings: " + classBindings.size());
+
+            instanceBindings = getCommon(contextInfos, PainlessContextInfo::getInstanceBindings);
+//            System.out.println("Stu instanceBindings: " + instanceBindings.size());
+
+            contexts = contextInfos.stream()
+                .map(ctx -> new PainlessInfoJson.Context(ctx, commonClassInfos, javaNamesToDisplayNames))
+                .collect(Collectors.toList());
         }
 
         private <T> Set<T> getCommon(List<PainlessContextInfo> contexts, Function<PainlessContextInfo,List<T>> getter) {
@@ -174,66 +235,6 @@ public class ContextGeneratorCommon {
             return infoCounts.entrySet().stream().filter(
                 e -> e.getValue() == contexts.size()
             ).map(Map.Entry::getKey).collect(Collectors.toSet()); // TODO(stu): unmodifiable set
-        }
-
-        private List<PainlessContextClassInfo> sortClassInfos(Collection<PainlessContextClassInfo> unsortedClassInfos) {
-
-            List<PainlessContextClassInfo> classInfos = new ArrayList<>(unsortedClassInfos);
-            classInfos.removeIf(v ->
-                    "void".equals(v.getName())  || "boolean".equals(v.getName()) || "byte".equals(v.getName())   ||
-                    "short".equals(v.getName()) || "char".equals(v.getName())    || "int".equals(v.getName())    ||
-                    "long".equals(v.getName())  || "float".equals(v.getName())   || "double".equals(v.getName()) ||
-                    "org.elasticsearch.painless.lookup.def".equals(v.getName())  ||
-                    isInternalClass(v.getName())
-            );
-
-            classInfos.sort((c1, c2) -> {
-                String n1 = c1.getName();
-                String n2 = c2.getName();
-                boolean i1 = c1.isImported();
-                boolean i2 = c2.isImported();
-
-                String p1 = n1.substring(0, n1.lastIndexOf('.'));
-                String p2 = n2.substring(0, n2.lastIndexOf('.'));
-
-                int compare = p1.compareTo(p2);
-
-                if (compare == 0) {
-                    if (i1 && i2) {
-                        compare = n1.substring(n1.lastIndexOf('.') + 1).compareTo(n2.substring(n2.lastIndexOf('.') + 1));
-                    } else if (i1 == false && i2 == false) {
-                        compare = n1.compareTo(n2);
-                    } else {
-                        compare = Boolean.compare(i1, i2) * -1;
-                    }
-                }
-
-                return compare;
-            });
-
-            // TODO(stu): unmodifiable list
-            return classInfos;
-        }
-
-        private List<PainlessContextClassInfo> excludeCommonClassInfos(
-            Set<PainlessContextClassInfo> exclude,
-            List<PainlessContextClassInfo> classInfos
-        ) {
-            List<PainlessContextClassInfo> uniqueClassInfos = new ArrayList<>(classInfos);
-            uniqueClassInfos.removeIf(exclude::contains);
-            return uniqueClassInfos;
-        }
-
-        private boolean isInternalClass(String javaName) {
-            return  javaName.equals("org.elasticsearch.script.ScoreScript") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth") ||
-                javaName.equals("org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils") ||
-                javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils") ||
-                javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils") ||
-                javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
         }
     }
 }

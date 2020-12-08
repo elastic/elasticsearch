@@ -46,12 +46,22 @@ public class ContextApiSpecGenerator {
 
             XContentBuilder builder = XContentFactory.jsonBuilder(jsonStream);
             builder.startObject();
-            // TODO(stu): sort the class infos
             builder.field(PainlessContextInfo.CLASSES.getPreferredName(), infos.common);
             builder.endObject();
             builder.flush();
         }
-        System.out.println("STU common path: " + json.toAbsolutePath());
+
+        for (PainlessInfoJson.Context context : infos.contexts) {
+            json = rootDir.resolve("painless-" + context.getName() + ".json");
+            try (PrintStream jsonStream = new PrintStream(
+                Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                false, StandardCharsets.UTF_8.name())) {
+
+                XContentBuilder builder = XContentFactory.jsonBuilder(jsonStream);
+                context.toXContent(builder, null);
+                builder.flush();
+            }
+        }
     }
 
     @SuppressForbidden(reason = "resolve context api directory with environment")

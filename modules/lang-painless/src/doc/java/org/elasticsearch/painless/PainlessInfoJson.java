@@ -21,17 +21,60 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.painless.action.PainlessContextClassBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextClassInfo;
 import org.elasticsearch.painless.action.PainlessContextConstructorInfo;
 import org.elasticsearch.painless.action.PainlessContextFieldInfo;
+import org.elasticsearch.painless.action.PainlessContextInfo;
+import org.elasticsearch.painless.action.PainlessContextInstanceBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextMethodInfo;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class PainlessInfoJson {
+    public static class Context implements ToXContentObject {
+        private final String name;
+        private final List<Class> classes;
+        private final List<Method> importedMethods;
+        private final List<PainlessContextClassBindingInfo> classBindings;
+        private final List<PainlessContextInstanceBindingInfo> instanceBindings;
+
+        public Context(
+            PainlessContextInfo info,
+            Set<PainlessContextClassInfo> commonClassInfos,
+            Map<String, String> javaNamesToDisplayNames
+        ) {
+            this.name = info.getName();
+            List<PainlessContextClassInfo> classInfos = ContextGeneratorCommon.excludeCommonClassInfos(commonClassInfos, info.getClasses());
+            classInfos = ContextGeneratorCommon.sortClassInfos(classInfos);
+            this.classes = Class.fromInfos(classInfos, javaNamesToDisplayNames);
+            this.importedMethods = Method.fromInfos(info.getImportedMethods(), javaNamesToDisplayNames);
+            this.classBindings = info.getClassBindings();
+            this.instanceBindings = info.getInstanceBindings();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(PainlessContextInfo.NAME.getPreferredName(), name);
+            builder.field(PainlessContextInfo.CLASSES.getPreferredName(), classes);
+            builder.field(PainlessContextInfo.IMPORTED_METHODS.getPreferredName(), importedMethods);
+            builder.field(PainlessContextInfo.CLASS_BINDINGS.getPreferredName(), classBindings);
+            builder.field(PainlessContextInfo.INSTANCE_BINDINGS.getPreferredName(), instanceBindings);
+            builder.endObject();
+
+            return builder;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
     public static class Class implements ToXContentObject {
         private final String name;
         private final boolean imported;

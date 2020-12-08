@@ -45,7 +45,7 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
         });
 
     static {
-        SNAPSHOT_FEATURE_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("plugin_name"));
+        SNAPSHOT_FEATURE_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("feature_name"));
         SNAPSHOT_FEATURE_INFO_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField("indices"));
     }
 

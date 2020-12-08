@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.common.network.NetworkUtils.getInterfaces;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

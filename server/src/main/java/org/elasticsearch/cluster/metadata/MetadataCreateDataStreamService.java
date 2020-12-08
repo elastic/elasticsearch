@@ -161,7 +161,7 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream =
             new DataStream(request.name, timestampField,
                 Collections.singletonList(firstBackingIndex.getIndex()), 1L,
-                template.metadata() != null ? Collections.unmodifiableMap(new HashMap<>(template.metadata())) : null, hidden);
+                template.metadata() != null ? Collections.unmodifiableMap(new HashMap<>(template.metadata())) : null, hidden, false);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();

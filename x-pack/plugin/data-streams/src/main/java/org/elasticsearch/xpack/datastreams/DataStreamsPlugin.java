@@ -24,7 +24,9 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.action.DataStreamsStatsTransportAction;
+import org.elasticsearch.xpack.datastreams.action.PromoteDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDeleteDataStreamAction;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.datastreams.action.CreateDataStreamTransportActio
 import org.elasticsearch.xpack.datastreams.action.DeleteDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.action.GetDataStreamsTransportAction;
 import org.elasticsearch.xpack.datastreams.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.xpack.datastreams.rest.RestPromoteDataStreamAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,7 +65,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
             new ActionHandler<>(CreateDataStreamAction.INSTANCE, CreateDataStreamTransportAction.class),
             new ActionHandler<>(DeleteDataStreamAction.INSTANCE, DeleteDataStreamTransportAction.class),
             new ActionHandler<>(GetDataStreamAction.INSTANCE, GetDataStreamsTransportAction.class),
-            new ActionHandler<>(DataStreamsStatsAction.INSTANCE, DataStreamsStatsTransportAction.class)
+            new ActionHandler<>(DataStreamsStatsAction.INSTANCE, DataStreamsStatsTransportAction.class),
+            new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class)
         );
     }
 
@@ -80,7 +84,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         RestHandler deleteDsAction = new RestDeleteDataStreamAction();
         RestHandler getDsAction = new RestGetDataStreamsAction();
         RestHandler dsStatsAction = new RestDataStreamsStatsAction();
-        return Arrays.asList(createDsAction, deleteDsAction, getDsAction, dsStatsAction);
+        RestHandler promoteAction = new RestPromoteDataStreamAction();
+        return Arrays.asList(createDsAction, deleteDsAction, getDsAction, dsStatsAction, promoteAction);
     }
 
     public Collection<Module> createGuiceModules() {

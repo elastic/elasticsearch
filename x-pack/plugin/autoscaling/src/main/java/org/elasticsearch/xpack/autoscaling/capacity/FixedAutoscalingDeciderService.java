@@ -42,7 +42,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         ByteSizeValue memory = MEMORY.exists(configuration) ? MEMORY.get(configuration) : null;
         if (storage != null || memory != null) {
             requiredCapacity = AutoscalingCapacity.builder()
-                .total(tierCapacity(storage, nodes), tierCapacity(memory, nodes))
+                .total(totalCapacity(storage, nodes), totalCapacity(memory, nodes))
                 .node(storage, memory)
                 .build();
         } else {
@@ -52,7 +52,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         return new AutoscalingDeciderResult(requiredCapacity, new FixedReason(storage, memory, nodes));
     }
 
-    private static ByteSizeValue tierCapacity(ByteSizeValue nodeCapacity, int nodes) {
+    private static ByteSizeValue totalCapacity(ByteSizeValue nodeCapacity, int nodes) {
         if (nodeCapacity != null) {
             return new ByteSizeValue(nodeCapacity.getBytes() * nodes);
         } else {

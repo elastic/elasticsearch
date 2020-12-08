@@ -192,7 +192,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 .map(c -> new AutoscalingCapacity(c, c))
                 .reduce(
                     (c1, c2) -> new AutoscalingCapacity(
-                        AutoscalingCapacity.AutoscalingResources.sum(c1.tier(), c2.tier()),
+                        AutoscalingCapacity.AutoscalingResources.sum(c1.total(), c2.total()),
                         AutoscalingCapacity.AutoscalingResources.max(c1.node(), c2.node())
                     )
                 )

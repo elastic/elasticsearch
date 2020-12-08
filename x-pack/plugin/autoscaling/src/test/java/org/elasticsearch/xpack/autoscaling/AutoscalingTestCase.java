@@ -56,10 +56,10 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     public static AutoscalingCapacity randomAutoscalingCapacity() {
-        AutoscalingCapacity.AutoscalingResources tier = randomNullValueAutoscalingResources();
+        AutoscalingCapacity.AutoscalingResources total = randomNullValueAutoscalingResources();
         return new AutoscalingCapacity(
-            tier,
-            randomBoolean() ? randomNullValueAutoscalingResources(tier.storage() != null, tier.memory() != null) : null
+            total,
+            randomBoolean() ? randomNullValueAutoscalingResources(total.storage() != null, total.memory() != null) : null
         );
     }
 

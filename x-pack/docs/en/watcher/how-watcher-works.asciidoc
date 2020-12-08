@@ -23,7 +23,7 @@ define what needs to be done once the condition is met. In addition, you can
 define _conditions_ and _transforms_ to process and prepare the watch payload before
 executing the actions.
 
-<<triggers,Trigger>>::
+<<trigger,Trigger>>::
 Determines when the watch is checked. A watch must have a trigger.
 
 <<input,Input>>::

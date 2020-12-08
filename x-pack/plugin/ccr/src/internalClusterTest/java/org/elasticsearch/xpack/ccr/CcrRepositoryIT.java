@@ -622,6 +622,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     && event.state().routingTable().hasIndex(followerIndex)) {
                     try {
                         final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
+                        // this assertBusy completes because the listener is added after the InternalSnapshotsInfoService
+                        // and ClusterService preserves the order of listeners.
                         assertBusy(() -> {
                             List<Long> sizes = indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED).stream()
                                 .filter(shard -> shard.unassignedInfo().getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA)

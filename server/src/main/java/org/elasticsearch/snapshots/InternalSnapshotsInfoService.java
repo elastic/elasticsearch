@@ -121,9 +121,11 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     public SnapshotShardSizeInfo snapshotShardSizes() {
         synchronized (mutex){
             final ImmutableOpenMap.Builder<SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder(knownSnapshotShards);
-            for (SnapshotShard snapshotShard : failedSnapshotShards) {
-                Long previous = snapshotShardSizes.put(snapshotShard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-                assert previous == null : "snapshot shard size already known for " + snapshotShard;
+            if (failedSnapshotShards.isEmpty() == false) {
+                for (SnapshotShard snapshotShard : failedSnapshotShards) {
+                    Long previous = snapshotShardSizes.put(snapshotShard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                    assert previous == null : "snapshot shard size already known for " + snapshotShard;
+                }
             }
             return new SnapshotShardSizeInfo(snapshotShardSizes.build());
         }

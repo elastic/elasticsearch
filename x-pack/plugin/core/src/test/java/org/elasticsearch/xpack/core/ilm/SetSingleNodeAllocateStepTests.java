@@ -175,6 +175,51 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetadata, index, validNodeIds, nodes);
     }
 
+    public void testPerformActionWithClusterExcludeFilters() throws IOException {
+        Settings.Builder indexSettings = settings(Version.CURRENT);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 1)).build();
+        Index index = indexMetadata.getIndex();
+
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        String nodeId = "node_id_0";
+        int nodePort = 9300;
+        Builder nodeSettingsBuilder = Settings.builder();
+        nodes.add(DiscoveryNode.createLocal(nodeSettingsBuilder.build(), new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+            nodeId));
+
+        Settings clusterSettings = Settings.builder()
+            .put("cluster.routing.allocation.exclude._id", "node_id_0")
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder().fPut(index.getName(),
+            indexMetadata);
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().indices(indices.build()).transientSettings(clusterSettings))
+            .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+
+        SetSingleNodeAllocateStep step = createRandomInstance();
+        SetOnce<Exception> actionCompleted = new SetOnce<>();
+        step.performAction(indexMetadata, clusterState, null, new Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                throw new AssertionError("Unexpected method call");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                actionCompleted.set(e);
+            }
+        });
+
+        Exception failure = actionCompleted.get();
+        assertThat(failure, instanceOf(NoNodeAvailableException.class));
+
+        Mockito.verifyZeroInteractions(client);
+    }
+
     public void testPerformActionAttrsNoNodesValid() {
         final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };

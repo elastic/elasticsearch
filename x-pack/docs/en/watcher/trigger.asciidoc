@@ -1,5 +1,5 @@
 [role="xpack"]
-[[triggers]]
+[[trigger]]
 == {watcher} triggers
 ++++
 <titleabbrev>Triggers</titleabbrev>

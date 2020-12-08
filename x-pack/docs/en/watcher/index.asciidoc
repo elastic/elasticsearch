@@ -5,7 +5,7 @@
 [partintro]
 --
 TIP: {kib} Alerting provides a set of built-in actions and alerts 
-that are integrated with the APM, Metrics, Security, and Uptime applications.
+that are integrated with applications such as APM, Metrics, Security, and Uptime.
 You can use {kib} Alerting to detect complex conditions within different {kib} apps 
 and trigger actions when those conditions are met. 
 For more information, see {kibana-ref}/alerting-getting-started.html[Alerting and actions].

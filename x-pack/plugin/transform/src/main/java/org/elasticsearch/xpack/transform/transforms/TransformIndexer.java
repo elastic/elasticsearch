@@ -871,22 +871,27 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformIndexerPosition position = getPosition();
 
         TransformConfig config = getConfig();
-        QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
 
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder);
+        QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         if (isContinuous()) {
-            filteredQuery.filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+            BoolQueryBuilder filteredQuery =
+                new BoolQueryBuilder()
+                    .filter(queryBuilder)
+                    .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+
+            // Only apply extra filter if it is the subsequent run of the continuous transform
+            if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
+                filteredQuery
+                    .filter(changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound()));
+            }
+
+            queryBuilder = filteredQuery;
         }
 
-        // Only apply extra filter if its the subsequent run of the continuous transform
-        if (isContinuous() && nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
-            filteredQuery.filter(changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound()));
-        }
-
-        sourceBuilder.query(filteredQuery);
+        sourceBuilder.query(queryBuilder);
         logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
 
         return sourceBuilder;

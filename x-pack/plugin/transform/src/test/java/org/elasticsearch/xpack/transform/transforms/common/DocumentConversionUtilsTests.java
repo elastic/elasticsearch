@@ -29,7 +29,7 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     private static String PIPELINE = "some-pipeline";
     private static String ID = "some-id";
     private static Map<String, Object> DOCUMENT = Collections.unmodifiableMap(
-        new HashMap<>() {{
+        new HashMap<String, Object>() {{
             put("_id", ID);
             put("field-1", "field-1-value");
             put("field-2", "field-2-value");
@@ -38,7 +38,7 @@ public class DocumentConversionUtilsTests extends ESTestCase {
             put("_internal-field-2", "internal-field-2-value");
         }});
     private static Map<String, Object> DOCUMENT_WITHOUT_INTERNAL_FIELDS = Collections.unmodifiableMap(
-        new HashMap<>() {{
+        new HashMap<String, Object>() {{
             put("field-1", "field-1-value");
             put("field-2", "field-2-value");
             put("field-3", "field-3-value");
@@ -84,11 +84,11 @@ public class DocumentConversionUtilsTests extends ESTestCase {
         FieldCapabilitiesResponse response =
             new FieldCapabilitiesResponse(
                 new String[] { "some-index" },
-                new HashMap<>() {{
-                    put("field-1", new HashMap<>() {{
+                new HashMap<String, Map<String, FieldCapabilities>>() {{
+                    put("field-1", new HashMap<String, FieldCapabilities>() {{
                         put("keyword", createFieldCapabilities("field-1", "keyword"));
                     }});
-                    put("field-2", new HashMap<>() {{
+                    put("field-2", new HashMap<String, FieldCapabilities>() {{
                         put("long", createFieldCapabilities("field-2", "long"));
                         put("keyword", createFieldCapabilities("field-2", "keyword"));
                     }});

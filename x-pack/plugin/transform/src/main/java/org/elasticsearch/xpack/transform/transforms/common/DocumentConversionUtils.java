@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.function.Predicate.not;
-
 public class DocumentConversionUtils {
 
     private static final Logger logger = LogManager.getLogger(DocumentConversionUtils.class);
@@ -42,7 +40,7 @@ public class DocumentConversionUtils {
      */
     public static <V> Map<String, V> removeInternalFields(Map<String, V> document) {
         return document.entrySet().stream()
-            .filter(not(e -> e.getKey() != null && e.getKey().startsWith("_")))
+            .filter(e -> (e.getKey() != null && e.getKey().startsWith("_")) == false)
             // Workaround for handling null keys properly. For details see https://bugs.openjdk.java.net/browse/JDK-8148463
             .collect(HashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), HashMap::putAll);
     }

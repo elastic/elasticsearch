@@ -26,7 +26,6 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 
 import java.util.Collection;
@@ -52,12 +51,35 @@ public class SystemIndices {
     );
 
     private final CharacterRunAutomaton runAutomaton;
-    private final Map<String, Feature> systemIndexDescriptors;
+    private final Map<String, Feature> featureDescriptors;
 
     public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
-        systemIndexDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
-        checkForOverlappingPatterns(systemIndexDescriptors);
-        this.runAutomaton = buildCharacterRunAutomaton(systemIndexDescriptors);
+        featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+        checkForOverlappingPatterns(featureDescriptors);
+        checkForDuplicateAliases(this.getSystemIndexDescriptors());
+        this.runAutomaton = buildCharacterRunAutomaton(featureDescriptors);
+    }
+
+    private void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
+        final Map<String, Integer> aliasCounts = new HashMap<>();
+
+        for (SystemIndexDescriptor descriptor : descriptors) {
+            final String aliasName = descriptor.getAliasName();
+            if (aliasName != null) {
+                aliasCounts.compute(aliasName, (alias, existingCount) -> 1 + (existingCount == null ? 0 : existingCount));
+            }
+        }
+
+        final List<String> duplicateAliases = aliasCounts.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue() > 1)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .collect(Collectors.toList());
+
+        if (duplicateAliases.isEmpty() == false) {
+            throw new IllegalStateException("Found aliases associated with multiple system index descriptors: " + duplicateAliases + "");
+        }
     }
 
     /**
@@ -85,7 +107,7 @@ public class SystemIndices {
      * @throws IllegalStateException if multiple descriptors match the name
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
-        final List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.values().stream()
+        final List<SystemIndexDescriptor> matchingDescriptors = featureDescriptors.values().stream()
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(descriptor -> descriptor.matchesIndexPattern(name))
             .collect(toUnmodifiableList());
@@ -116,18 +138,18 @@ public class SystemIndices {
     public Map<String, Collection<SystemIndexDescriptor>> getSystemIndexDescriptorsByFeature() {
         // GWB-> I don't like exposing this as public, but we also need to be able to get the merged list of plugin/module features
         //   plus internal/built-in ones (i.e. tasks)
-        return systemIndexDescriptors.entrySet().stream()
+        return featureDescriptors.entrySet().stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, feature -> feature.getValue().getIndexDescriptors()));
     }
 
     public Map<String, Feature> getFeatures() {
-        return systemIndexDescriptors;
+        return featureDescriptors;
     }
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Map<String, Feature> descriptors) {
         Optional<Automaton> automaton = descriptors.values().stream()
             .flatMap(feature -> feature.getIndexDescriptors().stream())
-            .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
     }
@@ -165,8 +187,8 @@ public class SystemIndices {
     }
 
     private static boolean overlaps(SystemIndexDescriptor a1, SystemIndexDescriptor a2) {
-        Automaton a1Automaton = Regex.simpleMatchToAutomaton(a1.getIndexPattern());
-        Automaton a2Automaton = Regex.simpleMatchToAutomaton(a2.getIndexPattern());
+        Automaton a1Automaton = SystemIndexDescriptor.buildAutomaton(a1.getIndexPattern(), null);
+        Automaton a2Automaton = SystemIndexDescriptor.buildAutomaton(a2.getIndexPattern(), null);
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
@@ -181,6 +203,12 @@ public class SystemIndices {
             }
         });
         return Map.copyOf(map);
+    }
+
+    Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return this.featureDescriptors.values().stream()
+            .flatMap(f -> f.getIndexDescriptors().stream())
+            .collect(Collectors.toList());
     }
 
     public static class Feature {

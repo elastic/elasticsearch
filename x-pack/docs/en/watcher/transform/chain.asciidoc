@@ -30,7 +30,7 @@ the other available transforms. For example, you can combine a
       }
     },
     {
-      "script" : "return [ error_count : ctx.payload.hits.total.value ]"  <3>
+      "script" : "return [ error_count : ctx.payload.hits.total ]"  <3>
     }
   ]
 }

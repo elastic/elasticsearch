@@ -74,6 +74,7 @@ for the same stream.
 [[rollup-api-request-body]]
 ==== {api-request-body-title}
 
+// tag::rollup-config[]
 `groups`::
 (Required, object)
 Aggregates and stores fields in the rollup.
@@ -188,6 +189,7 @@ values run faster but require more memory.
 +
 NOTE: This argument only affects the speed and memory usage of the rollup
 operation. It does not affect the rollup results.
+// end::rollup-config[]
 
 `timeout`::
 (Optional, <<time-units,time value>>)

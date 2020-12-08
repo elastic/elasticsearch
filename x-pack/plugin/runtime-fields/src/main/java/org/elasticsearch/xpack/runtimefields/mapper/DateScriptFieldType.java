@@ -99,11 +99,11 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }
 
-    DateScriptFieldType(String name) {
+    DateScriptFieldType(String name, DateFormatter dateTimeFormatter) {
         this(
             name,
             DateFieldScript.PARSE_FROM_SOURCE,
-            DateFormatter.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()).withLocale(Locale.ROOT),
+            dateTimeFormatter,
             null,
             Collections.emptyMap(),
             (builder, includeDefaults) -> {}

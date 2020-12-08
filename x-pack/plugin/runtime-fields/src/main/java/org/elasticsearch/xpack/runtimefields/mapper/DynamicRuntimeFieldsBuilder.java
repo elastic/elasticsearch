@@ -37,6 +37,6 @@ public final class DynamicRuntimeFieldsBuilder implements org.elasticsearch.inde
 
     @Override
     public RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter) {
-        return new DateScriptFieldType(name);
+        return new DateScriptFieldType(name, dateFormatter);
     }
 }

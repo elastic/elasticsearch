@@ -36,7 +36,7 @@ public class PainlessInfoJson {
         private final String name;
         private final boolean imported;
         private final List<PainlessContextConstructorInfo> constructors;
-        private final List<PainlessContextMethodInfo> staticMethods;
+        private final List<Method> staticMethods;
         private final List<Method> methods;
         private final List<PainlessContextFieldInfo> staticFields;
         private final List<PainlessContextFieldInfo> fields;
@@ -45,8 +45,8 @@ public class PainlessInfoJson {
             this.name = info.getName();
             this.imported = info.isImported();
             this.constructors = info.getConstructors();
-            this.staticMethods = info.getStaticMethods();
-            this.methods = info.getMethods().stream().map(m -> new Method(m, javaNamesToDisplayNames)).collect(Collectors.toList());
+            this.staticMethods = Method.fromMethodInfos(info.getStaticMethods(), javaNamesToDisplayNames);
+            this.methods = Method.fromMethodInfos(info.getMethods(), javaNamesToDisplayNames);
             this.staticFields = info.getStaticFields();
             this.fields = info.getFields();
         }
@@ -85,6 +85,12 @@ public class PainlessInfoJson {
             this.rtn = ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getRtn());
             this.parameters = info.getParameters().stream()
                 .map(p -> ContextGeneratorCommon.getType(javaNamesToDisplayNames, p))
+                .collect(Collectors.toList());
+        }
+
+        public static List<Method> fromMethodInfos(List<PainlessContextMethodInfo> infos, Map<String, String> javaNamesToDisplayNames) {
+            return infos.stream()
+                .map(m -> new Method(m, javaNamesToDisplayNames))
                 .collect(Collectors.toList());
         }
 

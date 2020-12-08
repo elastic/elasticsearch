@@ -111,10 +111,6 @@ public class ContextGeneratorCommon {
         }
 
         while (arrayDimensions-- > 0) {
-            if (javaType != null) {
-                System.out.println(javaType);
-//                throw new RuntimeException("STU: got an array here " + javaType);
-            }
             javaType += "[]";
         }
 

@@ -43,8 +43,11 @@ import java.util.Objects;
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
-    public static final Version HIDDEN_VERSION = Version.V_7_11_0;
-    public static final Version REPLICATED_VERSION = Version.V_7_11_0;
+
+    /**
+     * The version when data stream metadata, hidden data streams and replicated data streams was introduced.
+     */
+    public static final Version NEW_FEATURES_VERSION = Version.V_7_11_0;
 
     private final String name;
     private final TimestampField timeStampField;
@@ -187,9 +190,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(StreamInput in) throws IOException {
         this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
-            in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readMap(): null,
-            in.getVersion().onOrAfter(HIDDEN_VERSION) && in.readBoolean(),
-            in.getVersion().onOrAfter(REPLICATED_VERSION) && in.readBoolean());
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) ? in.readMap(): null,
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) && in.readBoolean(),
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) && in.readBoolean());
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -202,13 +205,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getVersion().onOrAfter(NEW_FEATURES_VERSION)) {
             out.writeMap(metadata);
-        }
-        if (out.getVersion().onOrAfter(HIDDEN_VERSION)) {
             out.writeBoolean(hidden);
-        }
-        if (out.getVersion().onOrAfter(REPLICATED_VERSION)) {
             out.writeBoolean(replicated);
         }
     }

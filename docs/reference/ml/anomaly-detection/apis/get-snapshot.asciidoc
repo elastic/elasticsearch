@@ -41,8 +41,9 @@ by using a comma-separated list of `<snapshot_id>` or a wildcard expression.
 You can get all snapshots for all calendars by using `_all`,
 by specifying `*` as the `<snapshot_id>`, or by omitting the `<snapshot_id>`.
 
-NOTE: You can specify `empty` as a <snapshot_id>. Revert to `empty` results in 
-an empty model that start learning from scratch when you start the job.
+NOTE: You can specify a <snapshot_id> as `empty`. Revert to `empty` results in 
+an empty model that start learning from scratch when the {anomaly-job} is 
+started.
 --
 
 

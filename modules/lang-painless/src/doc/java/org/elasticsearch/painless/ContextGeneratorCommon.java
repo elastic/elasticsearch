@@ -135,7 +135,7 @@ public class ContextGeneratorCommon {
             instanceBindings = getCommon(contexts, PainlessContextInfo::getInstanceBindings);
 
             Map<String, String> javaNamesToDisplayNames = Collections.emptyMap();
-            common = PainlessInfoJson.Class.fromClassInfos(sortClassInfos(classes), javaNamesToDisplayNames);
+            common = PainlessInfoJson.Class.fromInfos(sortClassInfos(classes), javaNamesToDisplayNames);
             Map<String, List<PainlessContextClassInfo>> sorted = new HashMap<>();
             for (PainlessContextInfo context : contexts) {
                 sorted.put(context.getName(), sortClassInfos(excludeCommonClassInfos(classes, context.getClasses())));

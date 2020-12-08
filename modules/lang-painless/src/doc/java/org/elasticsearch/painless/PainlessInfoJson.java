@@ -35,7 +35,7 @@ public class PainlessInfoJson {
     public static class Class implements ToXContentObject {
         private final String name;
         private final boolean imported;
-        private final List<PainlessContextConstructorInfo> constructors;
+        private final List<Constructor> constructors;
         private final List<Method> staticMethods;
         private final List<Method> methods;
         private final List<PainlessContextFieldInfo> staticFields;
@@ -44,14 +44,14 @@ public class PainlessInfoJson {
         public Class(PainlessContextClassInfo info, Map<String, String> javaNamesToDisplayNames) {
             this.name = info.getName();
             this.imported = info.isImported();
-            this.constructors = info.getConstructors();
-            this.staticMethods = Method.fromMethodInfos(info.getStaticMethods(), javaNamesToDisplayNames);
-            this.methods = Method.fromMethodInfos(info.getMethods(), javaNamesToDisplayNames);
+            this.constructors = Constructor.fromInfos(info.getConstructors(), javaNamesToDisplayNames);
+            this.staticMethods = Method.fromInfos(info.getStaticMethods(), javaNamesToDisplayNames);
+            this.methods = Method.fromInfos(info.getMethods(), javaNamesToDisplayNames);
             this.staticFields = info.getStaticFields();
             this.fields = info.getFields();
         }
 
-        public static List<Class> fromClassInfos(List<PainlessContextClassInfo> infos, Map<String, String> javaNamesToDisplayNames) {
+        public static List<Class> fromInfos(List<PainlessContextClassInfo> infos, Map<String, String> javaNamesToDisplayNames) {
             return infos.stream()
                 .map(info -> new Class(info, javaNamesToDisplayNames))
                 .collect(Collectors.toList());
@@ -88,7 +88,7 @@ public class PainlessInfoJson {
                 .collect(Collectors.toList());
         }
 
-        public static List<Method> fromMethodInfos(List<PainlessContextMethodInfo> infos, Map<String, String> javaNamesToDisplayNames) {
+        public static List<Method> fromInfos(List<PainlessContextMethodInfo> infos, Map<String, String> javaNamesToDisplayNames) {
             return infos.stream()
                 .map(m -> new Method(m, javaNamesToDisplayNames))
                 .collect(Collectors.toList());
@@ -101,6 +101,34 @@ public class PainlessInfoJson {
             builder.field(PainlessContextMethodInfo.NAME.getPreferredName(), name);
             builder.field(PainlessContextMethodInfo.RTN.getPreferredName(), rtn);
             builder.field(PainlessContextMethodInfo.PARAMETERS.getPreferredName(), parameters);
+            builder.endObject();
+
+            return builder;
+        }
+    }
+
+    public static class Constructor implements ToXContentObject {
+        private final String declaring;
+        private final List<String> parameters;
+
+        public Constructor(PainlessContextConstructorInfo info, Map<String, String> javaNamesToDisplayNames) {
+            this.declaring = info.getDeclaring();
+            this.parameters = info.getParameters().stream()
+                .map(p -> ContextGeneratorCommon.getType(javaNamesToDisplayNames, p))
+                .collect(Collectors.toList());
+        }
+
+        public static List<Constructor> fromInfos(List<PainlessContextConstructorInfo> infos, Map<String, String> javaNamesToDisplayNames) {
+            return infos.stream()
+                .map(c -> new Constructor(c, javaNamesToDisplayNames))
+                .collect(Collectors.toList());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(PainlessContextConstructorInfo.DECLARING.getPreferredName(), declaring);
+            builder.field(PainlessContextConstructorInfo.PARAMETERS.getPreferredName(), parameters);
             builder.endObject();
 
             return builder;

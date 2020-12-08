@@ -16,6 +16,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockPublishResultActionListener;
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.wrapMockListener;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -161,7 +162,7 @@ public class HttpResourceTests extends ESTestCase {
             }
         };
 
-        resource.checkAndPublishIfDirty(client, listener);
+        resource.checkAndPublishIfDirty(client, wrapMockListener(listener));
         resource.checkAndPublishIfDirty(client, checkingListener);
 
         assertTrue(firstCheck.await(15, TimeUnit.SECONDS));
@@ -185,10 +186,10 @@ public class HttpResourceTests extends ESTestCase {
         };
 
         assertTrue(resource.isDirty());
-        resource.checkAndPublishIfDirty(client, listener1);
+        resource.checkAndPublishIfDirty(client, wrapMockListener(listener1));
         verify(listener1).onResponse(true);
         assertFalse(resource.isDirty());
-        resource.checkAndPublishIfDirty(client, listener2);
+        resource.checkAndPublishIfDirty(client, wrapMockListener(listener2));
         verify(listener2).onResponse(true);
 
         // once is the default!

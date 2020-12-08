@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.wrapMockListener;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -111,7 +112,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void awaitCheckAndPublish(HttpResource resource, final ResourcePublishResult expected) {
-        resource.checkAndPublish(client, publishListener);
+        resource.checkAndPublish(client, wrapMockListener(publishListener));
         verifyPublishListener(expected);
     }
 
@@ -616,7 +617,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         // it should be able to proceed! (note: we are not using the instance "resources" here)
-        resources.checkAndPublish(client, publishListener);
+        resources.checkAndPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(ResourcePublishResult.ready());
         assertFalse(resources.isDirty());

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePub
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.wrapMockListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
 import static org.elasticsearch.xpack.monitoring.exporter.http.WatcherExistsHttpResource.XPACK_DOES_NOT_EXIST;
 import static org.hamcrest.Matchers.is;
@@ -41,7 +42,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     public void testDoCheckIgnoresClientWhenNotElectedMaster() {
         whenNotElectedMaster();
 
-        resource.doCheck(client, checkListener);
+        resource.doCheck(client, wrapMockListener(checkListener));
 
         verify(checkListener).onResponse(true);
         verifyZeroInteractions(client);
@@ -141,7 +142,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, publishListener);
+        resource.doPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(ResourcePublishResult.ready());
 
@@ -154,7 +155,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, publishListener);
+        resource.doPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(new ResourcePublishResult(false));
 
@@ -167,7 +168,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, publishListener);
+        resource.doPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(null);
 

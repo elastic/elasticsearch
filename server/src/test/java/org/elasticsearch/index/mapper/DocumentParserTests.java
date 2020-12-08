@@ -151,7 +151,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("dynamic", "true");
             b.startObject("runtime");
             {
-                b.startObject("object").field("type", "test").endObject();
+                b.startObject("object").field("type", "string").endObject();
             }
             b.endObject();
         }));
@@ -186,8 +186,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("dynamic", "true");
             b.startObject("runtime");
             {
-                b.startObject("location").field("type", "test").endObject();
-                b.startObject("country").field("type", "test").endObject();
+                b.startObject("location").field("type", "string").endObject();
+                b.startObject("country").field("type", "string").endObject();
             }
             b.endObject();
             b.startObject("properties");

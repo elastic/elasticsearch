@@ -1,6 +1,9 @@
 [role="xpack"]
 [[transform-chain]]
-=== Chain {watcher-transform}
+=== {watcher} chain {watcher-transform}
+++++
+<titleabbrev>Chain {watcher-transform}</titleabbrev>
+++++
 
 A <<transform,{watcher-transform}>> that executes an ordered list of configured
 {watcher-transforms} in a chain, where the output of one transform serves as the

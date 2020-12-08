@@ -1,5 +1,8 @@
 [[schedule-cron]]
-==== Cron schedule
+==== {watcher} cron schedule
+++++
+<titleabbrev>Cron schedule</titleabbrev>
+++++
 
 Defines a <<trigger-schedule, `schedule`>> using a <<cron-expressions, cron expression>> 
 that specifiues when to execute a watch.

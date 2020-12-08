@@ -32,10 +32,8 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
     public void setup() throws Exception {
         Path location = randomRepoPath();
         logger.info("--> creating repository [{}] [{}]", REPO, "fs");
-        assertAcked(clusterAdmin().preparePutRepository(REPO)
-            .setType("fs").setSettings(Settings.builder().put("location", location)));
+        assertAcked(clusterAdmin().preparePutRepository(REPO).setType("fs").setSettings(Settings.builder().put("location", location)));
     }
-
 
     public void testAutoscalingPolicyWillBeRestored() {
         final Client client = client();

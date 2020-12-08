@@ -70,7 +70,7 @@ public final class ContextDocGenerator {
     private static final String SHARED_NAME = "Shared";
 
     public static void main(String[] args) throws IOException {
-        List<PainlessContextInfo> contextInfos = getContextInfos();
+        List<PainlessContextInfo> contextInfos = ContextGeneratorCommon.getContextInfos();
         Set<Object> sharedStaticInfos = createSharedStatics(contextInfos);
         Set<PainlessContextClassInfo> sharedClassInfos = createSharedClasses(contextInfos);
 
@@ -100,33 +100,6 @@ public final class ContextDocGenerator {
         }
 
         printRootIndexPage(rootDir, contextInfos, isSpecialized);
-    }
-
-    @SuppressForbidden(reason = "retrieving data from an internal API not exposed as part of the REST client")
-    private static List<PainlessContextInfo> getContextInfos() throws IOException  {
-        URLConnection getContextNames = new URL(
-                "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context").openConnection();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, getContextNames.getInputStream());
-        parser.nextToken();
-        parser.nextToken();
-        @SuppressWarnings("unchecked")
-        List<String> contextNames = (List<String>)(Object)parser.list();
-        parser.close();
-        ((HttpURLConnection)getContextNames).disconnect();
-
-        List<PainlessContextInfo> contextInfos = new ArrayList<>();
-
-        for (String contextName : contextNames) {
-            URLConnection getContextInfo = new URL(
-                    "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName).openConnection();
-            parser = JsonXContent.jsonXContent.createParser(null, null, getContextInfo.getInputStream());
-            contextInfos.add(PainlessContextInfo.fromXContent(parser));
-            ((HttpURLConnection)getContextInfo).disconnect();
-        }
-
-        contextInfos.sort(Comparator.comparing(PainlessContextInfo::getName));
-
-        return contextInfos;
     }
 
     private static Set<Object> createSharedStatics(List<PainlessContextInfo> contextInfos) {

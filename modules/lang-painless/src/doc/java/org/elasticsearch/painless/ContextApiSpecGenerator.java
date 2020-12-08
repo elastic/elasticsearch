@@ -19,8 +19,30 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.painless.action.PainlessContextClassInfo;
+import org.elasticsearch.painless.action.PainlessContextInfo;
+
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 public class ContextApiSpecGenerator {
-    public static void main(String[] args) {
-        System.out.println("Stu: ContextApiSpecGenerator");
+    public static void main(String[] args) throws IOException {
+        List<PainlessContextInfo> contexts = ContextGeneratorCommon.getContextInfos();
+        ContextGeneratorCommon.PainlessInfos infos = new ContextGeneratorCommon.PainlessInfos(contexts);
+        for (PainlessContextClassInfo common : infos.common) {
+            System.out.println("STU common: " + common.getName());
+        }
     }
 }

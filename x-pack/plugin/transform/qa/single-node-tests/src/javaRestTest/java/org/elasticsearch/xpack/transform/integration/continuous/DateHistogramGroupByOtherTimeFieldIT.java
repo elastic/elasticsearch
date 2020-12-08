@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -85,7 +86,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
     }
 
     @Override
-    public void testIteration(int iteration) throws IOException {
+    public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
         SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);

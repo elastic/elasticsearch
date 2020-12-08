@@ -22,6 +22,7 @@ package org.elasticsearch.client.transform;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigTests;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.client.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.containsString;
 
 public class PreviewTransformRequestTests extends AbstractXContentTestCase<PreviewTransformRequest> {
@@ -63,21 +66,25 @@ public class PreviewTransformRequestTests extends AbstractXContentTestCase<Previ
     }
 
     public void testValidate() {
-        assertFalse(new PreviewTransformRequest(TransformConfigTests.randomTransformConfig())
-                .validate().isPresent());
+        assertThat(new PreviewTransformRequest(TransformConfigTests.randomTransformConfig()).validate(), isEmpty());
         assertThat(new PreviewTransformRequest(null).validate().get().getMessage(),
                 containsString("preview requires a non-null transform config"));
 
         // null id and destination is valid
         TransformConfig config = TransformConfig.forPreview(randomSourceConfig(), PivotConfigTests.randomPivotConfig());
 
-        assertFalse(new PreviewTransformRequest(config).validate().isPresent());
+        assertThat(new PreviewTransformRequest(config).validate(), isEmpty());
 
         // null source is not valid
         config = TransformConfig.builder().setPivotConfig(PivotConfigTests.randomPivotConfig()).build();
 
         Optional<ValidationException> error = new PreviewTransformRequest(config).validate();
-        assertTrue(error.isPresent());
+        assertThat(error, isPresent());
         assertThat(error.get().getMessage(), containsString("transform source cannot be null"));
+
+        // null id and destination is valid
+        config = TransformConfig.forPreview(randomSourceConfig(), LatestConfigTests.randomLatestConfig());
+
+        assertThat(new PreviewTransformRequest(config).validate(), isEmpty());
     }
 }

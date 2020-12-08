@@ -31,6 +31,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
@@ -44,7 +45,7 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
     public static final String CONTINUOUS_EVENTS_SOURCE_INDEX = "test-transform-continuous-events";
     public static final String INGEST_PIPELINE = "transform-ingest";
     public static final String MAX_RUN_FIELD = "run.max";
-    public static final String INGEST_RUN_FIELD = "run.ingest";
+    public static final String INGEST_RUN_FIELD = "run_ingest";
     public static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
         .append(ISO_LOCAL_DATE)
         .appendLiteral('T')
@@ -75,8 +76,9 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
      * Test results after 1 iteration in the test runner.
      *
      * @param iteration the current iteration
+     * @param modifiedEvents set of events modified in the current iteration
      */
-    public abstract void testIteration(int iteration) throws IOException;
+    public abstract void testIteration(int iteration, Set<String> modifiedEvents) throws IOException;
 
     protected TransformConfig.Builder addCommonBuilderParameters(TransformConfig.Builder builder) {
         return builder.setSyncConfig(getSyncConfig())

@@ -54,8 +54,10 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -129,6 +131,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         addTestCaseIfNotDisabled(new DateHistogramGroupByIT());
         addTestCaseIfNotDisabled(new DateHistogramGroupByOtherTimeFieldIT());
         addTestCaseIfNotDisabled(new HistogramGroupByIT());
+        addTestCaseIfNotDisabled(new LatestContinuousIT());
     }
 
     @Before
@@ -208,10 +211,12 @@ public class TransformContinuousIT extends ESRestTestCase {
             BulkRequest bulkRequest = new BulkRequest(sourceIndexName);
 
             int numDocs = randomIntBetween(1000, 20000);
+            Set<String> modifiedEvents = new HashSet<>();
             for (int numDoc = 0; numDoc < numDocs; numDoc++) {
                 source.append("{");
 
                 String event = events.get((numDoc + randomIntBetween(0, 50)) % 50);
+                modifiedEvents.add(event);
                 if (event != null) {
                     source.append("\"event\":\"").append(event).append("\",");
                 }
@@ -224,7 +229,6 @@ public class TransformContinuousIT extends ESRestTestCase {
                 }
 
                 Tuple<Integer, Integer> location = locations.get((numDoc + randomIntBetween(0, 200)) % 200);
-
                 if (location != null) {
                     // randomize within the same bucket
                     int randomizedLat = location.v1() + randomIntBetween(0, 9);
@@ -277,7 +281,7 @@ public class TransformContinuousIT extends ESRestTestCase {
             // test the output
             for (ContinuousTestCase testCase : transformTestCases) {
                 try {
-                    testCase.testIteration(run);
+                    testCase.testIteration(run, modifiedEvents);
                 } catch (AssertionError testFailure) {
                     throw new AssertionError(
                         "Error in test case ["

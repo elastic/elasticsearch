@@ -38,7 +38,7 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
     final List<String> indices;
 
     static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_FEATURE_INFO_PARSER =
-        new ConstructingObjectParser<>("plugin_info", true, (a, name) -> {
+        new ConstructingObjectParser<>("feature_info", true, (a, name) -> {
             String pluginName = (String) a[0];
             List<String> indices = (List<String>) a[1];
             return new SnapshotFeatureInfo(pluginName, indices);
@@ -81,7 +81,7 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field("plugin_name", pluginName);
+            builder.field("feature_name", pluginName);
             builder.startArray("indices");
             for (String index : indices) {
                 builder.value(index);

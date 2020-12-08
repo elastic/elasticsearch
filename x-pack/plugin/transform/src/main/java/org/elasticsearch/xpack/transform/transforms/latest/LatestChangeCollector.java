@@ -18,11 +18,11 @@ import java.util.Objects;
 /**
  * {@link Function.ChangeCollector} implementation for the latest function.
  */
-class LatestDocChangeCollector implements Function.ChangeCollector {
+class LatestChangeCollector implements Function.ChangeCollector {
 
     private final String synchronizationField;
 
-    LatestDocChangeCollector(String synchronizationField) {
+    LatestChangeCollector(String synchronizationField) {
         this.synchronizationField = Objects.requireNonNull(synchronizationField);
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
-import org.elasticsearch.client.transform.transforms.latest.LatestDocConfig;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -54,7 +54,7 @@ public class TransformConfig implements ToXContentObject {
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
-    public static final ParseField LATEST_TRANSFORM = new ParseField("latest");
+    public static final ParseField LATEST_TRANSFORM = new ParseField("latest_doc");
 
     private final String id;
     private final SourceConfig source;
@@ -63,7 +63,7 @@ public class TransformConfig implements ToXContentObject {
     private final SyncConfig syncConfig;
     private final SettingsConfig settings;
     private final PivotConfig pivotConfig;
-    private final LatestDocConfig latestConfig;
+    private final LatestConfig latestDocConfig;
     private final String description;
     private final Version transformVersion;
     private final Instant createTime;
@@ -78,7 +78,7 @@ public class TransformConfig implements ToXContentObject {
             TimeValue frequency = (TimeValue) args[3];
             SyncConfig syncConfig = (SyncConfig) args[4];
             PivotConfig pivotConfig = (PivotConfig) args[5];
-            LatestDocConfig latestConfig = (LatestDocConfig) args[6];
+            LatestConfig latestDocConfig = (LatestConfig) args[6];
             String description = (String) args[7];
             SettingsConfig settings = (SettingsConfig) args[8];
             Instant createTime = (Instant) args[9];
@@ -90,7 +90,7 @@ public class TransformConfig implements ToXContentObject {
                 frequency,
                 syncConfig,
                 pivotConfig,
-                latestConfig,
+                latestDocConfig,
                 description,
                 settings,
                 createTime,
@@ -111,7 +111,7 @@ public class TransformConfig implements ToXContentObject {
         );
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), SYNC);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> LatestDocConfig.fromXContent(p), LATEST_TRANSFORM);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p), LATEST_TRANSFORM);
         PARSER.declareString(optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p), SETTINGS);
         PARSER.declareField(
@@ -158,11 +158,11 @@ public class TransformConfig implements ToXContentObject {
      * A new, valid, TransformConfig with an appropriate destination and ID will have to be constructed to create
      * the transform.
      * @param source Source configuration for gathering the data
-     * @param latestConfig Config to preview
+     * @param latestDocConfig Config to preview
      * @return A TransformConfig to preview, NOTE it will have a {@code null} id, destination and index.
      */
-    public static TransformConfig forPreview(final SourceConfig source, final LatestDocConfig latestConfig) {
-        return new TransformConfig(null, source, null, null, null, null, latestConfig, null, null, null, null);
+    public static TransformConfig forPreview(final SourceConfig source, final LatestConfig latestDocConfig) {
+        return new TransformConfig(null, source, null, null, null, null, latestDocConfig, null, null, null, null);
     }
 
     TransformConfig(
@@ -172,7 +172,7 @@ public class TransformConfig implements ToXContentObject {
         final TimeValue frequency,
         final SyncConfig syncConfig,
         final PivotConfig pivotConfig,
-        final LatestDocConfig latestConfig,
+        final LatestConfig latestDocConfig,
         final String description,
         final SettingsConfig settings,
         final Instant createTime,
@@ -184,7 +184,7 @@ public class TransformConfig implements ToXContentObject {
         this.frequency = frequency;
         this.syncConfig = syncConfig;
         this.pivotConfig = pivotConfig;
-        this.latestConfig = latestConfig;
+        this.latestDocConfig = latestDocConfig;
         this.description = description;
         this.settings = settings;
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
@@ -215,8 +215,8 @@ public class TransformConfig implements ToXContentObject {
         return pivotConfig;
     }
 
-    public LatestDocConfig getLatestConfig() {
-        return latestConfig;
+    public LatestConfig getLatestDocConfig() {
+        return latestDocConfig;
     }
 
     public Version getVersion() {
@@ -260,8 +260,8 @@ public class TransformConfig implements ToXContentObject {
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
         }
-        if (latestConfig != null) {
-            builder.field(LATEST_TRANSFORM.getPreferredName(), latestConfig);
+        if (latestDocConfig != null) {
+            builder.field(LATEST_TRANSFORM.getPreferredName(), latestDocConfig);
         }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
@@ -301,13 +301,13 @@ public class TransformConfig implements ToXContentObject {
             && Objects.equals(this.settings, that.settings)
             && Objects.equals(this.createTime, that.createTime)
             && Objects.equals(this.pivotConfig, that.pivotConfig)
-            && Objects.equals(this.latestConfig, that.latestConfig);
+            && Objects.equals(this.latestDocConfig, that.latestDocConfig);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-            id, source, dest, frequency, syncConfig, settings, createTime, transformVersion, pivotConfig, latestConfig, description);
+            id, source, dest, frequency, syncConfig, settings, createTime, transformVersion, pivotConfig, latestDocConfig, description);
     }
 
     @Override
@@ -327,7 +327,7 @@ public class TransformConfig implements ToXContentObject {
         private TimeValue frequency;
         private SyncConfig syncConfig;
         private PivotConfig pivotConfig;
-        private LatestDocConfig latestConfig;
+        private LatestConfig latestDocConfig;
         private SettingsConfig settings;
         private String description;
 
@@ -361,8 +361,8 @@ public class TransformConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setLatestConfig(LatestDocConfig latestConfig) {
-            this.latestConfig = latestConfig;
+        public Builder setLatestDocConfig(LatestConfig latestDocConfig) {
+            this.latestDocConfig = latestDocConfig;
             return this;
         }
 
@@ -378,7 +378,7 @@ public class TransformConfig implements ToXContentObject {
 
         public TransformConfig build() {
             return new TransformConfig(
-                id, source, dest, frequency, syncConfig, pivotConfig, latestConfig, description, settings, null, null);
+                id, source, dest, frequency, syncConfig, pivotConfig, latestDocConfig, description, settings, null, null);
         }
     }
 }

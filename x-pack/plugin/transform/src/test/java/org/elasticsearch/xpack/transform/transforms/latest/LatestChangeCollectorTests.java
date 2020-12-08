@@ -12,10 +12,10 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class LatestDocChangeCollectorTests extends ESTestCase {
+public class LatestChangeCollectorTests extends ESTestCase {
 
     public void testBuildFilterQuery() {
-        LatestDocChangeCollector changeCollector = new LatestDocChangeCollector("timestamp");
+        LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp");
 
         assertThat(
             changeCollector.buildFilterQuery(0, 123456789),

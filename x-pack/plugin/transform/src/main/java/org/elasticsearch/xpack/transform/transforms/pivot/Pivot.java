@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -190,8 +189,6 @@ public class Pivot implements Function {
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-
-        logger.trace(() -> new ParameterizedMessage("Search request: {}", searchRequest));
         return searchRequest;
     }
 

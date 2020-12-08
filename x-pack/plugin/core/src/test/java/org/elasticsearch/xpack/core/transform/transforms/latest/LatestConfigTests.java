@@ -22,25 +22,25 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<LatestDocConfig> {
+public class LatestConfigTests extends AbstractSerializingTransformTestCase<LatestConfig> {
 
-    public static LatestDocConfig randomLatestConfig() {
-        return new LatestDocConfig(randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
+    public static LatestConfig randomLatestConfig() {
+        return new LatestConfig(randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override
-    protected LatestDocConfig doParseInstance(XContentParser parser) throws IOException {
-        return LatestDocConfig.fromXContent(parser, false);
+    protected LatestConfig doParseInstance(XContentParser parser) throws IOException {
+        return LatestConfig.fromXContent(parser, false);
     }
 
     @Override
-    protected LatestDocConfig createTestInstance() {
+    protected LatestConfig createTestInstance() {
         return randomLatestConfig();
     }
 
     @Override
-    protected Reader<LatestDocConfig> instanceReader() {
-        return LatestDocConfig::new;
+    protected Reader<LatestConfig> instanceReader() {
+        return LatestConfig::new;
     }
 
     public void testValidate_ValidConfig() throws IOException {
@@ -49,7 +49,7 @@ public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<L
             + " \"sort\": \"timestamp\""
             + "}";
 
-        LatestDocConfig config = createLatestConfigFromString(json);
+        LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null), is(nullValue()));
         assertThat(config.getUniqueKey(), contains("event1", "event2", "event3"));
         assertThat(config.getSort(), is(equalTo("timestamp")));
@@ -62,7 +62,7 @@ public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<L
             + " \"sort\": \"timestamp\""
             + "}";
 
-        LatestDocConfig config = createLatestConfigFromString(json);
+        LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null).validationErrors(), contains("latest.unique_key must be non-empty"));
     }
 
@@ -72,7 +72,7 @@ public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<L
             + " \"sort\": \"timestamp\""
             + "}";
 
-        LatestDocConfig config = createLatestConfigFromString(json);
+        LatestConfig config = createLatestConfigFromString(json);
         assertThat(
             config.validate(null).validationErrors(),
             containsInAnyOrder("latest.unique_key[1] element must be non-empty", "latest.unique_key[3] element must be non-empty"));
@@ -84,7 +84,7 @@ public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<L
             + " \"sort\": \"timestamp\""
             + "}";
 
-        LatestDocConfig config = createLatestConfigFromString(json);
+        LatestConfig config = createLatestConfigFromString(json);
         assertThat(
             config.validate(null).validationErrors(),
             containsInAnyOrder("latest.unique_key elements must be unique, found duplicate element [event1]"));
@@ -96,7 +96,7 @@ public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<L
             + " \"sort\": \"\""
             + "}";
 
-        LatestDocConfig config = createLatestConfigFromString(json);
+        LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null).validationErrors(), contains("latest.sort must be non-empty"));
     }
 
@@ -106,15 +106,15 @@ public class LatestDocConfigTests extends AbstractSerializingTransformTestCase<L
             + " \"sort\": \"\""
             + "}";
 
-        LatestDocConfig config = createLatestConfigFromString(json);
+        LatestConfig config = createLatestConfigFromString(json);
         assertThat(
             config.validate(null).validationErrors(),
             containsInAnyOrder("latest.unique_key must be non-empty", "latest.sort must be non-empty"));
     }
 
-    private LatestDocConfig createLatestConfigFromString(String json) throws IOException {
+    private LatestConfig createLatestConfigFromString(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
-        return LatestDocConfig.fromXContent(parser, false);
+        return LatestConfig.fromXContent(parser, false);
     }
 }

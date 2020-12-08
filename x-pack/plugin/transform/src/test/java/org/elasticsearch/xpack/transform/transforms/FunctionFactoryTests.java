@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
-import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
-import org.elasticsearch.xpack.transform.transforms.latest.LatestDoc;
+import org.elasticsearch.xpack.transform.transforms.latest.Latest;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -34,8 +34,8 @@ public class FunctionFactoryTests extends ESTestCase {
             TransformConfigTests.randomTransformConfig(
                 randomAlphaOfLengthBetween(1, 10),
                 null,
-                LatestDocConfigTests.randomLatestConfig());
+                LatestConfigTests.randomLatestConfig());
         Function function = FunctionFactory.create(config);
-        assertThat(function, is(instanceOf(LatestDoc.class)));
+        assertThat(function, is(instanceOf(Latest.class)));
     }
 }

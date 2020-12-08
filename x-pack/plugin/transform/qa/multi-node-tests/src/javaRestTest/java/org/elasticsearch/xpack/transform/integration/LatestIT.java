@@ -16,7 +16,7 @@ import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.transform.PreviewTransformRequest;
 import org.elasticsearch.client.transform.PreviewTransformResponse;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.latest.LatestDocConfig;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.After;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class LatestDocIT extends TransformIntegTestCase {
+public class LatestIT extends TransformIntegTestCase {
 
     private static final String SOURCE_INDEX_NAME = "basic-crud-latest-reviews";
     private static final int NUM_USERS = 28;
@@ -107,13 +107,13 @@ public class LatestDocIT extends TransformIntegTestCase {
     }
 
     public void testLatestDoc() throws Exception {
-        createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestDocIT::getUserIdForRow, LatestDocIT::getDateStringForRow);
+        createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
         String destIndexName = "reviews-latest";
         TransformConfig transformConfig =
             createTransformConfigBuilder(TRANSFORM_NAME, destIndexName, SOURCE_INDEX_NAME)
                 .setLatestConfig(
-                    LatestDocConfig.builder()
+                    LatestConfig.builder()
                         .setUniqueKey(USER_ID)
                         .setSort(TIMESTAMP)
                         .build())
@@ -144,12 +144,12 @@ public class LatestDocIT extends TransformIntegTestCase {
     }
 
     public void testLatestDocPreview() throws Exception {
-        createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestDocIT::getUserIdForRow, LatestDocIT::getDateStringForRow);
+        createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
         TransformConfig transformConfig =
             createTransformConfigBuilder(TRANSFORM_NAME, "dummy", SOURCE_INDEX_NAME)
                 .setLatestConfig(
-                    LatestDocConfig.builder()
+                    LatestConfig.builder()
                         .setUniqueKey(USER_ID)
                         .setSort(TIMESTAMP)
                         .build())

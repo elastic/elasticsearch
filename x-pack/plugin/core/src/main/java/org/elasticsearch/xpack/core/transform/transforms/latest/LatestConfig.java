@@ -30,7 +30,7 @@ import java.util.Set;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class LatestDocConfig implements Writeable, ToXContentObject {
+public class LatestConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "latest_config";
 
@@ -40,12 +40,12 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
     private final List<String> uniqueKey;
     private final String sort;
 
-    private static final ConstructingObjectParser<LatestDocConfig, Void> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<LatestDocConfig, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<LatestConfig, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<LatestConfig, Void> LENIENT_PARSER = createParser(true);
 
-    private static ConstructingObjectParser<LatestDocConfig, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<LatestDocConfig, Void> parser =
-            new ConstructingObjectParser<>(NAME, lenient, args -> new LatestDocConfig((List<String>) args[0], (String) args[1]));
+    private static ConstructingObjectParser<LatestConfig, Void> createParser(boolean lenient) {
+        ConstructingObjectParser<LatestConfig, Void> parser =
+            new ConstructingObjectParser<>(NAME, lenient, args -> new LatestConfig((List<String>) args[0], (String) args[1]));
 
         parser.declareStringArray(constructorArg(), UNIQUE_KEY);
         parser.declareString(constructorArg(), SORT);
@@ -53,16 +53,16 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
         return parser;
     }
 
-    public static LatestDocConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
+    public static LatestConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
-    public LatestDocConfig(List<String> uniqueKey, String sort) {
+    public LatestConfig(List<String> uniqueKey, String sort) {
         this.uniqueKey = ExceptionsHelper.requireNonNull(uniqueKey, UNIQUE_KEY.getPreferredName());
         this.sort = ExceptionsHelper.requireNonNull(sort, SORT.getPreferredName());
     }
 
-    public LatestDocConfig(StreamInput in) throws IOException {
+    public LatestConfig(StreamInput in) throws IOException {
         this.uniqueKey = in.readStringList();
         this.sort = in.readString();
     }
@@ -129,7 +129,7 @@ public class LatestDocConfig implements Writeable, ToXContentObject {
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-        LatestDocConfig that = (LatestDocConfig) other;
+        LatestConfig that = (LatestConfig) other;
         return Objects.equals(this.uniqueKey, that.uniqueKey) && Objects.equals(this.sort, that.sort);
     }
 

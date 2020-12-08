@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
@@ -49,26 +49,26 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 
-public class LatestDoc implements Function {
+public class Latest implements Function {
 
     public static final int DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = 5000;
     public static final int TEST_QUERY_PAGE_SIZE = 50;
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_transform";
     private static final String TOP_HITS_AGGREGATION_NAME = "_top_hits";
-    private static final Logger logger = LogManager.getLogger(LatestDoc.class);
+    private static final Logger logger = LogManager.getLogger(Latest.class);
 
-    private final LatestDocConfig config;
+    private final LatestConfig config;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
 
-    public LatestDoc(LatestDocConfig config) {
+    public Latest(LatestConfig config) {
         this.config = config;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
     }
 
-    private static CompositeAggregationBuilder createCompositeAggregation(LatestDocConfig config) {
+    private static CompositeAggregationBuilder createCompositeAggregation(LatestConfig config) {
         List<CompositeValuesSourceBuilder<?>> sources =
             config.getUniqueKey().stream()
                 .map(field -> new TermsValuesSourceBuilder(field).field(field).missingBucket(true))
@@ -94,11 +94,11 @@ public class LatestDoc implements Function {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
-        return new LatestDocChangeCollector(synchronizationField);
+        return new LatestChangeCollector(synchronizationField);
     }
 
     private static Map<String, Object> convertBucketToDocument(CompositeAggregation.Bucket bucket,
-                                                               LatestDocConfig config,
+                                                               LatestConfig config,
                                                                TransformIndexerStats transformIndexerStats) {
         transformIndexerStats.incrementNumDocuments(bucket.getDocCount());
 

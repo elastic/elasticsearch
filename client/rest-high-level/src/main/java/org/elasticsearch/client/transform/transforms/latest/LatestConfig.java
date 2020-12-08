@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * Class describing how to compute latest doc for every unique key
  */
-public class LatestDocConfig implements ToXContentObject {
+public class LatestConfig implements ToXContentObject {
 
     private static final String NAME = "latest_config";
 
@@ -46,19 +46,19 @@ public class LatestDocConfig implements ToXContentObject {
     private final String sort;
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<LatestDocConfig, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, args -> new LatestDocConfig((List<String>) args[0], (String) args[1]));
+    private static final ConstructingObjectParser<LatestConfig, Void> PARSER =
+        new ConstructingObjectParser<>(NAME, true, args -> new LatestConfig((List<String>) args[0], (String) args[1]));
 
     static {
         PARSER.declareStringArray(constructorArg(), UNIQUE_KEY);
         PARSER.declareString(constructorArg(), SORT);
     }
 
-    public static LatestDocConfig fromXContent(final XContentParser parser) {
+    public static LatestConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    LatestDocConfig(List<String> uniqueKey, String sort) {
+    LatestConfig(List<String> uniqueKey, String sort) {
         this.uniqueKey = uniqueKey;
         this.sort = sort;
     }
@@ -88,7 +88,7 @@ public class LatestDocConfig implements ToXContentObject {
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-        LatestDocConfig that = (LatestDocConfig) other;
+        LatestConfig that = (LatestConfig) other;
         return Objects.equals(this.uniqueKey, that.uniqueKey) && Objects.equals(this.sort, that.sort);
     }
 
@@ -124,8 +124,8 @@ public class LatestDocConfig implements ToXContentObject {
             return this;
         }
 
-        public LatestDocConfig build() {
-            return new LatestDocConfig(uniqueKey, sort);
+        public LatestConfig build() {
+            return new LatestConfig(uniqueKey, sort);
         }
     }
 }

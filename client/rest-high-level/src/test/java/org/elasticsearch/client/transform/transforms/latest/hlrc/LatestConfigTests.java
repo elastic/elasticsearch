@@ -22,35 +22,35 @@ package org.elasticsearch.client.transform.transforms.latest.hlrc;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class LatestDocConfigTests
-        extends AbstractResponseTestCase<LatestDocConfig, org.elasticsearch.client.transform.transforms.latest.LatestDocConfig> {
+public class LatestConfigTests
+        extends AbstractResponseTestCase<LatestConfig, org.elasticsearch.client.transform.transforms.latest.LatestConfig> {
 
-    public static LatestDocConfig randomLatestDocConfig() {
-        return new LatestDocConfig(randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
+    public static LatestConfig randomLatestDocConfig() {
+        return new LatestConfig(randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override
-    protected LatestDocConfig createServerTestInstance(XContentType xContentType) {
+    protected LatestConfig createServerTestInstance(XContentType xContentType) {
         return randomLatestDocConfig();
     }
 
     @Override
-    protected org.elasticsearch.client.transform.transforms.latest.LatestDocConfig doParseToClientInstance(XContentParser parser)
+    protected org.elasticsearch.client.transform.transforms.latest.LatestConfig doParseToClientInstance(XContentParser parser)
         throws IOException {
-        return org.elasticsearch.client.transform.transforms.latest.LatestDocConfig.fromXContent(parser);
+        return org.elasticsearch.client.transform.transforms.latest.LatestConfig.fromXContent(parser);
     }
 
     @Override
     protected void assertInstances(
-        LatestDocConfig serverTestInstance,
-        org.elasticsearch.client.transform.transforms.latest.LatestDocConfig clientInstance
+        LatestConfig serverTestInstance,
+        org.elasticsearch.client.transform.transforms.latest.LatestConfig clientInstance
     ) {
         assertThat(serverTestInstance.getUniqueKey(), is(equalTo(clientInstance.getUniqueKey())));
         assertThat(serverTestInstance.getSort(), is(equalTo(clientInstance.getSort())));

@@ -21,8 +21,8 @@ package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.transform.TransformNamedXContentProvider;
-import org.elasticsearch.client.transform.transforms.latest.LatestDocConfig;
-import org.elasticsearch.client.transform.transforms.latest.LatestDocConfigTests;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
@@ -45,13 +45,13 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
 
     public static TransformConfig randomTransformConfig() {
         PivotConfig pivotConfig;
-        LatestDocConfig latestConfig;
+        LatestConfig latestDocConfig;
         if (randomBoolean()) {
             pivotConfig = PivotConfigTests.randomPivotConfig();
-            latestConfig = null;
+            latestDocConfig = null;
         } else {
             pivotConfig = null;
-            latestConfig = LatestDocConfigTests.randomLatestConfig();
+            latestDocConfig = LatestConfigTests.randomLatestConfig();
         }
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
@@ -60,7 +60,7 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
             randomBoolean() ? null : randomSyncConfig(),
             pivotConfig,
-            latestConfig,
+            latestDocConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
             SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),

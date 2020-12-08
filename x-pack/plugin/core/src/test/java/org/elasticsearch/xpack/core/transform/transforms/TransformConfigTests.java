@@ -16,8 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
-import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
@@ -31,7 +30,6 @@ import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
@@ -72,7 +70,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomTransformConfig(id, PivotConfigTests.randomPivotConfig(Version.CURRENT), null);
     }
 
-    public static TransformConfig randomTransformConfig(String id, PivotConfig pivotConfig, LatestDocConfig latestConfig) {
+    public static TransformConfig randomTransformConfig(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -191,44 +189,42 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         }
     }
 
-    public void testConstructor_NoFunctionProvided() {
-        IllegalArgumentException e =
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> new TransformConfig(
-                    "",
-                    randomSourceConfig(),
-                    randomDestConfig(),
-                    null,
-                    randomSyncConfig(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    SettingsConfigTests.randomSettingsConfig(),
-                    null,
-                    null));
-        assertThat(e.getMessage(), containsString("Transform configuration must specify exactly 1 function"));
+    public void testConstructor_NoFunctionProvided() throws IOException {
+        String json = "{"
+            + " \"source\": {\"index\": \"src\"},"
+            + " \"dest\": {\"index\": \"dest\"}"
+            + "}";
+
+        // Should parse with lenient parser
+        createTransformConfigFromString(json, "dummy", true);
+        // Should throw with strict parser
+        expectThrows(IllegalArgumentException.class, () -> createTransformConfigFromString(json, "dummy", false));
     }
 
-    public void testConstructor_TwoFunctionsProvided() {
-        IllegalArgumentException e =
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> new TransformConfig(
-                    "",
-                    randomSourceConfig(),
-                    randomDestConfig(),
-                    null,
-                    randomSyncConfig(),
-                    null,
-                    PivotConfigTests.randomPivotConfig(),
-                    LatestDocConfigTests.randomLatestConfig(),
-                    null,
-                    SettingsConfigTests.randomSettingsConfig(),
-                    null,
-                    null));
-        assertThat(e.getMessage(), containsString("Transform configuration must specify exactly 1 function"));
+    public void testConstructor_TwoFunctionsProvided() throws IOException {
+        String json = "{"
+            + " \"source\" : {\"index\": \"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"latest\": {"
+            + "   \"unique_key\": [ \"event1\", \"event2\", \"event3\" ],"
+            + "   \"sort\": \"timestamp\""
+            + " },"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        // Should parse with lenient parser
+        createTransformConfigFromString(json, "dummy", true);
+        // Should throw with strict parser
+        expectThrows(IllegalArgumentException.class, () -> createTransformConfigFromString(json, "dummy", false));
     }
 
     public void testPreventHeaderInjection() {

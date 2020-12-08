@@ -22,7 +22,7 @@ package org.elasticsearch.client.transform;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigTests;
-import org.elasticsearch.client.transform.transforms.latest.LatestDocConfigTests;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -83,7 +83,7 @@ public class PreviewTransformRequestTests extends AbstractXContentTestCase<Previ
         assertThat(error.get().getMessage(), containsString("transform source cannot be null"));
 
         // null id and destination is valid
-        config = TransformConfig.forPreview(randomSourceConfig(), LatestDocConfigTests.randomLatestConfig());
+        config = TransformConfig.forPreview(randomSourceConfig(), LatestConfigTests.randomLatestConfig());
 
         assertThat(new PreviewTransformRequest(config).validate(), isEmpty());
     }

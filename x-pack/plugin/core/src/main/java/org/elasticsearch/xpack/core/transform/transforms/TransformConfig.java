@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -68,7 +68,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     private Instant createTime;
 
     private final PivotConfig pivotConfig;
-    private final LatestDocConfig latestConfig;
+    private final LatestConfig latestConfig;
 
     private static void validateStrictParsingParams(Object arg, String parameterName) {
         if (arg != null) {
@@ -114,7 +114,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             Map<String, String> headers = (Map<String, String>) args[6];
 
             PivotConfig pivotConfig = (PivotConfig) args[7];
-            LatestDocConfig latestConfig = (LatestDocConfig) args[8];
+            LatestConfig latestConfig = (LatestConfig) args[8];
             String description = (String) args[9];
             SettingsConfig settings = (SettingsConfig) args[10];
             return new TransformConfig(
@@ -141,7 +141,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         parser.declareString(optionalConstructorArg(), TransformField.INDEX_DOC_TYPE);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> LatestDocConfig.fromXContent(p, lenient), LATEST_TRANSFORM);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p, lenient), LATEST_TRANSFORM);
         parser.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         parser.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, lenient), TransformField.SETTINGS);
         parser.declareField(
@@ -174,7 +174,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         final SyncConfig syncConfig,
         final Map<String, String> headers,
         final PivotConfig pivotConfig,
-        final LatestDocConfig latestConfig,
+        final LatestConfig latestConfig,
         final String description,
         final SettingsConfig settings,
         final Instant createTime,
@@ -209,7 +209,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo 7.11.0
-            latestConfig = in.readOptionalWriteable(LatestDocConfig::new);
+            latestConfig = in.readOptionalWriteable(LatestConfig::new);
         } else {
             latestConfig = null;
         }
@@ -282,7 +282,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         return pivotConfig;
     }
 
-    public LatestDocConfig getLatestConfig() {
+    public LatestConfig getLatestConfig() {
         return latestConfig;
     }
 
@@ -527,7 +527,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         private Version transformVersion;
         private Instant createTime;
         private PivotConfig pivotConfig;
-        private LatestDocConfig latestConfig;
+        private LatestConfig latestConfig;
         private SettingsConfig settings;
 
         public Builder() {}
@@ -627,12 +627,12 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return pivotConfig;
         }
 
-        public Builder setLatestConfig(LatestDocConfig latestConfig) {
+        public Builder setLatestConfig(LatestConfig latestConfig) {
             this.latestConfig = latestConfig;
             return this;
         }
 
-        public LatestDocConfig getLatestConfig() {
+        public LatestConfig getLatestConfig() {
             return latestConfig;
         }
 

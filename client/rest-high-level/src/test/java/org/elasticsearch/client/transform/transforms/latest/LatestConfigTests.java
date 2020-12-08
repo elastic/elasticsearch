@@ -25,19 +25,19 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class LatestDocConfigTests extends AbstractXContentTestCase<LatestDocConfig> {
+public class LatestConfigTests extends AbstractXContentTestCase<LatestConfig> {
 
-    public static LatestDocConfig randomLatestConfig() {
-        return new LatestDocConfig(randomList(5, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
+    public static LatestConfig randomLatestConfig() {
+        return new LatestConfig(randomList(5, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override
-    protected LatestDocConfig doParseInstance(XContentParser parser) throws IOException {
-        return LatestDocConfig.fromXContent(parser);
+    protected LatestConfig doParseInstance(XContentParser parser) throws IOException {
+        return LatestConfig.fromXContent(parser);
     }
 
     @Override
-    protected LatestDocConfig createTestInstance() {
+    protected LatestConfig createTestInstance() {
         return randomLatestConfig();
     }
 

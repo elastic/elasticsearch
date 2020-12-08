@@ -100,14 +100,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     DateScriptFieldType(String name, DateFormatter dateTimeFormatter) {
-        this(
-            name,
-            DateFieldScript.PARSE_FROM_SOURCE,
-            dateTimeFormatter,
-            null,
-            Collections.emptyMap(),
-            (builder, includeDefaults) -> {}
-        );
+        this(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 
     DateScriptFieldType(

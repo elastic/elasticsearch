@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class TransportActionFilterChainTests extends ESTestCase {
 
@@ -83,7 +85,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
         TransportAction<TestRequest, TestResponse> transportAction =
-            new TransportAction<TestRequest, TestResponse>(actionName, actionFilters,
+            new TransportAction<TestRequest, TestResponse>(actionName, actionFilters, mock(Transport.Connection.class),
                 new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
@@ -161,7 +163,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(actionName,
-            actionFilters, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
+            actionFilters, mock(Transport.Connection.class), new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());

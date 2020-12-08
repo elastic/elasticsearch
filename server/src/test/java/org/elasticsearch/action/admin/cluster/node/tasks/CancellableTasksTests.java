@@ -369,7 +369,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             () -> testAction.execute(childRequest, ActionListener.wrap(() -> fail("must not execute"))));
         assertThat(cancelledException.getMessage(), startsWith("Task cancelled before it started:"));
         CountDownLatch latch = new CountDownLatch(1);
-        taskManager.startBanOnChildrenNodes(parentTaskId.getId(), latch::countDown);
+        taskManager.startBanOnChildTasks(parentTaskId.getId(), latch::countDown);
         assertTrue("onChildTasksCompleted() is not invoked", latch.await(1, TimeUnit.SECONDS));
     }
 

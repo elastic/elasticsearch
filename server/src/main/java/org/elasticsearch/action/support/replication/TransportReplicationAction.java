@@ -146,7 +146,7 @@ public abstract class TransportReplicationAction<
                                          ActionFilters actionFilters, Writeable.Reader<Request> requestReader,
                                          Writeable.Reader<ReplicaRequest> replicaRequestReader, String executor,
                                          boolean syncGlobalCheckpointAfterOperation, boolean forceExecutionOnPrimary) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;

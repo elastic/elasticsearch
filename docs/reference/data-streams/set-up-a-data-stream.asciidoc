@@ -157,6 +157,9 @@ PUT /_data_stream/my-data-stream
 // TEST[continued]
 // TEST[s/my-data-stream/my-data-stream-alt/]
 
+When you create a data stream, {es} automatically creates a backing index for
+the stream. This index also acts as the stream's first write index.
+
 [discrete]
 [[convert-an-index-alias-to-a-data-stream]]
 === Convert an index alias to a data stream

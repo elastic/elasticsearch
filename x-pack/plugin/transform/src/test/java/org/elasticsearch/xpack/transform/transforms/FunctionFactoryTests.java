@@ -29,7 +29,7 @@ public class FunctionFactoryTests extends ESTestCase {
         assertThat(function, is(instanceOf(Pivot.class)));
     }
 
-    public void testCreateLatestDocFunction() {
+    public void testCreateLatestFunction() {
         TransformConfig config =
             TransformConfigTests.randomTransformConfig(
                 randomAlphaOfLengthBetween(1, 10),

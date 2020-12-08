@@ -106,7 +106,7 @@ public class LatestIT extends TransformIntegTestCase {
         cleanUp();
     }
 
-    public void testLatestDoc() throws Exception {
+    public void testLatest() throws Exception {
         createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
         String destIndexName = "reviews-latest";
@@ -143,7 +143,7 @@ public class LatestIT extends TransformIntegTestCase {
         }
     }
 
-    public void testLatestDocPreview() throws Exception {
+    public void testLatestPreview() throws Exception {
         createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
         TransformConfig transformConfig =

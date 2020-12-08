@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.latest.LatestDocConfig;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class LatestDocContinuousIT extends ContinuousTestCase {
+public class LatestContinuousIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-latest-test";
 
@@ -44,7 +44,7 @@ public class LatestDocContinuousIT extends ContinuousTestCase {
 
     private static final String MISSING_BUCKET_KEY = "~~NULL~~"; // ensure that this key is last after sorting
 
-    public LatestDocContinuousIT() {}
+    public LatestContinuousIT() {}
 
     @Override
     public TransformConfig createConfig() {
@@ -54,7 +54,7 @@ public class LatestDocContinuousIT extends ContinuousTestCase {
                 .setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX))
                 .setDest(new DestConfig(NAME, INGEST_PIPELINE))
                 .setLatestConfig(
-                    LatestDocConfig.builder()
+                    LatestConfig.builder()
                         .setUniqueKey(EVENT_FIELD)
                         .setSort(TIMESTAMP_FIELD)
                         .build());

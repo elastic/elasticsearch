@@ -32,13 +32,13 @@ import static org.hamcrest.Matchers.is;
 public class LatestConfigTests
         extends AbstractResponseTestCase<LatestConfig, org.elasticsearch.client.transform.transforms.latest.LatestConfig> {
 
-    public static LatestConfig randomLatestDocConfig() {
+    public static LatestConfig randomLatestConfig() {
         return new LatestConfig(randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override
     protected LatestConfig createServerTestInstance(XContentType xContentType) {
-        return randomLatestDocConfig();
+        return randomLatestConfig();
     }
 
     @Override

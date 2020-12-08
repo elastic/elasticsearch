@@ -325,6 +325,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         Map<String, Object> resultMappings = new Regression("foo").getResultMappings("results", null);
         assertThat(resultMappings, hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
         assertThat(resultMappings, hasEntry("results.feature_importance", Regression.FEATURE_IMPORTANCE_MAPPING));
+        assertThat(resultMappings, hasEntry("results.is_training", Collections.singletonMap("type", "boolean")));
     }
 
     public void testGetStateDocId() {

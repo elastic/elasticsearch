@@ -48,7 +48,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName());
 
     /**
-     * The version when data stream metadata, hidden data streams and replicated data streams was introduced.
+     * The version when data stream metadata, hidden and replicated data streams, and dates in backing index names was introduced.
      */
     public static final Version NEW_FEATURES_VERSION = Version.V_7_11_0;
 

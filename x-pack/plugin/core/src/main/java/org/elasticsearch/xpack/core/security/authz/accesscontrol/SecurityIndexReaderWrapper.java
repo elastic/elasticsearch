@@ -23,6 +23,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -82,7 +83,8 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
-            if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions() &&
+            FieldPermissions fieldPermissions = permissions.getFieldPermissions();
+            if (documentPermissions.hasDocumentLevelPermissions() &&
                 licenseState.checkFeature(Feature.SECURITY_DLS_FLS)) {
 
                 BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
@@ -90,8 +92,13 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }
             }
+            if (fieldPermissions.hasFieldLevelSecurity() &&
+                licenseState.checkFeature(Feature.SECURITY_DLS_FLS)) {
+                wrappedReader = fieldPermissions.filter(wrappedReader);
+            }
 
-            return permissions.getFieldPermissions().filter(wrappedReader);
+            return wrappedReader;
+
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);

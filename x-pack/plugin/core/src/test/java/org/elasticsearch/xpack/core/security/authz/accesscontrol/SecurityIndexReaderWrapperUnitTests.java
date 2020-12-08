@@ -9,6 +9,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,16 +31,20 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
@@ -114,19 +120,54 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertThat(result.getFilter().run("some_random_regular_field"), is(false));
     }
 
-    public void testWrapReaderWhenFeatureDisabled() throws Exception {
+    private void assertNoWrapperWhenDisallowed(boolean fieldPermissions, boolean documentPermissions, int checkFeatureInvocations) {
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
+
+        final FieldPermissions fieldPerms;
+        if (fieldPermissions) {
+            fieldPerms = new FieldPermissions(fieldPermissionDef(new String[]{"foo.bar"}, null));
+        } else {
+            fieldPerms = null;
+        }
+
+        final DocumentPermissions docPerms;
+        if (documentPermissions) {
+            Set<BytesReference> queries = new HashSet<>();
+            queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv22\"] } }"));
+            docPerms = DocumentPermissions.filteredBy(queries);
+        } else {
+            docPerms = null;
+        }
+
         securityIndexReaderWrapper =
             new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
                 @Override
                 protected IndicesAccessControl getIndicesAccessControl() {
-                    IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
-                        new FieldPermissions(fieldPermissionDef(new String[]{}, null)), DocumentPermissions.allowAll());
-                    return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                    IndicesAccessControl.IndexAccessControl accessControl =
+                        new IndicesAccessControl.IndexAccessControl(true, fieldPerms, docPerms);
+                    return new IndicesAccessControl(true, singletonMap("_index", accessControl));
                 }
             };
-        DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
-        assertThat(reader, sameInstance(esIn));
+
+        assertThat(securityIndexReaderWrapper.apply(esIn), sameInstance(esIn));
+        verify(licenseState, Mockito.times(checkFeatureInvocations)).checkFeature(Feature.SECURITY_DLS_FLS);
+    }
+
+    public void testNoWrapperWhenDisallowedNoPermissions() throws Exception {
+        assertNoWrapperWhenDisallowed(false, false, 0);
+    }
+
+    public void testNoWrapperWhenDisallowedFieldPermissions() throws Exception {
+        assertNoWrapperWhenDisallowed(true, false, 1);
+    }
+
+    public void testNoWrapperWhenDisallowedDocPermissions() throws Exception {
+        assertNoWrapperWhenDisallowed(false, true, 1);
+    }
+
+    public void testNoWrapperWhenDisallowedDocAndFieldPermissions() throws Exception {
+        assertNoWrapperWhenDisallowed(true, true, 2);
     }
 
     public void testWildcards() throws Exception {

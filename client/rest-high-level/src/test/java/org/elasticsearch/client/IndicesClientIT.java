@@ -1573,6 +1573,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(index, alias2), equalTo(true));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60461")
     public void testDataStreams() throws Exception {
         String dataStreamName = "data-stream";
 

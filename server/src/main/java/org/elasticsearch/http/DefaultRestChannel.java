@@ -123,7 +123,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             // Add all custom headers
             addCustomHeaders(httpResponse, restResponse.getHeaders());
-            addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
+            addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);

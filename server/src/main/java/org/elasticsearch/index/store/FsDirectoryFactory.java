@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.ordinals.OnDiskOrdinalMap;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
@@ -179,6 +180,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // tends to be less a bottleneck.
                 case "doc":
                     return true;
+                // Global ords are fairly small and this speeds them up a *******ton*******.
+                case "tmp":
+                    return name.startsWith(OnDiskOrdinalMap.FILE_PREFIX);
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing
                 // (e.g. stored fields and term vectors).

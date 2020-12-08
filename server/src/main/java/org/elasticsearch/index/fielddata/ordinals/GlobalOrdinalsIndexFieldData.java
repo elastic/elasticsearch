@@ -25,6 +25,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -43,6 +44,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 /**
  * Concrete implementation of {@link IndexOrdinalsFieldData} for global ordinals.
@@ -136,6 +138,12 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     @Override
     public OrdinalMap getOrdinalMap() {
         return ordinalMap;
+    }
+
+    @Override
+    public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
+        LongValues segmentToGlobalOrd = ordinalMap.getGlobalOrds(context.ord);
+        return segmentToGlobalOrd::get;
     }
 
     @Override
@@ -259,5 +267,9 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
             return ordinalMap;
         }
 
+        @Override
+        public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
+            return GlobalOrdinalsIndexFieldData.this.getOrdinalMapping(context);
+        }
     }
 }

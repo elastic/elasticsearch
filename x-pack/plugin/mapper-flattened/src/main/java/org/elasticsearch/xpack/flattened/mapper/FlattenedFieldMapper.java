@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 /**
@@ -338,6 +339,12 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public OrdinalMap getOrdinalMap() {
+            throw new UnsupportedOperationException("The field data for the flattened field ["
+                + delegate.getFieldName() + "] does not allow access to the underlying ordinal map.");
+        }
+
+        @Override
+        public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
             throw new UnsupportedOperationException("The field data for the flattened field ["
                 + delegate.getFieldName() + "] does not allow access to the underlying ordinal map.");
         }

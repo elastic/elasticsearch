@@ -21,7 +21,10 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
+
+import java.util.function.LongUnaryOperator;
 
 
 /**
@@ -49,9 +52,17 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<LeafOrdina
     OrdinalMap getOrdinalMap();
 
     /**
-     * Whether this field data is able to provide a mapping between global and segment ordinals,
-     * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
-     * {@link #getOrdinalMap} will result in an {@link UnsupportedOperationException}.
+     * Optional a mapping between global and segment ordinals. Check
+     * {@link #supportsGlobalOrdinalsMapping} to see if this is supported
+     * before calling.
+     */
+    LongUnaryOperator getOrdinalMapping(LeafReaderContext context);
+
+    /**
+     * Whether this field data is able to provide a mapping between global and
+     * segment ordinals by calling {@link #getOrdinalMapping}. If this method
+     * eturns false, then calling {@link #getOrdinalMapping} will result in
+     * an {@link UnsupportedOperationException}.
      */
     boolean supportsGlobalOrdinalsMapping();
 }

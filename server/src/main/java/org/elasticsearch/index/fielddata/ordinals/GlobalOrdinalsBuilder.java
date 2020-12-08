@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
@@ -49,9 +50,13 @@ public enum GlobalOrdinalsBuilder {
     /**
      * Build global ordinals for the provided {@link IndexReader}.
      */
-    public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData,
-            CircuitBreakerService breakerService, Logger logger,
-            Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) throws IOException {
+    public static IndexOrdinalsFieldData build(
+        DirectoryReader indexReader,
+        IndexOrdinalsFieldData indexFieldData,
+        CircuitBreakerService breakerService,
+        Logger logger,
+        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
+    ) throws IOException {
         assert indexReader.leaves().size() > 1;
         long startTimeNS = System.nanoTime();
 

@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -38,12 +39,13 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -88,6 +90,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         assert key != null && key.listeners != null;
         IndexFieldCache indexCache = key.indexCache;
         final Accountable value = notification.getValue();
+        if (value instanceof Closeable) {
+            // NOCOMMIT is this ok?
+            IOUtils.closeWhileHandlingException((Closeable) value);
+        }
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
                 listener.onRemoval(

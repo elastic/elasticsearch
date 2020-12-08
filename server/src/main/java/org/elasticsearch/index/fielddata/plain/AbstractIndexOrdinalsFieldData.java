@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
@@ -72,11 +73,6 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     @Override
     public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
-    }
-
-    @Override
-    public OrdinalMap getOrdinalMap() {
-        return null;
     }
 
     @Override
@@ -155,6 +151,16 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             logger,
             scriptFunction
         );
+    }
+
+    @Override
+    public OrdinalMap getOrdinalMap() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

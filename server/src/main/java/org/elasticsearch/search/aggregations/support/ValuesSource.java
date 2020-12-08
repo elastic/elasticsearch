@@ -158,6 +158,10 @@ public abstract class ValuesSource {
                     return LongUnaryOperator.identity();
                 }
 
+                @Override
+                public boolean supportsGlobalOrdinalsMapping() {
+                    return true;
+                }
             };
 
             @Override
@@ -177,9 +181,7 @@ public abstract class ValuesSource {
              * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
              * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
              */
-            public boolean supportsGlobalOrdinalsMapping() {
-                return true;
-            }
+            public abstract boolean supportsGlobalOrdinalsMapping();
 
             @Override
             public boolean hasGlobalOrdinals() {
@@ -236,13 +238,7 @@ public abstract class ValuesSource {
                 @Override
                 public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
-                    final OrdinalMap map = global.getOrdinalMap();
-                    if (map == null) {
-                        // segments and global ordinals are the same
-                        return LongUnaryOperator.identity();
-                    }
-                    final org.apache.lucene.util.LongValues segmentToGlobalOrd = map.getGlobalOrds(context.ord);
-                    return segmentToGlobalOrd::get;
+                    return global.getOrdinalMapping(context);
                 }
             }
         }

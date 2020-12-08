@@ -72,7 +72,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         // allocation long-term, and that we can inspect in advance. Most other allocation deciders
         // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
         // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
-        AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(
             new FilterAllocationDecider(clusterState.getMetadata().settings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),

@@ -7,7 +7,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -102,7 +101,7 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
         return new HierarchyCircuitBreakerService(
             Settings.EMPTY,
             List.of(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of())
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
     }
 

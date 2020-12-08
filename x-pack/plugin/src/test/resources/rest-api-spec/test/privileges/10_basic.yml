@@ -337,5 +337,5 @@ teardown:
   - match: { _nodes.failed: 0 }
 
   - do:
-      security.clear_cached_privileges:
+      security.clear_cached_privileges: {}
   - match: { _nodes.failed: 0 }

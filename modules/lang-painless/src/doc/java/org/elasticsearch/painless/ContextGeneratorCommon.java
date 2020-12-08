@@ -71,13 +71,64 @@ public class ContextGeneratorCommon {
         return contextInfos;
     }
 
+    public static String getType(Map<String, String> javaNamesToDisplayNames, String javaType) {
+        int arrayDimensions = 0;
+
+        while (javaType.charAt(arrayDimensions) == '[') {
+            ++arrayDimensions;
+        }
+
+        if (arrayDimensions > 0) {
+            if (javaType.charAt(javaType.length() - 1) == ';') {
+                javaType = javaType.substring(arrayDimensions + 1, javaType.length() - 1);
+            } else {
+                javaType = javaType.substring(arrayDimensions);
+            }
+        }
+
+        if ("Z".equals(javaType) || "boolean".equals(javaType)) {
+            javaType = "boolean";
+        } else if ("V".equals(javaType) || "void".equals(javaType)) {
+            javaType = "void";
+        } else if ("B".equals(javaType) || "byte".equals(javaType)) {
+            javaType = "byte";
+        } else if ("S".equals(javaType) || "short".equals(javaType)) {
+            javaType = "short";
+        } else if ("C".equals(javaType) || "char".equals(javaType)) {
+            javaType = "char";
+        } else if ("I".equals(javaType) || "int".equals(javaType)) {
+            javaType = "int";
+        } else if ("J".equals(javaType) || "long".equals(javaType)) {
+            javaType = "long";
+        } else if ("F".equals(javaType) || "float".equals(javaType)) {
+            javaType = "float";
+        } else if ("D".equals(javaType) || "double".equals(javaType)) {
+            javaType = "double";
+        } else if ("org.elasticsearch.painless.lookup.def".equals(javaType)) {
+            javaType = "def";
+        } else {
+            javaType = javaNamesToDisplayNames.get(javaType);
+        }
+
+        while (arrayDimensions-- > 0) {
+            if (javaType != null) {
+                System.out.println(javaType);
+//                throw new RuntimeException("STU: got an array here " + javaType);
+            }
+            javaType += "[]";
+        }
+
+        return javaType;
+    }
+
+
     public static class PainlessInfos {
         public final Set<PainlessContextClassInfo> classes;
         public final Set<PainlessContextMethodInfo> importedMethods;
         public final Set<PainlessContextClassBindingInfo> classBindings;
         public final Set<PainlessContextInstanceBindingInfo> instanceBindings;
 
-        public final List<PainlessContextClassInfo> common;
+        public final List<PainlessInfoJson.Class> common;
         public final Map<String, List<PainlessContextClassInfo>> sorted;
 
 
@@ -87,7 +138,8 @@ public class ContextGeneratorCommon {
             classBindings = getCommon(contexts, PainlessContextInfo::getClassBindings);
             instanceBindings = getCommon(contexts, PainlessContextInfo::getInstanceBindings);
 
-            common = sortClassInfos(classes);
+            Map<String, String> javaNamesToDisplayNames = Collections.emptyMap();
+            common = PainlessInfoJson.Class.fromClassInfos(sortClassInfos(classes), javaNamesToDisplayNames);
             Map<String, List<PainlessContextClassInfo>> sorted = new HashMap<>();
             for (PainlessContextInfo context : contexts) {
                 sorted.put(context.getName(), sortClassInfos(excludeCommonClassInfos(classes, context.getClasses())));
@@ -111,7 +163,7 @@ public class ContextGeneratorCommon {
 
             List<PainlessContextClassInfo> classInfos = new ArrayList<>(unsortedClassInfos);
             classInfos.removeIf(v ->
-                "void".equals(v.getName())  || "boolean".equals(v.getName()) || "byte".equals(v.getName())   ||
+                    "void".equals(v.getName())  || "boolean".equals(v.getName()) || "byte".equals(v.getName())   ||
                     "short".equals(v.getName()) || "char".equals(v.getName())    || "int".equals(v.getName())    ||
                     "long".equals(v.getName())  || "float".equals(v.getName())   || "double".equals(v.getName()) ||
                     "org.elasticsearch.painless.lookup.def".equals(v.getName())  ||

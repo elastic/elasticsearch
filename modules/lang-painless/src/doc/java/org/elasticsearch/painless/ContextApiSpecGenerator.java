@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.painless.action.PainlessContextClassInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;
 
 import java.io.IOException;
@@ -33,8 +32,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class ContextApiSpecGenerator {

@@ -83,7 +83,8 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
     @Override
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
-        throw new AssertionError("TODO");
+        // TODO: get real value from CacheService
+        return new NodeCacheFilesMetadata(clusterService.localNode(), 0L);
     }
 
     public static final class Request extends BaseNodesRequest<Request> {

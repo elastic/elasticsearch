@@ -5,7 +5,7 @@
 <titleabbrev>Script condition</titleabbrev>
 ++++
 
-A watch <<conditions,condition>> that evaluates a script. The default scripting
+A watch <<condition,condition>> that evaluates a script. The default scripting
 language is `painless`. You can use any of the scripting languages supported by
 Elasticsearch as long as the language supports evaluating expressions to Boolean
 values. Note that the `mustache` and `expression` languages are too limited to be

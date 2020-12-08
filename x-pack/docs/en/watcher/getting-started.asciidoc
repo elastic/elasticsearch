@@ -77,7 +77,7 @@ GET .watcher-history*/_search?pretty
 [[log-add-condition]]
 === Add a condition
 
-A <<conditions,condition>> evaluates the data you've loaded into the watch and
+A <<condition,condition>> evaluates the data you've loaded into the watch and
 determines if any action is required. Now that you've loaded log errors into
 the watch, you can define a condition that checks to see if any errors were
 found.

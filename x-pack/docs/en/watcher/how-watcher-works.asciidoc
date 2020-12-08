@@ -30,11 +30,11 @@ Determines when the watch is checked. A watch must have a trigger.
 Loads data into the watch payload. If no input is specified, an empty payload is
 loaded.
 
-<<conditions,Condition>>::
+<<condition,Condition>>::
 Controls whether the watch actions are executed. If no condition is specified,
 the condition defaults to `always`.
 
-<<transforms,Transform>>::
+<<transform,Transform>>::
 Processes the watch payload to prepare it for the watch actions. You can define
 transforms at the watch level or define action-specific transforms. Optional.
 

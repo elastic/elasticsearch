@@ -5,7 +5,7 @@
 <titleabbrev>Script {watcher-transform}</titleabbrev>
 ++++
 
-A <<transforms,{watcher-transform}>> that executes a script on the current
+A <<transform,{watcher-transform}>> that executes a script on the current
 payload in the watch execution context and replaces it with a newly generated
 one. The following snippet shows how a simple script {watcher-transform} can be
 defined on the watch level:

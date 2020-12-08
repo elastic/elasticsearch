@@ -5,7 +5,7 @@
 <titleabbrev>Chain {watcher-transform}</titleabbrev>
 ++++
 
-A <<transforms,{watcher-transform}>> that executes an ordered list of configured
+A <<transform,{watcher-transform}>> that executes an ordered list of configured
 {watcher-transforms} in a chain, where the output of one transform serves as the
 input of the next transform in the chain. The payload that is accepted by this
 transform serves as the input of the first transform in the chain and the output

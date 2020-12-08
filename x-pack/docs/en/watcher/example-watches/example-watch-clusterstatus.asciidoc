@@ -126,7 +126,7 @@ GET .watcher-history*/_search
 [[health-add-condition]]
 ==== Add a condition
 
-A <<conditions,condition>> evaluates the data you've loaded into the watch and
+A <<condition,condition>> evaluates the data you've loaded into the watch and
 determines if any action is required. Since you've defined an input that loads
 the cluster status into the watch, you can define a condition that checks that
 status.

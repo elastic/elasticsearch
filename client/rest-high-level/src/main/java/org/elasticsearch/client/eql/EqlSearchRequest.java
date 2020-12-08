@@ -39,6 +39,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
+    private String resultPosition = "head";
 
     private int size = 10;
     private int fetchSize = 1000;
@@ -57,6 +58,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_SIZE = "size";
     static final String KEY_FETCH_SIZE = "fetch_size";
     static final String KEY_QUERY = "query";
+    static final String KEY_RESULT_POSITION = "result_position";
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
@@ -79,6 +81,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
         builder.field(KEY_SIZE, size());
         builder.field(KEY_FETCH_SIZE, fetchSize());
+        builder.field(KEY_RESULT_POSITION, resultPosition());
 
         builder.field(KEY_QUERY, query);
         if (waitForCompletionTimeout != null) {
@@ -137,6 +140,19 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     public EqlSearchRequest eventCategoryField(String eventCategoryField) {
         Objects.requireNonNull(eventCategoryField, "event category field must not be null");
         this.eventCategoryField = eventCategoryField;
+        return this;
+    }
+
+    public String resultPosition() {
+        return resultPosition;
+    }
+
+    public EqlSearchRequest resultPosition(String position) {
+        if ("head".equals(position) || "tail".equals(position)) {
+            resultPosition = position;
+        } else {
+            throw new IllegalArgumentException("result position needs to be 'head' or 'tail', received '" + position + "'");
+        }
         return this;
     }
 
@@ -211,6 +227,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         EqlSearchRequest that = (EqlSearchRequest) o;
         return size == that.size &&
                 fetchSize == that.fetchSize &&
+                resultPosition == that.resultPosition &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
@@ -237,6 +254,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             tiebreakerField,
             eventCategoryField,
             query,
+            resultPosition,
             waitForCompletionTimeout,
             keepAlive,
             keepOnCompletion);

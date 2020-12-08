@@ -59,7 +59,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -86,6 +85,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -211,7 +211,8 @@ public class QueryShardContextTests extends ESTestCase {
             null,
             null,
             () -> true,
-            null
+            null,
+            emptyMap()
         );
 
         assertTrue(context.indexSortedOnField("sort_field"));
@@ -323,20 +324,15 @@ public class QueryShardContextTests extends ESTestCase {
          * shards are parsed on the same node.
          */
         Map<String, Object> runtimeMappings = Map.ofEntries(
-            Map.entry("cat", Map.of("type", "test")),
-            Map.entry("dog", Map.of("type", "test"))
+            Map.entry("cat", Map.of("type", "string")),
+            Map.entry("dog", Map.of("type", "long"))
         );
         QueryShardContext qsc = createQueryShardContext(
             "uuid",
             null,
             Map.of("pig", new MockFieldMapper.FakeFieldType("pig"), "cat", new MockFieldMapper.FakeFieldType("cat")),
             runtimeMappings,
-            Collections.singletonList(new MapperPlugin() {
-                @Override
-                public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-                    return Map.of("test", (name, node, parserContext) -> new TestRuntimeField(name));
-                }
-            }));
+            Collections.singletonList(new TestRuntimeField.Plugin()));
         assertTrue(qsc.isFieldMapped("cat"));
         assertThat(qsc.getFieldType("cat"), instanceOf(TestRuntimeField.class));
         assertThat(qsc.simpleMatchToIndexNames("cat"), equalTo(Set.of("cat")));
@@ -423,7 +419,7 @@ public class QueryShardContextTests extends ESTestCase {
 
     private static Function<String, MappedFieldType> fieldTypeLookup(
         TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues) {
-        return name -> new TestRuntimeField(name) {
+        return name -> new TestRuntimeField(name, null) {
             @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,
                                                            Supplier<SearchLookup> searchLookup) {

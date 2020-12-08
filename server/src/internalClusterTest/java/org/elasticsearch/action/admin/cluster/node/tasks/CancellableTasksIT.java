@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -438,7 +439,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             arrivedLatches.get(request).countDown();
             List<TestRequest> subRequests = request.subRequests;
             GroupedActionListener<TestResponse> groupedListener =
-                new GroupedActionListener<>(ActionListener.map(listener, r -> new TestResponse()), subRequests.size() + 1);
+                new GroupedActionListener<>(listener.map(r -> new TestResponse()), subRequests.size() + 1);
             transportService.getThreadPool().generic().execute(ActionRunnable.supply(groupedListener, () -> {
                 beforeExecuteLatches.get(request).await();
                 if (((CancellableTask) task).isCancelled()) {
@@ -505,8 +506,6 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(TaskPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TaskPlugin.class);
     }
 }

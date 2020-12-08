@@ -68,7 +68,7 @@ grant {
   permission java.security.SecurityPermission "putProviderProperty.SaslPlainServer";
 
   // org.apache.hadoop.security.SaslPlainServer.SecurityProvider.SecurityProvider init
-  permission java.security.SecurityPermission "insertProvider.SaslPlainServer";
+  permission java.security.SecurityPermission "insertProvider";
 
   // org.apache.hadoop.security.SaslRpcClient.getServerPrincipal -> KerberosPrincipal init
   permission javax.security.auth.kerberos.ServicePermission "*", "initiate";

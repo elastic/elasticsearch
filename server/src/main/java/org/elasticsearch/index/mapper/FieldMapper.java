@@ -485,7 +485,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Check on whether or not a parameter should be serialized
      */
-    protected interface SerializerCheck<T> {
+    public interface SerializerCheck<T> {
         /**
          * Check on whether or not a parameter should be serialized
          * @param includeDefaults   if defaults have been requested

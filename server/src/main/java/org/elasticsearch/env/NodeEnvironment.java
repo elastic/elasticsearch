@@ -692,7 +692,7 @@ public final class NodeEnvironment  implements Closeable {
 
     /**
      * Deletes an indexes data directory recursively.
-     * Note: this method assumes that the shard lock is aquired
+     * Note: this method assumes that the shard lock is acquired
      *
      * @param index the index to delete
      * @param indexSettings settings for the index being deleted

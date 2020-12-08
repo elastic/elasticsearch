@@ -46,6 +46,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long replicaRejections;
     private final long memoryLimit;
 
+    // These fields will be used for additional back-pressure and metrics in the future
     private final long totalCoordinatingOps;
     private final long totalPrimaryOps;
     private final long totalReplicaOps;
@@ -107,15 +108,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentCoordinatingOps = currentCoordinatingOps;
         this.currentPrimaryOps = currentPrimaryOps;
         this.currentReplicaOps = currentReplicaOps;
-    }
-
-    public IndexingPressureStats(long totalCombinedCoordinatingAndPrimaryBytes, long totalCoordinatingBytes, long totalPrimaryBytes,
-                                 long totalReplicaBytes, long currentCombinedCoordinatingAndPrimaryBytes, long currentCoordinatingBytes,
-                                 long currentPrimaryBytes, long currentReplicaBytes, long coordinatingRejections, long primaryRejections,
-                                 long replicaRejections, long memoryLimit) {
-        this(totalCombinedCoordinatingAndPrimaryBytes, totalCoordinatingBytes, totalPrimaryBytes, totalReplicaBytes,
-            currentCombinedCoordinatingAndPrimaryBytes, currentCoordinatingBytes, currentPrimaryBytes, currentReplicaBytes,
-            coordinatingRejections, primaryRejections, replicaRejections, memoryLimit, 0, 0, 0, 0, 0, 0);
     }
 
     @Override

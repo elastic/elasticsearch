@@ -182,11 +182,9 @@ public abstract class TransportWriteAction<
     @Override
     protected void shardOperationOnPrimary(
             Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
-        final long enqueueTime = System.nanoTime();
         threadPool.executor(executorFunction.apply(primary)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                final long queuedNanos = System.nanoTime() - enqueueTime;
                 dispatchedShardOperationOnPrimary(request, primary, listener);
             }
 
@@ -209,11 +207,9 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        final long enqueueTime = System.nanoTime();
         threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                final long queuedNanos = System.nanoTime() - enqueueTime;
                 dispatchedShardOperationOnReplica(request, replica, listener);
             }
 

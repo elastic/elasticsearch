@@ -20,7 +20,7 @@
           }
         },
         {
-          "path":"/_security/api_key/*/_clear_cache",
+          "path":"/_security/api_key/_clear_cache",
           "methods":[
             "POST"
           ]

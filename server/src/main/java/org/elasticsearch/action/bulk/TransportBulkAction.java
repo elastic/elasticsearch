@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
@@ -57,6 +58,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -73,15 +75,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
@@ -547,8 +541,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
 
                     private void finishHim() {
-                        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
-                            buildTookInMillis(startTimeNanos), noItemsOnSuccess));
+                        final int length = responses.length();
+                        BulkItemResponse[] bulkItemResponses = responses.toArray(new BulkItemResponse[length]);
+                        final boolean hasError = Arrays.stream(bulkItemResponses).anyMatch(BulkItemResponse::isFailed);
+                        bulkItemResponses = noItemsOnSuccess && hasError == false ? new BulkItemResponse[0] : bulkItemResponses;
+                        listener.onResponse(new BulkResponse(bulkItemResponses, buildTookInMillis(startTimeNanos), noItemsOnSuccess));
                     }
                 });
             }

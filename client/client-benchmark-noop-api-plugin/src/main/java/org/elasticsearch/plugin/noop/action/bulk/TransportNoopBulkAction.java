@@ -32,6 +32,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
+
 public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocWriteRequest.OpType.UPDATE,
         new UpdateResponse(new ShardId("mock", "", 1), "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED));
@@ -44,11 +46,15 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
     @Override
     protected void doExecute(Task task, BulkRequest request, ActionListener<BulkResponse> listener) {
         final int itemCount = request.requests().size();
+
         // simulate at least a realistic amount of data that gets serialized
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemCount];
         for (int idx = 0; idx < itemCount; idx++) {
             bulkItemResponses[idx] = ITEM_RESPONSE;
         }
+        // if noItemsOnSuccess and there are no failures send an empty array to bulkresponse's constructor
+        final boolean hasError = Arrays.stream(bulkItemResponses).anyMatch(BulkItemResponse::isFailed);
+        bulkItemResponses = request.noItemsOnSuccess() && hasError == false ? new BulkItemResponse[0] : bulkItemResponses;
         listener.onResponse(new BulkResponse(bulkItemResponses, 0, BulkResponse.NO_INGEST_TOOK, request.noItemsOnSuccess()));
     }
 }

@@ -170,7 +170,6 @@ public class ContextGeneratorCommon {
             return compare;
         });
 
-        // TODO(stu): unmodifiable list
         return classInfos;
     }
 
@@ -212,13 +211,10 @@ public class ContextGeneratorCommon {
             common = PainlessInfoJson.Class.fromInfos(sortClassInfos(commonClassInfos), javaNamesToDisplayNames);
 
             importedMethods = getCommon(contextInfos, PainlessContextInfo::getImportedMethods);
-//            System.out.println("Stu importedMethods: " + importedMethods.size());
 
             classBindings = getCommon(contextInfos, PainlessContextInfo::getClassBindings);
-//            System.out.println("Stu classBindings: " + classBindings.size());
 
             instanceBindings = getCommon(contextInfos, PainlessContextInfo::getInstanceBindings);
-//            System.out.println("Stu instanceBindings: " + instanceBindings.size());
 
             contexts = contextInfos.stream()
                 .map(ctx -> new PainlessInfoJson.Context(ctx, commonClassInfos, javaNamesToDisplayNames))
@@ -234,7 +230,7 @@ public class ContextGeneratorCommon {
             }
             return infoCounts.entrySet().stream().filter(
                 e -> e.getValue() == contexts.size()
-            ).map(Map.Entry::getKey).collect(Collectors.toSet()); // TODO(stu): unmodifiable set
+            ).map(Map.Entry::getKey).collect(Collectors.toSet());
         }
     }
 }

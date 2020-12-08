@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -121,6 +122,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         if (randomBoolean()) {
             // let's timeout first
             GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
+                .setKeepAlive(TimeValue.timeValueMinutes(10))
                 .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10));
             EqlSearchResponse responseWithTimeout = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest).get();
             assertThat(responseWithTimeout.isRunning(), is(true));
@@ -130,6 +132,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         // Now we wait
         GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
+            .setKeepAlive(TimeValue.timeValueMinutes(10))
             .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         ActionFuture<EqlSearchResponse> future = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest);
         disableBlocks(plugins);
@@ -141,7 +144,6 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             Exception ex = expectThrows(Exception.class, future::actionGet);
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
-
         AcknowledgedResponse deleteResponse =
             client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id())).actionGet();
         assertThat(deleteResponse.isAcknowledged(), equalTo(true));
@@ -341,9 +343,6 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(FakePainlessScriptPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), FakePainlessScriptPlugin.class);
     }
-
 }

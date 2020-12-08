@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -469,6 +468,48 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
     }
 
+    public void testRuntimeSectionRejectedUpdate() throws IOException {
+        MapperService mapperService;
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+            builder.startObject("runtime");
+            builder.startObject("field").field("type", "test").endObject();
+            builder.endObject();
+            builder.startObject("properties");
+            builder.startObject("concrete").field("type", "keyword").endObject();
+            builder.endObject();
+            builder.endObject().endObject();
+            mapperService = createMapperService(builder);
+            assertEquals(Strings.toString(builder), mapperService.documentMapper().mappingSource().toString());
+            MappedFieldType concrete = mapperService.fieldType("concrete");
+            assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            MappedFieldType field = mapperService.fieldType("field");
+            assertThat(field, instanceOf(RuntimeField.class));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+            builder.startObject("runtime");
+            builder.startObject("another_field").field("type", "test").endObject();
+            builder.endObject();
+            builder.startObject("properties");
+            //try changing the type of the existing concrete field, so that merge fails
+            builder.startObject("concrete").field("type", "text").endObject();
+            builder.endObject();
+            builder.endObject().endObject();
+
+            expectThrows(IllegalArgumentException.class, () -> merge(mapperService, builder));
+
+            //make sure that the whole rejected update, including changes to runtime fields, has not been applied
+            MappedFieldType concrete = mapperService.fieldType("concrete");
+            assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            MappedFieldType field = mapperService.fieldType("field");
+            assertThat(field, instanceOf(RuntimeField.class));
+            assertNull(mapperService.fieldType("another_field"));
+            assertEquals("{\"_doc\":{\"runtime\":{\"field\":{\"type\":\"test\"}},\"properties\":{\"concrete\":{\"type\":\"keyword\"}}}}",
+                Strings.toString(mapperService.documentMapper().mapping().root));
+        }
+    }
+
     public void testRuntimeSectionMerge() throws IOException {
         MapperService mapperService;
         {
@@ -564,6 +605,25 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             "[unsupported : value]", e.getMessage());
     }
 
+    public void testDynamicRuntimeNotSupported() {
+        {
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> createMapperService(topMapping(b -> b.field("dynamic", "runtime"))));
+            assertEquals("Failed to parse mapping: unable to set dynamic:runtime as there is no registered dynamic runtime fields builder",
+                e.getMessage());
+        }
+        {
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> createMapperService(mapping(b -> {
+                    b.startObject("object");
+                    b.field("type", "object").field("dynamic", "runtime");
+                    b.endObject();
+                })));
+            assertEquals("Failed to parse mapping: unable to set dynamic:runtime as there is no registered dynamic runtime fields builder",
+                e.getMessage());
+        }
+    }
+
     private static class RuntimeFieldPlugin extends Plugin implements MapperPlugin {
         @Override
         public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
@@ -580,13 +640,13 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         private final String prop2;
 
         protected RuntimeField(String name, String prop1, String prop2) {
-            super(name);
+            super(name, "test");
             this.prop1 = prop1;
             this.prop2 = prop2;
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return null;
         }
 

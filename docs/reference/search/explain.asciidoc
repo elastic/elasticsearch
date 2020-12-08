@@ -20,6 +20,7 @@ GET /my-index-000001/_explain/0
 ==== {api-request-title}
 
 `GET /<index>/_explain/<id>`
+
 `POST /<index>/_explain/<id>`
 
 [[sample-api-desc]]

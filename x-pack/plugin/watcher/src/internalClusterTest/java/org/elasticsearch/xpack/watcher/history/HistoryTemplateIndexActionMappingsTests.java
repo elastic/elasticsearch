@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -27,9 +28,9 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the index action response `index` field in the watch_record action result is
  * not analyzed so it can be used in aggregations
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65091")
 public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherIntegrationTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65091")
     public void testIndexActionFields() throws Exception {
         String index = "the-index";
 

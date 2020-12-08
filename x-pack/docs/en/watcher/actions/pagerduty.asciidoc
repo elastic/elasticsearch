@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions-pagerduty]]
-=== PagerDuty action
+=== {watcher} PagerDuty action
+++++
+<titleabbrev>PagerDuty action</titleabbrev>
+++++
 
 Use the PagerDuty action to create events in https://pagerduty.com/[
 PagerDuty]. To create PagerDuty events, you must <<configuring-pagerduty,
@@ -43,7 +46,7 @@ payload as well as an array of contexts to the action.
     "throttle_period" : "5m",
     "pagerduty" : {
       "account" : "team1",
-      "description" : "Main system down, please check! Happened at {{ctx.execution_time}}"
+      "description" : "Main system down, please check! Happened at {{ctx.execution_time}}",
       "attach_payload" : true,
       "client" : "/foo/bar/{{ctx.watch_id}}",
       "client_url" : "http://www.example.org/",

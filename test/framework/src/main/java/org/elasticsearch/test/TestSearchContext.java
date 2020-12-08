@@ -25,14 +25,13 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -69,7 +68,6 @@ public class TestSearchContext extends SearchContext {
     public static final SearchShardTarget SHARD_TARGET =
         new SearchShardTarget("test", new ShardId("test", "test", 0), null, OriginalIndices.NONE);
 
-    final BigArrays bigArrays;
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -94,8 +92,7 @@ public class TestSearchContext extends SearchContext {
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
-    public TestSearchContext(BigArrays bigArrays, IndexService indexService) {
-        this.bigArrays = bigArrays.withCircuitBreaking();
+    public TestSearchContext(IndexService indexService) {
         this.indexService = indexService;
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.indexShard = indexService.getShardOrNull(0);
@@ -116,7 +113,6 @@ public class TestSearchContext extends SearchContext {
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard,
                              ContextIndexSearcher searcher, ScrollContext scrollContext) {
-        this.bigArrays = null;
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
@@ -275,16 +271,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public IndexShard indexShard() {
         return indexShard;
-    }
-
-    @Override
-    public MapperService mapperService() {
-        return indexService == null ? null : indexService.mapperService();
-    }
-
-    @Override
-    public BigArrays bigArrays() {
-        return bigArrays;
     }
 
     @Override
@@ -514,6 +500,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return null;
+    }
+
+    @Override
+    public NestedDocuments getNestedDocuments() {
+        return new NestedDocuments(indexService.mapperService(), bitsetFilterCache()::getBitSetProducer);
     }
 
     @Override

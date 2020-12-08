@@ -64,11 +64,15 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         setupDependencies(project, yamlTestSourceSet);
 
         // setup the copy for the rest resources
-        project.getTasks().withType(CopyRestApiTask.class, copyRestApiTask -> {
-            copyRestApiTask.sourceSetName = SOURCE_SET_NAME;
-            project.getTasks().named(yamlTestSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestApiTask));
-        });
-        project.getTasks().withType(CopyRestTestsTask.class, copyRestTestTask -> { copyRestTestTask.sourceSetName = SOURCE_SET_NAME; });
+        project.getTasks()
+            .withType(CopyRestApiTask.class)
+            .configureEach(copyRestApiTask -> { copyRestApiTask.sourceSetName = SOURCE_SET_NAME; });
+        project.getTasks()
+            .named(yamlTestSourceSet.getProcessResourcesTaskName())
+            .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));
+        project.getTasks()
+            .withType(CopyRestTestsTask.class)
+            .configureEach(copyRestTestTask -> copyRestTestTask.sourceSetName = SOURCE_SET_NAME);
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);

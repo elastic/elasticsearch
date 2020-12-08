@@ -52,6 +52,11 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     public static MappingStats of(Metadata metadata) {
         Map<String, IndexFeatureStats> fieldTypes = new HashMap<>();
         for (IndexMetadata indexMetadata : metadata) {
+            if (indexMetadata.isSystem()) {
+                // Don't include system indices in statistics about mappings,
+                // we care about the user's indices.
+                continue;
+            }
             Set<String> indexFieldTypes = new HashSet<>();
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {

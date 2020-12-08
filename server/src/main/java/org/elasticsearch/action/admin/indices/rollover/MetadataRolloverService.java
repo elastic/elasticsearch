@@ -38,6 +38,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -148,6 +149,7 @@ public class MetadataRolloverService {
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
         final String newWriteIndexName = DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1);
+        ds.rollover(new Index(newWriteIndexName, "uuid")); // just for validation
         createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
         if (onlyValidate) {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getIndex().getName(), currentState);

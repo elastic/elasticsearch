@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions-webhook]]
-=== Webhook action
+=== {watcher} webhook action
+++++
+<titleabbrev>Webhook action</titleabbrev>
+++++
 
 Use the `webhook` action to send a request to any web service. The
 webhook action supports both HTTP and HTTPS connections. See

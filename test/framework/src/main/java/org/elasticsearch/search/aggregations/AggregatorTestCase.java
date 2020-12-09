@@ -368,37 +368,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
-<<<<<<< HEAD
-     * sub-tests that need a more complex mock can overwrite this
-     */
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                      MapperService.Snapshot mapperSnapshot,
-                                                      IndexSettings indexSettings,
-                                                      CircuitBreakerService circuitBreakerService,
-                                                      BitsetFilterCache bitsetFilterCache,
-                                                      BigArrays bigArrays) {
-
-        return new QueryShardContext(0, indexSettings, bigArrays, bitsetFilterCache,
-            getIndexFieldDataLookup(indexSettings.getIndex().getName(), circuitBreakerService),
-            mapperSnapshot, null, getMockScriptService(), xContentRegistry(),
-            writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true,
-            valuesSourceRegistry, emptyMap());
-    }
-
-    /**
-     * Sub-tests that need a more complex index field data provider can override this
-     */
-    protected TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> getIndexFieldDataLookup(
-        String indexName,
-        CircuitBreakerService circuitBreakerService
-    ) {
-        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(indexName, searchLookup)
-            .build(new IndexFieldDataCache.None(), circuitBreakerService);
-    }
-
-    /**
-=======
->>>>>>> master
      * Sub-tests that need scripting can override this method to provide a script service and pre-baked scripts
      */
     protected ScriptService getMockScriptService() {

@@ -66,7 +66,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -162,8 +161,6 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
-    private final boolean operatorPrivilegesEnabled;
-
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
@@ -180,8 +177,6 @@ public class RestoreService implements ClusterStateApplier {
         }
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
-        final Setting<?> operatorPrivilegesSetting = clusterSettings.get("xpack.security.operator_privileges.enabled");
-        operatorPrivilegesEnabled = operatorPrivilegesSetting != null && (Boolean.TRUE == clusterSettings.get(operatorPrivilegesSetting));
     }
 
     /**
@@ -460,8 +455,7 @@ public class RestoreService implements ClusterStateApplier {
                                 for (ObjectObjectCursor<String, Metadata.Custom> cursor : metadata.customs()) {
                                     if (RepositoriesMetadata.TYPE.equals(cursor.key) == false
                                             && DataStreamMetadata.TYPE.equals(cursor.key) == false
-                                            && (operatorPrivilegesEnabled == false
-                                                || cursor.value instanceof Metadata.NonRestorableCustom == false)) {
+                                            && cursor.value instanceof Metadata.NonRestorableCustom == false) {
                                         // Don't restore repositories while we are working with them
                                         // TODO: Should we restore them at the end?
                                         // Also, don't restore data streams here, we already added them to the metadata builder above

@@ -100,6 +100,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         assertTrue((boolean) operatorPrivileges.get("enabled"));
     }
 
+    // Make sure autoscaling polices are not restored by an operator user
     public void testAutoscalingPolicyWillNotBeRestored() throws IOException {
         final String repoName = "repo";
         final String snapshotName = "snap";

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
@@ -21,7 +22,7 @@ import java.nio.file.Path;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
 
@@ -35,7 +36,7 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
         assertAcked(clusterAdmin().preparePutRepository(REPO).setType("fs").setSettings(Settings.builder().put("location", location)));
     }
 
-    public void testAutoscalingPolicyWillBeRestored() {
+    public void testAutoscalingPolicyWillNotBeRestored() {
         final Client client = client();
 
         final AutoscalingPolicy policy = randomAutoscalingPolicy();
@@ -68,8 +69,11 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
         final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
-        final AutoscalingPolicy restoredPolicy = client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet().policy();
-        assertThat(policy, equalTo(restoredPolicy));
+        final ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet().policy()
+        );
+        assertThat(e.getMessage(), containsString("autoscaling policy with name [" + policy.name() + "] does not exist"));
     }
 
 }

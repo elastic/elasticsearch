@@ -5,6 +5,9 @@
       "description": "Retrieves information about all follower indices, including parameters and status for each follower index"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

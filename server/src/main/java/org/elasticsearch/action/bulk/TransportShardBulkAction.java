@@ -155,6 +155,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return request.ramBytesUsed();
     }
 
+    @Override
+    protected int primaryOperationCount(BulkShardRequest request) {
+        return request.items().length;
+    }
+
     public static void performOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
@@ -437,6 +442,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected long replicaOperationSize(BulkShardRequest request) {
         return request.ramBytesUsed();
+    }
+
+    @Override
+    protected int replicaOperationCount(BulkShardRequest request) {
+        return request.items().length;
     }
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {

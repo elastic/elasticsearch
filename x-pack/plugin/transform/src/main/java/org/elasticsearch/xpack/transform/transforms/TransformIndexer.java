@@ -97,7 +97,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private final Map<String, String> fieldMappings;
 
-    // the function of the transform, e.g. pivot
+    // the function of the transform, e.g. pivot or latest
     private Function function;
 
     // collects changes for continuous mode

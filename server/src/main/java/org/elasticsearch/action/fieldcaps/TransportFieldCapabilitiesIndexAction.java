@@ -122,7 +122,7 @@ public class TransportFieldCapabilitiesIndexAction
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
-                if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
+                if (mapperService.isMetadataField(field)
                     || fieldPredicate.test(ft.name())) {
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
                         ft.isSearchable(), ft.isAggregatable(), ft.meta());

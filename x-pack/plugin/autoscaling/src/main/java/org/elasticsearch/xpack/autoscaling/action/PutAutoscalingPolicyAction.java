@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Collections;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,7 +29,6 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse> {
@@ -142,15 +139,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException exception = null;
-            if (roles != null) {
-                List<String> errors = roles.stream()
-                    .filter(not(DiscoveryNode.getPossibleRoleNames()::contains))
-                    .collect(Collectors.toList());
-                if (errors.isEmpty() == false) {
-                    exception = new ActionRequestValidationException();
-                    exception.addValidationErrors(errors);
-                }
-            }
+            // roles validation done in transport action in 7.x to be compatible with transport client.
 
             if (Strings.validFileName(name) == false) {
                 exception = ValidateActions.addValidationError(
@@ -174,10 +163,5 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         public int hashCode() {
             return Objects.hash(name, roles, deciders);
         }
-    }
-
-    // java 11 forward compatibility
-    private static <T> Predicate<T> not(Predicate<T> predicate) {
-        return predicate.negate();
     }
 }

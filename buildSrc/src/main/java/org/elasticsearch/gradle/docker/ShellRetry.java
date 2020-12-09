@@ -34,7 +34,8 @@ public class ShellRetry {
         StringBuilder commandWithRetry = new StringBuilder("for iter in {1..10}; do \n");
         commandWithRetry.append(indent).append("  ").append(command).append(" && \n");
         commandWithRetry.append(indent).append("  exit_code=0 && break || \n");
-        commandWithRetry.append(indent).append("    exit_code=$? && echo \"").append(name).append(" error: retry $iter in 10s\" && sleep 10; \n");
+        commandWithRetry.append(indent);
+        commandWithRetry.append("    exit_code=$? && echo \"").append(name).append(" error: retry $iter in 10s\" && sleep 10; \n");
         commandWithRetry.append(indent).append("done; \n");
         commandWithRetry.append(indent).append(exitKeyword).append(" $exit_code");
 

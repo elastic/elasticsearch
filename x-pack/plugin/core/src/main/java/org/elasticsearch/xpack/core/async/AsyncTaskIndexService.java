@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.core.async;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -60,14 +56,17 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AU
  * A service that exposes the CRUD operations for the async task-specific index.
  */
 public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
-    private static final Logger logger = LogManager.getLogger(AsyncTaskIndexService.class);
 
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
-    static Settings settings() {
+    // Usually the settings and mappings below would be co-located with the SystemIndexPlugin implementation,
+    // however in this case this service is in a different project to AsyncResultsIndexPlugin, as are tests
+    // that need access to #settings().
+
+    public static Settings settings() {
         return Settings.builder()
             .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -76,7 +75,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .build();
     }
 
-    static XContentBuilder mappings() throws IOException {
+    public static XContentBuilder mappings() throws IOException {
         XContentBuilder builder = jsonBuilder()
             .startObject()
                 .startObject(SINGLE_MAPPING_NAME)
@@ -107,12 +106,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private final String index;
-    private final ClusterService clusterService;
     private final Client client;
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
-
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -122,7 +119,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                  Writeable.Reader<R> reader,
                                  NamedWriteableRegistry registry) {
         this.index = index;
-        this.clusterService = clusterService;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
         this.client = new OriginSettingClient(client, origin);
         this.registry = registry;
@@ -134,34 +130,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public Client getClient() {
         return client;
-    }
-
-    /**
-     * Creates the index with the expected settings and mappings if it doesn't exist.
-     */
-    void createIndexIfNecessary(ActionListener<Void> listener) {
-        if (clusterService.state().routingTable().hasIndex(index) == false) {
-            try {
-                client.admin().indices().prepareCreate(index)
-                    .setSettings(settings())
-                    .setMapping(mappings())
-                    .execute(ActionListener.wrap(
-                        resp -> listener.onResponse(null),
-                        exc -> {
-                            if (ExceptionsHelper.unwrapCause(exc) instanceof ResourceAlreadyExistsException) {
-                                listener.onResponse(null);
-                            } else {
-                                logger.error("failed to create " + index + " index", exc);
-                                listener.onFailure(exc);
-                            }
-                        }));
-            } catch (Exception exc) {
-                logger.error("failed to create " + index + " index", exc);
-                listener.onFailure(exc);
-            }
-        } else {
-            listener.onResponse(null);
-        }
     }
 
     /**
@@ -180,7 +148,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .create(true)
             .id(docId)
             .source(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.index(indexRequest, listener), listener::onFailure));
+        client.index(indexRequest, listener);
     }
 
     /**
@@ -199,9 +167,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .id(docId)
                 .doc(source, XContentType.JSON)
                 .retryOnConflict(5);
-            // updates create the index automatically if it doesn't exist so we force the creation
-            // preemptively.
-            createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
+            client.update(request, listener);
         } catch(Exception e) {
             listener.onFailure(e);
         }
@@ -219,9 +185,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .id(docId)
             .doc(source, XContentType.JSON)
             .retryOnConflict(5);
-        // updates create the index automatically if it doesn't exist so we force the creation
-        // preemptively.
-        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
+        client.update(request, listener);
     }
 
     /**
@@ -231,9 +195,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                ActionListener<DeleteResponse> listener) {
         try {
             DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
-            // deletes create the index automatically if it doesn't exist so we force the creation
-            // preemptively.
-            createIndexIfNecessary(ActionListener.wrap(v -> client.delete(request, listener), listener::onFailure));
+            client.delete(request, listener);
         } catch(Exception e) {
             listener.onFailure(e);
         }

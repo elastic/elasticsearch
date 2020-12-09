@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -27,13 +28,15 @@ import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
 
 public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin {
 
@@ -45,7 +48,24 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(new SystemIndexDescriptor(XPackPlugin.ASYNC_RESULTS_INDEX, this.getClass().getSimpleName()));
+        final XContentBuilder mappings;
+        try {
+            mappings = AsyncTaskIndexService.mappings();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build " + XPackPlugin.ASYNC_RESULTS_INDEX + " index mappings", e);
+        }
+
+        return List.of(
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX)
+                .setDescription(this.getClass().getSimpleName())
+                .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
+                .setMappings(mappings)
+                .setSettings(AsyncTaskIndexService.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(LOGSTASH_MANAGEMENT_ORIGIN)
+                .build()
+        );
     }
 
     @Override

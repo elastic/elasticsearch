@@ -179,6 +179,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     public void testErroneousSnapshotShardSizes() throws Exception {
+        final AtomicInteger reroutes = new AtomicInteger();
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            reroutes.incrementAndGet();
+            listener.onResponse(clusterService.state());
+        };
+
         final InternalSnapshotsInfoService snapshotsInfoService =
             new InternalSnapshotsInfoService(Settings.builder()
                 .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10))
@@ -244,6 +250,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             assertThat(snapshotShardSizeInfo.getShardSize(shardRouting, defaultValue),
                 success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(defaultValue));
         }
+
+        assertThat("Expecting all snapshot shard size fetches to provide a size", results.size(), equalTo(maxShardsToCreate));
+        assertThat("Expecting all snapshot shard size fetches to execute a Reroute", reroutes.get(), equalTo(maxShardsToCreate));
     }
 
     public void testNoLongerMaster() throws Exception {

@@ -164,6 +164,47 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
 
+#### Checkstyle
+
+If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
+check the Elasticsearch code. However, the Checkstyle configuration file does
+not work by default with the IntelliJ plugin, so instead a IDE-specific config
+file is generated automatically after IntelliJ finishes syncing.
+
+   - Open **Preferences > Tools > Checkstyle**
+   - Change the "Scan Scope" to "Only Java sources (including tests)"
+   - Check the "+" under "Configuration file"
+   - Set "Description" to "Elasticsearch" (or whatever you want)
+   - Select "Use a local Checkstyle file"
+   - For the "File", navigate to `buildSrc/src/main/resources/checkstyle_ide.xml`
+   - Tick "Store relative to project location"
+   - Click "Next"
+   - The Checkstyle config file contains the variable `config_loc`, and
+     IntelliJ will ask for a value. Fill in `buildSrc/src/main/resources`
+   - Click "Next", then "Finish".
+   - Click the box next to the new configuration to make it "Active". Without doing this,
+     you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
+     tool window and run the check manually. You can still do this with an active config,
+     of course.
+   - Click "OK" to apply the new preferences
+
+#### Formatting
+
+We are in the process of migrating towards automatic formatting Java file
+using [spotless], backed by the Eclipse formatter. If you have the [Eclipse
+Code Formatter] installed, you can apply formatting directly in IntelliJ.
+
+   - Open **Preferences > Other Settings > Checkstyle**
+   - Click "Use the Eclipse Code Formatter"
+   - Under "Eclipse formatter config", select "Eclipse workspace/project
+     folder or config file"
+   - Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
+   - Click "OK"
+
+Note that only some sub-projects in the Elasticsearch project are currently
+fully-formatted. You can see a list of project that **are not**
+automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
+
 ### Importing the project into Eclipse
 
 Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
@@ -699,3 +740,6 @@ non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
+[Checkstyle]: https://plugins.jetbrains.com/plugin/1065-checkstyle-idea
+[spotless]: https://github.com/diffplug/spotless
+[Eclipse Code Formatter]: https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter

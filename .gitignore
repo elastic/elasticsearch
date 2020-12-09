@@ -56,3 +56,6 @@ testfixtures_shared/
 
 # These are generated from .ci/jobs.t
 .ci/jobs/
+
+# Generated file
+buildSrc/src/main/resources/checkstyle_ide.xml

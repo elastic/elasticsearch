@@ -11,9 +11,8 @@ For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
 ----
-POST /my-index-000001/_rollup
+POST /my-index-000001/_rollup/my-rollup-index
 {
-  "rollup_index": "my-rollup-index",
   "groups": {
     "date_histogram": {
       "field": "@timestamp",
@@ -61,15 +60,15 @@ Index to roll up. Cannot be a <<data-streams,data stream>> or
 <<indices-aliases,index alias>>. Does not support <<multi-index,multi-target
 syntax>> or wildcards (`*`).
 
-[role="child_attributes"]
-[[rollup-api-request-body]]
-==== {api-request-body-title}
-
 `rollup_index`::
 (Required, string)
 New index that stores the rollup results. Cannot be an existing index,
 a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
-+
+
+[role="child_attributes"]
+[[rollup-api-request-body]]
+==== {api-request-body-title}
+
 The request creates this index with
 <<index-modules-blocks,`index.blocks.write`>> set to `true`. If the original
 `<index>` is a backing index for a data stream, this index is a backing index

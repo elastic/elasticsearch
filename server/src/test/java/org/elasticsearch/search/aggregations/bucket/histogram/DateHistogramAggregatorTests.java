@@ -36,8 +36,10 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matcher;
@@ -1196,9 +1198,44 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    public void testExtendedBoundsUsesFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            List.of("2016", "2017", "2018", "2019"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .extendedBounds(new LongBounds("2016", "2019"))
+                .minDocCount(0),
+            true
+        );
+    }
+
+    public void testHardBoundsUsesFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2016", "2017", "2018", "2019"),
+            List.of("2017", "2018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .hardBounds(new LongBounds("2017", "2019")),
+            true
+        );
+    }
+
     private void aggregationImplementationChoiceTestCase(
         DateFieldMapper.DateFieldType ft,
         List<String> data,
+        DateHistogramAggregationBuilder builder,
+        boolean usesFromRange
+    ) throws IOException {
+        aggregationImplementationChoiceTestCase(ft, data, data, builder, usesFromRange);
+    }
+
+    private void aggregationImplementationChoiceTestCase(
+        DateFieldMapper.DateFieldType ft,
+        List<String> data,
+        List<String> resultingBucketKeys,
         DateHistogramAggregationBuilder builder,
         boolean usesFromRange
     ) throws IOException {
@@ -1220,7 +1257,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 agg.preCollection();
                 context.searcher().search(context.query(), agg);
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
-                assertThat(result.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()), equalTo(data));
+                result = (InternalDateHistogram) result.reduce(
+                    List.of(result),
+                    ReduceContext.forFinalReduction(context.bigArrays(), null, context.multiBucketConsumer(), PipelineTree.EMPTY)
+                );
+                assertThat(
+                    result.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()),
+                    equalTo(resultingBucketKeys)
+                );
             }
         }
     }

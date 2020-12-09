@@ -153,11 +153,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
 
-        final AtomicBoolean listener = new AtomicBoolean();
         final LockObtainFailedException exception = expectThrows(LockObtainFailedException.class, () ->
-            env.deleteShardDirectoryUnderLock(sLock, indexSettings, indexPaths -> listener.set(true)));
+            env.deleteShardDirectoryUnderLock(sLock, indexSettings, indexPaths -> {
+                assert false : "should not be called " + indexPaths;
+            }));
         assertThat(exception.getMessage(), exception.getMessage(), containsString("unable to acquire write.lock"));
-        assertFalse("Listener should not have been called", listener.get());
     }
 
     public void testDurableFlagHasEffect() {

@@ -389,7 +389,7 @@ So what is the right number of replicas? If you have a cluster that has
 `num_nodes` nodes, `num_primaries` primary shards _in total_ and if you want to
 be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
-`max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
+`max(max_failures, ceil(num_primaries / num_nodes) - 1)`.
 
 === Tune your queries with the Profile API
 

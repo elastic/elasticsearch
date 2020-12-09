@@ -5,6 +5,9 @@
       "description":"Retrieves information about different cluster, node, and index level settings that use deprecated features that will be removed or changed in the next major version."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

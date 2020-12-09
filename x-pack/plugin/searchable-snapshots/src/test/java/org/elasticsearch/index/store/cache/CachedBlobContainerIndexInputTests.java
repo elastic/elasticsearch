@@ -119,7 +119,10 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     RecoveryState recoveryState = createRecoveryState();
                     final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                     final boolean loaded = directory.loadSnapshot(recoveryState, future);
-                    future.get();
+                    if (randomBoolean()) {
+                        // randomly wait for pre-warm before running the below reads
+                        future.get();
+                    }
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());

@@ -10,6 +10,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -22,7 +24,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -87,10 +88,10 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
         });
 
-        logger.info("--> sleep for 5s to ensure we are actually stuck at the FINALIZE stage and that the primary has not yet relocated");
-        TimeUnit.SECONDS.sleep(5L);
-        final RecoveryState recoveryState = getActiveRestores(restoredIndex).get(0);
-        assertSame(RecoveryState.Stage.TRANSLOG, recoveryState.getStage());
+        assertBusy(() -> assertSame(RecoveryState.Stage.TRANSLOG, getActiveRestores(restoredIndex).get(0).getStage()));
+        final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().index(restoredIndex).getIndex();
+        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
+        assertEquals(1, indicesService.indexService(restoredIdx).getShard(0).outstandingCleanFilesConditions());
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final String primaryNodeId = state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId();
         final DiscoveryNode primaryNode = state.nodes().resolveNode(primaryNodeId);

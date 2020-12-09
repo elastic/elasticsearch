@@ -2488,6 +2488,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    // for tests
+    public int outstandingCleanFilesConditions() {
+        return outstandingCleanFilesConditions.get();
+    }
+
     private void runAfterCleanFilesActions() {
         synchronized (afterCleanFilesActions) {
             final Executor executor = threadPool.generic();

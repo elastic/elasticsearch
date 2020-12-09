@@ -149,9 +149,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("*")
                                     .privileges("view_index_metadata", "monitor").build(),
-                                // Endpoint diagnostic information
+                                // Endpoint diagnostic information. Using a non-dot-prefixed index is temporary, and
+                                // is not a precedent that should be followed
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".logs-endpoint.diagnostic.collection-*")
+                                    .indices("logs-endpoint.diagnostic.collection-*")
                                     .privileges("read").build(),
                         },
                         null,

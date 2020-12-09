@@ -49,6 +49,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -71,6 +72,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -107,9 +109,11 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -160,8 +164,10 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -170,9 +176,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -321,9 +329,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
-        final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
-        searchListenersList.add(searchStats);
-        this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
+        this.searchOperationListener =
+                new SearchOperationListener.CompositeListener(CollectionUtils.appendToCopy(searchOperationListener, searchStats), logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
@@ -458,7 +465,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public QueryCachingPolicy getQueryCachingPolicy() {
         return cachingPolicy;
     }
-
 
     @Override
     public void updateShardState(final ShardRouting newRouting,
@@ -1715,6 +1721,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.recoveryState;
     }
 
+    @Override
+    public ShardLongFieldRange getTimestampMillisRange() {
+        if (mapperService() == null) {
+            return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
+        }
+        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
+            return ShardLongFieldRange.UNKNOWN; // field missing or not a date
+        }
+        final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) mappedFieldType;
+
+        final ShardLongFieldRange rawTimestampFieldRange;
+        try {
+            rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        } catch (IOException | AlreadyClosedException e) {
+            logger.debug("exception obtaining range for timestamp field", e);
+            return ShardLongFieldRange.UNKNOWN;
+        }
+        if (rawTimestampFieldRange == ShardLongFieldRange.UNKNOWN) {
+            return ShardLongFieldRange.UNKNOWN;
+        }
+        if (rawTimestampFieldRange == ShardLongFieldRange.EMPTY) {
+            return ShardLongFieldRange.EMPTY;
+        }
+
+        try {
+            return ShardLongFieldRange.of(
+                    dateFieldType.resolution().roundDownToMillis(rawTimestampFieldRange.getMin()),
+                    dateFieldType.resolution().roundUpToMillis(rawTimestampFieldRange.getMax()));
+        } catch (IllegalArgumentException e) {
+            logger.debug(new ParameterizedMessage("could not convert {} to a millisecond time range", rawTimestampFieldRange), e);
+            return ShardLongFieldRange.UNKNOWN; // any search might match this shard
+        }
+    }
+
     /**
      * perform the last stages of recovery once all translog operations are done.
      * note that you should still call {@link #postRecovery(String)}.
@@ -2411,6 +2452,57 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
+    private final AtomicInteger outstandingCleanFilesConditions = new AtomicInteger(0);
+
+    private final Deque<Runnable> afterCleanFilesActions = new LinkedList<>();
+
+    /**
+     * Creates a {@link Runnable} that must be executed before the clean files step in peer recovery can complete.
+     *
+     * @return runnable that must be executed during the clean files step in peer recovery
+     */
+    public Runnable addCleanFilesDependency() {
+        logger.trace("adding clean files dependency for [{}]", shardRouting);
+        outstandingCleanFilesConditions.incrementAndGet();
+        return () -> {
+            if (outstandingCleanFilesConditions.decrementAndGet() == 0) {
+                runAfterCleanFilesActions();
+            }
+        };
+    }
+
+    /**
+     * Execute a {@link Runnable} on the generic pool once all dependencies added via {@link #addCleanFilesDependency()} have finished.
+     * If there are no dependencies to wait for then the {@code Runnable} will be executed on the calling thread.
+     */
+    public void afterCleanFiles(Runnable runnable) {
+        if (outstandingCleanFilesConditions.get() == 0) {
+            runnable.run();
+        } else {
+            synchronized (afterCleanFilesActions) {
+                afterCleanFilesActions.add(runnable);
+            }
+            if (outstandingCleanFilesConditions.get() == 0) {
+                runAfterCleanFilesActions();
+            }
+        }
+    }
+
+    // for tests
+    public int outstandingCleanFilesConditions() {
+        return outstandingCleanFilesConditions.get();
+    }
+
+    private void runAfterCleanFilesActions() {
+        synchronized (afterCleanFilesActions) {
+            final Executor executor = threadPool.generic();
+            Runnable afterCleanFilesAction;
+            while ((afterCleanFilesAction = afterCleanFilesActions.poll()) != null) {
+                executor.execute(afterCleanFilesAction);
+            }
+        }
+    }
+
     /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
@@ -2630,7 +2722,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
                 if (r) {
-                    recoveryListener.onRecoveryDone(recoveryState);
+                    recoveryListener.onRecoveryDone(recoveryState, getTimestampMillisRange());
                 }
             },
             e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));

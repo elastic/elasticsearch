@@ -1113,7 +1113,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private void addQuery(Query query, List<ParseContext.Document> docs) {
-        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(documentMapper, null, null, null);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(documentMapper, null, null, null, null);
         fieldMapper.processQuery(query, parseContext);
         ParseContext.Document queryDocument = parseContext.doc();
         // Add to string representation of the query to make debugging easier:

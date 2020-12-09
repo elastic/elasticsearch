@@ -6,7 +6,7 @@
 <titleabbrev>Rollup</titleabbrev>
 ++++
 
-Aggregates an index's time series data and stores the results in another index.
+Aggregates an index's time series data and stores the results in a new index.
 For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
@@ -38,8 +38,7 @@ POST /my-index-000001/_rollup
   ]
 }
 ----
-// CONSOLE
-// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/65544"]
+// TEST[setup:my_index]
 
 
 [[rollup-api-request]]
@@ -68,12 +67,13 @@ syntax>> or wildcards (`*`).
 
 `rollup_index`::
 (Required, string)
-Index that stores the rollup results. Cannot be a <<data-streams,data stream>>
-or <<indices-aliases,index alias>>.
+New index that stores the rollup results. Cannot be an existing index,
+a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
 +
-If this index does not exist, the request creates it. If the `<index>` is a
-backing index for a data stream, this new index is a backing index for the same
-stream.
+The request creates this index with
+<<index-modules-blocks,`index.blocks.write`>> set to `true`. If the original
+`<index>` is a backing index for a data stream, this index is a backing index
+for the same stream.
 
 `groups`::
 (Required, object)
@@ -187,3 +187,7 @@ values run faster but require more memory.
 +
 NOTE: This argument only affects the speed and memory usage of the rollup
 operation. It does not affect the rollup results.
+
+`timeout`::
+(Optional, <<time-units,time value>>)
+Time to wait for the request to complete. Defaults to `20s` (20 seconds).

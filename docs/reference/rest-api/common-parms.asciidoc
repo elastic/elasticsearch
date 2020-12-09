@@ -148,10 +148,10 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}. The mappings of the destination 
-index are deduced based on the source fields when possible. If alternate 
-mappings are required, use the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+The _destination index_ for the {transform}. The mappings of the destination
+index are deduced based on the source fields when possible. If alternate
+mappings are required, use the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
 prior to starting the {transform}.
 end::dest-index[]
 
@@ -649,8 +649,8 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are
-supported:
+Defines how to aggregate the grouped data. The following aggregations are 
+currently supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
@@ -672,16 +672,12 @@ supported:
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
-
-IMPORTANT: {transforms-cap} support a subset of the functionality in
-aggregations. See <<transform-limitations>>.
-
 --
 end::pivot-aggs[]
 
 tag::pivot-group-by[]
-Defines how to group the data. More than one grouping can be defined
-  per pivot. The following groupings are supported:
+Defines how to group the data. More than one grouping can be defined per pivot. 
+The following groupings are currently supported:
 +
 --
 * <<_date_histogram,Date histogram>>
@@ -786,13 +782,6 @@ end::search-failures[]
 tag::search-time-ms[]
 The amount of time spent searching, in milliseconds.
 end::search-time-ms[]
-
-tag::search_timeout[]
-`timeout`::
-(Optional, <<time-units, time units>>)
-Explicit timeout for each search request.
-Defaults to no timeout.
-end::search_timeout[]
 
 tag::search-total[]
 The number of search operations on the source index for the {transform}.
@@ -953,6 +942,13 @@ tag::transform-settings[]
 Defines optional {transform} settings.
 end::transform-settings[]
 
+tag::transform-settings-dates-as-epoch-milli[]
+Defines if dates in the ouput should be written as ISO formatted string (default)
+or as millis since epoch. `epoch_millis` has been the default for transforms created
+before version `7.11`. For compatible output set this to `true`.
+The default value is `false`.
+end::transform-settings-dates-as-epoch-milli[]
+
 tag::transform-settings-docs-per-second[]
 Specifies a limit on the number of input documents per second. This setting
 throttles the {transform} by adding a wait time between search requests. The
@@ -1077,9 +1073,3 @@ Default: 1, the primary shard.
 See <<index-wait-for-active-shards>>.
 --
 end::wait_for_active_shards[]
-
-tag::wait_for_completion[]
-`wait_for_completion`::
-(Optional, Boolean) If `true`, the request blocks until the operation is complete.
-Defaults to `true`.
-end::wait_for_completion[]

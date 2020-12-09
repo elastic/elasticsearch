@@ -5,6 +5,10 @@
       "description":"Allows to use the Mustache language to pre-render a search definition."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -101,7 +105,7 @@
     },
     "body":{
       "description":"The search definition template and its params",
-      "required":true
+      "required": true
     }
   }
 }

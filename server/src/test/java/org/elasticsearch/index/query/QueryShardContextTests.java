@@ -413,7 +413,8 @@ public class QueryShardContextTests extends ESTestCase {
             null,
             indexAnalyzers,
             indexSettings,
-            () -> true
+            () -> true,
+            false
         );
         return new StubSnapshot(fieldTypeLookup) {
             @Override

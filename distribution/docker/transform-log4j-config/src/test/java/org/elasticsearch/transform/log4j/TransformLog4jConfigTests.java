@@ -23,10 +23,7 @@ import junit.framework.TestCase;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 public class TransformLog4jConfigTests extends TestCase {
@@ -35,8 +32,7 @@ public class TransformLog4jConfigTests extends TestCase {
      * Check that the transformer doesn't explode when given an empty file.
      */
     public void testTransformEmptyConfig() {
-        final List<String> transformed = TransformLog4jConfig.transformConfig(List.of());
-        assertThat(transformed, is(empty()));
+        runTest(List.of(), List.of());
     }
 
     /**
@@ -51,12 +47,12 @@ public class TransformLog4jConfigTests extends TestCase {
             "example = \"broken\\",
             "    line\""
         );
-        final List<String> transformed = TransformLog4jConfig.transformConfig(input);
-        assertThat(transformed, equalTo(input));
+
+        runTest(input, input);
     }
 
     /**
-     * Check that the root logger appenders are filter to just the "rolling" appender
+     * Check that the root logger appenders are filtered to just the "rolling" appender
      */
     public void testTransformFiltersRootLogger() {
         List<String> input = List.of(
@@ -64,9 +60,9 @@ public class TransformLog4jConfigTests extends TestCase {
             "rootLogger.appenderRef.rolling.ref = rolling",
             "rootLogger.appenderRef.rolling_old.ref = rolling_old"
         );
-        final List<String> transformed = TransformLog4jConfig.transformConfig(input);
-        assertThat(transformed, hasSize(1));
-        assertThat(transformed.get(0), equalTo("rootLogger.appenderRef.rolling.ref = rolling"));
+        List<String> expected = List.of("rootLogger.appenderRef.rolling.ref = rolling");
+
+        runTest(input, expected);
     }
 
     /**
@@ -83,8 +79,8 @@ public class TransformLog4jConfigTests extends TestCase {
             "appender.rolling_old.layout.type = PatternLayout",
             "appender.rolling_old.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n"
         );
-        final List<String> transformed = TransformLog4jConfig.transformConfig(input);
-        assertThat(transformed, is(empty()));
+
+        runTest(input, List.of());
     }
 
     /**
@@ -92,10 +88,10 @@ public class TransformLog4jConfigTests extends TestCase {
      */
     public void testTransformConvertsRollingToConsole() {
         List<String> input = List.of("appender.rolling.type = RollingFile", "appender.rolling.name = rolling");
-        final List<String> transformed = TransformLog4jConfig.transformConfig(input);
 
         List<String> expected = List.of("appender.rolling.type = Console", "appender.rolling.name = rolling");
-        assertThat(transformed, equalTo(expected));
+
+        runTest(input, expected);
     }
 
     /**
@@ -110,10 +106,10 @@ public class TransformLog4jConfigTests extends TestCase {
             "appender.rolling.policies.type = Policies",
             "appender.rolling.strategy.type = DefaultRolloverStrategy"
         );
-        final List<String> transformed = TransformLog4jConfig.transformConfig(input);
 
         List<String> expected = List.of("appender.rolling.layout.type = ECSJsonLayout", "appender.rolling.layout.type_name = server");
-        assertThat(transformed, equalTo(expected));
+
+        runTest(input, expected);
     }
 
     /**
@@ -125,9 +121,15 @@ public class TransformLog4jConfigTests extends TestCase {
             "    ${sys:es.logs.cluster_name}_server.json",
             "appender.rolling.layout.type = ECSJsonLayout"
         );
-        final List<String> transformed = TransformLog4jConfig.transformConfig(input);
 
         List<String> expected = List.of("appender.rolling.layout.type = ECSJsonLayout");
+
+        runTest(input, expected);
+    }
+
+    private void runTest(List<String> input, List<String> expected) {
+        final List<String> transformed = TransformLog4jConfig.transformConfig(input);
+
         assertThat(transformed, equalTo(expected));
     }
 }

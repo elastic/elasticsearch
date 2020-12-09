@@ -185,7 +185,7 @@ void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase
     throw new GradleException("The only allowed docker base image for OSS builds is CENTOS")
   }
 
-  def copyTask = tasks.register(taskName("copy", architecture, oss, base, "DockerContext"), Sync) {
+  tasks.register(taskName("copy", architecture, oss, base, "DockerContext"), Sync) {
     expansions(architecture, oss, base, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }

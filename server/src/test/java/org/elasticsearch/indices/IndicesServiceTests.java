@@ -53,7 +53,6 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -66,7 +65,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -515,19 +513,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(indexStats.isEmpty(), equalTo(false));
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
-    }
-
-    public void testIsMetadataField() {
-        IndicesService indicesService = getIndicesService();
-        final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
-        assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
-        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            if (NestedPathFieldMapper.NAME.equals(builtIn) && randVersion.before(Version.V_8_0_0)) {
-                continue;   // Nested field does not exist in the 7x line
-            }
-            assertTrue("Expected " + builtIn + " to be a metadata field for version " + randVersion,
-                indicesService.isMetadataField(randVersion, builtIn));
-        }
     }
 
     public void testGetEngineFactory() throws IOException {

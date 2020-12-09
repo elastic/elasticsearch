@@ -578,8 +578,8 @@ setup:
 ---
 "date_histogram with extended_bounds and offset and unmapped":
   - skip:
-      version: " - 7.99.99"
-      reason:  fixed in 8.0 to be backported to 7.11
+      version: " - 7.10.99"
+      reason:  fixed in 7.11
 
   - do:
       indices.create:

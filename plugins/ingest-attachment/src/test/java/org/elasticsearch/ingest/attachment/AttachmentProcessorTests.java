@@ -287,16 +287,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     private Map<String, Object> parseDocument(String file, AttachmentProcessor processor, Map<String, Object> optionalFields)
         throws Exception {
-        Map<String, Object> document = new HashMap<>();
-        document.put("source_field", getAsBinaryOrBase64(file));
-        document.putAll(optionalFields);
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        return attachmentData;
+        return parseDocument(file, processor, optionalFields, false);
     }
 
     private Map<String, Object> parseDocument(String file, AttachmentProcessor processor, Map<String, Object> optionalFields,

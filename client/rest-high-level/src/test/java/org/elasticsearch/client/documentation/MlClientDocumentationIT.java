@@ -711,6 +711,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             datafeedBuilder.setScrollSize(1000); // <1>
             // end::put-datafeed-config-set-scroll-size
 
+            // tag::put-datafeed-config-set-runtime-mappings
+            Map<String, Object> fieldProperties = new HashMap<>();
+            fieldProperties.put("type", "keyword");
+            fieldProperties.put("script", "emit(params._source.agent.toLowerCase())");
+            Map<String, Object> runtimeMappings = new HashMap<>();
+            runtimeMappings.put("agent_lowercase", fieldProperties);
+
+            datafeedBuilder.setRuntimeMappings(runtimeMappings); // <1>
+            // end::put-datafeed-config-set-runtime-mappings
+
             // tag::put-datafeed-request
             PutDatafeedRequest request = new PutDatafeedRequest(datafeedBuilder.build()); // <1>
             // end::put-datafeed-request
@@ -2336,7 +2346,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65699")
     public void testUpgradeJobSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -2376,7 +2385,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 // end::upgrade-job-model-snapshot-execute
                 fail("upgrade model snapshot should not have succeeded.");
             } catch (ElasticsearchException ex) {
-                assertThat(ex.getMessage(), containsString("Expected persisted state but no state exists"));
+                assertThat(ex.getMessage(), containsString("Unexpected state [failed] while waiting for to be assigned to a node"));
             }
             UpgradeJobModelSnapshotResponse response = new UpgradeJobModelSnapshotResponse(true, "");
 

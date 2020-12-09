@@ -20,34 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessConstructor;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class ListInitializationNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private PainlessConstructor constructor;
-    private PainlessMethod method;
-
-    public void setConstructor(PainlessConstructor constructor) {
-        this.constructor = constructor;
-    }
-
-    public PainlessConstructor getConstructor() {
-        return constructor;
-    }
-
-    public void setMethod(PainlessMethod method) {
-        this.method = method;
-    }
-
-    public PainlessMethod getMethod() {
-        return method;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

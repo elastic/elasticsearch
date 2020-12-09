@@ -53,8 +53,8 @@ can be slow and requires more disk space, and you have to reindex your data to
 add fields to existing documents.
 
 <<runtime,Runtime fields>> are not indexed, which saves disk space and makes
-data ingest faster. You can add fields to existing documents without reindexing
-your data and calculate field values dynamically at search time.
+data ingest faster. You can add runtime fields to existing documents without
+reindexing your data and calculate field values dynamically at search time.
 
 [discrete]
 [[dynamic-mapping-intro]]

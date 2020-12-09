@@ -208,7 +208,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         }
         setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo 7.11.0
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             latestConfig = in.readOptionalWriteable(LatestConfig::new);
         } else {
             latestConfig = null;
@@ -332,7 +332,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         }
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo 7.11.0
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             out.writeOptionalWriteable(latestConfig);
         }
         out.writeOptionalString(description);

@@ -1,11 +1,17 @@
 [role="xpack"]
 [[transform]]
 == {watcher-transforms-cap}
+++++
+<titleabbrev>Transforms</titleabbrev>
+++++
 
 A _{watcher-transform}_ processes and changes the payload in the watch execution
 context to prepare it for the watch actions. {watcher} supports three types of 
-{watcher-transforms}: <<transform-search,`search`>>,
-<<transform-script,`script`>> and <<transform-chain,`chain`>>.
+{watcher-transforms}: 
+
+* <<transform-search,`search`>>
+* <<transform-script,`script`>>
+* <<transform-chain,`chain`>>
 
 
 NOTE: {watcher-transforms-cap} are optional. When none are defined, the actions

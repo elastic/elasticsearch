@@ -195,6 +195,10 @@ public class TransportService extends AbstractLifecycleComponent
         return localNode;
     }
 
+    public Transport.Connection getLocalNodeConnection() {
+        return localNodeConnection;
+    }
+
     public TaskManager getTaskManager() {
         return taskManager;
     }
@@ -602,8 +606,7 @@ public class TransportService extends AbstractLifecycleComponent
         try {
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
-                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                final Releasable unregisterChildNode = taskManager.registerChildConnection(request.getParentTask().getId(), connection);
                 delegate = new TransportResponseHandler<>() {
                     @Override
                     public void handleResponse(T response) {

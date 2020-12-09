@@ -51,10 +51,6 @@
 
 ---
 "Test get old cluster categorization job":
-  - skip:
-      version: "all"
-      reason: "@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/65893)"
-
   - do:
       ml.get_jobs:
         job_id: old-cluster-categorization-job

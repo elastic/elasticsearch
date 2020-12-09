@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -139,7 +140,6 @@ public class Classification implements DataFrameAnalysis {
 
         Map<String, Object> properties = new HashMap<>();
         properties.put("feature_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
-        properties.put("importance", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
         properties.put("classes", classesMapping);
 
         Map<String, Object> mapping = new HashMap<>();
@@ -374,15 +374,18 @@ public class Classification implements DataFrameAnalysis {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    public Map<String, Object> getResultMappings(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
+        additionalProperties.put(resultsFieldName + ".is_training", Collections.singletonMap("type", BooleanFieldMapper.CONTENT_TYPE));
+        additionalProperties.put(resultsFieldName + ".prediction_probability",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        additionalProperties.put(resultsFieldName + ".prediction_score",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
         additionalProperties.put(resultsFieldName + ".feature_importance", FEATURE_IMPORTANCE_MAPPING);
-        if (fieldCapabilitiesResponse == null) {
-            return additionalProperties;
-        }
+
         Map<String, FieldCapabilities> dependentVariableFieldCaps = fieldCapabilitiesResponse.getField(dependentVariable);
         if (dependentVariableFieldCaps == null || dependentVariableFieldCaps.isEmpty()) {
-            return additionalProperties;
+            throw ExceptionsHelper.badRequestException("no mappings could be found for required field [{}]", DEPENDENT_VARIABLE);
         }
         Object dependentVariableMappingType = dependentVariableFieldCaps.values().iterator().next().getType();
         additionalProperties.put(
@@ -391,6 +394,7 @@ public class Classification implements DataFrameAnalysis {
         Map<String, Object> topClassesProperties = new HashMap<>();
         topClassesProperties.put("class_name", Collections.singletonMap("type", dependentVariableMappingType));
         topClassesProperties.put("class_probability", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        topClassesProperties.put("class_score", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
 
         Map<String, Object> topClassesMapping = new HashMap<>();
         topClassesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);

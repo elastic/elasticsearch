@@ -36,8 +36,8 @@
 # Xms represents the initial size of the JVM heap
 # Xmx represents the maximum size of the JVM heap
 
-# -Xms${heap.min}
-# -Xmx${heap.max}
+-Xms${heap.min}
+-Xmx${heap.max}
 
 
 

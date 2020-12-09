@@ -85,7 +85,7 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
         indexService = createIndex("test", settings, "t",
             "text_shingle", "type=text,analyzer=text_shingle",
             "text_shingle_unigram", "type=text,analyzer=text_shingle_unigram");
-        shardContext = indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap());
+        shardContext = indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap());
 
         // parsed queries for "text_shingle_unigram:(foo bar baz)" with query parsers
         // that ignores position length attribute

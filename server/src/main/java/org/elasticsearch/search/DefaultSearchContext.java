@@ -166,7 +166,8 @@ final class DefaultSearchContext extends SearchContext {
         this.timeout = timeout;
         queryShardContext = indexService.newQueryShardContext(
             request.shardId().id(),
-            this.searcher,
+            request.shardRequestIndex(),
+            searcher,
             request::nowInMillis,
             shardTarget.getClusterAlias(),
             request.getRuntimeMappings()

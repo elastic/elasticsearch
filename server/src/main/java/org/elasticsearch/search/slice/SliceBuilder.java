@@ -203,8 +203,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("field " + field + " not found");
         }
 
-        int shardIndex = request.shardIndex() != -1 ? request.shardIndex() : request.shardId().id();
-        int numShards = request.shardIndex() != -1 ? request.numberOfShards() : context.getIndexSettings().getNumberOfShards();
+        int shardIndex = request.shardRequestIndex() != -1 ? request.shardRequestIndex() : request.shardId().id();
+        int numShards = request.shardRequestIndex() != -1 ? request.numberOfShards() : context.getIndexSettings().getNumberOfShards();
         String field = this.field;
         boolean useTermQuery = false;
         if (IdFieldMapper.NAME.equals(field)) {

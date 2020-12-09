@@ -142,7 +142,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
+        QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
             null, null, null, null, null,
             xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap()) {
             @Override
@@ -186,7 +186,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
+        QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, null, null, null,
                 xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap()) {
             @Override

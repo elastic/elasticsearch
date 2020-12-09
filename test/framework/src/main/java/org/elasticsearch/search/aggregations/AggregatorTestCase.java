@@ -272,6 +272,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .build(new IndexFieldDataCache.None(), breakerService);
         QueryShardContext queryShardContext = new QueryShardContext(
             0,
+            0,
             indexSettings,
             bigArrays,
             null,
@@ -370,6 +371,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
+     * Sub-tests that need a more complex index field data provider can override this
+     */
+    protected TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> getIndexFieldDataLookup(
+        MapperService mapperService, CircuitBreakerService circuitBreakerService) {
+        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(
+            mapperService.getIndexSettings().getIndex().getName(), searchLookup)
+            .build(new IndexFieldDataCache.None(), circuitBreakerService);
+    }
+
+    /**
+>>>>>>> Stashed changes
      * Sub-tests that need scripting can override this method to provide a script service and pre-baked scripts
      */
     protected ScriptService getMockScriptService() {

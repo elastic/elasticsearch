@@ -259,7 +259,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             long[] currentTime = new long[] {System.currentTimeMillis()};
             QueryShardContext queryShardContext =
-                indexService.newQueryShardContext(0, searcher, () -> currentTime[0], null, emptyMap());
+                indexService.newQueryShardContext(0, 0, searcher, () -> currentTime[0], null, emptyMap());
 
             BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
                 .field("field1", "value")

@@ -50,7 +50,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         when(mapperService.fieldType("field_name")).thenReturn(fieldType);
         when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singleton("field_name"));
 
-        QueryShardContext queryShardContext = new QueryShardContext(0,
+        QueryShardContext queryShardContext = new QueryShardContext(0, 0,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
                 Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);

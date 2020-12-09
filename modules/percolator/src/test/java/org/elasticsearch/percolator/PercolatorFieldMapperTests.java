@@ -514,7 +514,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         XContentType.JSON));
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         QueryShardContext shardContext = indexService.newQueryShardContext(
-            randomInt(20), null, () -> {
+            randomInt(20), 0, null, () -> {
                 throw new UnsupportedOperationException();
             }, null, emptyMap());
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();

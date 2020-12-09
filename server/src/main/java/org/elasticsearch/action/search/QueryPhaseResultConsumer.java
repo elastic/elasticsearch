@@ -290,9 +290,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (hasAggs == false) {
                 return 0;
             }
-            return result.aggregations()
-                .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
-                .ramBytesUsed();
+            if (result.aggregations().isSerialized()) {
+                return result.aggregations()
+                    .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
+                    .ramBytesUsed();
+            } else {
+                return result.aggregations().expand().getSerializedSize();
+            }
         }
 
         /**

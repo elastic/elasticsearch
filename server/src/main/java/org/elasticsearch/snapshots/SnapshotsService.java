@@ -120,6 +120,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED;
+import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -261,17 +262,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 List<SnapshotFeatureInfo> featureStates = Collections.emptyList();
                 if (request.includeGlobalState() || request.featureStates().length > 0) {
-                    Set<String> featureStatesSet = new HashSet<>(Arrays.asList(request.featureStates()));
-                    boolean includeAllFeatureStates = request.includeGlobalState() && featureStatesSet.isEmpty();
+                    final Set<String> featureStatesSet = new HashSet<>();
+                    if (request.includeGlobalState() && request.featureStates().length == 0) {
+                        featureStatesSet.addAll(systemIndexDescriptorMap.keySet());
+                    } else {
+                        featureStatesSet.addAll(Arrays.asList(request.featureStates()));
+                    }
 
                     featureStates = systemIndexDescriptorMap.keySet().stream()
-                        .filter(feature -> includeAllFeatureStates || featureStatesSet.contains(feature))
+                        .filter(feature -> featureStatesSet.contains(feature))
                         .map(feature -> new SnapshotFeatureInfo(feature, resolveFeatureIndexNames(currentState, feature)))
                         .filter(featureInfo -> featureInfo.getIndices().isEmpty() == false) // Omit any empty featureStates
                         .collect(Collectors.toList());
+                    final Stream<String> featureStateIndices = featureStates.stream().flatMap(feature -> feature.getIndices().stream());
+
+                    final Stream<String> associatedIndices = systemIndexDescriptorMap.keySet().stream()
+                        .filter(feature -> featureStatesSet.contains(feature))
+                        .flatMap(feature -> resolveAssociatedIndices(currentState, feature).stream());
 
                     // Add all resolved indices from the feature states to the list of indices
-                    indices = Stream.concat(indices.stream(), featureStates.stream().flatMap(state -> state.getIndices().stream()))
+                    indices = Stream.of(indices.stream(), featureStateIndices, associatedIndices)
+                        .flatMap(s -> s)
                         .distinct()
                         .collect(Collectors.toList());
                 }
@@ -332,11 +343,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         final SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
-        final Stream<String> systemIndexPatterns = feature.getIndexDescriptors().stream().map(SystemIndexDescriptor::getIndexPattern);
-        final Stream<String> associatedIndexPatterns = feature.getAssociatedIndexPatterns().stream();
-        return Stream.concat(systemIndexPatterns, associatedIndexPatterns)
+        return feature.getIndexDescriptors().stream()
+            .map(SystemIndexDescriptor::getIndexPattern)
             .flatMap(pattern -> Arrays.stream(indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState,
                 LENIENT_EXPAND_OPEN_CLOSED, pattern)))
+            .collect(Collectors.toList());
+    }
+
+    private List<String> resolveAssociatedIndices(ClusterState currentState, String featureName) {
+        if (systemIndexDescriptorMap.containsKey(featureName) == false) {
+            throw new IllegalArgumentException("requested associated indices for feature state for unknown feature [" + featureName + "]");
+        }
+
+        final SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
+        return feature.getAssociatedIndexPatterns().stream()
+            .flatMap(pattern -> Arrays.stream(indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState,
+                LENIENT_EXPAND_OPEN_CLOSED_HIDDEN, pattern)))
             .collect(Collectors.toList());
     }
 

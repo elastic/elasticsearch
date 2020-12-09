@@ -100,11 +100,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
-        this(queryShardContext, null);
-    }
-
-    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
-        this(queryShardContext, indexShard, null);
+        this(queryShardContext, null, null, null);
     }
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard, ContextIndexSearcher searcher) {

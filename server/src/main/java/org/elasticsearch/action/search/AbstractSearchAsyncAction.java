@@ -219,10 +219,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
-            if (Version.CURRENT.minimumCompatibilityVersion().equals(request.minVersion()) == false) {
+            Version version = request.minCompatibleShardNode();
+            if (version != null && Version.CURRENT.minimumCompatibilityVersion().equals(version) == false) {
                 if (checkMinimumVersion(shardsIts) == false) {
                     throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]",
-                        request.minVersion());
+                        request.minCompatibleShardNode());
                 }
             }
             for (int i = 0; i < shardsIts.size(); i++) {
@@ -248,7 +249,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (it.getTargetNodeIds().isEmpty() == false) {
                 boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
                     Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
-                    return conn == null ? true : conn.getVersion().onOrAfter(request.minVersion());
+                    return conn == null ? true : conn.getVersion().onOrAfter(request.minCompatibleShardNode());
                 });
                 if (isCompatible == false) {
                     return false;
@@ -671,7 +672,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
         Transport.Connection conn = nodeIdToConnection.apply(clusterAlias, nodeId);
-        Version minVersion = request.minVersion();
+        Version minVersion = request.minCompatibleShardNode();
         if (minVersion != null && conn != null && conn.getVersion().before(minVersion)) {
             throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
         }

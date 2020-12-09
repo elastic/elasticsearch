@@ -97,7 +97,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private boolean ccsMinimizeRoundtrips = true;
 
-    private Version minVersion = Version.CURRENT.minimumCompatibilityVersion();
+    @Nullable
+    private Version minCompatibleShardNode;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
         IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
@@ -166,16 +167,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return request;
     }
 
-    public static SearchRequest withMinimumVersion(SearchRequest searchRequest, Version minVersion) {
-        return new SearchRequest(searchRequest, minVersion);
-    }
-
-    private SearchRequest(SearchRequest searchRequest, Version minVersion) {
-        this(searchRequest, searchRequest.indices, searchRequest.localClusterAlias,
-            searchRequest.absoluteStartMillis, searchRequest.finalReduce);
-        this.minVersion = minVersion;
-    }
-
     private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis,
                           boolean finalReduce) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
@@ -194,6 +185,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
+        this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
     }
 
     /**
@@ -234,7 +226,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         ccsMinimizeRoundtrips = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            minVersion = Version.readVersion(in);
+            if (in.readBoolean()) {
+                minCompatibleShardNode = Version.readVersion(in);
+            }
         }
     }
 
@@ -264,7 +258,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            Version.writeVersion(minVersion, out);
+            out.writeBoolean(minCompatibleShardNode != null);
+            if (minCompatibleShardNode != null) {
+                Version.writeVersion(minCompatibleShardNode, out);
+            }
         }
     }
 
@@ -313,6 +310,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 }
             }
         }
+        if (minCompatibleShardNode() != null) {
+            if (isCcsMinimizeRoundtrips()) {
+                validationException = addValidationError("[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible "
+                    + "shard version", validationException);
+            }
+        }
         return validationException;
     }
 
@@ -351,9 +354,19 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return absoluteStartMillis;
     }
 
-    Version minVersion() {
-        return minVersion;
+    /**
+     * Returns the minimum compatible shard version the search request needs to run on. If the version is null, then there are no
+     * restrictions imposed on shards versions part of this search.
+     */
+    @Nullable
+    public Version minCompatibleShardNode() {
+        return minCompatibleShardNode;
     }
+
+    public void setMinCompatibleShardNode(Version minCompatibleShardNode) {
+        this.minCompatibleShardNode = minCompatibleShardNode;
+    }
+
     /**
      * Sets the indices the search will be executed on.
      */
@@ -692,14 +705,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
                 absoluteStartMillis == that.absoluteStartMillis &&
                 ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips &&
-                Objects.equals(minVersion, that.minVersion);
+                Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips, minVersion);
+                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips, minCompatibleShardNode);
     }
 
     @Override

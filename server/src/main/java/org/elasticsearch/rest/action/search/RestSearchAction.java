@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchContextId;
@@ -171,6 +172,10 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+
+        if (request.hasParam("min_compatible_shard_node")) {
+            searchRequest.setMinCompatibleShardNode(Version.fromString(request.param("min_compatible_shard_node")));
+        }
 
         checkRestTotalHits(request, searchRequest);
 

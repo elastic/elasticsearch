@@ -254,14 +254,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.setBatchedReduceSize(2);
         searchRequest.source(new SearchSourceBuilder().size(1));
         searchRequest.allowPartialSearchResults(false);
-        final SearchRequest withMinVersionSearchRequest = SearchRequest.withMinimumVersion(searchRequest, minVersion);
+        searchRequest.setMinCompatibleShardNode(minVersion);
 
         Executor executor = EsExecutors.newDirectExecutorService();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(withMinVersionSearchRequest, executor,
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         final List<Object> responses = new ArrayList<>();
@@ -269,7 +269,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, executor,
-            resultConsumer, withMinVersionSearchRequest, new ActionListener<SearchResponse>() {
+            resultConsumer, searchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onFailure(Exception e) {
                     responses.add(e);
@@ -323,7 +323,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.source(new SearchSourceBuilder()
             .size(1)
             .sort(SortBuilders.fieldSort("timestamp")));
-        final SearchRequest withMinVersionSearchRequest = SearchRequest.withMinimumVersion(searchRequest, minVersion);
+        searchRequest.setMinCompatibleShardNode(minVersion);
 
         Executor executor = EsExecutors.newDirectExecutorService();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
@@ -358,7 +358,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(withMinVersionSearchRequest, executor,
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
@@ -366,7 +366,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, executor,
-            resultConsumer, withMinVersionSearchRequest, null, shardsIter, timeProvider, null,
+            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -425,7 +425,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.source(new SearchSourceBuilder()
             .size(1)
             .sort(SortBuilders.fieldSort("timestamp")));
-        final SearchRequest withMinVersionSearchRequest = SearchRequest.withMinimumVersion(searchRequest, minVersion);
+        searchRequest.setMinCompatibleShardNode(minVersion);
 
         Executor executor = EsExecutors.newDirectExecutorService();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
@@ -460,7 +460,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(withMinVersionSearchRequest, executor,
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
@@ -468,7 +468,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, executor,
-            resultConsumer, withMinVersionSearchRequest, null, shardsIter, timeProvider, null,
+            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

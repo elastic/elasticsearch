@@ -49,6 +49,8 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,6 +62,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
+import static org.elasticsearch.test.ESTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
@@ -114,6 +117,10 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             searchRequest.source(randomSearchSourceBuilder.get());
+        }
+        if (randomBoolean()) {
+            searchRequest.setMinCompatibleShardNode(VersionUtils.randomVersion(random()));
+            searchRequest.setCcsMinimizeRoundtrips(false);
         }
         return searchRequest;
     }

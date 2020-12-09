@@ -66,7 +66,7 @@ setup:
 ---
 "Highlight multiple documents":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.10.99"
       reason: Bug fix not yet backported
   - do:
       search:
@@ -90,7 +90,7 @@ setup:
 ---
 "Highlight multiple nested documents":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.10.99"
       reason: Bug fix not yet backported
   - do:
       search:

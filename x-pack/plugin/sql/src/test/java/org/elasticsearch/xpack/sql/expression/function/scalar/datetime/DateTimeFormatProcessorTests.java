@@ -372,6 +372,11 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new DateFormat(Source.EMPTY, dateTime, l("%W %M %Y"), zoneId).makePipe().asProcessor().process(null)
         );
 
+        assertEquals(
+            "123456",
+            new DateFormat(Source.EMPTY, dateTime, l("%f"), zoneId).makePipe().asProcessor().process(null)
+        );
+
         dateTime = l(dateTime(2007, 10, 4, 22, 23, 0, 123456789));
         assertEquals(
             "22:23:00",

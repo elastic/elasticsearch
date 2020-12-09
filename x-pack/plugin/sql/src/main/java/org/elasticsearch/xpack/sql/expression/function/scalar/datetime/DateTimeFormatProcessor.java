@@ -44,7 +44,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"%D", "d"},
         {"%d", "dd"},
         {"%e", "dd"},
-        {"%f", ".SSSSSS"},
+        {"%f", "SSSSSS"},
         {"%H", "HH"},
         {"%h", "hh"},
         {"%I", "hh"},

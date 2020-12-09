@@ -80,7 +80,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis, long ingestTookInMillis, Boolean noItemsOnSuccess) {
-        final boolean hasError = Arrays.stream(responses).anyMatch(BulkItemResponse::isFailed);
+        final boolean hasError = responses != null && Arrays.stream(responses).anyMatch(r-> r != null && r.isFailed());
         this.responses = noItemsOnSuccess != null && noItemsOnSuccess && hasError == false
             ? new BulkItemResponse[0] : responses;
         this.tookInMillis = tookInMillis;

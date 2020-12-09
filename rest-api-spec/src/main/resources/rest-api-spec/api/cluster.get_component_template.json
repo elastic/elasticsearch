@@ -5,6 +5,9 @@
       "description":"Returns one or more component templates"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

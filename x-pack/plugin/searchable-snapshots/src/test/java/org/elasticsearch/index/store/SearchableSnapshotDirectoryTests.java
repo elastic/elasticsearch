@@ -36,6 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -111,6 +112,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -607,7 +609,13 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         threadPool
                     )
                 ) {
-                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState);
+                    final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, f);
+                    try {
+                        f.get();
+                    } catch (ExecutionException e) {
+                        assertNotNull(ExceptionsHelper.unwrap(e, IOException.class));
+                    }
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", snapshotDirectory.snapshot(), sameInstance(snapshot));
                     assertThat("BlobContainer should be loaded", snapshotDirectory.blobContainer(), sameInstance(blobContainer));
@@ -707,7 +715,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 )
             ) {
                 final RecoveryState recoveryState = createRecoveryState();
-                final boolean loaded = directory.loadSnapshot(recoveryState);
+                final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+                final boolean loaded = directory.loadSnapshot(recoveryState, f);
+                f.get();
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", directory.snapshot(), sameInstance(snapshot));
                 assertThat("BlobContainer should be loaded", directory.blobContainer(), sameInstance(blobContainer));

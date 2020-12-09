@@ -45,7 +45,7 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
     }
 
     @Override
-    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, List<Path> indexPaths) {
+    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
         for (IndexStorePlugin.IndexFoldersDeletionListener listener : listeners) {
             try {
                 listener.beforeIndexFoldersDeleted(index, indexSettings, indexPaths);
@@ -57,7 +57,7 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
     }
 
     @Override
-    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, List<Path> shardPaths) {
+    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
         for (IndexStorePlugin.IndexFoldersDeletionListener listener : listeners) {
             try {
                 listener.beforeShardFoldersDeleted(shardId, indexSettings, shardPaths);

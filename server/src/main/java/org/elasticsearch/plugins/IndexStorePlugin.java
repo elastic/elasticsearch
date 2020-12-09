@@ -99,7 +99,7 @@ public interface IndexStorePlugin {
          * @param indexSettings settings for the index whose folders are going to be deleted
          * @param indexPaths    the paths of the folders that are going to be deleted
          */
-        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, List<Path> indexPaths);
+        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths);
 
         /**
          * Invoked before the folders of a shard are deleted from disk. The list of folders contains {@link Path}s that may or may not
@@ -109,7 +109,7 @@ public interface IndexStorePlugin {
          * @param indexSettings index settings of the shard whose folders are going to be deleted
          * @param shardPaths    the paths of the folders that are going to be deleted
          */
-        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, List<Path> shardPaths);
+        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths);
     }
 
     /**

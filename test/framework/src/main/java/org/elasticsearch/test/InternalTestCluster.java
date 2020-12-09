@@ -36,14 +36,13 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -82,6 +81,7 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -126,6 +126,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1170,22 +1171,22 @@ public final class InternalTestCluster extends TestCluster {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndexingPressure indexingPressure = getInstance(IndexingPressure.class, nodeAndClient.name);
-                final long combinedBytes = indexingPressure.getCurrentCombinedCoordinatingAndPrimaryBytes();
+                final long combinedBytes = indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes();
                 if (combinedBytes > 0) {
                     throw new AssertionError("pending combined bytes [" + combinedBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long coordinatingBytes = indexingPressure.getCurrentCoordinatingBytes();
+                final long coordinatingBytes = indexingPressure.stats().getCurrentCoordinatingBytes();
                 if (coordinatingBytes > 0) {
                     throw new AssertionError("pending coordinating bytes [" + coordinatingBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long primaryBytes = indexingPressure.getCurrentPrimaryBytes();
+                final long primaryBytes = indexingPressure.stats().getCurrentPrimaryBytes();
                 if (primaryBytes > 0) {
                     throw new AssertionError("pending primary bytes [" + primaryBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long replicaWriteBytes = indexingPressure.getCurrentReplicaBytes();
+                final long replicaWriteBytes = indexingPressure.stats().getCurrentReplicaBytes();
                 if (replicaWriteBytes > 0) {
                     throw new AssertionError("pending replica write bytes [" + combinedBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
@@ -1519,6 +1520,20 @@ public final class InternalTestCluster extends TestCluster {
         if (nodeAndClient != null) {
             logger.info("Closing random node [{}] ", nodeAndClient.name);
             stopNodesAndClient(nodeAndClient);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Stops a specific node in the cluster. Returns true if the node was found to stop, false otherwise.
+     */
+    public synchronized boolean stopNode(String nodeName) throws IOException {
+        ensureOpen();
+        Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(nodeName)).findFirst();
+        if (nodeToStop.isPresent()) {
+            logger.info("Closing node [{}]", nodeToStop.get().name);
+            stopNodesAndClient(nodeToStop.get());
             return true;
         }
         return false;
@@ -2320,7 +2335,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void assertRequestsFinished() {
+    public void assertRequestsFinished() {
         assert Thread.holdsLock(this);
         if (size() > 0) {
             for (NodeAndClient nodeAndClient : nodes.values()) {

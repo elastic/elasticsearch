@@ -34,8 +34,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
 [[cluster-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 [role="child_attributes"]
@@ -246,7 +244,7 @@ activities.
 
 `fielddata`::
 (object)
-Contains statistics about the field data cache of selected nodes.
+Contains statistics about the <<modules-fielddata, field data cache>> of selected nodes.
 +
 .Properties of `fielddata`
 [%collapsible%open]

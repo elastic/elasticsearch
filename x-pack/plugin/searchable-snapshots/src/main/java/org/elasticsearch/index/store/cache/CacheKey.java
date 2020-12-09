@@ -25,19 +25,19 @@ public class CacheKey {
         this.fileName = Objects.requireNonNull(fileName);
     }
 
-    SnapshotId getSnapshotId() {
+    public SnapshotId getSnapshotId() {
         return snapshotId;
     }
 
-    IndexId getIndexId() {
+    public IndexId getIndexId() {
         return indexId;
     }
 
-    ShardId getShardId() {
+    public ShardId getShardId() {
         return shardId;
     }
 
-    String getFileName() {
+    public String getFileName() {
         return fileName;
     }
 
@@ -64,11 +64,5 @@ public class CacheKey {
     @Override
     public String toString() {
         return "[" + "snapshotId=" + snapshotId + ", indexId=" + indexId + ", shardId=" + shardId + ", fileName='" + fileName + "']";
-    }
-
-    public boolean belongsTo(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        return Objects.equals(this.snapshotId, snapshotId)
-            && Objects.equals(this.indexId, indexId)
-            && Objects.equals(this.shardId, shardId);
     }
 }

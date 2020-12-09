@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 public class DatafeedJobValidatorTests extends ESTestCase {
 
@@ -208,6 +210,33 @@ public class DatafeedJobValidatorTests extends ESTestCase {
             () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry()));
         assertEquals(Messages.getMessage(
             Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "1d", "2s"), e.getMessage());
+    }
+
+    public void testVerify_WithRuntimeTimeField() {
+        String timeField = DataDescription.DEFAULT_TIME_FIELD;
+        Job.Builder jobBuilder = buildJobBuilder("rt-time-field");
+        DatafeedConfig.Builder datafeedBuilder = createValidDatafeedConfig();
+
+        Map<String, Object> dateProperties = new HashMap<>();
+        dateProperties.put("type", "date");
+        dateProperties.put("script", "");
+        Map<String, Object> longProperties = new HashMap<>();
+        longProperties.put("type", "long");
+        longProperties.put("script", "");
+
+        Map<String, Object> runtimeMappings = new HashMap<>();
+        runtimeMappings.put(timeField, dateProperties);
+        runtimeMappings.put("field-foo", longProperties);
+
+        datafeedBuilder.setRuntimeMappings(runtimeMappings);
+
+        Job job = jobBuilder.build(new Date());
+        Exception e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), jobBuilder.build(), xContentRegistry()));
+        assertEquals("data_description.time_field [" + timeField + "] cannot be a runtime field", e.getMessage());
+
+        runtimeMappings.remove(timeField);
+        DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry());
     }
 
     private static Job.Builder buildJobBuilder(String id) {

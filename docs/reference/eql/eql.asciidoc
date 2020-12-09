@@ -390,20 +390,15 @@ or event category field.
 
 By default, the EQL search API returns matching hits by timestamp. If two or
 more events share the same timestamp, {es} uses a tiebreaker field value to sort
-the events in ascending, lexicographic order.
+the events in ascending order. {es} orders events with no
+tiebreaker value after events with a value.
 
 If you don't specify a tiebreaker field or the events also share the same
 tiebreaker value, {es} considers the events concurrent. Concurrent events cannot
 be part of the same sequence and may not be returned in a consistent sort order.
 
-To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you
-specify a tiebreaker field for a sequence query, all events in the searched data
-streams or indices must contain a tiebreaker field value. For basic queries,
-{es} orders matching events with no tiebreaker value after events with a
-tiebreaker value.
-
-If you use the {ecs-ref}[ECS], we recommend using `event.sequence` as the
-tiebreaker field.
+To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you use
+the {ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker field.
 
 [source,console]
 ----

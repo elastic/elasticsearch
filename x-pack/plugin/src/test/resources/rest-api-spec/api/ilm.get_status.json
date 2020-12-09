@@ -5,6 +5,9 @@
       "description":"Retrieves the current index lifecycle management (ILM) status."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

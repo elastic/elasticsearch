@@ -9,6 +9,9 @@ To set up a data stream, follow these steps:
 . <<create-a-data-stream>>.
 . <<secure-a-data-stream>>.
 
+You can also <<convert-an-index-alias-to-a-data-stream,convert an existing index
+alias to a data stream>>.
+
 [discrete]
 [[configure-a-data-stream-ilm-policy]]
 === Optional: Configure an {ilm-init} lifecycle policy
@@ -153,6 +156,73 @@ PUT /_data_stream/my-data-stream
 ----
 // TEST[continued]
 // TEST[s/my-data-stream/my-data-stream-alt/]
+
+When you create a data stream, {es} automatically creates a backing index for
+the stream. This index also acts as the stream's first write index.
+
+[discrete]
+[[convert-an-index-alias-to-a-data-stream]]
+=== Convert an index alias to a data stream
+
+Prior to {es} 7.9, you would typically use an <<indices-aliases,index alias>>
+with a write index to manage time series data. Data streams replace most of
+this functionality and usually require less maintenance.
+
+To convert an index alias with a write index to a new data stream with the same
+name, use the <<indices-migrate-to-data-stream,migrate to data stream API>>.
+During conversion, the alias’s indices become hidden backing indices for the
+stream. The alias’s write index becomes the stream’s write index. Note the data
+stream still requires a matching <<create-a-data-stream-template,index
+template>>.
+
+////
+[source,console]
+----
+POST idx1/_doc/
+{
+    "message" : "testing",
+    "@timestamp" : "2099-01-01"
+}
+
+POST idx2/_doc/
+{
+    "message" : "testing2",
+    "@timestamp" : "2099-01-01"
+}
+
+POST /_aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "idx1",
+        "alias": "my-time-series-data",
+        "is_write_index": true
+      }
+    },
+    {
+      "add": {
+        "index": "idx2",
+        "alias": "my-time-series-data"
+      }
+    }
+  ]
+}
+
+PUT /_index_template/template
+{
+  "index_patterns": ["my-time-series-data"],
+  "data_stream": { }
+}
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+POST /_data_stream/_migrate/my-time-series-data
+----
+// TEST[continued]
 
 [discrete]
 [[secure-a-data-stream]]

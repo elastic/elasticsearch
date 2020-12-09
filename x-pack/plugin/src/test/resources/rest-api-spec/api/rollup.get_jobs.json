@@ -5,6 +5,9 @@
       "description":"Retrieves the configuration, stats, and status of rollup jobs."
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

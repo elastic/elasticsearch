@@ -5,6 +5,9 @@
       "description":"Evicts users from the user cache. Can completely clear the cache or evict specific users."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

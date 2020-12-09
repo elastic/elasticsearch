@@ -196,7 +196,7 @@ public abstract class HttpResource {
         if (state.get() == State.CLEAN) {
             listener.onResponse(true);
         } else {
-            checkAndPublish(client, ActionListener.map(listener, ResourcePublishResult::isSuccess));
+            checkAndPublish(client, listener.map(ResourcePublishResult::isSuccess));
         }
     }
 

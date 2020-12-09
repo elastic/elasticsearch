@@ -44,6 +44,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
@@ -269,11 +270,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
             s,
             searchLookup) -> fieldType.fielddataBuilder(indexSettings.getIndex().getName(), searchLookup)
                 .build(new IndexFieldDataCache.None(), breakerService);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+        });
         QueryShardContext queryShardContext = new QueryShardContext(
             0,
             indexSettings,
             bigArrays,
-            null,
+            bitsetFilterCache,
             fieldDataBuilder,
             mapperSnapshot,
             null,
@@ -291,7 +299,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, mock(Listener.class));
         return new ProductionAggregationContext(
             queryShardContext,
             query,

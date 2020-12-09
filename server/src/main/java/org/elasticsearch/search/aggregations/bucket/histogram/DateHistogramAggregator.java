@@ -148,9 +148,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (hardBounds != null || extendedBounds != null) {
-            return null;
-        }
         long[] fixedRoundingPoints = preparedRounding.fixedRoundingPoints();
         if (fixedRoundingPoints == null) {
             return null;
@@ -169,11 +166,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (rangeSupplier == null) {
             return null;
         }
-        RangeAggregator.Range[] ranges = new RangeAggregator.Range[fixedRoundingPoints.length];
-        for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
-            ranges[i] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]);
-        }
-        ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null);
+        RangeAggregator.Range[] ranges = ranges(hardBounds, fixedRoundingPoints);
         return new DateHistogramAggregator.FromDateRange(
             parent,
             factories,
@@ -198,6 +191,27 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             keyed,
             fixedRoundingPoints
         );
+    }
+
+    private static RangeAggregator.Range[] ranges(LongBounds hardBounds, long[] fixedRoundingPoints) {
+        if (hardBounds == null) {
+            RangeAggregator.Range[] ranges = new RangeAggregator.Range[fixedRoundingPoints.length];
+            for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
+                ranges[i] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]);
+            }
+            ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null);
+            return ranges;
+        }
+        List<RangeAggregator.Range> ranges = new ArrayList<>(fixedRoundingPoints.length);
+        for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
+            if (hardBounds.contain(fixedRoundingPoints[i])) {
+                ranges.add(new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]));
+            }
+        }
+        if (hardBounds.contain(fixedRoundingPoints[fixedRoundingPoints.length - 1])) {
+            ranges.add(new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null));
+        }
+        return ranges.toArray(RangeAggregator.Range[]::new);
     }
 
     private final ValuesSource.Numeric valuesSource;

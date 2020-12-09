@@ -6,7 +6,7 @@
 ifdef::permanently-unreleased-branch[]
 
 A rollup aggregates an index's time series data and stores the results in
-another index. For example, you can roll up hourly data into daily or weekly
+a new index. For example, you can roll up hourly data into daily or weekly
 summaries.
 
 * <<rollup-api,Rollup API>>

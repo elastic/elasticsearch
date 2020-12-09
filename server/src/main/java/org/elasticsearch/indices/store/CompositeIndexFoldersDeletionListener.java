@@ -21,7 +21,6 @@ package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,8 +49,8 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
             try {
                 listener.beforeIndexFoldersDeleted(index, indexSettings, indexPaths);
             } catch (Exception e) {
-                logger.warn(() ->
-                    new ParameterizedMessage("[{}] failed to invoke listener [{}] for index folders deletion", index, listener), e);
+                assert false : new AssertionError(e);
+                throw e;
             }
         }
     }
@@ -62,8 +61,8 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
             try {
                 listener.beforeShardFoldersDeleted(shardId, indexSettings, shardPaths);
             } catch (Exception e) {
-                logger.warn(() ->
-                    new ParameterizedMessage("[{}] failed to invoke listener [{}] for shard folders deletion", shardId, listener), e);
+                assert false : new AssertionError(e);
+                throw e;
             }
         }
     }

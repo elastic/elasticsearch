@@ -20,14 +20,12 @@ package org.elasticsearch.indices.flush;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -68,7 +66,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -76,7 +73,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -235,28 +231,10 @@ public class FlushIT extends ESIntegTestCase {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         logger.info("--> trying sync flush");
-        // since we expect a warning to be returned, we need to manually capture the warning in a header
-        // as the future can be completed outside of the test thread
-        final Client client = client();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<SyncedFlushResponse> responseRef = new AtomicReference<>();
-        final AtomicReference<Map<String, List<String>>> headerRef = new AtomicReference<>();
-        client.admin().indices().prepareSyncedFlush("test").execute(
-            new LatchedActionListener<>(ActionListener.wrap(r -> {
-                responseRef.set(r);
-                headerRef.set(client.threadPool().getThreadContext().getResponseHeaders());
-            }, e -> fail(e.getMessage())), latch));
-        latch.await();
+        SyncedFlushResponse syncedFlushResult = client().admin().indices().prepareSyncedFlush("test").get();
         logger.info("--> sync flush done");
         stop.set(true);
         indexingThread.join();
-        SyncedFlushResponse syncedFlushResult = responseRef.get();
-        Map<String, List<String>> headers = headerRef.get();
-        assertThat(headers.containsKey("Warning"), is(true));
-        assertThat(headers.get("Warning")
-            .stream()
-            .anyMatch(s -> s.contains(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)),
-            is(true));
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertFlushResponseEqualsShardStats(indexStats.getShards(), syncedFlushResult.getShardsResultPerIndex().get("test"));
         refresh();

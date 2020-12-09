@@ -82,7 +82,7 @@ public class SyncedFlushService implements IndexEventListener {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(logger.getName());
 
     public static final String SYNCED_FLUSH_DEPRECATION_MESSAGE =
-        "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.";
+        "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.";
 
     private static final String PRE_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/pre";
     private static final String SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/sync";

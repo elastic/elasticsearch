@@ -121,7 +121,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 logger.trace("--> evicting random cache files");
                 final Map<CacheFile, Integer> evictions = new HashMap<>();
                 for (CacheKey evictedCacheKey : randomSubsetOf(Sets.union(previous.keySet(), updates.keySet()))) {
-                    cacheService.removeFromCache(evictedCacheKey::equals);
+                    cacheService.removeFromCache(evictedCacheKey);
                     Tuple<CacheFile, Integer> evicted = previous.remove(evictedCacheKey);
                     if (evicted != null) {
                         evictions.put(evicted.v1(), evicted.v2());

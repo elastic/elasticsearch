@@ -61,6 +61,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         TransportActionProxy.registerProxyAction(
             transportService,
             OPEN_SHARD_READER_CONTEXT_NAME,
+            false,
             TransportOpenPointInTimeAction.ShardOpenReaderResponse::new
         );
     }

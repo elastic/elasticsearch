@@ -160,8 +160,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             // we only check on THROTTLE since we checked before on NO
             Decision decision = allocation.deciders().canAllocate(shardRouting, nodeWithHighestMatch, allocation);
             if (decision.type() == Decision.Type.THROTTLE) {
+                // TODO: does this make sense? Unlike with the store we could evict the cache concurrently and wait for nothing?
                 logger.debug(
-                    "[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store",
+                    "[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent cache",
                     shardRouting.index(),
                     shardRouting.id(),
                     shardRouting,
@@ -171,7 +172,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 return AllocateUnassignedDecision.throttle(nodeDecisions);
             } else {
                 logger.debug(
-                    "[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store",
+                    "[{}][{}]: allocating [{}] to [{}] in order to reuse its persistent cache",
                     shardRouting.index(),
                     shardRouting.id(),
                     shardRouting,

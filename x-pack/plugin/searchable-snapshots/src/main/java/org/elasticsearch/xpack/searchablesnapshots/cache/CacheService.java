@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -109,6 +110,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ByteSizeValue cacheSize;
     private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
+    private final Settings settings;
 
     private volatile int maxCacheFilesToSyncAtOnce;
 
@@ -138,6 +140,7 @@ public class CacheService extends AbstractLifecycleComponent {
         this.cacheSyncTask = new CacheSynchronizationTask(threadPool, SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
         this.cacheSyncStopTimeout = SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT.get(settings);
+        this.settings = settings;
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
@@ -150,12 +153,17 @@ public class CacheService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        cacheSyncTask.rescheduleIfNecessary();
-        cacheCleaner.run();
+        if (DiscoveryNode.isDataNode(settings)) {
+            cacheSyncTask.rescheduleIfNecessary();
+            cacheCleaner.run();
+        }
     }
 
     @Override
     protected void doStop() {
+        if (DiscoveryNode.isDataNode(settings) == false) {
+            return;
+        }
         boolean acquired = false;
         try {
             try {

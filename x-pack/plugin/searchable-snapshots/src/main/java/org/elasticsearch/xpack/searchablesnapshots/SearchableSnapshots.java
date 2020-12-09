@@ -228,6 +228,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             );
             this.blobStoreCacheService.set(blobStoreCacheService);
             components.add(blobStoreCacheService);
+        } else {
+            components.add(new CacheService(settings, clusterService, threadPool, () -> {}));
         }
         this.client.set(client);
         return Collections.unmodifiableList(components);

@@ -75,6 +75,10 @@ public class QueryRewriteContext {
         return null;
     }
 
+    public CoordinatorRewriteContext convertToCoordinatorRewriteContext() {
+        return null;
+    }
+
     /**
      * Registers an async action that must be executed before the next rewrite round in order to make progress.
      * This should be used if a rewriteabel needs to fetch some external resources in order to be executed ie. a document

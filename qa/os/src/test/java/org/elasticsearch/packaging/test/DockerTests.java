@@ -644,7 +644,7 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that it is possible to use the Stack logging config
+     * Check that it is possible to write logs to disk
      */
     public void test121CanUseStackLoggingConfig() throws Exception {
         runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
@@ -659,10 +659,19 @@ public class DockerTests extends PackagingTestCase {
             stdout.get(stdout.size() - 1),
             matchesPattern("^\\[\\d\\d\\d\\d-.*")
         );
+
+        List.of(
+            "docker-cluster.log",
+            "docker-cluster_audit.json",
+            "docker-cluster_deprecation.json",
+            "docker-cluster_index_indexing_slowlog.json",
+            "docker-cluster_index_search_slowlog.json",
+            "docker-cluster_server.json"
+        ).forEach(file -> assertTrue("[logs/" + file + "] should exist but doesn't", existsInContainer("logs/" + file)));
     }
 
     /**
-     * Check that the Docker logging config can be explicitly selected.
+     * Check that the default logging config can be explicitly selected.
      */
     public void test122CanUseDockerLoggingConfig() throws Exception {
         runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "console")));
@@ -673,6 +682,15 @@ public class DockerTests extends PackagingTestCase {
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
 
         assertThat("Container logs should be formatted using the docker config", stdout.get(stdout.size() - 1), startsWith("{\""));
+
+        List.of(
+            "docker-cluster.log",
+            "docker-cluster_audit.json",
+            "docker-cluster_deprecation.json",
+            "docker-cluster_index_indexing_slowlog.json",
+            "docker-cluster_index_search_slowlog.json",
+            "docker-cluster_server.json"
+        ).forEach(file -> assertFalse("[logs/" + file + "] shouldn't exist but does", existsInContainer("logs/" + file)));
     }
 
     /**

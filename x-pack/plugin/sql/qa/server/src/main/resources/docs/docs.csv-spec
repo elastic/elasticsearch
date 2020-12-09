@@ -2846,36 +2846,6 @@ SELECT DATE_DIFF('minutes', '2019-09-04'::date, '2015-08-17T22:33:11.567Z'::date
 // end::dateDiffDateMinutes
 ;
 
-dateFormatDate
-// tag::dateFormatDate
-SELECT DATE_FORMAT(CAST('2020-04-05' AS DATE), '%d/%m/%Y') AS "date";
-      date
-------------------
-05/04/2020
-// end::dateFormatDate
-;
-
-dateFormatDateTime
-// tag::dateFormatDateTime
-SELECT DATE_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), '%d/%m/%Y %T.%f') AS "datetime";
-
-      datetime
-------------------
-05/04/2020 11:22:34.000000
-// end::dateFormatDateTime
-;
-
-dateFormatTime
-// tag::dateFormatTime
-SELECT DATE_FORMAT(CAST('11:22:33.987' AS TIME), '%H %i %s.%f') AS "time";
-
-      time
-------------------
-11 22 34.000000
-// end::dateFormatTime
-;
-
-
 dateTimeFormatDate
 // tag::dateTimeFormatDate
 SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";

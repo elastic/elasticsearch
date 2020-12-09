@@ -129,6 +129,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     versions = ['2', '1']
   }
   for (String version : versions) {
+    // TODO Rene: we should be able to replace these unzip tasks with gradle artifact transforms
     TaskProvider<Sync> unzip = tasks.register("unzipEs${version}", Sync) {
       Configuration oldEsDependency = configurations['es' + version]
       dependsOn oldEsDependency

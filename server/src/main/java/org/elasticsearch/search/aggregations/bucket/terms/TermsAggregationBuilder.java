@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -399,11 +398,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        return super.doRewrite(queryShardContext);
     }
 
     @Override

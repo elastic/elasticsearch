@@ -35,10 +35,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -127,6 +129,16 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             client(LOCAL_CLUSTER).search(searchRequest, future);
             SearchListenerPlugin.waitSearchStarted();
             disconnectFromRemoteClusters();
+            // Cancellable tasks on the remote cluster should be cancelled
+            assertBusy(() -> {
+                final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
+                for (TransportService transportService : transportServices) {
+                    Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
+                    for (CancellableTask cancellableTask : cancellableTasks) {
+                        assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                    }
+                }
+            });
             assertBusy(() -> assertTrue(future.isDone()));
             configureAndConnectsToRemoteClusters();
         } finally {

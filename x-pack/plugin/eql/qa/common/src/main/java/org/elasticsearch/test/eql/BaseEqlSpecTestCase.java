@@ -221,7 +221,7 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         return "@timestamp";
     };
 
-    private String eventCategory() {
+    protected String eventCategory() {
         return "event.category";
     }
 

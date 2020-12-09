@@ -25,7 +25,7 @@ For {es}, adherence to FIPS 140-2 is ensured by
 === Upgrade considerations
 
 If you plan to upgrade your existing cluster to a version that can be run in
-a FIPS 140-2 enabled JVM, the suggested approach is to first perform a rolling
+a FIPS 140-2 configured JVM, the suggested approach is to first perform a rolling
 upgrade to the new version in your existing JVM and perform all necessary
 configuration changes in preparation for running in fips mode. You can then
 perform a rolling restart of the nodes, this time starting each node in a
@@ -51,7 +51,7 @@ starting each node.
 
 Apart from setting `xpack.security.fips_mode.enabled`, a number of security
 related settings need to be configured accordingly in order to be compliant
-and able to run {es} successfully in a FIPS 140-2 enabled JVM.
+and able to run {es} successfully in a FIPS 140-2 configured JVM.
 
 [discrete]
 [[keystore-fips-password]]
@@ -65,6 +65,8 @@ This means that the  password needs to be 14 bytes long which is equivalent
 to a 14 character ASCII encoded password, or a 7 character UTF-8 encoded password.
 You can use the <<keystore, elasticsearch-keystore passwd>> subcommand to change or set the
 password of an existing keystore.
+Note that when the keystore is password-protected, you must supply the password each time 
+Elasticsearch starts.
 
 [discrete]
 ==== TLS
@@ -82,7 +84,7 @@ used in a FIPS 140-2 JVM. See <<ssl-tls-settings,`ssl.cipher_suites`>>.
 
 Keystores can be used in a number of <<ssl-tls-settings>> in order to
 conveniently store key and trust material. Neither `JKS`, nor `PKCS#12` keystores
-can be used in a FIPS 140-2 enabled JVM however, so you must refrain from using
+can be used in a FIPS 140-2 configured JVM however, so you must refrain from using
 these types of keystores.  Your FIPS 140-2 provider may provide a compliant keystore
 implementation that can be used, or you can use PEM encoded files. To use PEM encoded
 key material, you can use the relevant `\*.key` and `*.certificate` configuration
@@ -132,6 +134,7 @@ In order to ensure FIPS 140-2 compliance, you would need to recreate users or
 change their password using the <<users-command, elasticsearch-user>> CLI tool
 for the file realm and the <<security-api-put-user,create users>> and
 <<security-api-change-password,change password>> APIs for the native and reserved realms.
+Other types of realms are not affected and do not require any changes. 
 
 The user cache will be emptied upon node restart, so any existing hashes using
 non-compliant algorithms will be discarded and the new ones will be created
@@ -147,8 +150,8 @@ features are not available while running in fips mode. The list is as follows:
 * Ingest Attachment Plugin
 * The <<certutil,`elasticsearch-certutil`>> tool. However,
  `elasticsearch-certutil` can very well be used in a non FIPS 140-2
-  enabled JVM (pointing `JAVA_HOME` environment variable to a different java
+  cofigured JVM (pointing `JAVA_HOME` environment variable to a different java
   installation) in order to generate the keys and certificates that
-  can be later used in the FIPS 140-2 enabled JVM.
-* The SQL CLI client cannot run in a FIPS 140-2 enabled JVM while using
+  can be later used in the FIPS 140-2 configured JVM.
+* The SQL CLI client cannot run in a FIPS 140-2 configured JVM while using
   TLS for transport security or PKI for client authentication.

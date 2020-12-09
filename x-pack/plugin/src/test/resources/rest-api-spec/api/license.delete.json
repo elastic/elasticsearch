@@ -5,6 +5,9 @@
       "description":"Deletes licensing information for the cluster"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

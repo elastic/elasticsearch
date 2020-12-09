@@ -5,6 +5,10 @@
       "description":"Evaluates the data frame analytics for an annotated index."
     },
     "stability":"beta",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -398,20 +398,20 @@ public class TaskManager implements ClusterStateApplier {
      */
     public List<CancellableTask> setBan(TaskId parentTaskId, String reason, TransportChannel channel) {
         logger.trace("setting ban for the parent task {} {}", parentTaskId, reason);
-        if (channel.getVersion().onOrAfter(Version.V_8_0_0)) {
-            final Ban ban = bannedParents.computeIfAbsent(parentTaskId, k -> new Ban(reason, true));
-            assert ban.perChannel : "not a ban per channel";
-            while (channel instanceof TaskTransportChannel) {
-                channel = ((TaskTransportChannel) channel).getChannel();
-            }
-            if (channel instanceof TcpTransportChannel) {
-                startTrackingChannel(((TcpTransportChannel) channel).getChannel(), ban::registerChannel);
+        synchronized (bannedParents) {
+            if (channel.getVersion().onOrAfter(Version.V_8_0_0)) {
+                final Ban ban = bannedParents.computeIfAbsent(parentTaskId, k -> new Ban(reason, true));
+                assert ban.perChannel : "not a ban per channel";
+                while (channel instanceof TaskTransportChannel) {
+                    channel = ((TaskTransportChannel) channel).getChannel();
+                }
+                if (channel instanceof TcpTransportChannel) {
+                    startTrackingChannel(((TcpTransportChannel) channel).getChannel(), ban::registerChannel);
+                } else {
+                    assert channel.getChannelType().equals("direct") : "expect direct channel; got [" + channel + "]";
+                    ban.registerChannel(DIRECT_CHANNEL_TRACKER);
+                }
             } else {
-                assert channel.getChannelType().equals("direct") : "expect direct channel; got [" + channel + "]";
-                ban.registerChannel(DIRECT_CHANNEL_TRACKER);
-            }
-        } else {
-            synchronized (bannedParents) {
                 if (lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId())) {
                     // Only set the ban if the node is the part of the cluster
                     final Ban existing = bannedParents.put(parentTaskId, new Ban(reason, false));
@@ -440,12 +440,13 @@ public class TaskManager implements ClusterStateApplier {
         return Collections.unmodifiableSet(bannedParents.keySet());
     }
 
-    private static class Ban {
+    private class Ban {
         final String reason;
         final boolean perChannel; // TODO: Remove this in 8.0
         final Set<ChannelPendingTaskTracker> channels;
 
         Ban(String reason, boolean perChannel) {
+            assert Thread.holdsLock(bannedParents);
             this.reason = reason;
             this.perChannel = perChannel;
             if (perChannel) {
@@ -455,17 +456,20 @@ public class TaskManager implements ClusterStateApplier {
             }
         }
 
-        synchronized boolean registerChannel(ChannelPendingTaskTracker channel) {
+        void registerChannel(ChannelPendingTaskTracker channel) {
+            assert Thread.holdsLock(bannedParents);
             assert perChannel : "not a ban per channel";
-            return channels.add(channel);
+            channels.add(channel);
         }
 
-        synchronized boolean unregisterChannel(ChannelPendingTaskTracker channel) {
+        boolean unregisterChannel(ChannelPendingTaskTracker channel) {
+            assert Thread.holdsLock(bannedParents);
             assert perChannel : "not a ban per channel";
             return channels.remove(channel);
         }
 
-        synchronized int registeredChannels() {
+        int registeredChannels() {
+            assert Thread.holdsLock(bannedParents);
             assert perChannel : "not a ban per channel";
             return channels.size();
         }
@@ -757,13 +761,15 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         // Unregister the closing channel and remove bans whose has no registered channels
-        final Iterator<Map.Entry<TaskId, Ban>> iterator = bannedParents.entrySet().iterator();
-        while (iterator.hasNext()) {
-            final Map.Entry<TaskId, Ban> entry = iterator.next();
-            final Ban ban = entry.getValue();
-            if (ban.perChannel) {
-                if (ban.unregisterChannel(channel) && entry.getValue().registeredChannels() == 0) {
-                    iterator.remove();
+        synchronized (bannedParents) {
+            final Iterator<Map.Entry<TaskId, Ban>> iterator = bannedParents.entrySet().iterator();
+            while (iterator.hasNext()) {
+                final Map.Entry<TaskId, Ban> entry = iterator.next();
+                final Ban ban = entry.getValue();
+                if (ban.perChannel) {
+                    if (ban.unregisterChannel(channel) && entry.getValue().registeredChannels() == 0) {
+                        iterator.remove();
+                    }
                 }
             }
         }

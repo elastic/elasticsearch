@@ -38,35 +38,35 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class AggregationCollectorTests extends AggregatorTestCase {
-    public void testTermsDoesntNeedScores() throws IOException {
+    public void testTerms() throws IOException {
         assertFalse(needsScores(termsBuilder().field("f")));
     }
 
-    public void testSubTermsDoesntNeedScores() throws IOException {
+    public void testSubTerms() throws IOException {
         assertFalse(needsScores(termsBuilder().field("f").subAggregation(new TermsAggregationBuilder("i").field("f"))));
     }
 
-    public void testScriptDoesntNeedScoresIfScriptDoesntNeedScores() throws IOException {
+    public void testScoreConsumingScript() throws IOException {
         assertFalse(needsScores(termsBuilder().script(new Script("no_scores"))));
     }
 
-    public void testScriptNeedsScoresIfScriptNeedsScores() throws IOException {
+    public void testNonScoreConsumingScript() throws IOException {
         assertTrue(needsScores(termsBuilder().script(new Script("with_scores"))));
     }
 
-    public void testSubScriptDoesntNeedScoresIfSubScriptDoesntNeedScores() throws IOException {
+    public void testSubScoreConsumingScript() throws IOException {
         assertFalse(needsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("no_scores")))));
     }
 
-    public void testSubScriptNeedsScoresIfSubScriptNeedsScores() throws IOException {
+    public void testSubNonScoreConsumingScript() throws IOException {
         assertTrue(needsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("with_scores")))));
     }
 
-    public void testTopHitsNeedsScores() throws IOException {
+    public void testTopHits() throws IOException {
         assertTrue(needsScores(new TopHitsAggregationBuilder("h")));
     }
 
-    public void testSubTopHitsNeedsScores() throws IOException {
+    public void testSubTopHits() throws IOException {
         assertTrue(needsScores(termsBuilder().field("f").subAggregation(new TopHitsAggregationBuilder("h"))));
     }
 

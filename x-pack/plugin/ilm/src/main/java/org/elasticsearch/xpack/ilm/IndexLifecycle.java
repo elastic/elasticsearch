@@ -211,8 +211,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry> getNamedXContent() {
-        List<org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry> entries = new ArrayList<>(Arrays.asList(
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(Arrays.asList(
             // Custom Metadata
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                 parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),

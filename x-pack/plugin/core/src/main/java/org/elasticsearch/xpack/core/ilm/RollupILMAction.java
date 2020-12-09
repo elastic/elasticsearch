@@ -72,7 +72,7 @@ public class RollupILMAction implements LifecycleAction {
         return config;
     }
 
-    boolean deleteOriginalIndex() {
+    boolean shouldDeleteOriginalIndex() {
         return deleteOriginalIndex;
     }
 

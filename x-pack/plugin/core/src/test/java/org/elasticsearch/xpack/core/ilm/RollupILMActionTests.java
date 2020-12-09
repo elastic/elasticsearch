@@ -85,12 +85,12 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
     }
 
     RollupILMAction copy(RollupILMAction rollupILMAction) {
-        return new RollupILMAction(rollupILMAction.config(), rollupILMAction.deleteOriginalIndex(), rollupILMAction.rollupPolicy());
+        return new RollupILMAction(rollupILMAction.config(), rollupILMAction.shouldDeleteOriginalIndex(), rollupILMAction.rollupPolicy());
     }
 
     RollupILMAction notCopy(RollupILMAction rollupILMAction) {
         RollupActionConfig newConfig = rollupILMAction.config();
-        boolean newDeleteOriginalIndex = rollupILMAction.deleteOriginalIndex();
+        boolean newDeleteOriginalIndex = rollupILMAction.shouldDeleteOriginalIndex();
         String newRollupPolicy = rollupILMAction.rollupPolicy();
         switch (randomIntBetween(0, 2)) {
             case 0:

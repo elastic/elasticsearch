@@ -10,6 +10,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -692,7 +693,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
     }
 
     private static String backingIndexName(String dataStreamName, int generation) {
-        return String.format(Locale.ROOT, ".ds-%s-%06d", dataStreamName, generation);
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation);
     }
 
     private static void verifyDocuments(final RestClient client,

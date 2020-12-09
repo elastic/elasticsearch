@@ -5,6 +5,9 @@
       "description":"Deletes a filter."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

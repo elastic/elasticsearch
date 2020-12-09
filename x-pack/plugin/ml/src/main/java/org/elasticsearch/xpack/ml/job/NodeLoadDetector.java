@@ -67,10 +67,19 @@ public class NodeLoadDetector {
                 + "] is not a long");
         }
 
+        long maxNodeSize = 0L;
+        String maxNodeSizeStr = nodeAttributes.get(MachineLearning.MAX_NODE_SIZE_NODE_ATTR);
+        try {
+            maxNodeSize = Long.parseLong(maxNodeSizeStr);
+        } catch (NumberFormatException e) {
+            // Do nothing, just treat it as not set
+        }
+
         NodeLoad.Builder nodeLoad = NodeLoad.builder(node.getId())
             .setMaxMemory(maxMlMemory.orElse(-1L))
             .setMaxJobs(maxNumberOfOpenJobs)
-            .setUseMemory(isMemoryTrackerRecentlyRefreshed);
+            .setUseMemory(isMemoryTrackerRecentlyRefreshed)
+            .setMaxMlNodeSize(maxNodeSize);
         if (errors.isEmpty() == false) {
             return nodeLoad.setError(Strings.collectionToCommaDelimitedString(errors)).build();
         }

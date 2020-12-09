@@ -417,6 +417,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
+    public static final String MAX_NODE_SIZE_NODE_ATTR = "ml.max_node_size";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
     /**
@@ -560,6 +561,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
+        String maxNodeSizeAttrName = "node.attr." + MAX_NODE_SIZE_NODE_ATTR;
 
         if (enabled == false) {
             disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
@@ -576,10 +578,16 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             addMlNodeAttribute(additionalSettings, machineMemoryAttrName,
                     Long.toString(machineMemoryFromStats(OsProbe.getInstance().osStats())));
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
+            addMlNodeAttribute(additionalSettings, maxNodeSizeAttrName, Long.toString(MAX_ML_NODE_SIZE.get(settings).getBytes()));
             // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(mlEnabledNodeAttrName);
         } else {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
+            disallowMlNodeAttributes(mlEnabledNodeAttrName,
+                maxOpenJobsPerNodeNodeAttrName,
+                machineMemoryAttrName,
+                jvmSizeAttrName,
+                maxNodeSizeAttrName
+            );
         }
         return additionalSettings.build();
     }

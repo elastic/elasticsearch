@@ -31,6 +31,7 @@ public class NodeLoad {
     private final long numAssignedJobs;
     private final long assignedJobMemory;
     private final long numAllocatingJobs;
+    private final long maxNodeSize;
 
     NodeLoad(long maxMemory,
              int maxJobs,
@@ -39,7 +40,8 @@ public class NodeLoad {
              String error,
              long numAssignedJobs,
              long assignedJobMemory,
-             long numAllocatingJobs) {
+             long numAllocatingJobs,
+             long maxNodeSize) {
         this.maxMemory = maxMemory;
         this.maxJobs = maxJobs;
         this.nodeId = nodeId;
@@ -48,6 +50,7 @@ public class NodeLoad {
         this.numAssignedJobs = numAssignedJobs;
         this.assignedJobMemory = assignedJobMemory;
         this.numAllocatingJobs = numAllocatingJobs;
+        this.maxNodeSize = maxNodeSize;
     }
 
     /**
@@ -107,6 +110,13 @@ public class NodeLoad {
         return numAllocatingJobs;
     }
 
+    /**
+     * @return The max node size determined via setting `xpack.ml.max_ml_node_size`
+     */
+    public long getMaxNodeSize() {
+        return maxNodeSize;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -118,13 +128,24 @@ public class NodeLoad {
             numAssignedJobs == nodeLoad.numAssignedJobs &&
             assignedJobMemory == nodeLoad.assignedJobMemory &&
             numAllocatingJobs == nodeLoad.numAllocatingJobs &&
+            maxNodeSize == nodeLoad.maxNodeSize &&
             Objects.equals(nodeId, nodeLoad.nodeId) &&
             Objects.equals(error, nodeLoad.error);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxMemory, maxJobs, nodeId, useMemory, error, numAssignedJobs, assignedJobMemory, numAllocatingJobs);
+        return Objects.hash(
+            maxMemory,
+            maxJobs,
+            nodeId,
+            useMemory,
+            error,
+            numAssignedJobs,
+            assignedJobMemory,
+            numAllocatingJobs,
+            maxNodeSize
+        );
     }
 
     public static Builder builder(String nodeId) {
@@ -140,6 +161,7 @@ public class NodeLoad {
         private long numAssignedJobs;
         private long assignedJobMemory;
         private long numAllocatingJobs;
+        private long maxNodeSize;
 
         public Builder(String nodeId) {
             this.nodeId = nodeId;
@@ -185,6 +207,11 @@ public class NodeLoad {
 
         public Builder incNumAllocatingJobs() {
             ++this.numAllocatingJobs;
+            return this;
+        }
+
+        public Builder setMaxMlNodeSize(long maxNodeSize) {
+            this.maxNodeSize = maxNodeSize;
             return this;
         }
 
@@ -236,13 +263,14 @@ public class NodeLoad {
 
         public NodeLoad build() {
             return new NodeLoad(maxMemory,
-            maxJobs,
-            nodeId,
-            useMemory,
-            error,
-            numAssignedJobs,
-            assignedJobMemory,
-            numAllocatingJobs);
+                maxJobs,
+                nodeId,
+                useMemory,
+                error,
+                numAssignedJobs,
+                assignedJobMemory,
+                numAllocatingJobs,
+                maxNodeSize);
         }
     }
 }

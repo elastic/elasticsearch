@@ -85,7 +85,6 @@ public class JobNodeSelector {
     public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs,
                                                                int maxConcurrentJobAllocations,
                                                                int maxMachineMemoryPercent,
-                                                               long maxNodeSize,
                                                                boolean isMemoryTrackerRecentlyRefreshed,
                                                                boolean useAutoMemoryPercentage) {
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
@@ -99,6 +98,7 @@ public class JobNodeSelector {
         List<String> reasons = new LinkedList<>();
         long maxAvailableCount = Long.MIN_VALUE;
         long maxAvailableMemory = Long.MIN_VALUE;
+        long maxNodeSize = 0L;
         DiscoveryNode minLoadedNodeByCount = null;
         DiscoveryNode minLoadedNodeByMemory = null;
         for (DiscoveryNode node : clusterState.getNodes()) {
@@ -126,6 +126,7 @@ public class JobNodeSelector {
                 reasons.add(reason);
                 continue;
             }
+            maxNodeSize = Math.max(currentLoad.getMaxNodeSize(), maxNodeSize);
             // Assuming the node is eligible at all, check loading
             allocateByMemory = currentLoad.isUseMemory();
             int maxNumberOfOpenJobs = currentLoad.getMaxJobs();

@@ -194,7 +194,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
                     @Override
                     public void onFailure(Exception e) {
-                        // TODO: what now?
+                        // TODO: I guess this is the best we can do?
                         fetch.data = Collections.emptyMap();
                     }
                 }, () -> client.admin().cluster().prepareReroute().execute(new ActionListener<>() {
@@ -224,6 +224,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
 
         int numberOfInFlightFetches() {
+            // TODO: give real number
             return 0;
         }
     }

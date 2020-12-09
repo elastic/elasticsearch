@@ -537,7 +537,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
     }
 
     public void testRolloverClusterStateForDataStream() throws Exception {
-        final DataStream dataStream = DataStreamTestHelper.randomInstance();
+        final DataStream dataStream = DataStreamTestHelper.randomInstance()
+            // ensure no replicate data stream
+            .promoteDataStream();
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList(dataStream.getName() + "*"),
             null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(), null);
         Metadata.Builder builder = Metadata.builder();
@@ -633,7 +635,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final boolean useDataStream = randomBoolean();
         final Metadata.Builder builder = Metadata.builder();
         if (useDataStream) {
-            DataStream dataStream = DataStreamTestHelper.randomInstance();
+            DataStream dataStream = DataStreamTestHelper.randomInstance()
+                // ensure no replicate data stream
+                .promoteDataStream();
             rolloverTarget = dataStream.getName();
             sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
             defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);

@@ -222,7 +222,7 @@ public final class DestinationIndex {
         incrementalIdMapping.put("type", NumberFieldMapper.NumberType.LONG.typeName());
         properties.put(INCREMENTAL_ID, incrementalIdMapping);
 
-        properties.putAll(config.getAnalysis().getExplicitlyMappedFields(config.getDest().getResultsField(), fieldCapabilitiesResponse));
+        properties.putAll(config.getAnalysis().getResultMappings(config.getDest().getResultsField(), fieldCapabilitiesResponse));
         return properties;
     }
 

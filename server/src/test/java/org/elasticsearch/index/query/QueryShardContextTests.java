@@ -325,8 +325,8 @@ public class QueryShardContextTests extends ESTestCase {
          * shards are parsed on the same node.
          */
         Map<String, Object> runtimeMappings = org.elasticsearch.common.collect.Map.ofEntries(
-            org.elasticsearch.common.collect.Map.entry("cat", org.elasticsearch.common.collect.Map.of("type", "test")),
-            org.elasticsearch.common.collect.Map.entry("dog", org.elasticsearch.common.collect.Map.of("type", "test"))
+            org.elasticsearch.common.collect.Map.entry("cat", org.elasticsearch.common.collect.Map.of("type", "string")),
+            org.elasticsearch.common.collect.Map.entry("dog", org.elasticsearch.common.collect.Map.of("type", "long"))
         );
         QueryShardContext qsc = createQueryShardContext(
             "uuid",
@@ -422,7 +422,7 @@ public class QueryShardContextTests extends ESTestCase {
 
     private static Function<String, MappedFieldType> fieldTypeLookup(
         TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues) {
-        return name -> new TestRuntimeField(name) {
+        return name -> new TestRuntimeField(name, null) {
             @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,
                                                            Supplier<SearchLookup> searchLookup) {

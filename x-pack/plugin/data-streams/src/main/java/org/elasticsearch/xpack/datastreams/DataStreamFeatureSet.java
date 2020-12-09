@@ -19,7 +19,7 @@ import java.util.Map;
 
 public class DataStreamFeatureSet implements XPackFeatureSet {
 
-    private ClusterService clusterService;
+    private final ClusterService clusterService;
 
     @Inject
     public DataStreamFeatureSet(ClusterService clusterService) {

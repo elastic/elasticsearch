@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -657,10 +658,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         DataCounts dataCounts = jobStats.getDataCounts();
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId)
+            .setLatestResultTimeStamp(dataCounts.getLatestRecordTimeStamp())
             .setLatestRecordTimeStamp(dataCounts.getLatestRecordTimeStamp())
             .setMinVersion(Version.CURRENT)
             .setSnapshotId(jobId + "_mock_snapshot")
             .setTimestamp(new Date())
+            .setModelSizeStats(new ModelSizeStats.Builder(jobId).build())
             .build();
 
         try (XContentBuilder xContentBuilder = JsonXContent.contentBuilder()) {

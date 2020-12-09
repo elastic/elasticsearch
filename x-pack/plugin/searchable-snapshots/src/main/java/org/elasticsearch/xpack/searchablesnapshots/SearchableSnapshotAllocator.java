@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -43,6 +46,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 
 public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
+
+    private static final Logger logger = LogManager.getLogger(SearchableSnapshotAllocator.class);
 
     private final ConcurrentMap<ShardId, AsyncCacheStatusFetch> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
@@ -177,7 +182,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     shardId,
                     nodes.getDataNodes().values().toArray(DiscoveryNode.class)
                 ),
-                new ActionListener<>() {
+                ActionListener.runAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(NodesCacheFilesMetadata nodesCacheFilesMetadata) {
                         final Map<DiscoveryNode, NodeCacheFilesMetadata> res = new HashMap<>(nodesCacheFilesMetadata.getNodesMap().size());
@@ -192,7 +197,17 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                         // TODO: what now?
                         fetch.data = Collections.emptyMap();
                     }
-                }
+                }, () -> client.admin().cluster().prepareReroute().execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterRerouteResponse clusterRerouteResponse) {
+                        logger.trace("reroute succeeded after loading snapshot cache information");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("reroute failed", e);
+                    }
+                }))
             );
             return fetch;
         });

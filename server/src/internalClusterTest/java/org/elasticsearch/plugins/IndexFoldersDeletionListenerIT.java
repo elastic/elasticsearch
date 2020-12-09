@@ -19,12 +19,15 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,6 +35,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,7 +45,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
+import static org.elasticsearch.gateway.MetadataStateFormat.STATE_DIR_NAME;
+import static org.elasticsearch.index.shard.ShardPath.INDEX_FOLDER_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -78,26 +86,26 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         }
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
-        ensureClusterStateConsistency();
-        assertPendingDeletesProcessed();
 
-        for (Map.Entry<String, List<ShardRouting>> shardsByNode : shardsByNodes.entrySet()) {
-            final String nodeName = shardsByNode.getKey();
-            final IndexFoldersDeletionListenerPlugin plugin = plugin(nodeName);
-            assertTrue("Listener should have been notified of deletion of index " + index + " on node " + nodeName,
-                plugin.deletedIndices.contains(index));
+        assertBusy(() -> {
+            for (Map.Entry<String, List<ShardRouting>> shardsByNode : shardsByNodes.entrySet()) {
+                final String nodeName = shardsByNode.getKey();
+                final IndexFoldersDeletionListenerPlugin plugin = plugin(nodeName);
+                assertTrue("Listener should have been notified of deletion of index " + index + " on node " + nodeName,
+                    plugin.deletedIndices.contains(index));
 
-            final List<ShardId> deletedShards = plugin.deletedShards.get(index);
-            assertThat(deletedShards, notNullValue());
-            assertFalse("Listener should have been notified of deletion of one or more shards on node " + nodeName,
-                deletedShards.isEmpty());
+                final List<ShardId> deletedShards = plugin.deletedShards.get(index);
+                assertThat(deletedShards, notNullValue());
+                assertFalse("Listener should have been notified of deletion of one or more shards on node " + nodeName,
+                    deletedShards.isEmpty());
 
-            for (ShardRouting shardRouting : shardsByNode.getValue()) {
-                final ShardId shardId = shardRouting.shardId();
-                assertTrue("Listener should have been notified of deletion of shard " + shardId + " on node " + nodeName,
-                    deletedShards.contains(shardId));
+                for (ShardRouting shardRouting : shardsByNode.getValue()) {
+                    final ShardId shardId = shardRouting.shardId();
+                    assertTrue("Listener should have been notified of deletion of shard " + shardId + " on node " + nodeName,
+                        deletedShards.contains(shardId));
+                }
             }
-        }
+        });
     }
 
     public void testListenersInvokedWhenIndexIsRelocated() throws Exception {
@@ -129,32 +137,32 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
                 .put("index.routing.allocation.exclude._name", String.join(",", excludedNodes))
                 .build()));
         ensureGreen(indexName);
-        ensureClusterStateConsistency();
-        assertPendingDeletesProcessed();
 
-        for (Map.Entry<String, List<ShardRouting>> shardsByNode : shardsByNodes.entrySet()) {
-            final String nodeName = shardsByNode.getKey();
-            final IndexFoldersDeletionListenerPlugin plugin = plugin(nodeName);
+        assertBusy(() -> {
+            for (Map.Entry<String, List<ShardRouting>> shardsByNode : shardsByNodes.entrySet()) {
+                final String nodeName = shardsByNode.getKey();
+                final IndexFoldersDeletionListenerPlugin plugin = plugin(nodeName);
 
-            if (excludedNodes.contains(nodeName)) {
-                assertTrue("Listener should have been notified of deletion of index " + index + " on node " + nodeName,
-                    plugin.deletedIndices.contains(index));
+                if (excludedNodes.contains(nodeName)) {
+                    assertTrue("Listener should have been notified of deletion of index " + index + " on node " + nodeName,
+                        plugin.deletedIndices.contains(index));
 
-                final List<ShardId> deletedShards = plugin.deletedShards.get(index);
-                assertThat(deletedShards, notNullValue());
-                assertFalse("Listener should have been notified of deletion of one or more shards on node " + nodeName,
-                    deletedShards.isEmpty());
+                    final List<ShardId> deletedShards = plugin.deletedShards.get(index);
+                    assertThat(deletedShards, notNullValue());
+                    assertFalse("Listener should have been notified of deletion of one or more shards on node " + nodeName,
+                        deletedShards.isEmpty());
 
-                for (ShardRouting shardRouting : shardsByNode.getValue()) {
-                    final ShardId shardId = shardRouting.shardId();
-                    assertTrue("Listener should have been notified of deletion of shard " + shardId + " on node " + nodeName,
-                        deletedShards.contains(shardId));
+                    for (ShardRouting shardRouting : shardsByNode.getValue()) {
+                        final ShardId shardId = shardRouting.shardId();
+                        assertTrue("Listener should have been notified of deletion of shard " + shardId + " on node " + nodeName,
+                            deletedShards.contains(shardId));
+                    }
+                } else {
+                    assertTrue("Expecting no indices deleted on node " + nodeName, plugin.deletedIndices.isEmpty());
+                    assertTrue("Expecting no shards deleted on node " + nodeName, plugin.deletedShards.isEmpty());
                 }
-            } else {
-                assertTrue("Expecting no indices deleted on node " + nodeName, plugin.deletedIndices.isEmpty());
-                assertTrue("Expecting no shards deleted on node " + nodeName, plugin.deletedShards.isEmpty());
             }
-        }
+        });
     }
 
     public void testListenersInvokedWhenIndexIsDangling() throws Exception {
@@ -187,14 +195,89 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         final String restartedNode = internalCluster().startNode(stoppedNodeDataPathSettings);
-        ensureClusterSizeConsistency();
-        ensureClusterStateConsistency();
-        assertPendingDeletesProcessed();
+        assertBusy(() -> {
+            final IndexFoldersDeletionListenerPlugin plugin = plugin(restartedNode);
+            assertTrue("Listener should have been notified of deletion of index " + index + " on node " + restartedNode,
+                plugin.deletedIndices.contains(index));
+        });
+    }
 
-        final IndexFoldersDeletionListenerPlugin plugin = plugin(restartedNode);
+    public void testListenersInvokedWhenIndexHasLeftOverShard() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
 
-        assertTrue("Listener should have been notified of deletion of index " + index + " on node " + restartedNode,
-            plugin.deletedIndices.contains(index));
+        final Path dataDirWithLeftOverShards = createTempDir();
+        String dataNode = internalCluster().startDataOnlyNode(
+            Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), List.of(dataDirWithLeftOverShards.toAbsolutePath().toString()))
+                .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
+                .build()
+        );
+
+        final Index[] leftovers = new Index[between(1, 3)];
+        logger.debug("--> creating [{}] leftover indices on data node [{}]", leftovers.length, dataNode);
+        for (int i = 0; i < leftovers.length; i++) {
+            final String indexName = "index-" + i;
+            createIndex(indexName, Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.include._name", dataNode)
+                .build());
+            ensureGreen(indexName);
+            leftovers[i] = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
+        }
+
+        logger.debug("--> stopping data node [{}], the data left on disk will be injected as left-overs in a newer data node", dataNode);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode));
+
+        logger.debug("--> deleting leftover indices");
+        assertAcked(client().admin().indices().prepareDelete("index-*"));
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        logger.debug("--> creating a new index [{}]", indexName);
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.NONE)
+                .build())
+            .setWaitForActiveShards(ActiveShardCount.NONE));
+
+        final Index index = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
+        logger.debug("--> index [{}] created", index);
+
+        final List<Path> dataPaths = new ArrayList<>();
+        for (int i = 0; i < leftovers.length; i++) {
+            final Path dataPath = createTempDir();
+            dataPaths.add(dataPath);
+            final Path shardPath = dataPath.resolve(INDICES_FOLDER).resolve(index.getUUID()).resolve("0");
+            Files.createDirectories(shardPath);
+            final Path leftoverPath = dataDirWithLeftOverShards.resolve(INDICES_FOLDER).resolve(leftovers[i].getUUID()).resolve("0");
+            Files.move(leftoverPath.resolve(STATE_DIR_NAME), shardPath.resolve(STATE_DIR_NAME));
+            Files.move(leftoverPath.resolve(INDEX_FOLDER_NAME), shardPath.resolve(INDEX_FOLDER_NAME));
+        }
+
+        logger.debug("--> starting another data node with data paths [{}]", dataPaths);
+        dataNode = internalCluster().startDataOnlyNode(
+            Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(),
+                    dataPaths.stream().map(p -> p.toAbsolutePath().toString()).collect(Collectors.toList()))
+                .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
+                .build());
+
+        final IndexFoldersDeletionListenerPlugin plugin = plugin(dataNode);
+        assertTrue("Expecting no shards deleted on node " + dataNode, plugin.deletedShards.isEmpty());
+
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
+            .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
+            .put("index.routing.allocation.require._name", dataNode)
+        ));
+        ensureGreen(indexName);
+
+        assertTrue("Listener should have been notified of deletion of left-over shards for index " + index + " on node " + dataNode,
+            plugin.deletedShards.containsKey(index));
+        assertThat("Listener should have been notified of [" + leftovers.length + "] deletions of left-over shard [0] on node " + dataNode,
+            plugin.deletedShards.get(index).size(), equalTo(leftovers.length));
     }
 
     private Map<String, List<ShardRouting>> shardRoutingsByNodes(ClusterState clusterState, Index index) {

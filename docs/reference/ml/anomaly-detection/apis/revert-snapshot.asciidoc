@@ -44,8 +44,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 +
 --
-You can specify `empty` as the <snapshot_id>. Revert to `empty` results in an 
-empty model that start learning from scratch when the {anomaly-job} is started.
+You can specify `empty` as the <snapshot_id>. Reverting to the `empty` snapshot 
+means the {anomaly-job} starts learning a new model from scratch when it is 
+started.
 --
 
 [[ml-revert-snapshot-request-body]]

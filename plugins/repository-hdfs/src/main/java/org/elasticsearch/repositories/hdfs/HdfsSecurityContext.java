@@ -50,7 +50,7 @@ class HdfsSecurityContext {
     static {
         // We can do FS ops with only a few elevated permissions:
         SIMPLE_AUTH_PERMISSIONS = new Permission[]{
-            new SocketPermission("*", "connect"),
+            new SocketPermission("*", "connect,resolve"),
             // 1) hadoop dynamic proxy is messy with access rules
             new ReflectPermission("suppressAccessChecks"),
             // 2) allow hadoop to add credentials to our Subject
@@ -61,7 +61,7 @@ class HdfsSecurityContext {
 
         // If Security is enabled, we need all the following elevated permissions:
         KERBEROS_AUTH_PERMISSIONS = new Permission[] {
-            new SocketPermission("*", "connect"),
+            new SocketPermission("*", "connect,resolve"),
             // 1) hadoop dynamic proxy is messy with access rules
             new ReflectPermission("suppressAccessChecks"),
             // 2) allow hadoop to add credentials to our Subject

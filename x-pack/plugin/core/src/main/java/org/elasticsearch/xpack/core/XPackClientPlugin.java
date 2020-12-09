@@ -203,6 +203,7 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
+import org.elasticsearch.xpack.core.runtimefields.RuntimeFieldsFeatureSetUsage;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
@@ -678,7 +679,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Data Streams
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
                 // Data Tiers
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.RUNTIME_FIELDS, RuntimeFieldsFeatureSetUsage::new)
             ).stream(),
             MlEvaluationNamedXContentProvider.getNamedWriteables().stream()
         ).collect(toList());

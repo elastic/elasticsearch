@@ -53,13 +53,27 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
-        public static final Dynamic DYNAMIC = null; // not set, inherited from root
     }
 
     public enum Dynamic {
-        TRUE,
+        TRUE {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.DYNAMIC_TRUE;
+            }
+        },
         FALSE,
-        STRICT
+        STRICT,
+        RUNTIME {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.DYNAMIC_RUNTIME;
+            }
+        };
+
+        DynamicFieldsBuilder getDynamicFieldsBuilder() {
+            throw new UnsupportedOperationException("Cannot create dynamic fields when dynamic is set to [" + this + "]");
+        };
     }
 
     public static class Nested {
@@ -139,7 +153,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Nested nested = Defaults.NESTED;
 
-        protected Dynamic dynamic = Defaults.DYNAMIC;
+        protected Dynamic dynamic;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
         protected final Version indexCreatedVersion;
@@ -198,7 +212,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
-            parseNested(name, node, builder, parserContext);
+            parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -216,6 +230,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
+                }  else if (value.equalsIgnoreCase("runtime")) {
+                    if (parserContext.supportsDynamicRuntimeMappings() == false) {
+                        throw new IllegalArgumentException("unable to set dynamic:runtime as there is " +
+                            "no registered dynamic runtime fields builder");
+                    }
+                    builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
@@ -241,8 +261,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return false;
         }
 
-        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder,
-                                          ParserContext parserContext) {
+        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
             boolean nested = false;
             Explicit<Boolean> nestedIncludeInParent = new Explicit<>(false, false);
             Explicit<Boolean> nestedIncludeInRoot = new Explicit<>(false, false);
@@ -383,13 +402,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return clone;
     }
 
+    ObjectMapper copyAndReset() {
+        ObjectMapper copy = clone();
+        // reset the sub mappers
+        copy.mappers = new CopyOnWriteHashMap<>();
+        return copy;
+    }
+
     /**
      * Build a mapping update with the provided sub mapping update.
      */
-    public ObjectMapper mappingUpdate(Mapper mapper) {
-        ObjectMapper mappingUpdate = clone();
-        // reset the sub mappers
-        mappingUpdate.mappers = new CopyOnWriteHashMap<>();
+    final ObjectMapper mappingUpdate(Mapper mapper) {
+        ObjectMapper mappingUpdate = copyAndReset();
         mappingUpdate.putMapper(mapper);
         return mappingUpdate;
     }
@@ -566,5 +590,4 @@ public class ObjectMapper extends Mapper implements Cloneable {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
-
 }

@@ -248,18 +248,18 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper mappingUpdate(Mapper mapper) {
-        RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
+    RootObjectMapper copyAndReset() {
+        RootObjectMapper copy = (RootObjectMapper) super.copyAndReset();
         // for dynamic updates, no need to carry root-specific options, we just
         // set everything to their implicit default value so that they are not
         // applied at merge time
-        update.dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
-        update.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
-        update.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
-        update.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
+        copy.dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
+        copy.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
+        copy.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
+        copy.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
         //also no need to carry the already defined runtime fields, only new ones need to be added
-        update.runtimeFieldTypes.clear();
-        return update;
+        copy.runtimeFieldTypes.clear();
+        return copy;
     }
 
     boolean dateDetection() {
@@ -284,36 +284,6 @@ public class RootObjectMapper extends ObjectMapper {
 
     RuntimeFieldType getRuntimeFieldType(String name) {
         return runtimeFieldTypes.get(name);
-    }
-
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
-        return findTemplateBuilder(context, name, matchType, null);
-    }
-
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, DateFormatter dateFormatter) {
-        return findTemplateBuilder(context, name, XContentFieldType.DATE, dateFormatter);
-    }
-
-    /**
-     * Find a template. Returns {@code null} if no template could be found.
-     * @param name        the field name
-     * @param matchType   the type of the field in the json document or null if unknown
-     * @param dateFormat  a dateformatter to use if the type is a date, null if not a date or is using the default format
-     * @return a mapper builder, or null if there is no template for such a field
-     */
-    private Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
-        DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
-        if (dynamicTemplate == null) {
-            return null;
-        }
-        String dynamicType = matchType.defaultMappingType();
-        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormat);
-        String mappingType = dynamicTemplate.mappingType(dynamicType);
-        Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
-        if (typeParser == null) {
-            throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
-        }
-        return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
     public DynamicTemplate findTemplate(ContentPath path, String name, XContentFieldType matchType) {
@@ -365,6 +335,12 @@ public class RootObjectMapper extends ObjectMapper {
         }
         assert this.runtimeFieldTypes != mergeWithObject.runtimeFieldTypes;
         this.runtimeFieldTypes.putAll(mergeWithObject.runtimeFieldTypes);
+    }
+
+    void addRuntimeFields(Collection<RuntimeFieldType> runtimeFields) {
+        for (RuntimeFieldType runtimeField : runtimeFields) {
+            this.runtimeFieldTypes.put(runtimeField.name(), runtimeField);
+        }
     }
 
     @Override

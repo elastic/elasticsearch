@@ -77,7 +77,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                     "audit disabled because of license",
                     AuditTrailService.class.getName(),
                     Level.WARN,
-                    "Security auditing is DISABLED because the currently active license [" +
+                    "Auditing logging is DISABLED because the currently active license [" +
                             licenseState.getOperationMode() + "] does not permit it"
             ));
         } else {
@@ -85,7 +85,7 @@ public class AuditTrailServiceTests extends ESTestCase {
                     "audit disabled because of license",
                     AuditTrailService.class.getName(),
                     Level.WARN,
-                    "Security auditing is DISABLED because the currently active license [" +
+                    "Auditing logging is DISABLED because the currently active license [" +
                             licenseState.getOperationMode() + "] does not permit it"
             ));
         }

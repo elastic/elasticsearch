@@ -5,6 +5,9 @@
       "description":"Provides store information for shard copies of indices."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

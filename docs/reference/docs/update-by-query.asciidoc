@@ -229,7 +229,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stats]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>) Time period to wait for
+a response. If no response is received before the timeout expires, the request
+fails and returns an error. Defaults to `1m` (one minute).
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 

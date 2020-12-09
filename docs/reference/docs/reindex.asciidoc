@@ -436,7 +436,10 @@ POST _reindex
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>) Time period to wait for
+a response. If no response is received before the timeout expires, the request
+fails and returns an error. Defaults to `1m` (one minute).
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 

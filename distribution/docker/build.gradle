@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
+import org.elasticsearch.gradle.docker.ShellRetry
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
@@ -30,24 +31,6 @@ dependencies {
   aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
   transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: "default")
-}
-
-/**
- * Used in the Dockerfile template to wrap commands in a retry loop. It can't be
- * a closure because Gradle can't effectively cache those.
- */
-class Retry {
-  static String loop(name, command, indentSize = 4, exitKeyword = 'exit') {
-    String indent = ' ' * indentSize
-    String commandWithRetry = """for iter in {1..10}; do
-${indent}  ${command} &&
-${indent}  exit_code=0 && break ||
-${indent}    exit_code=\$? && echo "${name} error: retry \$iter in 10s" && sleep 10;
-${indent}done;
-${indent}${exitKeyword} \$exit_code"""
-
-    return commandWithRetry.replaceAll(" *\n", " \\\\\n")
-  }
 }
 
 ext.expansions = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
@@ -87,7 +70,7 @@ ARG BASE_TAG=8.2
     sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
   } else {
     sourceElasticsearch = """
-RUN curl --retry 8 -S -L \\
+RUN curl --retry 10 -S -L \\
       --output /opt/elasticsearch.tar.gz \\
       https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/$elasticsearch
 """.trim()
@@ -108,7 +91,7 @@ RUN curl --retry 8 -S -L \\
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
     'major_minor_version' : "${major}.${minor}",
-    'retry'               : Retry,
+    'retry'               : ShellRetry
   ]
 }
 

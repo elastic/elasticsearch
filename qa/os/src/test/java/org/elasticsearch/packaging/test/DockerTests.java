@@ -659,15 +659,7 @@ public class DockerTests extends PackagingTestCase {
             stdout.get(stdout.size() - 1),
             matchesPattern("^\\[\\d\\d\\d\\d-.*")
         );
-
-        List.of(
-            "docker-cluster.log",
-            "docker-cluster_audit.json",
-            "docker-cluster_deprecation.json",
-            "docker-cluster_index_indexing_slowlog.json",
-            "docker-cluster_index_search_slowlog.json",
-            "docker-cluster_server.json"
-        ).forEach(file -> assertTrue("[logs/" + file + "] should exist but doesn't", existsInContainer("logs/" + file)));
+        assertThat("[logs/docker-cluster.log] should exist but it doesn't", existsInContainer("logs/docker-cluster.log"), is(true));
     }
 
     /**
@@ -682,15 +674,7 @@ public class DockerTests extends PackagingTestCase {
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
 
         assertThat("Container logs should be formatted using the docker config", stdout.get(stdout.size() - 1), startsWith("{\""));
-
-        List.of(
-            "docker-cluster.log",
-            "docker-cluster_audit.json",
-            "docker-cluster_deprecation.json",
-            "docker-cluster_index_indexing_slowlog.json",
-            "docker-cluster_index_search_slowlog.json",
-            "docker-cluster_server.json"
-        ).forEach(file -> assertFalse("[logs/" + file + "] shouldn't exist but does", existsInContainer("logs/" + file)));
+        assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));
     }
 
     /**

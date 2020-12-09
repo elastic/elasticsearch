@@ -5,7 +5,12 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.SetOnce;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
@@ -17,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -30,6 +36,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
@@ -68,9 +75,13 @@ import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnaps
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -271,7 +282,32 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(
-                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false)
+                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false) {
+
+                    // present an empty IndexCommit to the snapshot mechanism so that we copy no shard data to the repository
+                    private final IndexCommit emptyIndexCommit;
+
+                    {
+                        try {
+                            final Directory directory = engineConfig.getStore().directory();
+                            final String oldestSegmentsFile = Arrays.stream(directory.listAll())
+                                .filter(s -> s.startsWith(IndexFileNames.SEGMENTS + "_"))
+                                .min(Comparator.naturalOrder())
+                                .orElseThrow(() -> new IOException("segments_N file not found"));
+                            final SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
+                            segmentInfos.updateGeneration(SegmentInfos.readCommit(directory, oldestSegmentsFile));
+                            emptyIndexCommit = Lucene.getIndexCommit(segmentInfos, directory);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+
+                    @Override
+                    public IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
+                        store.incRef();
+                        return new IndexCommitRef(emptyIndexCommit, store::decRef);
+                    }
+                }
             );
         }
         return Optional.empty();

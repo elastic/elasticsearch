@@ -128,4 +128,8 @@ public class SnapshotFiles {
         return physicalFiles.get(physicalName);
     }
 
+    @Override
+    public String toString() {
+        return "SnapshotFiles{" + indexFiles.toString() + "}";
+    }
 }

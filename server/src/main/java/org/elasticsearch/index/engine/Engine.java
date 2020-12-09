@@ -1077,6 +1077,14 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * Acquires the index commit that should be included in a snapshot.
+     */
+    public IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
+        // by default we flush first so that the snapshot is as up-to-date as possible.
+        return acquireLastIndexCommit(true);
+    }
+
+    /**
      * @return a summary of the contents of the current safe commit
      */
     public abstract SafeCommitInfo getSafeCommitInfo();

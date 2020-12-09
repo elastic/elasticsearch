@@ -119,7 +119,8 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
             || name.startsWith("pending_segments_")
             || name.matches("^recovery\\..*\\.segments_.*$")) == false) {
 
-            throw new IllegalArgumentException("file [" + name + "] is not mutable");
+            throw new ImmutableDirectoryException("file [" + name + "] is not mutable");
         }
     }
+
 }

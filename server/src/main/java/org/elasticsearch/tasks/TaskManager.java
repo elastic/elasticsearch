@@ -407,8 +407,8 @@ public class TaskManager implements ClusterStateApplier {
             if (channel instanceof TcpTransportChannel) {
                 startTrackingChannel(((TcpTransportChannel) channel).getChannel(), ban::registerChannel);
             } else {
-                // Local channel, register with a dummy tracker
-                ban.registerChannel(new ChannelPendingTaskTracker());
+                assert channel.getChannelType().equals("direct") : "expect direct channel; got [" + channel + "]";
+                ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         } else {
             synchronized (bannedParents) {
@@ -702,6 +702,8 @@ public class TaskManager implements ClusterStateApplier {
     final int numberOfChannelPendingTaskTrackers() {
         return channelPendingTaskTrackers.size();
     }
+
+    private final static ChannelPendingTaskTracker DIRECT_CHANNEL_TRACKER = new ChannelPendingTaskTracker();
 
     private static class ChannelPendingTaskTracker {
         final AtomicBoolean registered = new AtomicBoolean();

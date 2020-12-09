@@ -64,27 +64,23 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             index.addParameter("refresh", "true");
             index.addParameter("filter_path", "_index");
             if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
-                // include both today and tomorrow in case of clock skew
+                // include legacy name and date-named indices with today +/-1 in case of clock skew
                 var expectedIndices = List.of(
-                    "{\"_index\":\"" + (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)
-                        ? DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis)
-                        : DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2)) + "\"}",
-                    "{\"_index\":\"" + (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)
-                        ? DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis + 86400000)
-                        : DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2)) + "\"}"
+                    "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis + 86400000) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis - 86400000) + "\"}"
                 );
                 index.setJsonEntity("{\"@timestamp\":\"2020-12-12\",\"test\":\"value1000\"}");
                 Response response = client().performRequest(index);
                 assertThat(expectedIndices, Matchers.hasItem(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
             } else {
-                // include both today and tomorrow in case of clock skew
+                // include legacy name and date-named indices with today +/-1 in case of clock skew
                 var expectedIndices = List.of(
-                    "{\"_index\":\"" + (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)
-                        ? DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis)
-                        : DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 3)) + "\"}",
-                    "{\"_index\":\"" + (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)
-                        ? DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis + 86400000)
-                        : DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 3)) + "\"}"
+                    "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis + 86400000) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis - 86400000) + "\"}"
                 );
                 index.setJsonEntity("{\"@timestamp\":\"2020-12-12\",\"test\":\"value1001\"}");
                 Response response = client().performRequest(index);

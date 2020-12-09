@@ -197,8 +197,19 @@ null                 |10043          |Yishay         |M              |1990-10-20
 null                 |10044          |Mingsen        |F              |1994-05-21 00:00:00.0|Casley         |39728          |null
 1952-04-19 00:00:00.0|10009          |Sumant         |F              |1985-02-18 00:00:00.0|Peac           |66174          |null
 1953-01-07 00:00:00.0|10067          |Claudi         |M              |1987-03-04 00:00:00.0|Stavenow       |null           |52044
-
 // end::sumWithoutSubquery
+;
+
+sumWithZeros
+SELECT *
+FROM (SELECT client_ip, status, bytes_in FROM logs WHERE NVL(bytes_in, 0) = 0)
+PIVOT (SUM(bytes_in) FOR status IN ('OK','Error'));
+
+   client_ip   |     'OK'      |    'Error'    
+---------------+---------------+---------------
+10.0.1.199     |0              |null           
+10.0.1.205     |0              |null           
+10.0.2.129     |null           |null           
 ;
 
 sumWithInnerAggregateSumOfSquares

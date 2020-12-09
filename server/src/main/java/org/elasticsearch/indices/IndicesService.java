@@ -679,7 +679,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesFieldDataCache,
                 namedWriteableRegistry,
                 this::isIdFieldDataEnabled,
-                valuesSourceRegistry
+                valuesSourceRegistry,
+                indexFoldersDeletionListeners
         );
     }
 

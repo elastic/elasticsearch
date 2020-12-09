@@ -26,8 +26,8 @@ You can use the following APIs to perform {infer} operations.
 You can deploy a trained model to make predictions in an ingest pipeline or in 
 an aggregation. Refer to the following documentation to learn more.
 
-* <<inference-processor>>
-* <<search-aggregations-pipeline-inference-bucket-aggregation>>
+* <<inference-processor,{infer-cap} processor>>
+* <<search-aggregations-pipeline-inference-bucket-aggregation,{infer-cap} bucket aggregation>>
 
 
 See also <<ml-apis>>.

@@ -136,7 +136,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
 
         final boolean explain = allocation.debugDecision();
-        MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, false, fetch, explain);
+        MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetch, explain);
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
@@ -351,7 +351,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     private MatchingNodes findMatchingNodes(
         ShardRouting shard,
         RoutingAllocation allocation,
-        boolean noMatchFailedNodes,
         AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> data,
         boolean explain
     ) {
@@ -359,11 +358,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
         for (Map.Entry<DiscoveryNode, NodeCacheFilesMetadata> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
-            if (noMatchFailedNodes
-                && shard.unassignedInfo() != null
-                && shard.unassignedInfo().getFailedNodeIds().contains(discoNode.getId())) {
-                continue;
-            }
             NodeCacheFilesMetadata nodeCacheFilesMetadata = nodeStoreEntry.getValue();
             // we don't have any existing cached bytes at all
             if (nodeCacheFilesMetadata.bytesCached() == 0L) {

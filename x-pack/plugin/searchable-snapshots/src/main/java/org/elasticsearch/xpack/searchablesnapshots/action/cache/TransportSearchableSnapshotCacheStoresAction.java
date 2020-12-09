@@ -148,7 +148,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
     public static class NodeCacheFilesMetadata extends BaseNodeResponse {
 
-        final long bytesCached;
+        private final long bytesCached;
 
         public NodeCacheFilesMetadata(StreamInput in) throws IOException {
             super(in);
@@ -158,6 +158,10 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
         public NodeCacheFilesMetadata(DiscoveryNode node, long bytesCached) {
             super(node);
             this.bytesCached = bytesCached;
+        }
+
+        public long bytesCached() {
+            return bytesCached;
         }
 
         @Override

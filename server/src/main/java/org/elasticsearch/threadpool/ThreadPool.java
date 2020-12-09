@@ -755,6 +755,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      */
     public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
         if (pool != null) {
+            logger.info("Thread pool termination started");
+
             // Leverage try-with-resources to close the threadpool
             pool.shutdown();
             if (awaitTermination(pool, timeout, timeUnit)) {

@@ -137,10 +137,10 @@ index API request>> directly to the index:
 
 [source,console]
 ----
-POST /.ds-my-data-stream-2099-03-07-000001/_open/
+POST /.ds-my-data-stream-2099.03.07-000001/_open/
 ----
 // TEST[setup:my_index]
-// TEST[s/.ds-my-data-stream-2099-03-07-000001/my-index-000001/]
+// TEST[s/.ds-my-data-stream-2099.03.07-000001/my-index-000001/]
 
 To re-open all closed backing indices for a data stream, submit an open index
 API request to the stream:
@@ -290,7 +290,7 @@ Response:
     "max_score": 0.2876821,
     "hits": [
       {
-        "_index": ".ds-my-data-stream-2099-03-08-000003",      <1>
+        "_index": ".ds-my-data-stream-2099.03.08-000003",      <1>
         "_id": "bfspvnIBr7VVZlfp2lqX",              <2>
         "_seq_no": 0,                               <3>
         "_primary_term": 1,                         <4>
@@ -309,7 +309,7 @@ Response:
 ----
 // TESTRESPONSE[s/"took": 20/"took": $body.took/]
 // TESTRESPONSE[s/"max_score": 0.2876821/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099-03-08-000003"/"_index": $body.hits.hits.0._index/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.03.08-000003"/"_index": $body.hits.hits.0._index/]
 // TESTRESPONSE[s/"_score": 0.2876821/"_score": $body.hits.hits.0._score/]
 
 <1> Backing index containing the matching document
@@ -332,7 +332,7 @@ PUT /.ds-my-data-stream-2099-03-08-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=0&
 }
 ----
 // TEST[setup:my_index]
-// TEST[s/.ds-my-data-stream-2099-03-08-000003/my-index-000001/]
+// TEST[s/.ds-my-data-stream-2099.03.08-000003/my-index-000001/]
 // TEST[s/bfspvnIBr7VVZlfp2lqX/1/]
 // TEST[s/if_seq_no=0/if_seq_no=1/]
 
@@ -340,10 +340,10 @@ To delete the document, use the <<docs-delete,delete API>>:
 
 [source,console]
 ----
-DELETE /.ds-my-data-stream-2099-03-08-000003/_doc/bfspvnIBr7VVZlfp2lqX
+DELETE /.ds-my-data-stream-2099.03.08-000003/_doc/bfspvnIBr7VVZlfp2lqX
 ----
 // TEST[setup:my_index]
-// TEST[s/.ds-my-data-stream-2099-03-08-000003/my-index-000001/]
+// TEST[s/.ds-my-data-stream-2099.03.08-000003/my-index-000001/]
 // TEST[s/bfspvnIBr7VVZlfp2lqX/1/]
 
 To delete or update multiple documents with a single request, use the
@@ -354,10 +354,10 @@ actions, include valid <<bulk-optimistic-concurrency-control,`if_seq_no` and
 [source,console]
 ----
 PUT /_bulk?refresh
-{ "index": { "_index": ".ds-my-data-stream-2099-03-08-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 0, "if_primary_term": 1 } }
+{ "index": { "_index": ".ds-my-data-stream-2099.03.08-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 0, "if_primary_term": 1 } }
 { "@timestamp": "2099-03-08T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
 ----
 // TEST[setup:my_index]
-// TEST[s/.ds-my-data-stream-2099-03-08-000003/my-index-000001/]
+// TEST[s/.ds-my-data-stream-2099.03.08-000003/my-index-000001/]
 // TEST[s/bfspvnIBr7VVZlfp2lqX/1/]
 

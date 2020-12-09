@@ -18,8 +18,8 @@ data stream are automatically granted the same privileges to its backing
 indices.
 
 For example, `my-data-stream` consists of two backing indices:
-`.ds-my-data-stream-2099-03-07-000001` and
-`.ds-my-data-stream-2099-03-08-000002`.
+`.ds-my-data-stream-2099.03.07-000001` and
+`.ds-my-data-stream-2099.03.08-000002`.
 
 A user is granted the `read` privilege to `my-data-stream`.
 
@@ -34,7 +34,7 @@ A user is granted the `read` privilege to `my-data-stream`.
 
 Because the user is automatically granted the same privileges to the stream's
 backing indices, the user can retrieve a document directly from
-`.ds-my-data-stream-2099-03-08-000002`:
+`.ds-my-data-stream-2099.03.08-000002`:
 
 ////
 [source,console]
@@ -48,22 +48,22 @@ PUT /my-index/_doc/2
 
 [source,console]
 ----
-GET /.ds-my-data-stream-2099-03-08-000002/_doc/2
+GET /.ds-my-data-stream-2099.03.08-000002/_doc/2
 ----
 // TEST[continued]
-// TEST[s/.ds-my-data-stream-2099-03-08-000002/my-index/]
+// TEST[s/.ds-my-data-stream-2099.03.08-000002/my-index/]
 
 Later `my-data-stream` <<manually-roll-over-a-data-stream,rolls over>>. This
-creates a new backing index: `.ds-my-data-stream-2099-03-09-000003`. Because the
+creates a new backing index: `.ds-my-data-stream-2099.03.09-000003`. Because the
 user still has the `read` privilege for `my-data-stream`, the user can retrieve
-documents directly from `.ds-my-data-stream-2099-03-09-000003`:
+documents directly from `.ds-my-data-stream-2099.03.09-000003`:
 
 [source,console]
 ----
-GET /.ds-my-data-stream-2099-03-09-000003/_doc/2
+GET /.ds-my-data-stream-2099.03.09-000003/_doc/2
 ----
 // TEST[continued]
-// TEST[s/.ds-my-data-stream-2099-03-09-000003/my-index/]
+// TEST[s/.ds-my-data-stream-2099.03.09-000003/my-index/]
 
 [[index-alias-privileges]]
 ==== Index alias privileges

@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -87,7 +86,7 @@ public class ResolveIndexTests extends ESTestCase {
     @Before
     public void setup() {
         epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
-        dateString = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName()).formatMillis(epochMillis);
+        dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
         metadata = buildMetadata(dataStreams, indices);
     }
 

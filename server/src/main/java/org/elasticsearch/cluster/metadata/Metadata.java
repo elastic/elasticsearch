@@ -90,7 +90,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
-    public static final Pattern BACKING_INDEX_SUFFIX = Pattern.compile("(\\d{4}-\\d{2}-\\d{2}-)?[0-9]+$");
+    public static final Pattern BACKING_INDEX_SUFFIX = Pattern.compile("(\\d{4}\\.\\d{2}\\.\\d{2}-)?[0-9]+$");
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -1473,8 +1473,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         /**
          * Validates there isn't any index with a name that could clash with the future backing indices of the existing data streams.
          *
-         * E.g., if data stream `foo` has backing indices [`.ds-foo-yyyy-MM-dd-000001`, `.ds-foo-yyyy-MM-dd-000002`] and the indices lookup
-         * contains indices `.ds-foo-yyyy-MM-dd-000001`, `.ds-foo-yyyy-MM-dd-000002` and `.ds-foo-yyyy-MM-dd-000006` this will throw an
+         * E.g., if data stream `foo` has backing indices [`.ds-foo-yyyy.MM.dd-000001`, `.ds-foo-yyyy.MM.dd-000002`] and the indices lookup
+         * contains indices `.ds-foo-yyyy-MM.dd.000001`, `.ds-foo-yyyy.MM.dd-000002` and `.ds-foo-yyyy.MM.dd-000006` this will throw an
          * IllegalStateException as attempting to rollover the `foo` data stream from generation 5 to 6 may not be possible
          *
          * @param indicesLookup the indices in the system including the data stream backing indices

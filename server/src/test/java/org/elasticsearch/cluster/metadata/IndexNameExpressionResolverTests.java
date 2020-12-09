@@ -34,8 +34,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -75,7 +73,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private ThreadContext threadContext;
     private long epochMillis;
-    private String dateString;
 
     private ThreadContext createThreadContext() {
         return new ThreadContext(Settings.EMPTY);
@@ -91,7 +88,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         threadContext = createThreadContext();
         indexNameExpressionResolver = createIndexNameExpressionResolver(threadContext);
         epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
-        dateString = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName()).formatMillis(epochMillis);
     }
 
     public void testIndexOptionsStrict() {
@@ -1916,7 +1912,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testConcreteIndicesPreservesOrdering() {
         epochMillis = 1582761600L; // set to a date known to fail without #65027
-        dateString = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName()).formatMillis(epochMillis);
         final String dataStreamName = "my-data-stream";
         IndexMetadata index1 = createBackingIndex(dataStreamName, 1, epochMillis).build();
         IndexMetadata index2 = createBackingIndex(dataStreamName, 2, epochMillis).build();

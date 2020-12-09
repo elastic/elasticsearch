@@ -561,11 +561,11 @@ stream's oldest backing index.
       },
       "indices": [
         {
-          "index_name": ".ds-my-data-stream-2099-03-07-000001", <1>
+          "index_name": ".ds-my-data-stream-2099.03.07-000001", <1>
           "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
         },
         {
-          "index_name": ".ds-my-data-stream-2099-03-08-000002",
+          "index_name": ".ds-my-data-stream-2099.03.08-000002",
           "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"
         }
       ],
@@ -579,16 +579,16 @@ stream's oldest backing index.
 ----
 // TESTRESPONSE[s/"index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
 // TESTRESPONSE[s/"index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099-03-07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099-03-08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
 
 <1> First item in the `indices` array for `my-data-stream`. This item contains
 information about the stream's oldest backing index,
-`.ds-my-data-stream-2099-03-07-000001`.
+`.ds-my-data-stream-2099.03.07-000001`.
 
 The following <<docs-reindex,reindex API>> request copies documents from
-`.ds-my-data-stream-2099-03-07-000001` to `new-data-stream`. The request's
+`.ds-my-data-stream-2099.03.07-000001` to `new-data-stream`. The request's
 `op_type` is `create`.
 
 [source,console]
@@ -596,7 +596,7 @@ The following <<docs-reindex,reindex API>> request copies documents from
 POST /_reindex
 {
   "source": {
-    "index": ".ds-my-data-stream-2099-03-07-000001"
+    "index": ".ds-my-data-stream-2099.03.07-000001"
   },
   "dest": {
     "index": "new-data-stream",
@@ -605,7 +605,7 @@ POST /_reindex
 }
 ----
 // TEST[setup:my_index]
-// TEST[s/.ds-my-data-stream-2099-03-07-000001/my-index-000001/]
+// TEST[s/.ds-my-data-stream-2099.03.07-000001/my-index-000001/]
 --
 +
 You can also use a query to reindex only a subset of documents with each

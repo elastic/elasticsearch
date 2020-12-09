@@ -50,7 +50,7 @@ setup:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '/\.ds-simple-data-stream1-(\d{4}-\d{2}-\d{2}-)?000001/' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-simple-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.0.status: 'GREEN' }
   - match: { data_streams.0.template: 'my-template1' }
   - match: { data_streams.0.hidden: false }
@@ -58,7 +58,7 @@ setup:
   - match: { data_streams.1.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.1.indices: 1 }
-  - match: { data_streams.1.indices.0.index_name: '/\.ds-simple-data-stream2-(\d{4}-\d{2}-\d{2}-)?000001/' }
+  - match: { data_streams.1.indices.0.index_name: '/\.ds-simple-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.1.template: 'my-template2' }
   - match: { data_streams.0.hidden: false }
 
@@ -94,7 +94,7 @@ setup:
         index: simple-data-stream1
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}-\\d{2}-\\d{2}-)?000001/" }
+  - match: { hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
@@ -346,7 +346,7 @@ setup:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '/\.ds-simple-data-stream1-(\d{4}-\d{2}-\d{2}-)?000001/' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-simple-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
 
   - do:
       indices.delete_data_stream:
@@ -423,7 +423,7 @@ setup:
       index:
         index:  logs-foobar
         body:   { '@timestamp': '2020-12-12' }
-  - match: { _index: "/\\.ds-logs-foobar-(\\d{4}-\\d{2}-\\d{2}-)?000001/" }
+  - match: { _index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
 
   # save the backing index names for later use
   - do:
@@ -458,7 +458,7 @@ setup:
   - match: { items.1.index.error.type: illegal_argument_exception }
   - match: { items.1.index.error.reason: "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
   - match: { items.2.create.result: created }
-  - match: { items.2.create._index: "/\\.ds-logs-foobar-(\\d{4}-\\d{2}-\\d{2}-)?000001/" }
+  - match: { items.2.create._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
 
   - do:
       indices.delete_data_stream:
@@ -504,7 +504,7 @@ setup:
   - match: { items.0.create.error.caused_by.type: illegal_argument_exception }
   - match: { items.0.create.error.caused_by.reason: "data stream timestamp field [@timestamp] is missing" }
   - match: { items.1.create.result: created }
-  - match: { items.1.create._index: "/\\.ds-logs-foobar-(\\d{4}-\\d{2}-\\d{2}-)?000001/" }
+  - match: { items.1.create._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { items.2.create.status: 400 }
   - match: { items.2.create.error.caused_by.type: illegal_argument_exception }
   - match: { items.2.create.error.caused_by.reason: "data stream timestamp field [@timestamp] encountered multiple values" }
@@ -549,7 +549,7 @@ setup:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}-\d{2}-\d{2}-)?000001/' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\\.\d{2}\\.\d{2}-)?000001/' }
   - match: { data_streams.0.status: 'GREEN' }
   - match: { data_streams.0.template: 'generic_logs_template' }
   - length: { data_streams.0._meta: 2 }

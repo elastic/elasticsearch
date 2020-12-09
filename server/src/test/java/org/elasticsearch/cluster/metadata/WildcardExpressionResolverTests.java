@@ -24,8 +24,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -218,7 +216,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     public void testResolveDataStreams() {
         String dataStreamName = "foo_logs";
         long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
-        String dateString = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName()).formatMillis(epochMillis);
+        String dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
         IndexMetadata firstBackingIndexMetadata = createBackingIndex(dataStreamName, 1, epochMillis).build();
         IndexMetadata secondBackingIndexMetadata = createBackingIndex(dataStreamName, 2, epochMillis).build();
 

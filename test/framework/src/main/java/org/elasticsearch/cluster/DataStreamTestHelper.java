@@ -166,7 +166,7 @@ public final class DataStreamTestHelper {
     }
 
     public static String backingIndexPattern(String dataStreamName, long generation) {
-        return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}-\\d{2}-\\d{2}-)?%06d",dataStreamName, generation);
+        return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}\\.\\d{2}\\.\\d{2}-)?%06d",dataStreamName, generation);
     }
 
     public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {

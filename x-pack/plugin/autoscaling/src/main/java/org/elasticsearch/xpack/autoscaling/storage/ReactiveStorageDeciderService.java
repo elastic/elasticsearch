@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
+import org.elasticsearch.xpack.core.DataTier;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -64,9 +66,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     }
 
     @Override
+    public List<DiscoveryNodeRole> roles() {
+        return List.of(
+            DiscoveryNodeRole.DATA_ROLE,
+            DataTier.DATA_CONTENT_NODE_ROLE,
+            DataTier.DATA_HOT_NODE_ROLE,
+            DataTier.DATA_WARM_NODE_ROLE,
+            DataTier.DATA_COLD_NODE_ROLE
+        );
+    }
+
+    @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
         AutoscalingCapacity autoscalingCapacity = context.currentCapacity();
-        if (autoscalingCapacity == null || autoscalingCapacity.tier().storage() == null) {
+        if (autoscalingCapacity == null || autoscalingCapacity.total().storage() == null) {
             return new AutoscalingDeciderResult(null, new ReactiveReason("current capacity not available", -1, -1));
         }
 
@@ -79,7 +92,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         assert maxShard >= 0;
         String message = unassigned > 0 || assigned > 0 ? "not enough storage available, needs " + (unassigned + assigned) : "storage ok";
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.tier().storage().getBytes() + unassigned + assigned, null)
+            .total(autoscalingCapacity.total().storage().getBytes() + unassigned + assigned, null)
             .node(maxShard, null)
             .build();
         return new AutoscalingDeciderResult(requiredCapacity, new ReactiveReason(message, unassigned, assigned));

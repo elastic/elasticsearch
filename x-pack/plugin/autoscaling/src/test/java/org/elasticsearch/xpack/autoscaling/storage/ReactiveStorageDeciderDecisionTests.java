@@ -310,7 +310,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         AutoscalingDeciderResult result = decider.scale(Settings.EMPTY, context);
         if (context.currentCapacity != null) {
             assertThat(
-                result.requiredCapacity().tier().storage().getBytes() - context.currentCapacity.tier().storage().getBytes(),
+                result.requiredCapacity().total().storage().getBytes() - context.currentCapacity.total().storage().getBytes(),
                 equalTo(expectedDifference)
             );
             assertThat(result.reason().summary(), equalTo(reason));

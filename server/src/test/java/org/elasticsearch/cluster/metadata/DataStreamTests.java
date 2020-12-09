@@ -52,7 +52,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     }
 
     public void testRollover() {
-        DataStream ds = DataStreamTestHelper.randomInstance();
+        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         Index newWriteIndex = new Index(getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1), UUIDs.randomBase64UUID(random()));
         DataStream rolledDs = ds.rollover(newWriteIndex);
 

@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Utilities for network interfaces / addresses binding and publishing.
@@ -210,18 +211,22 @@ public abstract class NetworkUtils {
     }
 
     /** Returns addresses for the given interface (it must be marked up) */
-    static InetAddress[] getAddressesForInterface(String name) throws SocketException {
-        Optional<NetworkInterface> networkInterface = maybeGetInterfaceByName(getInterfaces(), name);
+    static InetAddress[] getAddressesForInterface(String settingValue, String suffix, String interfaceName) throws SocketException {
+        Optional<NetworkInterface> networkInterface = maybeGetInterfaceByName(getInterfaces(), interfaceName);
 
         if (networkInterface.isPresent() == false) {
-            throw new IllegalArgumentException("No interface named '" + name + "' found, got " + getInterfaces());
+            throw new IllegalArgumentException("setting [" + settingValue + "] matched no network interfaces; valid values include [" +
+                    getInterfaces().stream().map(otherInterface -> "_" + otherInterface.getName() + suffix + "_")
+                            .collect(Collectors.joining(", ")) + "]");
         }
         if (!networkInterface.get().isUp()) {
-            throw new IllegalArgumentException("Interface '" + name + "' is not up and running");
+            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
+                    networkInterface.get().getName() + "] but this interface is not up and running");
         }
         List<InetAddress> list = Collections.list(networkInterface.get().getInetAddresses());
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("Interface '" + name + "' has no internet addresses");
+            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
+                    networkInterface.get().getName() + "] but this interface has no internet addresses");
         }
         return list.toArray(new InetAddress[list.size()]);
     }

@@ -5,6 +5,9 @@
       "description":"Returns whether the cluster is running."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

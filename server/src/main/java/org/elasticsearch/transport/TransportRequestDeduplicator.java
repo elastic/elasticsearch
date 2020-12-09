@@ -28,11 +28,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 
 /**
- * Deduplicator for {@link TransportRequest}s that keeps track of {@link TransportRequest}s that should
- * not be sent in parallel.
- * @param <T> Transport Request Class
+ * Deduplicator that keeps track of requests that should not be sent/executed in parallel.
  */
-public final class TransportRequestDeduplicator<T extends TransportRequest> {
+public final class TransportRequestDeduplicator<T> {
 
     private final ConcurrentMap<T, CompositeListener> requests = ConcurrentCollections.newConcurrentMap();
 

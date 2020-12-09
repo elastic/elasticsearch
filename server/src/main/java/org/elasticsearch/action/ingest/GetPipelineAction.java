@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionType;
 public class GetPipelineAction extends ActionType<GetPipelineResponse> {
 
     public static final GetPipelineAction INSTANCE = new GetPipelineAction();
-    public static final String NAME = "cluster:admin/ingest/pipeline/get";
+    public static final String NAME = "cluster:monitor/ingest/pipeline/get";
 
     public GetPipelineAction() {
         super(NAME, GetPipelineResponse::new);

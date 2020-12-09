@@ -117,6 +117,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "none",
     "read",
     "read_cross_cluster",
+    "read_ingest_pipelines",
     "view_index_metadata",
     "write"
   ]

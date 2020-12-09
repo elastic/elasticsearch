@@ -65,7 +65,9 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> TRANSPORT_CLIENT_PATTERN = Set.of("cluster:monitor/nodes/liveness", "cluster:monitor/state");
     private static final Set<String> MANAGE_IDX_TEMPLATE_PATTERN = Set.of("indices:admin/template/*", "indices:admin/index_template/*",
         "cluster:admin/component_template/*");
-    private static final Set<String> MANAGE_INGEST_PIPELINE_PATTERN = Set.of("cluster:admin/ingest/pipeline/*");
+    private static final Set<String> MANAGE_INGEST_PIPELINE_PATTERN = Set.of("cluster:admin/ingest/pipeline/*",
+        "cluster:monitor/ingest/pipeline/*");
+    private static final Set<String> READ_INGEST_PIPELINE_PATTERN = Set.of("cluster:monitor/ingest/pipeline/*");
     private static final Set<String> MANAGE_ROLLUP_PATTERN = Set.of("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*");
     private static final Set<String> MANAGE_CCR_PATTERN =
         Set.of("cluster:admin/xpack/ccr/*", ClusterStateAction.NAME, HasPrivilegesAction.NAME);
@@ -104,6 +106,8 @@ public class ClusterPrivilegeResolver {
         new ActionClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INGEST_PIPELINES =
         new ActionClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_PATTERN);
+    public static final NamedClusterPrivilege READ_INGEST_PIPELINES =
+        new ActionClusterPrivilege("read_ingest_pipelines", READ_INGEST_PIPELINE_PATTERN);
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client",
         TRANSPORT_CLIENT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", ALL_SECURITY_PATTERN,
@@ -113,7 +117,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline", Set.of("cluster:admin" +
-        "/ingest/pipeline/*"));
+        "/ingest/pipeline/*", "cluster:monitor/ingest/pipeline/*"));
     public static final NamedClusterPrivilege MANAGE_AUTOSCALING = new ActionClusterPrivilege(
         "manage_autoscaling",
         Set.of("cluster:admin/autoscaling/*")
@@ -152,6 +156,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_WATCHER,
         MANAGE_IDX_TEMPLATES,
         MANAGE_INGEST_PIPELINES,
+        READ_INGEST_PIPELINES,
         TRANSPORT_CLIENT,
         MANAGE_SECURITY,
         MANAGE_SAML,

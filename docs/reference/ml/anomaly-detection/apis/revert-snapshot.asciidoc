@@ -42,6 +42,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `<snapshot_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
++
+--
+You can specify `empty` as the <snapshot_id>. Reverting to the `empty` snapshot 
+means the {anomaly-job} starts learning a new model from scratch when it is 
+started.
+--
 
 [[ml-revert-snapshot-request-body]]
 == {api-request-body-title}

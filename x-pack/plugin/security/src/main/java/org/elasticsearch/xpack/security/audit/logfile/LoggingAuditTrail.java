@@ -886,35 +886,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_role");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
-                        .startObject("role")
-                        .field("name", putRoleRequest.name())
-                        // the "privilege" nested structure, where the "name" is left out, is closer to the event structure
-                        // for creating API Keys
-                        .startObject("privilege")
-                            .startArray("index");
-                                for (RoleDescriptor.IndicesPrivileges indicesPrivileges : putRoleRequest.indices()) {
-                                    withIndicesPrivileges(builder, indicesPrivileges);
-                                }
-                            builder.endArray() // index
-                            .array("cluster", putRoleRequest.cluster())
-                            .array("run_as", putRoleRequest.runAs())
-                            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
-                            .field("application", putRoleRequest.applicationPrivileges())
-                            .field("global");
-                            // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
-                            // Again, only the transport client can produce this, and this only introduces a different failure mode and
-                            // not a new one (i.e. without auditing it would fail differently, but it would still fail)
-                            ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS,
-                                    Arrays.asList(putRoleRequest.conditionalClusterPrivileges()));
-                            if (putRoleRequest.metadata() != null && false == putRoleRequest.metadata().isEmpty()) {
-                                // JSON building for the metadata might fail when encountering unknown class types.
-                                // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
-                                // cause troubles in downstream code (eg metadata store), so this simply introduces a new failure mode.
-                                // Also the malevolent metadata can only be produced by the transport client.
-                                builder.field("metadata", putRoleRequest.metadata());
-                            }
-                        builder.endObject() // privilege
-                        .endObject() // role
+                    .startObject("role")
+                    .field("name", putRoleRequest.name())
+                    // the "role_descriptor" nested structure, where the "name" is left out, is closer to the event structure
+                    // for creating API Keys
+                    .field("role_descriptor");
+            withRoleDescriptor(builder, putRoleRequest.roleDescriptor());
+            builder.endObject() // role
                     .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
@@ -1011,58 +989,63 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.startObject("apikey")
                     .field("name", createApiKeyRequest.getName())
                     .field("expiration", expiration != null ? expiration.toString() : null)
-                    .startArray("privileges");
+                    .startArray("role_descriptors");
             for (RoleDescriptor roleDescriptor : createApiKeyRequest.getRoleDescriptors()) {
-                builder.startObject()
-                        .startArray("index");
-                        for (RoleDescriptor.IndicesPrivileges indicesPrivileges : roleDescriptor.getIndicesPrivileges()) {
-                            withIndicesPrivileges(builder, indicesPrivileges);
-                        }
-                        builder.endArray() // index
-                        .array("cluster", roleDescriptor.getClusterPrivileges())
-                        .array("run_as", roleDescriptor.getRunAs())
-                        // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
-                        .array("application", (Object[]) roleDescriptor.getApplicationPrivileges())
-                        .field("global");
+                withRoleDescriptor(builder, roleDescriptor);
+            }
+            builder.endArray() // role_descriptors
+            .endObject(); // apikey
+        }
+
+        private void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
+            builder.startObject()
+                .array(RoleDescriptor.Fields.CLUSTER.getPreferredName(), roleDescriptor.getClusterPrivileges());
+            if (roleDescriptor.getConditionalClusterPrivileges() != null && roleDescriptor.getConditionalClusterPrivileges().length > 0) {
                 // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
                 // Again, only the transport client can produce this, and this only introduces a different failure mode and
-                // not a new one (without auditing it would fail differently, but it would still fail)
+                // not a new one (i.e. without auditing it would fail differently, but it would still fail)
+                builder.field(RoleDescriptor.Fields.GLOBAL.getPreferredName());
                 ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS,
                         Arrays.asList(roleDescriptor.getConditionalClusterPrivileges()));
-                if (roleDescriptor.getMetadata() != null && false == roleDescriptor.getMetadata().isEmpty()) {
-                    // JSON building for the metadata might fail when encountering unknown class types.
-                    // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
-                    // cause troubles in downstream code (eg storing the metadata), so this simply introduces a new failure mode.
-                    // Also the malevolent metadata can only be produced by the transport client.
-                    builder.field("metadata", roleDescriptor.getMetadata());
-                }
-                builder.endObject(); // privilege
             }
-            builder.endArray() // privileges
-            .endObject(); // apikey
+            builder.startArray(RoleDescriptor.Fields.INDICES.getPreferredName());
+            for (RoleDescriptor.IndicesPrivileges indicesPrivileges : roleDescriptor.getIndicesPrivileges()) {
+                withIndicesPrivileges(builder, indicesPrivileges);
+            }
+            builder.endArray();
+            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
+            builder.array(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), (Object[]) roleDescriptor.getApplicationPrivileges());
+            if (roleDescriptor.getRunAs() != null && roleDescriptor.getRunAs().length > 0) {
+                builder.array(RoleDescriptor.Fields.RUN_AS.getPreferredName(), roleDescriptor.getRunAs());
+            }
+            if (roleDescriptor.getMetadata() != null && false == roleDescriptor.getMetadata().isEmpty()) {
+                // JSON building for the metadata might fail when encountering unknown class types.
+                // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably
+                // cause troubles in downstream code (eg storing the metadata), so this simply introduces a new failure mode.
+                // Also the malevolent metadata can only be produced by the transport client.
+                builder.field(RoleDescriptor.Fields.METADATA.getPreferredName(), roleDescriptor.getMetadata());
+            }
+            builder.endObject();
         }
 
         private void withIndicesPrivileges(XContentBuilder builder, RoleDescriptor.IndicesPrivileges indicesPrivileges) throws IOException {
             builder.startObject();
             builder.array("names", indicesPrivileges.getIndices());
             builder.array("privileges", indicesPrivileges.getPrivileges());
-            if (indicesPrivileges.hasGrantedFields() || indicesPrivileges.hasDeniedFields()) {
-                builder.startObject("fields");
+            if (indicesPrivileges.isUsingFieldLevelSecurity()) {
+                builder.startObject(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
                 if (indicesPrivileges.hasGrantedFields()) {
-                    builder.array("grant", indicesPrivileges.getGrantedFields());
+                    builder.array(RoleDescriptor.Fields.GRANT_FIELDS.getPreferredName(), indicesPrivileges.getGrantedFields());
                 }
                 if (indicesPrivileges.hasDeniedFields()) {
-                    builder.array("except", indicesPrivileges.getDeniedFields());
+                    builder.array(RoleDescriptor.Fields.EXCEPT_FIELDS.getPreferredName(), indicesPrivileges.getDeniedFields());
                 }
-                builder.endObject(); // fields
+                builder.endObject();
             }
-            if (indicesPrivileges.getQuery() != null) {
-                builder.startObject("documents")
-                        // "query_string" conveys that the DLS query is not a nested object, but a string which has quotes escaped, etc.
-                        .field("query_string", indicesPrivileges.getQuery().utf8ToString())
-                        .endObject();
+            if (indicesPrivileges.isUsingDocumentLevelSecurity()) {
+                builder.field("query", indicesPrivileges.getQuery().utf8ToString());
             }
-            // default for "allow_restricted_indices" is false, and it's very common to stay that way, so don't show it unless otherwise
+            // default for "allow_restricted_indices" is false, and it's very common to stay that way, so don't show it unless true
             if (indicesPrivileges.allowRestrictedIndices()) {
                 builder.field("allow_restricted_indices", indicesPrivileges.allowRestrictedIndices());
             }

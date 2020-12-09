@@ -442,17 +442,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
         List<RoleDescriptor> allTestRoleDescriptors = List.of(nullRoleDescriptor, roleDescriptor1, roleDescriptor2, roleDescriptor3,
                 roleDescriptor4);
         List<RoleDescriptor> keyRoleDescriptors = randomSubsetOf(allTestRoleDescriptors);
-        StringBuilder privilegesStringBuilder = new StringBuilder();
-        privilegesStringBuilder.append("\"privileges\":[");
+        StringBuilder roleDescriptorsStringBuilder = new StringBuilder();
+        roleDescriptorsStringBuilder.append("\"role_descriptors\":[");
         keyRoleDescriptors.forEach(roleDescriptor -> {
-            privilegesStringBuilder.append(auditedRolesMap.get(roleDescriptor.getName()));
-            privilegesStringBuilder.append(',');
+            roleDescriptorsStringBuilder.append(auditedRolesMap.get(roleDescriptor.getName()));
+            roleDescriptorsStringBuilder.append(',');
         });
         if (false == keyRoleDescriptors.isEmpty()) {
             // delete last comma
-            privilegesStringBuilder.deleteCharAt(privilegesStringBuilder.length() - 1);
+            roleDescriptorsStringBuilder.deleteCharAt(roleDescriptorsStringBuilder.length() - 1);
         }
-        privilegesStringBuilder.append("]");
+        roleDescriptorsStringBuilder.append("]");
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
@@ -464,7 +464,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         StringBuilder createKeyAuditEventStringBuilder = new StringBuilder();
         createKeyAuditEventStringBuilder.append("\"create\":{\"apikey\":{\"name\":\"" + keyName + "\",\"expiration\":" +
                 (expiration != null ? "\"" + expiration.toString() + "\"" : "null") + ",");
-        createKeyAuditEventStringBuilder.append(privilegesStringBuilder.toString());
+        createKeyAuditEventStringBuilder.append(roleDescriptorsStringBuilder.toString());
         createKeyAuditEventStringBuilder.append("}}");
         String expectedCreateKeyAuditEventString = createKeyAuditEventStringBuilder.toString();
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
@@ -497,7 +497,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         StringBuilder grantKeyAuditEventStringBuilder = new StringBuilder();
         grantKeyAuditEventStringBuilder.append("\"create\":{\"apikey\":{\"name\":\"" + keyName + "\",\"expiration\":" +
                 (expiration != null ? "\"" + expiration.toString() + "\"" : "null") + ",");
-        grantKeyAuditEventStringBuilder.append(privilegesStringBuilder.toString());
+        grantKeyAuditEventStringBuilder.append(roleDescriptorsStringBuilder.toString());
         grantKeyAuditEventStringBuilder.append("},\"grant\":{\"type\":");
         if (grantApiKeyRequest.getGrant().getType() != null) {
             grantKeyAuditEventStringBuilder.append("\"").append(grantApiKeyRequest.getGrant().getType()).append("\"");
@@ -542,7 +542,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         String generatedPutRoleAuditEventString = output.get(1);
         StringBuilder putRoleAuditEventStringBuilder = new StringBuilder();
         putRoleAuditEventStringBuilder.append("\"put\":{\"role\":{\"name\":\"" + putRoleRequest.name() + "\",")
-                .append("\"privilege\":")
+                .append("\"role_descriptor\":")
                 .append(auditedRolesMap.get(putRoleRequest.name()))
                 .append("}}");
         String expectedPutRoleAuditEventString = putRoleAuditEventStringBuilder.toString();

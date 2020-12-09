@@ -1,10 +1,10 @@
 null_role
-{"index":[],"cluster":[],"run_as":[],"application":[],"global":{"application":{}}}
+{"cluster":[],"indices":[],"applications":[]}
 role_descriptor1
-{"index":[{"names":["test*"],"privileges":["read","create_index"],"fields":{"grant":["grantedField1"]},"documents":{"query_string":"{\"match_all\":{}}"},"allow_restricted_indices":true}],"cluster":["monitor"],"run_as":[],"application":[],"global":{"application":{}}}
+{"cluster":["monitor"],"indices":[{"names":["test*"],"privileges":["read","create_index"],"field_security":{"grant":["grantedField1"]},"query":"{\"match_all\":{}}","allow_restricted_indices":true}],"applications":[]}
 role_descriptor2
-{"index":[{"names":["na\"me","*"],"privileges":["manage_ilm"],"fields":{"except":["denied*"]},"documents":{"query_string":"{\"match\": {\"category\": \"click\"}}"}},{"names":["/@&~(\\.security.*)/"],"privileges":["all","cluster:a_wrong_*_one"]}],"cluster":[],"run_as":["impersonated???"],"application":[{"application":"maps","privileges":["coming","up","with","random","names","is","hard"],"resources":["raster:*"]}],"global":{"application":{}}}
+{"cluster":[],"indices":[{"names":["na\"me","*"],"privileges":["manage_ilm"],"field_security":{"except":["denied*"]},"query":"{\"match\": {\"category\": \"click\"}}"},{"names":["/@&~(\\.security.*)/"],"privileges":["all","cluster:a_wrong_*_one"]}],"applications":[{"application":"maps","privileges":["coming","up","with","random","names","is","hard"],"resources":["raster:*"]}],"run_as":["impersonated???"]}
 role_descriptor3
-{"index":[],"cluster":[],"run_as":["jack","nich*","//\""],"application":[{"application":"maps","privileges":["{","}","\n","\\","\""],"resources":["raster:*"]},{"application":"maps","privileges":["*:*"],"resources":["noooooo!!\n\n\f\\\\r","{"]}],"global":{"application":{}},"metadata":{"some meta":42}}
+{"cluster":[],"indices":[],"applications":[{"application":"maps","privileges":["{","}","\n","\\","\""],"resources":["raster:*"]},{"application":"maps","privileges":["*:*"],"resources":["noooooo!!\n\n\f\\\\r","{"]}],"run_as":["jack","nich*","//\""],"metadata":{"some meta":42}}
 role_descriptor4
-{"index":[{"names":["/. ? + * | { } [ ] ( ) \" \\/","*"],"privileges":["read","read_cross_cluster"],"fields":{"grant":["almost","all*"],"except":["denied*"]}}],"cluster":["manage_ml","grant_api_key","manage_rollup"],"run_as":["//+a+\"[a]/"],"application":[],"global":{"application":{"manage":{"applications":["a+b+|b+a+"]}}},"metadata":{"?list":["e1","e2","*"],"some other meta":{"r":"t"}}}
+{"cluster":["manage_ml","grant_api_key","manage_rollup"],"global":{"application":{"manage":{"applications":["a+b+|b+a+"]}}},"indices":[{"names":["/. ? + * | { } [ ] ( ) \" \\/","*"],"privileges":["read","read_cross_cluster"],"field_security":{"grant":["almost","all*"],"except":["denied*"]}}],"applications":[],"run_as":["//+a+\"[a]/"],"metadata":{"?list":["e1","e2","*"],"some other meta":{"r":"t"}}}

@@ -14,12 +14,9 @@ sees runtime fields no differently.
 Because runtime fields aren't indexed, adding a runtime field doesn't increase
 the index size. You define runtime fields directly in the index mapping, saving
 storage costs and increasing ingestion speed. You can more quickly ingest
-data into the Elastic Stack and access it right away.
-
-When you define a runtime field, you can immediately use it in search requests,
-aggregations, filtering, and sorting. If you later decide that the runtime
-field is increasingly used for filtering or aggregations, you can make the
-runtime field an indexed field to achieve better query performance.
+data into the Elastic Stack and access it right away. When you define a runtime
+field, you can immediately use it in search requests, aggregations, filtering,
+and sorting.
 
 If you make a runtime field an indexed field, you don't need to modify any
 queries that refer to the runtime field. Better yet, you can refer to some
@@ -193,48 +190,164 @@ script, and returns the value as part of the query. Because the runtime field
 shadows the mapped field, you can modify the value returned in search without
 modifying the mapped field.
 
-For example, index the following documents into `my-index`:
+For example, let's say you indexed the following documents into `my-index`:
 
-[source, console]
+[source,console]
 ----
 POST my-index/_bulk?refresh=true
 {"index":{}}
-{"name":{"first":"Jose","last":"Hickman"}}
+{"timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
 {"index":{}}
-{"name":{"first":"India","last":"Avila","suffix":"II"}}
+{"timestamp":1516642894000,"model_number":"PW83H7X","measures":{"voltage":5.8}}
+{"index":{}}
+{"timestamp":1516556494000,"model_number":"ELF7YV2","measures":{"voltage":5.1}}
+{"index":{}}
+{"timestamp":1516470094000,"model_number":"5NMDTMF","measures":{"voltage":5.6}}
+{"index":{}}
+{"timestamp":1516383694000,"model_number":"1N0TH44","measures":{"voltage":4.2}}
+{"index":{}}
+{"timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
 ----
 
-In the `runtime_mappings` section of the `_search` request, you can define a
-script that operates on the `name.first` field. The values you specify will
-shadow field values in the index mapping for the duration of the query without
-modifying the field itself.
+You later realize that the voltage for the sensor matching model number
+`HG537PU` is incorrect. The indexed value is `4.0`, but is supposed to be 1.7
+times higher. Instead of reindexing your data, you can define a script in the
+`runtime_mappings` section of the `_search` request to shadow the `voltage`
+field and calculate a new value at search time.
 
-The following request defines a runtime field that retrieves values based on
-the script valuation. The field defined in the search request shadows the
-indexed `name.first` field and substitutes a value for that field based on the
-logic defined in the script:
+If you search for documents where the model number matches `HG537PU`:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "query": {
+    "match": {
+      "model_number": "HG537PU"
+    }
+  }
+}
+----
+//TEST[continued]
+
+The response shows that the voltage is indeed `4.0`:
+
+[source,console-result]
+----
+{
+  "took" : 5,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.540445,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "F1BeSXYBg_szTodcYCmk",
+        "_score" : 1.540445,
+        "_source" : {
+          "timestamp" : 1516297294000,
+          "model_number" : "HG537PU",
+          "measures" : {
+            "voltage" : 4.0
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 5/"took": $body.took/]
+// TESTRESPONSE[s/"_id" : "F1BeSXYBg_szTodcYCmk"/"_id": $body.hits.hits.0._id/]
+
+The following request defines a runtime field where the script evaluates the
+`model_number` field where the value is `HG537PU`. For each match, the script
+multiplies the value for the `voltage` field by `1.7`. The original voltage was
+`4.0`, so the resulting voltage should be `6.8` (`4.0*1.7`).
+
+Using the <<search-fields,`fields`>> parameter on the `_search` API, you can
+retrieve the value that the script calculates for the `measures.voltage` field
+for documents matching the search request:
 
 [source,console]
 ----
 POST my-index/_search
 {
   "runtime_mappings": {
-    "name.first": {
-      "type": "keyword",
+    "measures.voltage": {
+      "type": "double",
       "script": {
-        "source": "if (\"Hickman\".equals(doc[\"name.last.keyword\"].value)) {emit(\"Guile\");} else if (\"Avila\".equals(doc[\"name.last.keyword\"].value)) {emit(\"Anastasia\");}"
+        "source":
+        """if (doc['model_number.keyword'].value.equals('HG537PU'))
+        {emit(1.7 * params._source['measures']['voltage']);}
+        else{emit(params._source['measures']['voltage']);}"""
       }
     }
   },
   "query": {
     "match": {
-      "name.first": "Anastasia"
+      "model_number": "HG537PU"
     }
+  },
+  "fields": ["measures.voltage"]
+}
+----
+//TEST[continued]
+
+Looking at the response, the value for `measures.voltage` is `6.8`. The runtime
+field calculated this value as part of the search request without modifying
+the mapped value, which still returns in the response as `4.0`:
+
+[source,console-result]
+----
+{
+  "took" : 41,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.540445,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "F1BeSXYBg_szTodcYCmk",
+        "_score" : 1.540445,
+        "_source" : {
+          "timestamp" : 1516297294000,
+          "model_number" : "HG537PU",
+          "measures" : {
+            "voltage" : 4.0
+          }
+        },
+        "fields" : {
+          "measures.voltage" : [
+            6.8
+          ]
+        }
+      }
+    ]
   }
 }
 ----
-// TEST[continued]
-
+// TESTRESPONSE[s/"took" : 41/"took": $body.took/]
+// TESTRESPONSE[s/"_id" : "F1BeSXYBg_szTodcYCmk"/"_id": $body.hits.hits.0._id/]
 
 [[runtime-retrieving-fields]]
 === Retrieving a runtime field

@@ -9,8 +9,21 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
-jar {
+tasks.named('jar').configure {
   manifest {
     attributes 'Main-Class': 'org.elasticsearch.transform.log4j.TransformLog4jConfig'
   }
 }
+
+// This tests depend on ES core
+disableTasks('forbiddenApisMain', 'forbiddenApisTest')
+
+tasks.named('testingConventions').configure {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'junit.framework.TestCase'
+    }
+  }
+}
+

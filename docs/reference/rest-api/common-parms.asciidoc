@@ -783,13 +783,6 @@ tag::search-time-ms[]
 The amount of time spent searching, in milliseconds.
 end::search-time-ms[]
 
-tag::search_timeout[]
-`timeout`::
-(Optional, <<time-units, time units>>)
-Explicit timeout for each search request.
-Defaults to no timeout.
-end::search_timeout[]
-
 tag::search-total[]
 The number of search operations on the source index for the {transform}.
 end::search-total[]

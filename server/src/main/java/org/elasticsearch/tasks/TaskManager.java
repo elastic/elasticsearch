@@ -707,7 +707,7 @@ public class TaskManager implements ClusterStateApplier {
         return channelPendingTaskTrackers.size();
     }
 
-    private final static ChannelPendingTaskTracker DIRECT_CHANNEL_TRACKER = new ChannelPendingTaskTracker();
+    private static final ChannelPendingTaskTracker DIRECT_CHANNEL_TRACKER = new ChannelPendingTaskTracker();
 
     private static class ChannelPendingTaskTracker {
         final AtomicBoolean registered = new AtomicBoolean();

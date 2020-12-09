@@ -26,11 +26,13 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
@@ -82,6 +84,47 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             assertThat(results.currentCapacity(), equalTo(AutoscalingCapacity.ZERO));
             assertThat(results.currentNodes(), equalTo(Collections.emptySortedSet()));
         }
+    }
+
+    public void testDefaultDeciders() {
+        FixedAutoscalingDeciderService defaultOn = new FixedAutoscalingDeciderService() {
+            @Override
+            public boolean defaultOn() {
+                return true;
+            }
+
+            @Override
+            public String name() {
+                return "default_on";
+            }
+        };
+
+        FixedAutoscalingDeciderService defaultOff = new FixedAutoscalingDeciderService();
+
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
+            org.elasticsearch.common.collect.Set.of(defaultOn, defaultOff)
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        AutoscalingMetadata.NAME,
+                        new AutoscalingMetadata(
+                            new TreeMap<>(
+                                org.elasticsearch.common.collect.Map.of(
+                                    "test",
+                                    new AutoscalingPolicyMetadata(new AutoscalingPolicy("test", randomRoles(), new TreeMap<>()))
+                                )
+                            )
+                        )
+                    )
+            )
+            .build();
+
+        assertThat(
+            service.calculate(state, ClusterInfo.EMPTY).get("test").results().keySet(),
+            equalTo(org.elasticsearch.common.collect.Set.of(defaultOn.name()))
+        );
     }
 
     private SortedMap<String, Settings> randomFixedDeciders() {
@@ -203,6 +246,30 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         );
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
         assertThat(exception.getMessage(), equalTo("unknown decider [" + badDeciderName + "]"));
+    }
+
+    public void testValidateDeciderRoles() {
+        Set<String> roles = randomRoles();
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
+            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService() {
+                @Override
+                public List<DiscoveryNodeRole> roles() {
+                    return roles.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toList());
+                }
+            })
+        );
+        SortedSet<String> badRoles = new TreeSet<>(randomRoles());
+        badRoles.removeAll(roles);
+        AutoscalingPolicy policy = new AutoscalingPolicy(
+            FixedAutoscalingDeciderService.NAME,
+            badRoles,
+            new TreeMap<>(org.elasticsearch.common.collect.Map.of(FixedAutoscalingDeciderService.NAME, Settings.EMPTY))
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(
+            exception.getMessage(),
+            equalTo("decider [" + FixedAutoscalingDeciderService.NAME + "] not applicable to policy with roles [ " + badRoles + "]")
+        );
     }
 
     public void testValidateSettingName() {

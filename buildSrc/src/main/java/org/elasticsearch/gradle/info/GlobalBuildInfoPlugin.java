@@ -149,20 +149,22 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         final String osVersion = System.getProperty("os.version");
         final String osArch = System.getProperty("os.arch");
         final Jvm gradleJvm = Jvm.current();
-        final String gradleJvmDetails = getJavaInstallation(gradleJvm.getJavaHome()).getDisplayName();
-
+        JvmInstallationMetadata gradleJvmMetadata = metadataDetector.getMetadata(gradleJvm.getJavaHome());
+        final String gradleJvmVendorDetails = gradleJvmMetadata.getVendor().getDisplayName();
         LOGGER.quiet("=======================================");
         LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            String runtimeJvmDetails = getJavaInstallation(BuildParams.getRuntimeJavaHome()).getDisplayName();
-            LOGGER.quiet("  Runtime JDK Version   : " + BuildParams.getRuntimeJavaVersion() + " (" + runtimeJvmDetails + ")");
+            final String runtimeJvmVendorDetails = metadataDetector.getMetadata(BuildParams.getRuntimeJavaHome())
+                .getVendor()
+                .getDisplayName();
+            LOGGER.quiet("  Runtime JDK Version   : " + BuildParams.getRuntimeJavaVersion() + " (" + runtimeJvmVendorDetails + ")");
             LOGGER.quiet("  Runtime java.home     : " + BuildParams.getRuntimeJavaHome());
-            LOGGER.quiet("  Gradle JDK Version    : " + gradleJvm.getJavaVersion() + " (" + gradleJvmDetails + ")");
+            LOGGER.quiet("  Gradle JDK Version    : " + gradleJvm.getJavaVersion() + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  Gradle java.home      : " + gradleJvm.getJavaHome());
         } else {
-            LOGGER.quiet("  JDK Version           : " + gradleJvm.getJavaVersion() + " (" + gradleJvmDetails + ")");
+            LOGGER.quiet("  JDK Version           : " + gradleJvm.getJavaVersion() + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
@@ -186,11 +188,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private InstallationLocation getJavaInstallation(File javaHome) {
-        System.out.println("javaHome = " + javaHome);
-        return javaInstallationRegistry.listInstallations().stream().map(i -> {
-            System.out.println("installation = " + i.getDisplayName());
-            return i;
-        }).filter(installationLocation -> isSameFile(javaHome, installationLocation)).findFirst().get();
+        return javaInstallationRegistry.listInstallations()
+            .stream()
+            .filter(installationLocation -> isSameFile(javaHome, installationLocation))
+            .findFirst()
+            .get();
     }
 
     private boolean isSameFile(File javaHome, InstallationLocation installationLocation) {

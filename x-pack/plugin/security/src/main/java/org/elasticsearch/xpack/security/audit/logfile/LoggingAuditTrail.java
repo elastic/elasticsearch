@@ -1015,9 +1015,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.endArray();
             // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
             builder.array(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), (Object[]) roleDescriptor.getApplicationPrivileges());
-            if (roleDescriptor.getRunAs() != null && roleDescriptor.getRunAs().length > 0) {
-                builder.array(RoleDescriptor.Fields.RUN_AS.getPreferredName(), roleDescriptor.getRunAs());
-            }
+            builder.array(RoleDescriptor.Fields.RUN_AS.getPreferredName(), roleDescriptor.getRunAs());
             if (roleDescriptor.getMetadata() != null && false == roleDescriptor.getMetadata().isEmpty()) {
                 // JSON building for the metadata might fail when encountering unknown class types.
                 // This is NOT a problem because such metadata (eg containing GeoPoint) will most probably

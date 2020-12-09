@@ -1,7 +1,7 @@
 null_role
-{"cluster":[],"indices":[],"applications":[]}
+{"cluster":[],"indices":[],"applications":[],"run_as":[]}
 role_descriptor1
-{"cluster":["monitor"],"indices":[{"names":["test*"],"privileges":["read","create_index"],"field_security":{"grant":["grantedField1"]},"query":"{\"match_all\":{}}","allow_restricted_indices":true}],"applications":[]}
+{"cluster":["monitor"],"indices":[{"names":["test*"],"privileges":["read","create_index"],"field_security":{"grant":["grantedField1"]},"query":"{\"match_all\":{}}","allow_restricted_indices":true}],"applications":[],"run_as":[]}
 role_descriptor2
 {"cluster":[],"indices":[{"names":["na\"me","*"],"privileges":["manage_ilm"],"field_security":{"except":["denied*"]},"query":"{\"match\": {\"category\": \"click\"}}"},{"names":["/@&~(\\.security.*)/"],"privileges":["all","cluster:a_wrong_*_one"]}],"applications":[{"application":"maps","privileges":["coming","up","with","random","names","is","hard"],"resources":["raster:*"]}],"run_as":["impersonated???"]}
 role_descriptor3

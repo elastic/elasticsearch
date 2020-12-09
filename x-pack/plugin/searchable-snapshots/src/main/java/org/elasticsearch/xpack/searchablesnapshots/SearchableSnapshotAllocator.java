@@ -130,13 +130,13 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
-        final AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetch = fetchData(shardRouting, allocation);
-        if (fetch.hasData() == false) {
+        final AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchedCacheData = fetchData(shardRouting, allocation);
+        if (fetchedCacheData.hasData() == false) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
         final boolean explain = allocation.debugDecision();
-        MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetch, explain);
+        final MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetchedCacheData, explain);
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
@@ -198,7 +198,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             }
             return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
         }
-
         return AllocateUnassignedDecision.NOT_TAKEN;
     }
 

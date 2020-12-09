@@ -125,11 +125,19 @@ class RollupShardIndexer {
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = createRounding(config.getGroupConfig().getDateHistogram()).prepareForUnknown();
 
-            final String[] groupFields = config.getGroupConfig().getTerms().getFields();
-            this.groupFieldFetchers = FieldValueFetcher.build(queryShardContext, groupFields);
+            if (config.getGroupConfig().getTerms() != null) {
+                final String[] groupFields = config.getGroupConfig().getTerms().getFields();
+                this.groupFieldFetchers = FieldValueFetcher.build(queryShardContext, groupFields);
+            } else {
+                this.groupFieldFetchers = Collections.emptyList();
+            }
 
-            final String[] metricFields = config.getMetricsConfig().stream().map(MetricConfig::getField).toArray(String[]::new);
-            this.metricsFieldFetchers = FieldValueFetcher.build(queryShardContext, metricFields);
+            if (config.getMetricsConfig().size() > 0) {
+                final String[] metricFields = config.getMetricsConfig().stream().map(MetricConfig::getField).toArray(String[]::new);
+                this.metricsFieldFetchers = FieldValueFetcher.build(queryShardContext, metricFields);
+            } else {
+                this.metricsFieldFetchers = Collections.emptyList();
+            }
 
             toClose = null;
         } finally {
@@ -484,7 +492,7 @@ class RollupShardIndexer {
             if (maxRounding <= lastRounding) {
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
             }
-            long minRounding = rounding.round(LongPoint.decodeDimension(maxPackedValue, 0));
+            long minRounding = rounding.round(LongPoint.decodeDimension(minPackedValue, 0));
             if (minRounding > lastRounding) {
                 nextRounding = minRounding;
                 throw new CollectionTerminatedException();

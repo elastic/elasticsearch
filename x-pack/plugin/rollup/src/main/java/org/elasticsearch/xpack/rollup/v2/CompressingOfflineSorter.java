@@ -49,11 +49,12 @@ class CompressingOfflineSorter extends OfflineSorter {
     public ByteSequencesReader getReader(ChecksumIndexInput in, String name) throws IOException {
         // the footer is not compressed
         long gzipLen = in.length()-CodecUtil.footerLength();
-        final DataInputStream dataIn = new DataInputStream(new GZIPInputStream(new InputStreamIndexInput(in, gzipLen)));
+        GZIPInputStream gzipInputStream = new GZIPInputStream(new InputStreamIndexInput(in, gzipLen));
+        final DataInputStream dataIn = new DataInputStream(gzipInputStream);
         final BytesRefBuilder ref = new BytesRefBuilder();
         return new ByteSequencesReader(in, name) {
             public BytesRef next() throws IOException {
-                if (in.getFilePointer() >= end) {
+                if (gzipInputStream.available() == 0) {
                     return null;
                 }
 

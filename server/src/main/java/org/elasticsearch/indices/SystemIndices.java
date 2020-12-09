@@ -132,17 +132,6 @@ public class SystemIndices {
         }
     }
 
-    /**
-     * Gets all system index descriptors, collected by feature.
-     * @return A Map of feature name to system index descriptors
-     */
-    public Map<String, Collection<SystemIndexDescriptor>> getSystemIndexDescriptorsByFeature() {
-        // GWB-> I don't like exposing this as public, but we also need to be able to get the merged list of plugin/module features
-        //   plus internal/built-in ones (i.e. tasks)
-        return featureDescriptors.entrySet().stream()
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, feature -> feature.getValue().getIndexDescriptors()));
-    }
-
     public Map<String, Feature> getFeatures() {
         return featureDescriptors;
     }

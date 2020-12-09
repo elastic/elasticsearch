@@ -5,6 +5,9 @@
       "description":"Returns basic information about the health of the cluster."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

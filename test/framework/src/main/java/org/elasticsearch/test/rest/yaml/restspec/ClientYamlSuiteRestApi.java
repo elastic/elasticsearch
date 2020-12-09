@@ -43,6 +43,8 @@ public class ClientYamlSuiteRestApi {
     private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
     private Stability stability;
+    private List<String> responseMimeTypes;
+    private List<String> requestMimeTypes;
 
     public enum Stability {
         EXPERIMENTAL, BETA, STABLE
@@ -120,6 +122,19 @@ public class ClientYamlSuiteRestApi {
     }
 
     public Stability getStability() { return this.stability; }
+
+    public void setResponseMimeTypes(List<String> mimeTypes) {
+        this.responseMimeTypes = mimeTypes;
+    }
+
+    public List<String> getResponseMimeTypes() { return this.responseMimeTypes; }
+
+    public void setRequestMimeTypes(List<String> mimeTypes) {
+        this.requestMimeTypes = mimeTypes;
+    }
+
+    public List<String> getRequestMimeTypes() { return this.requestMimeTypes; }
+
 
     /**
      * Returns the best matching paths based on the provided parameters, which may include either path parts or query_string parameters.

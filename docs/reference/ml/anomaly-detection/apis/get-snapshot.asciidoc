@@ -40,9 +40,6 @@ You can multiple snapshots for a single job in a single API request
 by using a comma-separated list of `<snapshot_id>` or a wildcard expression.
 You can get all snapshots for all calendars by using `_all`,
 by specifying `*` as the `<snapshot_id>`, or by omitting the `<snapshot_id>`.
-You can also specify `empty` as the <snapshot_id>. Revert to `empty` results in 
-an empty model that start learning from scratch when the {anomaly-job} is 
-started.
 --
 
 

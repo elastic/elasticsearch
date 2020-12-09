@@ -5,6 +5,9 @@
       "description":"Deletes users from the native realm."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

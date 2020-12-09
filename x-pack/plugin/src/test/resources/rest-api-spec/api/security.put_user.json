@@ -5,6 +5,10 @@
       "description":"Adds and updates users in the native realm. These users are commonly referred to as native users."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

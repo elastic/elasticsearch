@@ -5,6 +5,10 @@
       "description": "Creates a new follower index configured to follow the referenced leader index."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

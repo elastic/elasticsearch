@@ -171,6 +171,7 @@ public class ResultsPersisterService {
         SearchRetryableAction mlRetryableAction = new SearchRetryableAction(
             jobId,
             searchRequest,
+            client,
             shouldRetry,
             retryMsgHandler,
             getResponse);
@@ -273,6 +274,8 @@ public class ResultsPersisterService {
         private final SearchRequest searchRequest;
         SearchRetryableAction(String jobId,
                               SearchRequest searchRequest,
+                              // Pass the client to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=569557
+                              OriginSettingClient client,
                               Supplier<Boolean> shouldRetry,
                               Consumer<String> msgHandler,
                               ActionListener<SearchResponse> listener) {

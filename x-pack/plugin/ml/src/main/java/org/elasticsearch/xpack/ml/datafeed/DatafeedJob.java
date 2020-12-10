@@ -352,7 +352,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                    LOGGER.error("[" + jobId + "] error while posting data", e);
+                LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.

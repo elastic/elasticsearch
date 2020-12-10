@@ -31,8 +31,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
@@ -50,6 +53,7 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
@@ -62,11 +66,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
-    // Usually the settings and mappings below would be co-located with the SystemIndexPlugin implementation,
-    // however in this case this service is in a different project to AsyncResultsIndexPlugin, as are tests
-    // that need access to #settings().
+    // Usually the settings, mappings and system index descriptor below
+    // would be co-located with the SystemIndexPlugin implementation,
+    // however in this case this service is in a different project to
+    // AsyncResultsIndexPlugin, as are tests that need access to
+    // #settings().
 
-    public static Settings settings() {
+    static Settings settings() {
         return Settings.builder()
             .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -75,34 +81,50 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .build();
     }
 
-    public static XContentBuilder mappings() throws IOException {
-        XContentBuilder builder = jsonBuilder()
-            .startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                    .startObject("_meta")
-                        .field("version", Version.CURRENT)
+    private static XContentBuilder mappings() {
+        try {
+            XContentBuilder builder = jsonBuilder()
+                .startObject()
+                    .startObject(SINGLE_MAPPING_NAME)
+                        .startObject("_meta")
+                            .field("version", Version.CURRENT)
+                        .endObject()
+                        .field("dynamic", "strict")
+                        .startObject("properties")
+                            .startObject(HEADERS_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(RESPONSE_HEADERS_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(RESULT_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(EXPIRATION_TIME_FIELD)
+                                .field("type", "long")
+                            .endObject()
+                        .endObject()
                     .endObject()
-                    .field("dynamic", "strict")
-                    .startObject("properties")
-                        .startObject(HEADERS_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(RESPONSE_HEADERS_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(RESULT_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(EXPIRATION_TIME_FIELD)
-                            .field("type", "long")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
-        return builder;
+                .endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build mappings for " + XPackPlugin.ASYNC_RESULTS_INDEX, e);
+        }
+    }
+
+    public static SystemIndexDescriptor getSystemIndexDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX)
+            .setDescription("Async search results")
+            .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
+            .setMappings(mappings())
+            .setSettings(settings())
+            .setVersionMetaKey("version")
+            .setOrigin(ASYNC_SEARCH_ORIGIN)
+            .build();
     }
 
     private final String index;

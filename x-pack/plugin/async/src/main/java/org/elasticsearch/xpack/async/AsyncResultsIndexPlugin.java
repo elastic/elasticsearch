@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
 
 public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin {
 
@@ -48,24 +47,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        final XContentBuilder mappings;
-        try {
-            mappings = AsyncTaskIndexService.mappings();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build " + XPackPlugin.ASYNC_RESULTS_INDEX + " index mappings", e);
-        }
-
-        return List.of(
-            SystemIndexDescriptor.builder()
-                .setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX)
-                .setDescription(this.getClass().getSimpleName())
-                .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
-                .setMappings(mappings)
-                .setSettings(AsyncTaskIndexService.settings())
-                .setVersionMetaKey("version")
-                .setOrigin(LOGSTASH_MANAGEMENT_ORIGIN)
-                .build()
-        );
+        return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
     }
 
     @Override

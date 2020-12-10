@@ -88,7 +88,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+        return indexingPressure.markPrimaryOperationStarted(primaryOperationCount(request), primaryOperationSize(request), force(request));
     }
 
     protected boolean force(ReplicatedWriteRequest<?> request) {
@@ -106,7 +106,8 @@ public abstract class TransportWriteAction<
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.
             if (localRerouteInitiatedByNodeClient) {
-                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationCount(request),
+                    primaryOperationSize(request));
             } else {
                 return () -> {};
             }
@@ -114,7 +115,8 @@ public abstract class TransportWriteAction<
             // If this primary request was received directly from the network, we must mark a new primary
             // operation. This happens if the write action skips the reroute step (ex: rsync) or during
             // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+            return indexingPressure.markPrimaryOperationStarted(primaryOperationCount(request), primaryOperationSize(request),
+                force(request));
         }
     }
 
@@ -122,12 +124,20 @@ public abstract class TransportWriteAction<
         return 0;
     }
 
+    protected int primaryOperationCount(Request request) {
+        return 0;
+    }
+
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), force(request));
+        return indexingPressure.markReplicaOperationStarted(replicaOperationCount(request), replicaOperationSize(request), force(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
+        return 0;
+    }
+
+    protected int replicaOperationCount(ReplicaRequest request) {
         return 0;
     }
 

@@ -5,6 +5,9 @@
       "description":"Retrieves information for one or more API keys."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -19,12 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -230,6 +234,24 @@ public class MapperServiceTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_RECOVERY);
 
         assertEquals(testString, documentMapper.mappers().getMapper(testString).simpleName());
+    }
+
+    public void testIsMetadataField() throws IOException {
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .build();
+
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
+
+        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
+            if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(Version.V_8_0_0)) {
+                continue;   // Nested field does not exist in the 7x line
+            }
+            assertTrue("Expected " + builtIn + " to be a metadata field for version " + version,
+                mapperService.isMetadataField(builtIn));
+        }
     }
 
 }

@@ -5,6 +5,10 @@
       "description": "Simulate resolving the given template name or body"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

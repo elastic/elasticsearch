@@ -5,6 +5,9 @@
       "description":"Returns a pipeline."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

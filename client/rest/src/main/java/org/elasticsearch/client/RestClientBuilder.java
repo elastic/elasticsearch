@@ -20,18 +20,22 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
+import org.apache.http.HttpRequest;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.VersionInfo;
 
 import javax.net.ssl.SSLContext;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -46,6 +50,7 @@ public final class RestClientBuilder {
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
+    static final String METADATA_HEADER = "X-Elastic-Client-Meta";
 
     private final List<Node> nodes;
     private Header[] defaultHeaders = EMPTY_HEADERS;
@@ -56,6 +61,7 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
+    private boolean metadataHeaderEnabled = true;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -192,6 +198,17 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Whether to send a {@code X-Elastic-Client-Meta} header that describes the runtime environment. It contains
+     * information that is similar to what could be found in {@code User-Agent}. Using a separate header allows
+     * applications to use {@code User-Agent} for their own needs, e.g. to identify application version or other
+     * environment information. Defaults to {@code true}.
+     */
+    public RestClientBuilder setMetadataHeaderEnabled(boolean metadataEnabled) {
+        this.metadataHeaderEnabled = metadataEnabled;
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -220,15 +237,43 @@ public final class RestClientBuilder {
                 //default settings for connection pooling may be too constraining
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
+                .setUserAgent(String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
+                    RestClient.VERSION, System.getProperty("java.version"))
+                )
                 .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
 
+            // Always add metadata header last so that it's not overwritten
+            final String metadataHeaderValue = getMetadataHeaderValue();
+            httpClientBuilder.addInterceptorLast((HttpRequest request, HttpContext context) -> {
+                if (metadataHeaderValue != null) {
+                    request.setHeader(METADATA_HEADER, metadataHeaderValue);
+                } else {
+                    request.removeHeaders(METADATA_HEADER);
+                }
+            });
             final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
             return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
+        }
+    }
+
+    private String getMetadataHeaderValue() {
+        if (metadataHeaderEnabled) {
+            VersionInfo hcVersion = VersionInfo.loadVersionInfo("org.apache.http.nio.client",
+                HttpAsyncClientBuilder.class.getClassLoader());
+
+            // service, language, transport, followed by additional information
+            return "es=" + RestClient.VERSION +
+                ",jv=" + System.getProperty("java.specification.version") +
+                ",t=" + RestClient.VERSION +
+                (hcVersion == null ? "" : ",hc=" + hcVersion.getRelease()) +
+                RuntimeInfo.getRuntimeMetadata();
+        } else {
+            return null;
         }
     }
 

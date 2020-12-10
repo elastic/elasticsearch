@@ -49,7 +49,7 @@ public final class ExceptionRootCauseFinder {
         Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(t);
 
         if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
-            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) t;
+            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) unwrappedThrowable;
             for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
                 Throwable unwrappedShardFailure = org.elasticsearch.ExceptionsHelper.unwrapCause(shardFailure.getCause());
 

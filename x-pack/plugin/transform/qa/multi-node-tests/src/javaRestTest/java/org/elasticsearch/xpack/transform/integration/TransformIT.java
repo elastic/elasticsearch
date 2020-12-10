@@ -49,6 +49,20 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class TransformIT extends TransformIntegTestCase {
 
+    private static final int NUM_USERS = 28;
+
+    private static final Integer getUserIdForRow(int row) {
+        return row % NUM_USERS;
+    }
+
+    private static final String getDateStringForRow(int row) {
+        int day = (11 + (row / 100)) % 28;
+        int hour = 10 + (row % 13);
+        int min = 10 + (row % 49);
+        int sec = 10 + (row % 49);
+        return "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
+    }
+
     @After
     public void cleanTransforms() throws IOException {
         cleanUp();
@@ -57,7 +71,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void testTransformCrud() throws Exception {
         String indexName = "basic-crud-reviews";
         String transformId = "transform-crud";
-        createReviewsIndex(indexName, 100);
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -68,7 +82,10 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfig(transformId, groups, aggs, "reviews-by-user-business-day", indexName);
+        TransformConfig config =
+            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), null, indexName)
+                .setPivotConfig(createPivotConfig(groups, aggs))
+                .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -90,7 +107,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void testContinuousTransformCrud() throws Exception {
         String indexName = "continuous-crud-reviews";
         String transformId = "transform-continuous-crud";
-        createReviewsIndex(indexName, 100);
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -101,15 +118,11 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfigBuilder(
-            transformId,
-            groups,
-            aggs,
-            "reviews-by-user-business-day",
-            QueryBuilders.matchAllQuery(),
-            null,
-            indexName
-        ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
+        TransformConfig config =
+            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), null, indexName)
+                .setPivotConfig(createPivotConfig(groups, aggs))
+                .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+                .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -142,7 +155,7 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testContinuousTransformUpdate() throws Exception {
         String indexName = "continuous-reviews-update";
-        createReviewsIndex(indexName, 10);
+        createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
@@ -153,9 +166,11 @@ public class TransformIT extends TransformIntegTestCase {
 
         String id = "transform-to-update";
         String dest = "reviews-by-user-business-day-to-update";
-        TransformConfig config = createTransformConfigBuilder(id, groups, aggs, dest, QueryBuilders.matchAllQuery(), null, indexName)
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .build();
+        TransformConfig config =
+            createTransformConfigBuilder(id, dest, QueryBuilders.matchAllQuery(), null, indexName)
+                .setPivotConfig(createPivotConfig(groups, aggs))
+                .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+                .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -226,7 +241,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void testStopWaitForCheckpoint() throws Exception {
         String indexName = "wait-for-checkpoint-reviews";
         String transformId = "transform-wait-for-checkpoint";
-        createReviewsIndex(indexName, 1000);
+        createReviewsIndex(indexName, 1000, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -237,15 +252,11 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfigBuilder(
-            transformId,
-            groups,
-            aggs,
-            "reviews-by-user-business-day",
-            QueryBuilders.matchAllQuery(),
-            null,
-            indexName
-        ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
+        TransformConfig config =
+            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), null, indexName)
+                .setPivotConfig(createPivotConfig(groups, aggs))
+                .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+                .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
 
@@ -296,7 +307,7 @@ public class TransformIT extends TransformIntegTestCase {
         String indexName = "continuous-crud-reviews-throttled";
         String transformId = "transform-continuous-crud-throttled";
 
-        createReviewsIndex(indexName, 1000);
+        createReviewsIndex(indexName, 1000, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -307,16 +318,16 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfigBuilder(
-            transformId,
-            groups,
-            aggs,
-            "reviews-by-user-business-day",
-            QueryBuilders.matchAllQuery(),
-            // set requests per second and page size low enough to fail the test if update does not succeed
-            SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10),
-            indexName
-        ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
+        TransformConfig config =
+            createTransformConfigBuilder(
+                    transformId,
+                    "reviews-by-user-business-day",
+                    QueryBuilders.matchAllQuery(),
+                    // set requests per second and page size low enough to fail the test if update does not succeed
+                    SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10),
+                    indexName)
+                .setPivotConfig(createPivotConfig(groups, aggs))
+                .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());

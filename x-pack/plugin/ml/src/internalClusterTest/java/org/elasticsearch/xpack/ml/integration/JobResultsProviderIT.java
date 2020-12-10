@@ -100,7 +100,6 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Mockito.mock;
 
 
 public class JobResultsProviderIT extends MlSingleNodeTestCase {
@@ -114,7 +113,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         jobProvider = new JobResultsProvider(client(), builder.build(), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
-        ThreadPool tp = mock(ThreadPool.class);
+        ThreadPool tp = mockThreadPool();
         ClusterSettings clusterSettings = new ClusterSettings(builder.build(),
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
@@ -125,7 +124,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, builder.build());
+        resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, builder.build());
         auditor = new AnomalyDetectionAuditor(client(), clusterService);
         waitForMlTemplates();
     }

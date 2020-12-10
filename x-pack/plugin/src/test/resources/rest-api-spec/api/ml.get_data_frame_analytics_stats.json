@@ -5,6 +5,9 @@
       "description":"Retrieves usage information for data frame analytics jobs."
     },
     "stability":"beta",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

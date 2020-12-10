@@ -5,6 +5,10 @@
       "description":"Creates an API key on behalf of another user."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

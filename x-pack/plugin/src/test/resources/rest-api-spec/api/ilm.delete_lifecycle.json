@@ -5,6 +5,9 @@
       "description": "Deletes the specified lifecycle policy definition. A currently used policy cannot be deleted."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

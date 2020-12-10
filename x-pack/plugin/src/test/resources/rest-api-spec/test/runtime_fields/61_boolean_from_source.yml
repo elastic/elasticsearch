@@ -8,6 +8,7 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
+            dynamic: false
             runtime:
               state.active:
                 type: boolean
@@ -20,9 +21,6 @@ setup:
                 type: double
               node:
                 type: keyword
-              state:
-                type: object
-                enabled: false
 
   - do:
       bulk:

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -432,7 +433,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(),
-                    listener);
+                        ActionListener.delegateFailure(listener, (r, l) -> {
+                            Releasable reenableMonitor = recoveryRef.target().disableRecoveryMonitor();
+                            recoveryRef.target().indexShard().afterCleanFiles(() -> {
+                                reenableMonitor.close();
+                                listener.onResponse(null);
+                            });
+                        }));
             }
         }
     }

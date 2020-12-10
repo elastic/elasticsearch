@@ -29,7 +29,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -99,6 +98,7 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
@@ -123,6 +123,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -222,6 +223,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListeners;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
@@ -232,11 +234,15 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final TimestampFieldMapperService timestampFieldMapperService;
 
     @Override
     protected void doStart() {
         // Start thread that will manage cleaning the field data cache periodically
         threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
+
+        // Start watching for timestamp fields
+        clusterService.addStateApplier(timestampFieldMapperService);
     }
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
@@ -246,7 +252,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           ScriptService scriptService, ClusterService clusterService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry,
-                          Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories) {
+                          Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+                          List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -293,6 +300,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.indexFoldersDeletionListeners = new CompositeIndexFoldersDeletionListener(indexFoldersDeletionListeners);
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -328,6 +336,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
+
+        this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -338,6 +348,9 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     protected void doStop() {
+        clusterService.removeApplier(timestampFieldMapperService);
+        timestampFieldMapperService.doStop();
+
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 
         ExecutorService indicesStopExecutor =
@@ -349,7 +362,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (final Index index : indices) {
             indicesStopExecutor.execute(() -> {
                 try {
-                    removeIndex(index, IndexRemovalReason.NO_LONGER_ASSIGNED, "shutdown");
+                    removeIndex(index, IndexRemovalReason.SHUTDOWN, "shutdown");
                 } finally {
                     latch.countDown();
                 }
@@ -665,7 +678,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesFieldDataCache,
                 namedWriteableRegistry,
                 this::isIdFieldDataEnabled,
-                valuesSourceRegistry
+                valuesSourceRegistry,
+                indexFoldersDeletionListeners
         );
     }
 
@@ -909,7 +923,8 @@ public class IndicesService extends AbstractLifecycleComponent
             logger.debug("{} deleting index store reason [{}]", index, reason);
             if (predicate.apply(index, indexSettings)) {
                 // its safe to delete all index metadata and shard data
-                nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
+                nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings,
+                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths));
             }
             success = true;
         } catch (ShardLockObtainFailedException ex) {
@@ -938,7 +953,8 @@ public class IndicesService extends AbstractLifecycleComponent
     public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
-        nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
+        nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings,
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths));
     }
 
     /**
@@ -963,7 +979,8 @@ public class IndicesService extends AbstractLifecycleComponent
         if (shardDeletionCheckResult != ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE) {
             throw new IllegalStateException("Can't delete shard " + shardId + " (cause: " + shardDeletionCheckResult + ")");
         }
-        nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
+        nodeEnv.deleteShardDirectorySafe(shardId, indexSettings,
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths));
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
         if (canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
@@ -1201,14 +1218,16 @@ public class IndicesService extends AbstractLifecycleComponent
                             assert delete.shardId == -1;
                             logger.debug("{} deleting index store reason [{}]", index, "pending delete");
                             try {
-                                nodeEnv.deleteIndexDirectoryUnderLock(index, indexSettings);
+                                nodeEnv.deleteIndexDirectoryUnderLock(index, indexSettings,
+                                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths));
                                 iterator.remove();
                             } catch (IOException ex) {
                                 logger.debug(() -> new ParameterizedMessage("{} retry pending delete", index), ex);
                             }
                         } else {
                             assert delete.shardId != -1;
-                            ShardLock shardLock = locks.get(new ShardId(delete.index, delete.shardId));
+                            final ShardId shardId = new ShardId(delete.index, delete.shardId);
+                            final ShardLock shardLock = locks.get(shardId);
                             if (shardLock != null) {
                                 try {
                                     deleteShardStore("pending delete", shardLock, delete.settings);
@@ -1536,13 +1555,6 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns true if the provided field is a registered metadata field (including ones registered via plugins), false otherwise.
-     */
-    public boolean isMetadataField(Version indexCreatedVersion, String field) {
-        return mapperRegistry.isMetadataField(indexCreatedVersion, field);
-    }
-
-    /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
     public boolean isIdFieldDataEnabled() {
@@ -1603,4 +1615,16 @@ public class IndicesService extends AbstractLifecycleComponent
         return nodeWriteDanglingIndicesInfo == false ||
             (danglingIndicesToWrite.isEmpty() && danglingIndicesThreadPoolExecutor.getActiveCount() == 0);
     }
+
+    /**
+     * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
+     * - the index is not found,
+     * - the field is not found, or
+     * - the field is not a timestamp field.
+     */
+    @Nullable
+    public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
+        return timestampFieldMapperService.getTimestampFieldType(index);
+    }
+
 }

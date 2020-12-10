@@ -19,19 +19,18 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.IndexFoldersDeletionListener {
 
-    private static final Logger logger = LogManager.getLogger(CompositeIndexFoldersDeletionListener.class);
     private final List<IndexStorePlugin.IndexFoldersDeletionListener> listeners;
 
     public CompositeIndexFoldersDeletionListener(List<IndexStorePlugin.IndexFoldersDeletionListener> listeners) {
@@ -40,7 +39,7 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
                 throw new IllegalArgumentException("listeners must be non-null");
             }
         }
-        this.listeners = List.copyOf(listeners);
+        this.listeners = Collections.unmodifiableList(new ArrayList<>(listeners));
     }
 
     @Override

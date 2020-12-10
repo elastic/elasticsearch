@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 import static org.elasticsearch.gateway.MetadataStateFormat.STATE_DIR_NAME;
 import static org.elasticsearch.index.shard.ShardPath.INDEX_FOLDER_NAME;
@@ -208,7 +209,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final Path dataDirWithLeftOverShards = createTempDir();
         String dataNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), List.of(dataDirWithLeftOverShards.toAbsolutePath().toString()))
+                .putList(Environment.PATH_DATA_SETTING.getKey(), singletonList(dataDirWithLeftOverShards.toAbsolutePath().toString()))
                 .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
                 .build()
         );
@@ -296,7 +297,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         @Override
         public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
-            return List.of(new IndexFoldersDeletionListener() {
+            return singletonList(new IndexFoldersDeletionListener() {
                 @Override
                 public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
                     deletedIndices.add(index);

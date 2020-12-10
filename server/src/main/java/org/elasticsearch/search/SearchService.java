@@ -23,6 +23,7 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -104,6 +105,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
@@ -935,7 +937,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
-            AggregationContext aggContext = new ProductionAggregationContext(context, multiBucketConsumerService.create());
+            AggregationContext aggContext = new ProductionAggregationContext(
+                context.getQueryShardContext(),
+                context.query() == null ? new MatchAllDocsQuery() : context.query(),
+                context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
+                multiBucketConsumerService.create(),
+                () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
+                context::addReleasable,
+                context.bitsetFilterCache(),
+                context.indexShard().shardId().hashCode(),
+                context::getRelativeTimeInMillis,
+                context::isCancelled
+            );
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
                 context.aggregations(new SearchContextAggregations(factories));

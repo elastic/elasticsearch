@@ -5,6 +5,10 @@
       "description":"Creates a bearer token for access without requiring basic authentication."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

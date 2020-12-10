@@ -5,6 +5,9 @@
       "description":"Evicts application privileges from the native application privileges cache."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

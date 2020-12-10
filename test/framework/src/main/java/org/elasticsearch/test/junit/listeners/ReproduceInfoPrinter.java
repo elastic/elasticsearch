@@ -25,6 +25,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -33,6 +34,7 @@ import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
+import java.nio.file.Path;
 import java.util.Locale;
 import java.util.TimeZone;
 
@@ -102,7 +104,6 @@ public class ReproduceInfoPrinter extends RunListener {
             }
         }
         b.append("\"");
-
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
@@ -181,8 +182,30 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
             appendOpt("runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)));
+            appendOpt("runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)));
+            appendOpt("license.key", relativePath(System.getProperty("licence.key")));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;
+        }
+
+        private String relativePath(String pathProperty) {
+            if(pathProperty == null) {
+                return null;
+            }
+            Path path = PathUtils.get(pathProperty);
+            if(path.isAbsolute()) {
+                // try to resolve workspace root from Jenksin WORKSPACE env variable
+                String workspace = System.getenv("WORKSPACE");
+                if(workspace == null) {
+                    // fallback to resolve workspace root from teamcity checkout dir
+                    workspace = System.getProperty("teamcity.build.workingDir");
+                }
+                if(workspace != null) {
+                    // resolve path relative to workspace root
+                    return PathUtils.get(workspace).relativize(path).toString();
+                }
+            }
+            return pathProperty;
         }
 
         public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {

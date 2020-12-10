@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/eql-search-api.html",
       "description": "Deletes an async EQL search by ID. If the search is still running, the search request will be cancelled. Otherwise, the saved search results are deleted."
     },
-    "stability":"beta",
+    "stability":"stable",
     "headers":{
       "accept": [ "application/json"]
     },

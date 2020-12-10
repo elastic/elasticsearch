@@ -21,10 +21,8 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;

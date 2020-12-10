@@ -685,6 +685,9 @@ public class RestoreService implements ClusterStateApplier {
 
     private Map<String, List<String>> getFeatureStatesToRestore(RestoreSnapshotRequest request, SnapshotInfo snapshotInfo,
                                                                 Snapshot snapshot) {
+        if (snapshotInfo.featureStates() == null) {
+            return Collections.emptyMap();
+        }
         final Map<String, List<String>> snapshotFeatureStates = snapshotInfo.featureStates().stream()
             .collect(Collectors.toMap(SnapshotFeatureInfo::getPluginName, SnapshotFeatureInfo::getIndices));
 
@@ -713,6 +716,10 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private Set<Index> resolveIndicesToDelete(ClusterState currentState, Map<String, List<String>> featureStatesToRestore) {
+        if (featureStatesToRestore == null) {
+            return Collections.emptySet();
+        }
+
         final String[] indexPatternsToDelete = featureStatesToRestore.keySet().stream()
             .map(featureName -> systemIndices.getFeatures().get(featureName))
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`

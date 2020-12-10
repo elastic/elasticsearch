@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,7 +29,6 @@ import java.util.List;
 
 public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.IndexFoldersDeletionListener {
 
-    private static final Logger logger = LogManager.getLogger(CompositeIndexFoldersDeletionListener.class);
     private final List<IndexStorePlugin.IndexFoldersDeletionListener> listeners;
 
     public CompositeIndexFoldersDeletionListener(List<IndexStorePlugin.IndexFoldersDeletionListener> listeners) {

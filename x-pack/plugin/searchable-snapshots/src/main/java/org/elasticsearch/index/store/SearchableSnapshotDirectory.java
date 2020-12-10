@@ -61,7 +61,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -213,6 +212,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
+                    cleanExistingCacheFiles();
                     this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
                     prewarmCache(preWarmListener);
                 }
@@ -330,9 +330,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public final void close() {
         if (closed.compareAndSet(false, true)) {
             isOpen = false;
-            // Ideally we could let the cache evict/remove cached files by itself after the
-            // directory has been closed.
-            clearCache();
         }
     }
 
@@ -414,6 +411,15 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Evicts all cache files associated to the current searchable snapshot shard in case a
+     * previous instance of that same shard has been marked as evicted on this node.
+     */
+    private void cleanExistingCacheFiles() {
+        assert Thread.holdsLock(this);
+        cacheService.runIfShardMarkedAsEvictedInCache(snapshotId, indexId, shardId, this::clearCache);
     }
 
     private void prewarmCache(ActionListener<Void> listener) {
@@ -566,7 +572,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final Path cacheDir = CacheService.getShardCachePath(shardPath).resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);
-        assert assertCacheIsEmpty(cacheDir);
 
         return new InMemoryNoOpCommitDirectory(
             new SearchableSnapshotDirectory(
@@ -585,17 +590,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 threadPool
             )
         );
-    }
-
-    private static boolean assertCacheIsEmpty(Path cacheDir) {
-        try (DirectoryStream<Path> cacheDirStream = Files.newDirectoryStream(cacheDir)) {
-            final Set<Path> cacheFiles = new HashSet<>();
-            cacheDirStream.forEach(cacheFiles::add);
-            assert cacheFiles.isEmpty() : "should start with empty cache, but found " + cacheFiles;
-        } catch (IOException e) {
-            assert false : e;
-        }
-        return true;
     }
 
     public static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {

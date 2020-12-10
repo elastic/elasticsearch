@@ -7,7 +7,33 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.core.PageParams;
+import org.elasticsearch.client.transform.DeleteTransformRequest;
+import org.elasticsearch.client.transform.GetTransformRequest;
+import org.elasticsearch.client.transform.GetTransformResponse;
+import org.elasticsearch.client.transform.GetTransformStatsRequest;
+import org.elasticsearch.client.transform.GetTransformStatsResponse;
+import org.elasticsearch.client.transform.PutTransformRequest;
+import org.elasticsearch.client.transform.transforms.DestConfig;
+import org.elasticsearch.client.transform.transforms.QueryConfig;
+import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.TransformStats;
+import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
+import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.junit.After;
 import org.junit.Before;
@@ -329,5 +355,82 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
                 assertThat("changes_last_detected_at is null", checkpointing.get("changes_last_detected_at"), is(notNullValue()));
             }
         }, 120, TimeUnit.SECONDS);
+    }
+
+    public void testManyTranformsUsingHlrc() throws IOException {
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score.avg").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp.max").field("timestamp"));
+
+        TransformConfig.Builder configBuilder = TransformConfig.builder()
+            .setSource(
+                SourceConfig.builder().setIndex(REVIEWS_INDEX_NAME).setQueryConfig(new QueryConfig(QueryBuilders.matchAllQuery())).build()
+            )
+            .setDest(DestConfig.builder().setIndex("dest").build())
+            .setFrequency(TimeValue.timeValueSeconds(10))
+            .setDescription("Test 10000 transform configs")
+            .setPivotConfig(
+                PivotConfig.builder()
+                    .setGroups(GroupConfig.builder().groupBy("by-user", TermsGroupSource.builder().setField("user_id").build()).build())
+                    .setAggregationConfig(new AggregationConfig(aggs))
+                    .build()
+            );
+
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            int numberOfTransforms = randomIntBetween(1_500, 4_000);
+            for (int i = 0; i < numberOfTransforms; ++i) {
+                AcknowledgedResponse response = restClient.transform()
+                    .putTransform(new PutTransformRequest(configBuilder.setId(String.format("t-%05d", i)).build()), RequestOptions.DEFAULT);
+                assertTrue(response.isAcknowledged());
+            }
+
+            for (int i = 0; i < 3; ++i) {
+                int from = randomIntBetween(0, numberOfTransforms - 1_000);
+                int size = randomIntBetween(1, 1000);
+
+                GetTransformRequest request = new GetTransformRequest("*");
+                request.setPageParams(new PageParams(from, size));
+                GetTransformStatsRequest statsRequest = new GetTransformStatsRequest("*");
+                statsRequest.setPageParams(new PageParams(from, size));
+
+                GetTransformResponse response = restClient.transform().getTransform(request, RequestOptions.DEFAULT);
+                GetTransformStatsResponse statsResponse = restClient.transform().getTransformStats(statsRequest, RequestOptions.DEFAULT);
+
+                assertEquals(numberOfTransforms, response.getCount());
+                assertEquals(numberOfTransforms, statsResponse.getCount());
+
+                List<TransformConfig> configs = response.getTransformConfigurations();
+                List<TransformStats> stats = statsResponse.getTransformsStats();
+
+                assertEquals(size, configs.size());
+                assertEquals(size, stats.size());
+
+                assertThat(configs.get(0).getId(), equalTo(String.format("t-%05d", from)));
+                assertThat(configs.get(configs.size() - 1).getId(), equalTo(String.format("t-%05d", from + size - 1)));
+                assertThat(stats.get(0).getId(), equalTo(String.format("t-%05d", from)));
+                assertThat(stats.get(stats.size() - 1).getId(), equalTo(String.format("t-%05d", from + size - 1)));
+
+                if (size > 2) {
+                    int randomElement = randomIntBetween(1, size - 1);
+                    assertThat(configs.get(randomElement).getId(), equalTo(String.format("t-%05d", from + randomElement)));
+                    assertThat(stats.get(randomElement).getId(), equalTo(String.format("t-%05d", from + randomElement)));
+                }
+            }
+
+            for (int i = 0; i < numberOfTransforms; ++i) {
+                AcknowledgedResponse response = restClient.transform()
+                    .deleteTransform(new DeleteTransformRequest(String.format("t-%05d", i)), RequestOptions.DEFAULT);
+                assertTrue(response.isAcknowledged());
+            }
+        }
+    }
+
+    protected static class TestRestHighLevelClient extends RestHighLevelClient {
+        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, Collections.emptyList())
+            .getNamedXContents();
+
+        TestRestHighLevelClient() {
+            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
+        }
     }
 }

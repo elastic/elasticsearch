@@ -9,9 +9,6 @@ setup:
             number_of_replicas: 0
           mappings:
             dynamic: false
-            runtime:
-              history.count:
-                type: long
             properties:
               timestamp:
                 type: date
@@ -41,19 +38,14 @@ setup:
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "history" : { "count" : 20 } }
 
 ---
-"get mapping":
-  - do:
-      indices.get_mapping:
-        index: sensor
-  - match: { sensor.mappings.runtime.history\.count.type: long }
-  - is_false: sensor.mappings.runtime.history\.count.script
-
----
 "test matching":
   - do:
       search:
         index: sensor
         body:
+          runtime_mappings:
+            history.count:
+              type: long
           query:
             range:
               history.count:

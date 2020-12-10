@@ -95,6 +95,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -127,6 +128,16 @@ public class IndexModuleTests extends ESTestCase {
         }
         @Override
         public void addPendingDelete(ShardId shardId, IndexSettings indexSettings) {
+        }
+    };
+
+    private IndexStorePlugin.IndexFoldersDeletionListener indexDeletionListener = new IndexStorePlugin.IndexFoldersDeletionListener() {
+        @Override
+        public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
+        }
+
+        @Override
+        public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
         }
     };
 
@@ -169,7 +180,7 @@ public class IndexModuleTests extends ESTestCase {
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
                 threadPool, scriptService, clusterService, null, indicesQueryCache, mapperRegistry,
-                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false, null);
+                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false, null, indexDeletionListener);
     }
 
     public void testWrapperIsBound() throws IOException {

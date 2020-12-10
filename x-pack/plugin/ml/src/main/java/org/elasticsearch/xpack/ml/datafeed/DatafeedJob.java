@@ -320,7 +320,7 @@ class DatafeedJob {
             try {
                 extractedData = dataExtractor.next();
             } catch (Exception e) {
-                LOGGER.error("[" + jobId + "] error while extracting data", e);
+                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.

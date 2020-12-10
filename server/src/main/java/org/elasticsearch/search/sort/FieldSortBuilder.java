@@ -332,9 +332,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (DOC_FIELD_NAME.equals(fieldName)) {
             return reverse ? SORT_DOC_REVERSE : SORT_DOC;
         } else if (SHARD_DOC_FIELD_NAME.equals(fieldName)) {
-            if (context.getShardRequestIndex() == -1) {
-                throw new IllegalArgumentException("");
-            }
             return new SortFieldAndFormat(new ShardDocSortField(context.getShardRequestIndex(), reverse), DocValueFormat.RAW);
         }
 

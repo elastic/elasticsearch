@@ -240,5 +240,5 @@
         index: test
         body:
           size: 1
-          sort: [{ _shard_doc }]
+          sort: ["_shard_doc"]
           search_after: [ 0L ]

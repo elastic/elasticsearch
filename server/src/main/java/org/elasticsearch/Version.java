@@ -89,6 +89,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_11_0 = new Version(7110099, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_7_12_0 = new Version(7120099, org.apache.lucene.util.Version.LUCENE_8_8_0);
     public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_8_0);
+
+    // Must be kept in sync with RestClient.VERSION, as the client has no dependency on ES core and therefore cannot
+    // read this value. A test in `VersionTests` will fail if they're not in sync.
     public static final Version CURRENT = V_8_0_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;

@@ -144,8 +144,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // snapshot by feature
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
+            .setIncludeGlobalState(false)
             .setWaitForCompletion(true)
-            .setFeatureStates(SystemIndexTestPlugin.class.getSimpleName())
+            .setFeatureStates(SystemIndexTestPlugin.class.getSimpleName(), AnotherSystemIndexTestPlugin.class.getSimpleName())
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 

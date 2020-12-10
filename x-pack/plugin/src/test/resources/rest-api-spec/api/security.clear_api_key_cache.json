@@ -5,6 +5,9 @@
       "description":"Clear a subset or all entries from the API key cache."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

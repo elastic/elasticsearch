@@ -5,6 +5,9 @@
       "description":"Provides a detailed view of shard allocation on nodes."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

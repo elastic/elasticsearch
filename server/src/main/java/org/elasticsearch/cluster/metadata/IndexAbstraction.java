@@ -248,10 +248,6 @@ public interface IndexAbstraction {
             };
         }
 
-        public AliasMetadata getFirstAliasMetadata() {
-            return referenceIndexMetadatas.get(0).getAliases().get(aliasName);
-        }
-
         void addIndex(IndexMetadata indexMetadata) {
             this.referenceIndexMetadatas.add(indexMetadata);
         }

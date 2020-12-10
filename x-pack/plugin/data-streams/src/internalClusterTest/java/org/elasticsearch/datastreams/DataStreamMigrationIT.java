@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0)
 public class DataStreamMigrationIT extends ESIntegTestCase {
 
     @Override

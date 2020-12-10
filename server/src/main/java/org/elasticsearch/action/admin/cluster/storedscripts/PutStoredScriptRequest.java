@@ -47,7 +47,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         super(in);
         id = in.readOptionalString();
         content = in.readBytesReference();
-        xContentType = XContentHelper.readFromWire(in);
+        xContentType = in.readEnum(XContentType.class);
         context = in.readOptionalString();
         source = new StoredScriptSource(in);
     }

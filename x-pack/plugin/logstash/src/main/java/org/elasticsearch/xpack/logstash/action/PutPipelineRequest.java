@@ -32,7 +32,7 @@ public class PutPipelineRequest extends ActionRequest {
         super(in);
         this.id = in.readString();
         this.source = in.readString();
-        this.xContentType = XContentHelper.readFromWire(in);
+        this.xContentType = in.readEnum(XContentType.class);
     }
 
     public String id() {

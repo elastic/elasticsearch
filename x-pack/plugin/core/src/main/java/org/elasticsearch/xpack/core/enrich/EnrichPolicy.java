@@ -235,7 +235,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         private final XContentType contentType;
 
         QuerySource(StreamInput in) throws IOException {
-            this(in.readBytesReference(), XContentHelper.readFromWire(in));
+            this(in.readBytesReference(), in.readEnum(XContentType.class));
         }
 
         public QuerySource(BytesReference query, XContentType contentType) {

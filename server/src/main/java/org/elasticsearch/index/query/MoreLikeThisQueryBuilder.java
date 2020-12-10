@@ -220,7 +220,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                xContentType = XContentHelper.readFromWire(in);
+                xContentType = in.readEnum(XContentType.class);
             } else {
                 id = in.readString();
             }

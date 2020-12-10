@@ -141,7 +141,7 @@ public enum XContentType implements MediaType {
         }
     },
     /**
-     * A JSON based content type.
+     * A versioned JSON based content type.
      */
     VND_JSON(4) {
         @Override
@@ -152,7 +152,7 @@ public enum XContentType implements MediaType {
         @Override
         public String queryParameter() {
             return "vnd_json";
-        } // another hack..
+        }
 
         @Override
         public XContent xContent() {
@@ -174,7 +174,7 @@ public enum XContentType implements MediaType {
         }
     },
     /**
-     * The jackson based smile binary format. Fast and compact binary format.
+     * Versioned jackson based smile binary format. Fast and compact binary format.
      */
     VND_SMILE(5) {
         @Override
@@ -205,7 +205,7 @@ public enum XContentType implements MediaType {
         }
     },
     /**
-     * A YAML based content type.
+     * A Versioned YAML based content type.
      */
     VND_YAML(6) {
         @Override
@@ -236,7 +236,7 @@ public enum XContentType implements MediaType {
         }
     },
     /**
-     * A CBOR based content type.
+     * A Versioned CBOR based content type.
      */
     VND_CBOR(7) {
         @Override
@@ -266,6 +266,7 @@ public enum XContentType implements MediaType {
             return CBOR;
         }
     };
+
     public static final MediaTypeRegistry<XContentType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<XContentType>()
         .register(XContentType.values());
     public static final String VENDOR_APPLICATION_PREFIX = "application/vnd.elasticsearch+";

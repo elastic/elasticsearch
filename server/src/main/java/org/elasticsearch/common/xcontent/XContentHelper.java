@@ -456,10 +456,12 @@ public class XContentHelper {
         return BytesReference.bytes(builder);
     }
 
-    public static XContentType readFromWire(org.elasticsearch.common.io.stream.StreamInput in) throws IOException {
-        return in.readEnum(XContentType.class);
-    }
-
+    /**
+     * Serialises new XContentType vnd values in a bwc manner
+     * TODO remove in ES v9
+     * @param out stream output of the destination node
+     * @param xContentType an instance to serialise
+     */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeVInt(xContentType.ordinal() % 4);

@@ -70,7 +70,7 @@ public class ExecuteWatchRequest extends ActionRequest {
         }
         if (in.readBoolean()) {
             watchSource = in.readBytesReference();
-            xContentType = XContentHelper.readFromWire(in);
+            xContentType = in.readEnum(XContentType.class);
         }
         debug = in.readBoolean();
     }

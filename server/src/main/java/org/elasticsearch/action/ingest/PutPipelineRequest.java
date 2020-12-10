@@ -51,7 +51,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super(in);
         id = in.readString();
         source = in.readBytesReference();
-        xContentType = XContentHelper.readFromWire(in);
+        xContentType = in.readEnum(XContentType.class);
     }
 
     PutPipelineRequest() {

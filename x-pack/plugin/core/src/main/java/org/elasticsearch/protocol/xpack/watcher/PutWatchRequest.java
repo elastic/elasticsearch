@@ -47,7 +47,7 @@ public final class PutWatchRequest extends ActionRequest {
         id = in.readString();
         source = in.readBytesReference();
         active = in.readBoolean();
-        xContentType = XContentHelper.readFromWire(in);;
+        xContentType = in.readEnum(XContentType.class);;
         version = in.readZLong();
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();

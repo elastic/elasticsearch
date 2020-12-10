@@ -196,7 +196,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      *  @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param responseContentTypeString  f
+     * @param responseContentTypeString  a content-type header value to be send back on a response
      */
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
                            String responseContentTypeString) throws IOException {

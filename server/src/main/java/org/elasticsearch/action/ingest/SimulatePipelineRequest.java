@@ -64,7 +64,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
-        xContentType = XContentHelper.readFromWire(in);
+        xContentType = in.readEnum(XContentType.class);
     }
 
     @Override

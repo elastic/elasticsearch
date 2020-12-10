@@ -226,7 +226,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         documents = in.readList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
-            documentXContentType = XContentHelper.readFromWire(in);
+            documentXContentType = in.readEnum(XContentType.class);
         } else {
             documentXContentType = null;
         }

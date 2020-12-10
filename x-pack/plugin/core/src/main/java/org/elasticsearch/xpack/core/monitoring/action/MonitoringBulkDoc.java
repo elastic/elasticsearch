@@ -54,7 +54,7 @@ public class MonitoringBulkDoc implements Writeable {
         this.type = in.readOptionalString();
         this.id = in.readOptionalString();
         this.source = in.readBytesReference();
-        this.xContentType = (source != BytesArray.EMPTY) ? XContentHelper.readFromWire(in) : XContentType.JSON;
+        this.xContentType = (source != BytesArray.EMPTY) ? in.readEnum(XContentType.class) : XContentType.JSON;
         this.intervalMillis = in.readVLong();
     }
 

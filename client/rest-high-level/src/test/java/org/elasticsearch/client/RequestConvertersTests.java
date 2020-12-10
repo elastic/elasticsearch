@@ -1823,8 +1823,8 @@ public class RequestConvertersTests extends ESTestCase {
     public void testEnforceSameContentType() {
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.VND_JSON, XContentType.VND_SMILE);
         IndexRequest indexRequest = new IndexRequest().source(singletonMap("field", "value"), xContentType);
-        // indexRequest content type is made canonical
-        // ( XContentBuilder(VND_JSON).getXContentType -> JSON //hardcoded in JSonXContentGenerator )
+        // indexRequest content type is made canonical because IndexRequest's content-type is
+        // from XContentBuilder.getXContentType (hardcoded in JsonXContentGEnerator)
         assertEquals(xContentType.canonical(), enforceSameContentType(indexRequest, null));
         assertEquals(xContentType, enforceSameContentType(indexRequest, xContentType));
 

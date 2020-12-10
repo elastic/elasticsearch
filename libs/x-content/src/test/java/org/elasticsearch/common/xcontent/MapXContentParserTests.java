@@ -91,7 +91,7 @@ public class MapXContentParserTests extends ESTestCase {
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 try (XContentParser mapParser = new MapXContentParser(
                     xContentRegistry(), LoggingDeprecationHandler.INSTANCE, map, xContentType)) {
-                    assertEquals(parser.contentType(), mapParser.contentType());
+                    assertEquals(parser.contentType(), mapParser.contentType().canonical());
                     XContentParser.Token token;
                     assertEquals(parser.currentToken(), mapParser.currentToken());
                     assertEquals(parser.currentName(), mapParser.currentName());

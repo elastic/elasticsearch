@@ -65,20 +65,20 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         setTotalSpace(dataNodeName, enoughSpace);
         GetAutoscalingCapacityAction.Response response = capacity();
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
-        assertThat(response.results().get(policyName).currentCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace));
-        assertThat(response.results().get(policyName).requiredCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace));
+        assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
+        assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
 
         setTotalSpace(dataNodeName, enoughSpace - 2);
         response = capacity();
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
-        assertThat(response.results().get(policyName).currentCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace - 2));
+        assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace - 2));
         assertThat(
-            response.results().get(policyName).requiredCapacity().tier().storage().getBytes(),
+            response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
             Matchers.greaterThan(enoughSpace - 2)
         );
         assertThat(
-            response.results().get(policyName).requiredCapacity().tier().storage().getBytes(),
+            response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
             Matchers.lessThanOrEqualTo(enoughSpace + minShardSize)
         );
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));

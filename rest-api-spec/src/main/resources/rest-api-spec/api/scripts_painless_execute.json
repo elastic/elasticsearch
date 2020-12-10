@@ -5,6 +5,10 @@
       "description":"Allows an arbitrary script to be executed and a result to be returned"
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -5,6 +5,9 @@
       "description":"Deletes anomaly detection jobs from a calendar."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

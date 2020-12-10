@@ -58,6 +58,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         assertTotalHistoryEntries(id, 3);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65176")
     public void testTimeThrottleDefaults() throws Exception {
         String id = randomAlphaOfLength(30);
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())

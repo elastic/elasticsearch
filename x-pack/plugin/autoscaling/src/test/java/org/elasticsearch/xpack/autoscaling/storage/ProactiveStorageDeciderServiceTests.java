@@ -120,12 +120,12 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
 
         if (currentCapacity != null) {
-            assertThat(deciderResult.requiredCapacity().tier().storage(), Matchers.greaterThan(currentCapacity.tier().storage()));
+            assertThat(deciderResult.requiredCapacity().total().storage(), Matchers.greaterThan(currentCapacity.total().storage()));
             assertThat(deciderResult.reason().summary(), startsWith("not enough storage available, needs "));
             ProactiveStorageDeciderService.ProactiveReason reason = (ProactiveStorageDeciderService.ProactiveReason) deciderResult.reason();
             assertThat(
                 reason.forecasted(),
-                equalTo(deciderResult.requiredCapacity().tier().storage().getBytes() - currentCapacity.tier().storage().getBytes())
+                equalTo(deciderResult.requiredCapacity().total().storage().getBytes() - currentCapacity.total().storage().getBytes())
             );
             assertThat(
                 reason.forecasted(),
@@ -136,7 +136,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                 Settings.builder().put(ProactiveStorageDeciderService.FORECAST_WINDOW.getKey(), TimeValue.ZERO).build(),
                 context
             );
-            assertThat(deciderResult.requiredCapacity().tier().storage(), Matchers.equalTo(currentCapacity.tier().storage()));
+            assertThat(deciderResult.requiredCapacity().total().storage(), Matchers.equalTo(currentCapacity.total().storage()));
             assertThat(deciderResult.reason().summary(), equalTo("storage ok"));
             reason = (ProactiveStorageDeciderService.ProactiveReason) deciderResult.reason();
             assertThat(reason.forecasted(), equalTo(0L));

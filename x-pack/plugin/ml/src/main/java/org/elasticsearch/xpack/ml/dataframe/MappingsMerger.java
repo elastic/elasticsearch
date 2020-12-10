@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -47,10 +46,25 @@ public final class MappingsMerger {
         ClientHelper.executeWithHeadersAsync(headers, ML_ORIGIN, client, GetMappingsAction.INSTANCE, getMappingsRequest, mappingsListener);
     }
 
-    static MappingMetadata mergeMappings(DataFrameAnalyticsSource source,
-                                                                   GetMappingsResponse getMappingsResponse) {
-        ImmutableOpenMap<String, MappingMetadata> indexToMappings = getMappingsResponse.getMappings();
+    static MappingMetadata mergeMappings(DataFrameAnalyticsSource source, GetMappingsResponse getMappingsResponse) {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("dynamic", false);
 
+        ImmutableOpenMap<String, MappingMetadata> indexToMappings = getMappingsResponse.getMappings();
+        for (MappingsType mappingsType : MappingsType.values()) {
+            Map<String, IndexAndMapping> mergedMappingsForType = mergeAcrossIndices(source, indexToMappings, mappingsType);
+            if (mergedMappingsForType.isEmpty() == false) {
+                mappings.put(mappingsType.type,
+                    mergedMappingsForType.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().mapping)));
+            }
+        }
+
+        return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mappings);
+    }
+
+    private static Map<String, IndexAndMapping> mergeAcrossIndices(DataFrameAnalyticsSource source,
+                                                                   ImmutableOpenMap<String, MappingMetadata> indexToMappings,
+                                                                   MappingsType mappingsType) {
         Map<String, IndexAndMapping> mergedMappings = new HashMap<>();
 
         Iterator<ObjectObjectCursor<String, MappingMetadata>> iterator = indexToMappings.iterator();
@@ -59,10 +73,10 @@ public final class MappingsMerger {
             MappingMetadata mapping = indexMappings.value;
             if (mapping != null) {
                 Map<String, Object> currentMappings = mapping.getSourceAsMap();
-                if (currentMappings.containsKey("properties")) {
+                if (currentMappings.containsKey(mappingsType.type)) {
 
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> fieldMappings = (Map<String, Object>) currentMappings.get("properties");
+                    Map<String, Object> fieldMappings = (Map<String, Object>) currentMappings.get(mappingsType.type);
 
                     for (Map.Entry<String, Object> fieldMapping : fieldMappings.entrySet()) {
                         String field = fieldMapping.getKey();
@@ -71,9 +85,9 @@ public final class MappingsMerger {
                                 IndexAndMapping existingIndexAndMapping = mergedMappings.get(field);
                                 if (existingIndexAndMapping.mapping.equals(fieldMapping.getValue()) == false) {
                                     throw ExceptionsHelper.badRequestException(
-                                        "cannot merge mappings because of differences for field [{}]; mapped as [{}] in index [{}]; " +
-                                            "mapped as [{}] in index [{}]", field, fieldMapping.getValue(), indexMappings.key,
-                                            existingIndexAndMapping.mapping, existingIndexAndMapping.index);
+                                        "cannot merge [{}] mappings because of differences for field [{}]; mapped as [{}] in index [{}]; " +
+                                        "mapped as [{}] in index [{}]", mappingsType.type, field, fieldMapping.getValue(),
+                                        indexMappings.key, existingIndexAndMapping.mapping, existingIndexAndMapping.index);
 
                                 }
                             } else {
@@ -84,13 +98,7 @@ public final class MappingsMerger {
                 }
             }
         }
-
-        return createMappingMetadata(MapperService.SINGLE_MAPPING_NAME,
-            mergedMappings.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().mapping)));
-    }
-
-    private static MappingMetadata createMappingMetadata(String type, Map<String, Object> mappings) {
-        return new MappingMetadata(type, Collections.singletonMap("properties", mappings));
+        return mergedMappings;
     }
 
     private static class IndexAndMapping {
@@ -100,6 +108,17 @@ public final class MappingsMerger {
         private IndexAndMapping(String index, Object mapping) {
             this.index = Objects.requireNonNull(index);
             this.mapping = Objects.requireNonNull(mapping);
+        }
+    }
+
+    private enum MappingsType {
+        PROPERTIES("properties"),
+        RUNTIME("runtime");
+
+        private String type;
+
+        MappingsType(String type) {
+            this.type = type;
         }
     }
 }

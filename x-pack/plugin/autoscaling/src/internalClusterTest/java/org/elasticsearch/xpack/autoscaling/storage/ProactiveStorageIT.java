@@ -88,10 +88,10 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         // default 30 minute window includes everything.
         GetAutoscalingCapacityAction.Response response = capacity();
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
-        assertThat(response.results().get(policyName).currentCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace));
+        assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         // ideally, we would count replicas too, but we leave this for follow-up work
         assertThat(
-            response.results().get(policyName).requiredCapacity().tier().storage().getBytes(),
+            response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
             Matchers.greaterThanOrEqualTo(enoughSpace + used)
         );
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
@@ -103,8 +103,8 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
         response = capacity();
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
-        assertThat(response.results().get(policyName).currentCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace));
-        assertThat(response.results().get(policyName).requiredCapacity().tier().storage().getBytes(), Matchers.equalTo(enoughSpace));
+        assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
+        assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
     }
 

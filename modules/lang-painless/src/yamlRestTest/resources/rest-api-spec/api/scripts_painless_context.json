@@ -5,6 +5,9 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-contexts.html",
       "description": "Returns the painless contexts"
     },
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url": {
       "paths": [
         {

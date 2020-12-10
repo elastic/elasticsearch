@@ -5,6 +5,9 @@
       "description" : "Clear the cache of searchable snapshots."
     },
     "stability": "experimental",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url": {
       "paths": [
         {

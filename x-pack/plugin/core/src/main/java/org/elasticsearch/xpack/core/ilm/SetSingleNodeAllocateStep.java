@@ -56,16 +56,6 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         ALL_CLUSTER_SETTINGS = allSettings;
     }
 
-    // These allocation deciders were chosen because these are the conditions that can prevent
-    // allocation long-term, and that we can inspect in advance. Most other allocation deciders
-    // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
-    // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(List.of(
-        new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-        new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
-        new NodeVersionAllocationDecider()
-    ));
-
     public SetSingleNodeAllocateStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
@@ -77,8 +67,18 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
+        // These allocation deciders were chosen because these are the conditions that can prevent
+        // allocation long-term, and that we can inspect in advance. Most other allocation deciders
+        // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
+        // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
+        AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(
+            new FilterAllocationDecider(clusterState.getMetadata().settings(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
+            new NodeVersionAllocationDecider()
+        ));
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, routingNodes, clusterState, null,
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null,
                 null, System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
         String indexName = indexMetadata.getIndex().getName();
@@ -91,7 +91,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             for (RoutingNode node : routingNodes) {
                 boolean canAllocateOneCopyOfEachShard = routingsByShardId.values().stream() // For each shard
                     .allMatch(shardRoutings -> shardRoutings.stream() // Can we allocate at least one shard copy to this node?
-                        .map(shardRouting -> ALLOCATION_DECIDERS.canAllocate(shardRouting, node, allocation).type())
+                        .map(shardRouting -> allocationDeciders.canAllocate(shardRouting, node, allocation).type())
                         .anyMatch(Decision.Type.YES::equals));
                 if (canAllocateOneCopyOfEachShard) {
                     validNodeIds.add(node.node().getId());

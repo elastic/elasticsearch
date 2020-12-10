@@ -220,11 +220,11 @@ then 101 Lucene documents would be created: one for the parent document, and one
 nested object. Because of the expense associated with `nested` mappings, Elasticsearch puts
 settings in place to guard against performance problems:
 
-include::{es-repo-dir}/mapping.asciidoc[tag=nested-fields-limit]
+include::{es-repo-dir}/mapping/mapping-settings-limit.asciidoc[tag=nested-fields-limit]
 
 In the previous example, the `user` mapping would count as only 1 towards this limit.
 
-include::{es-repo-dir}/mapping.asciidoc[tag=nested-objects-limit]
+include::{es-repo-dir}/mapping/mapping-settings-limit.asciidoc[tag=nested-objects-limit]
 
 To illustrate how this setting works, consider adding another `nested` type called `comments`
 to the previous example mapping. For each document, the combined number of `user` and `comment`

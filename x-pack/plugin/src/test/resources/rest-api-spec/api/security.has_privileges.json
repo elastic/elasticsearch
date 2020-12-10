@@ -5,6 +5,10 @@
       "description":"Determines whether the specified user has a specified list of privileges."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

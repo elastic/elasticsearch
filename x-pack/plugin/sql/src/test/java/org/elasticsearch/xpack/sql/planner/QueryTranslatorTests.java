@@ -84,7 +84,6 @@ import org.junit.BeforeClass;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -95,6 +94,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -153,7 +153,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
-            return analyzer.analyze(parser.createStatement(sql, Arrays.asList(params), DateUtils.UTC), true);
+            return analyzer.analyze(parser.createStatement(sql, asList(params), DateUtils.UTC), true);
         }
     }
 
@@ -1048,7 +1048,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(bq.isAnd());
         assertTrue(bq.left() instanceof RangeQuery);
         assertTrue(bq.right() instanceof RangeQuery);
-        List<Tuple<String, RangeQuery>> tuples = Arrays.asList(new Tuple<>(dates[0], (RangeQuery)bq.left()),
+        List<Tuple<String, RangeQuery>> tuples = asList(new Tuple<>(dates[0], (RangeQuery)bq.left()),
             new Tuple<>(dates[1], (RangeQuery) bq.right()));
 
         for (Tuple<String, RangeQuery> t: tuples) {
@@ -2442,5 +2442,21 @@ public class QueryTranslatorTests extends ESTestCase {
 
         test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
         test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
+    }
+
+    // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // and SUM(all nulls)
+    public void testReplaceSumWithStats() {
+        List<String> testCases = asList(
+            "SELECT keyword, SUM(int) FROM test GROUP BY keyword",
+            "SELECT SUM(int) FROM test",
+            "SELECT * FROM (SELECT some.string, keyword, int FROM test) PIVOT (SUM(int) FOR keyword IN ('a', 'b'))");
+        for (String testCase : testCases) {
+            PhysicalPlan physicalPlan = optimizeAndPlan(testCase);
+            assertEquals(EsQueryExec.class, physicalPlan.getClass());
+            EsQueryExec eqe = (EsQueryExec) physicalPlan;
+            assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("{\"stats\":{\"field\":\"int\"}}"));
+        }
     }
 }

@@ -318,7 +318,15 @@ public class CacheService extends AbstractLifecycleComponent {
                             }
                         });
                         if (cacheFilesToEvict.isEmpty() == false) {
-                            cacheFilesToEvict.forEach(cache::invalidate);
+                            for (Map.Entry<CacheKey, CacheFile> cacheFile : cacheFilesToEvict.entrySet()) {
+                                try {
+                                    cache.invalidate(cacheFile.getKey(), cacheFile.getValue());
+                                } catch (Exception e) {
+                                    assert e instanceof IOException : e;
+                                    logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getKey()), e);
+                                }
+
+                            }
                         }
                     });
                 }

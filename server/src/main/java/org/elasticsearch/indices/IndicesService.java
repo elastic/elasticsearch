@@ -1548,13 +1548,6 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns true if the provided field is a registered metadata field (including ones registered via plugins), false otherwise.
-     */
-    public boolean isMetadataField(Version indexCreatedVersion, String field) {
-        return mapperRegistry.isMetadataField(indexCreatedVersion, field);
-    }
-
-    /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
     public boolean isIdFieldDataEnabled() {

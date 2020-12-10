@@ -87,6 +87,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -553,11 +554,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param shardId the id of the shard to delete to delete
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException, ShardLockObtainFailedException {
+    public void deleteShardDirectorySafe(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException, ShardLockObtainFailedException {
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
         try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
-            deleteShardDirectoryUnderLock(lock, indexSettings);
+            deleteShardDirectoryUnderLock(lock, indexSettings, listener);
         }
     }
 
@@ -602,18 +607,24 @@ public final class NodeEnvironment  implements Closeable {
      * @throws IOException if an IOException occurs
      * @throws ElasticsearchException if the write.lock is not acquirable
      */
-    public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public void deleteShardDirectoryUnderLock(
+        ShardLock lock,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
+        listener.accept(paths);
         IOUtils.rm(paths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
             acquireFSLockForPaths(indexSettings, customLocation);
             logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
+            listener.accept(new Path[]{customLocation});
             IOUtils.rm(customLocation);
         }
         logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
@@ -665,11 +676,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param indexSettings settings for the index being deleted
      * @throws IOException if any of the shards data directories can't be locked or deleted
      */
-    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, IndexSettings indexSettings)
-            throws IOException, ShardLockObtainFailedException {
+    public void deleteIndexDirectorySafe(
+        Index index,
+        long lockTimeoutMS,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException, ShardLockObtainFailedException {
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, "deleting index directory", lockTimeoutMS);
         try {
-            deleteIndexDirectoryUnderLock(index, indexSettings);
+            deleteIndexDirectoryUnderLock(index, indexSettings, listener);
         } finally {
             IOUtils.closeWhileHandlingException(locks);
         }
@@ -682,13 +697,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param index the index to delete
      * @param indexSettings settings for the index being deleted
      */
-    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings) throws IOException {
+    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path[]> listener) throws IOException {
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
+        listener.accept(indexPaths);
         IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
+            listener.accept(new Path[]{customLocation});
             IOUtils.rm(customLocation);
         }
     }

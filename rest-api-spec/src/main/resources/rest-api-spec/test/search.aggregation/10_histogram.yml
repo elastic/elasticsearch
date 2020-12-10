@@ -624,11 +624,11 @@ setup:
                       max: "2016-01-04"
   - match: { hits.total.value: 2 }
   - length: { aggregations.foo.histo.buckets: 4 }
-  - match: { aggregations.foo.histo.buckets.0.key_as_string: 2016-01-01T01:00:00.000Z }
+  - match: { aggregations.foo.histo.buckets.0.key_as_string: "2016-01-01T01:00:00.000Z" }
   - match: { aggregations.foo.histo.buckets.0.doc_count: 1 }
-  - match: { aggregations.foo.histo.buckets.1.key_as_string: 2016-01-02T01:00:00.000Z }
+  - match: { aggregations.foo.histo.buckets.1.key_as_string: "2016-01-02T01:00:00.000Z" }
   - match: { aggregations.foo.histo.buckets.1.doc_count: 1 }
-  - match: { aggregations.foo.histo.buckets.2.key_as_string: 2016-01-03T01:00:00.000Z }
+  - match: { aggregations.foo.histo.buckets.2.key_as_string: "2016-01-03T01:00:00.000Z" }
   - match: { aggregations.foo.histo.buckets.2.doc_count: 0 }
-  - match: { aggregations.foo.histo.buckets.3.key_as_string: 2016-01-04T01:00:00.000Z }
+  - match: { aggregations.foo.histo.buckets.3.key_as_string: "2016-01-04T01:00:00.000Z" }
   - match: { aggregations.foo.histo.buckets.3.doc_count: 0 }

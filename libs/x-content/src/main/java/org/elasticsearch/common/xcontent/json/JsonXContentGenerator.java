@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.filtering.EmptyPreservingFilteringGeneratorDelegate;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
 import org.elasticsearch.core.internal.io.Streams;
 
@@ -86,12 +87,12 @@ public class JsonXContentGenerator implements XContentGenerator {
 
         boolean hasExcludes = excludes.isEmpty() == false;
         if (hasExcludes) {
-            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(excludes, false), true, true);
+            generator = new EmptyPreservingFilteringGeneratorDelegate(generator, new FilterPathBasedFilter(excludes, false), true, true);
         }
 
         boolean hasIncludes = includes.isEmpty() == false;
         if (hasIncludes) {
-            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(includes, true), true, true);
+            generator = new EmptyPreservingFilteringGeneratorDelegate(generator, new FilterPathBasedFilter(includes, true), true, true);
         }
 
         if (hasExcludes || hasIncludes) {

@@ -167,10 +167,32 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
         assertResult("{'a':0,'b.c':'value','b':{'c':'c_value'}}", "b\\.c", false, "{'a':0,'b':{'c':'c_value'}}");
     }
 
+    public void testWithEmptyArraysAndObjects() throws Exception {
+        assertResult("{ 'foo': 'bar', 'hits': [] }", "**.not_there", false, "{'foo':'bar','hits':[]}");
+        assertResult("{ 'foo': 'bar', 'hits': {} }", "**.not_there", false, "{'foo':'bar','hits':{}}");
+
+        // only include foo
+        assertResult("{ 'foo': 'bar', 'hits': [] }", "foo", true, "{'foo':'bar'}");
+        assertResult("{ 'foo': 'bar', 'hits': {} }", "foo", true, "{'foo':'bar'}");
+
+        // exclude the empty values
+        assertResult("{ 'foo': 'bar', 'hits': [] }", "hits", false, "{'foo':'bar'}");
+        assertResult("{ 'foo': 'bar', 'hits': {} }", "hits", false, "{'foo':'bar'}");
+
+        // empty at non-root level
+        assertResult("{ 'foo': 'bar', 'a' : { 'hits': [] } }", "**.not_empty", false, "{'foo':'bar','a':{'hits':[]}}");
+        assertResult("{ 'foo': 'bar', 'a' : { 'hits': {} } }", "**.not_empty", false, "{'foo':'bar','a':{'hits':{}}}");
+
+        // empty empty at non-root level
+        assertResult("{ 'foo': 'bar', 'a' : { 'hits': [] } }", "**.hits", false, "{'foo':'bar'}");
+        assertResult("{ 'foo': 'bar', 'a' : { 'hits': {} } }", "**.hits", false, "{'foo':'bar'}");
+    }
+
     private void assertResult(String input, String filter, boolean inclusive, String expected) throws Exception {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
-            try (FilteringGeneratorDelegate generator = new FilteringGeneratorDelegate(JSON_FACTORY.createGenerator(os),
-                    new FilterPathBasedFilter(Collections.singleton(filter), inclusive), true, true)) {
+            FilterPathBasedFilter pathBasedFilter = new FilterPathBasedFilter(Collections.singleton(filter), inclusive);
+            try (FilteringGeneratorDelegate generator = new EmptyPreservingFilteringGeneratorDelegate(JSON_FACTORY.createGenerator(os),
+                     pathBasedFilter, true, true)) {
                 try (JsonParser parser = JSON_FACTORY.createParser(replaceQuotes(input))) {
                     while (parser.nextToken() != null) {
                         generator.copyCurrentStructure(parser);

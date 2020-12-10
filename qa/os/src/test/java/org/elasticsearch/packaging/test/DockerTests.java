@@ -652,16 +652,16 @@ public class DockerTests extends PackagingTestCase {
      * Check that it is possible to write logs to disk
      */
     public void test121CanUseStackLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
+        runContainer(distribution(), builder().envVars(singletonMap("ES_LOG_STYLE", "file")));
 
         waitForElasticsearch(installation);
 
         final Result containerLogs = getContainerLogs();
-        final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
+        final String[] stdout = containerLogs.stdout.split("\n");
 
         assertThat(
             "Container logs should be formatted using the stack config",
-            stdout.get(stdout.size() - 1),
+            stdout[stdout.length - 1],
             matchesPattern("^\\[\\d\\d\\d\\d-.*")
         );
         assertThat("[logs/docker-cluster.log] should exist but it doesn't", existsInContainer("logs/docker-cluster.log"), is(true));
@@ -671,14 +671,14 @@ public class DockerTests extends PackagingTestCase {
      * Check that the default logging config can be explicitly selected.
      */
     public void test122CanUseDockerLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "console")));
+        runContainer(distribution(), builder().envVars(singletonMap("ES_LOG_STYLE", "console")));
 
         waitForElasticsearch(installation);
 
         final Result containerLogs = getContainerLogs();
-        final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
+        final String[] stdout = containerLogs.stdout.split("\n");
 
-        assertThat("Container logs should be formatted using the docker config", stdout.get(stdout.size() - 1), startsWith("{\""));
+        assertThat("Container logs should be formatted using the docker config", stdout[stdout.length - 1], startsWith("{\""));
         assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));
     }
 
@@ -686,7 +686,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that an unknown logging config is rejected
      */
     public void test123CannotUseUnknownLoggingConfig() {
-        final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
+        final Result result = runContainerExpectingFailure(distribution(), builder().envVars(singletonMap("ES_LOG_STYLE", "unknown")));
 
         assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
     }

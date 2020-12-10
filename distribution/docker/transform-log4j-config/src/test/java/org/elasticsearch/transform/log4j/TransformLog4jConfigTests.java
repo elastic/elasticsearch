@@ -21,8 +21,11 @@ package org.elasticsearch.transform.log4j;
 
 import junit.framework.TestCase;
 
+import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -32,14 +35,14 @@ public class TransformLog4jConfigTests extends TestCase {
      * Check that the transformer doesn't explode when given an empty file.
      */
     public void testTransformEmptyConfig() {
-        runTest(List.of(), List.of());
+        runTest(emptyList(), emptyList());
     }
 
     /**
      * Check that the transformer leaves non-appender lines alone.
      */
     public void testTransformEchoesNonAppenderLines() {
-        List<String> input = List.of(
+        List<String> input = Arrays.asList(
             "status = error",
             "",
             "##############################",
@@ -55,12 +58,12 @@ public class TransformLog4jConfigTests extends TestCase {
      * Check that the root logger appenders are filtered to just the "rolling" appender
      */
     public void testTransformFiltersRootLogger() {
-        List<String> input = List.of(
+        List<String> input = Arrays.asList(
             "rootLogger.appenderRef.console.ref = console",
             "rootLogger.appenderRef.rolling.ref = rolling",
             "rootLogger.appenderRef.rolling_old.ref = rolling_old"
         );
-        List<String> expected = List.of("rootLogger.appenderRef.rolling.ref = rolling");
+        List<String> expected = singletonList("rootLogger.appenderRef.rolling.ref = rolling");
 
         runTest(input, expected);
     }
@@ -69,7 +72,7 @@ public class TransformLog4jConfigTests extends TestCase {
      * Check that any explicit 'console' or 'rolling_old' appenders are removed.
      */
     public void testTransformRemoveExplicitConsoleAndRollingOldAppenders() {
-        List<String> input = List.of(
+        List<String> input = Arrays.asList(
             "appender.console.type = Console",
             "appender.console.name = console",
             "appender.console.layout.type = PatternLayout",
@@ -80,16 +83,16 @@ public class TransformLog4jConfigTests extends TestCase {
             "appender.rolling_old.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n"
         );
 
-        runTest(input, List.of());
+        runTest(input, emptyList());
     }
 
     /**
      * Check that rolling file appenders are converted to console appenders.
      */
     public void testTransformConvertsRollingToConsole() {
-        List<String> input = List.of("appender.rolling.type = RollingFile", "appender.rolling.name = rolling");
+        List<String> input = Arrays.asList("appender.rolling.type = RollingFile", "appender.rolling.name = rolling");
 
-        List<String> expected = List.of("appender.rolling.type = Console", "appender.rolling.name = rolling");
+        List<String> expected = Arrays.asList("appender.rolling.type = Console", "appender.rolling.name = rolling");
 
         runTest(input, expected);
     }
@@ -98,7 +101,7 @@ public class TransformLog4jConfigTests extends TestCase {
      * Check that rolling file appenders have redundant properties removed.
      */
     public void testTransformRemovedRedundantProperties() {
-        List<String> input = List.of(
+        List<String> input = Arrays.asList(
             "appender.rolling.fileName = ${sys:es.logs.base_path}/${sys:es.logs.cluster_name}_server.json",
             "appender.rolling.layout.type = ECSJsonLayout",
             "appender.rolling.layout.type_name = server",
@@ -107,7 +110,7 @@ public class TransformLog4jConfigTests extends TestCase {
             "appender.rolling.strategy.type = DefaultRolloverStrategy"
         );
 
-        List<String> expected = List.of("appender.rolling.layout.type = ECSJsonLayout", "appender.rolling.layout.type_name = server");
+        List<String> expected = Arrays.asList("appender.rolling.layout.type = ECSJsonLayout", "appender.rolling.layout.type_name = server");
 
         runTest(input, expected);
     }
@@ -116,15 +119,38 @@ public class TransformLog4jConfigTests extends TestCase {
      * Check that rolling file appenders have redundant properties removed.
      */
     public void testTransformSkipsPropertiesWithLineBreaks() {
-        List<String> input = List.of(
+        List<String> input = Arrays.asList(
             "appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}\\",
             "    ${sys:es.logs.cluster_name}_server.json",
             "appender.rolling.layout.type = ECSJsonLayout"
         );
 
-        List<String> expected = List.of("appender.rolling.layout.type = ECSJsonLayout");
+        List<String> expected = singletonList("appender.rolling.layout.type = ECSJsonLayout");
 
         runTest(input, expected);
+    }
+
+    /**
+     * Check that as well as skipping old appenders, logger references to them are also skipped.
+     */
+    public void testTransformSkipsOldAppenderRefs() {
+        List<String> input = singletonList(
+            "logger.index_indexing_slowlog.appenderRef.index_indexing_slowlog_rolling_old.ref = index_indexing_slowlog_rolling_old"
+        );
+
+        runTest(input, emptyList());
+    }
+
+    /**
+     * Check that multiple blank lines are reduced to a single line.
+     */
+    public void testMultipleBlanksReducedToOne() {
+        List<String> input = Arrays.asList("status = error", "", "", "rootLogger.level = info");
+
+        List<String> expected = Arrays.asList("status = error", "", "rootLogger.level = info");
+
+        final List<String> transformed = TransformLog4jConfig.skipBlanks(input);
+        assertThat(transformed, equalTo(expected));
     }
 
     private void runTest(List<String> input, List<String> expected) {

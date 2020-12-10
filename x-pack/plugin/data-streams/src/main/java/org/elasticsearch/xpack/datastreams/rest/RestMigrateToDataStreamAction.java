@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.datastreams.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
 
 import java.io.IOException;
-import java.util.List;
 
 public class RestMigrateToDataStreamAction extends BaseRestHandler {
 
@@ -23,7 +23,7 @@ public class RestMigrateToDataStreamAction extends BaseRestHandler {
     }
 
     @Override
-    public List<Route> routes() {
+    public java.util.List<Route> routes() {
         return List.of(new Route(RestRequest.Method.POST, "/_data_stream/_migrate/{name}"));
     }
 

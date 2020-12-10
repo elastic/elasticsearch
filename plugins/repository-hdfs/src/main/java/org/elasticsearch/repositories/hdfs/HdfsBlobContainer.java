@@ -26,7 +26,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hdfs.DFSInputStream;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -127,7 +126,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 // should direct the datanode to start on the appropriate block, at the
                 // appropriate target position.
                 fsInput.seek(position);
-                return new HDFSPrivilegedInputSteam(Streams.limitStream(fsInput, length), securityContext);
+                return Streams.limitStream(new HDFSPrivilegedInputSteam(fsInput, securityContext), length);
             });
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + blobName + "] blob not found");

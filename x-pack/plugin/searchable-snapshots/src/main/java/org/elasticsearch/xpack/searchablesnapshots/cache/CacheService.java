@@ -40,12 +40,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.SortedSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -298,14 +293,8 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId the {@link SnapshotId}
      */
     public void markShardAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        boolean markedAsEvicted = false;
         final ShardEviction shardEviction = new ShardEviction(snapshotId, indexId, shardId);
-        try (Releasable ignored = shardsEvictionLock.acquire(shardEviction)) {
-            if (evictedShards.add(shardEviction)) {
-                markedAsEvicted = true;
-            }
-        }
-        if (markedAsEvicted) {
+        if (evictedShards.add(shardEviction)) {
             threadPool.generic().submit(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
@@ -325,7 +314,6 @@ public class CacheService extends AbstractLifecycleComponent {
                                     assert e instanceof IOException : e;
                                     logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getKey()), e);
                                 }
-
                             }
                         }
                     });

@@ -22,9 +22,12 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.plugins.Plugin;
@@ -35,7 +38,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -211,8 +213,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             .metadata(Metadata.builder()
                 .put(foo1, false)
                 .put(foo2, false)
-                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
-                    new ComposableIndexTemplate.DataStreamTemplate())))
+                .put("template", new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of(dataStreamName + "*"), null, null,
+                    null, null, null, new ComposableIndexTemplate.DataStreamTemplate())))
             .build();
 
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(cs, this::getMapperService,
@@ -253,8 +255,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             Metadata.builder()
                 .put(foo1, false)
                 .put(foo2, false)
-                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
-                    new ComposableIndexTemplate.DataStreamTemplate())))
+                .put("template", new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of(dataStreamName + "*"), null, null,
+                    null, null, null, new ComposableIndexTemplate.DataStreamTemplate())))
             .build();
 
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(cs, this::getMapperService,
@@ -299,8 +301,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             .metadata(Metadata.builder()
                 .put(foo1, false)
                 .put(foo2, false)
-                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
-                    new ComposableIndexTemplate.DataStreamTemplate())))
+                .put("template", new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of(dataStreamName + "*"), null, null,
+                    null, null, null, new ComposableIndexTemplate.DataStreamTemplate())))
             .build();
 
         IllegalArgumentException e =
@@ -313,9 +315,15 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         assertThat(e.getMessage(), containsString("alias [" + dataStreamName + "] must specify a write index"));
     }
 
+    private static MappingMetadata generateMapping(String timestampFieldName, String type) throws IOException {
+        String source = DataStreamTestHelper.generateMapping(timestampFieldName, type);
+        return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME,
+            XContentHelper.convertToMap(XContentFactory.xContent(source), source, true));
+    }
+
     private MapperService getMapperService(IndexMetadata im) {
         try {
-            return createMapperService("{\"_doc\": " + im.mapping().source().toString() + "}");
+            return createMapperService("_doc", "{\"_doc\": " + im.mapping().source().toString() + "}");
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
@@ -323,6 +331,6 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new MetadataIndexTemplateServiceTests.DummyPlugin());
+        return org.elasticsearch.common.collect.List.of(new MetadataIndexTemplateServiceTests.DummyPlugin());
     }
 }

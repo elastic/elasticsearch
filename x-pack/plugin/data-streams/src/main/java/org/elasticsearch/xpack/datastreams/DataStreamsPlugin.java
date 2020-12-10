@@ -87,9 +87,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         RestHandler deleteDsAction = new RestDeleteDataStreamAction();
         RestHandler getDsAction = new RestGetDataStreamsAction();
         RestHandler dsStatsAction = new RestDataStreamsStatsAction();
-        RestHandler migrateAction = new RestMigrateToDataStreamAction();
         RestHandler promoteAction = new RestPromoteDataStreamAction();
-        return Arrays.asList(createDsAction, deleteDsAction, getDsAction, dsStatsAction, migrateAction, promoteAction);
+        return Arrays.asList(createDsAction, deleteDsAction, getDsAction, dsStatsAction, promoteAction);
     }
 
     public Collection<Module> createGuiceModules() {

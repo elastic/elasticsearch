@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMigrateToDataStreamService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
@@ -50,7 +49,6 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
 
     @Override
     protected void masterOperation(
-        Task task,
         MigrateToDataStreamAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener

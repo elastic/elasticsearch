@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,14 +41,19 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
                 continue;
             }
             Set<String> indexFieldTypes = new HashSet<>();
+            Set<String> concreteFieldNames = new HashSet<>();
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {
-                Object runtimeObject = mappingMetadata.getSourceAsMap().get("runtime");
+                Map<String, Object> sourceAsMap = mappingMetadata.getSourceAsMap();
+                Object runtimeObject = sourceAsMap.get("runtime");
                 if (runtimeObject instanceof Map == false) {
                     continue;
                 }
-                Map<?, ?> runtimeMappings = (Map<?, ?>) runtimeObject;
-                for (Object runtimeFieldMappingObject : runtimeMappings.values()) {
+                @SuppressWarnings("unchecked")
+                Map<String, ?> runtimeMappings = (Map<String, ?>) runtimeObject;
+                findFieldNames(sourceAsMap, "", concreteFieldNames::add);
+                for (String runtimeFieldName : runtimeMappings.keySet()) {
+                    Object runtimeFieldMappingObject = runtimeMappings.get(runtimeFieldName);
                     if (runtimeFieldMappingObject instanceof Map == false) {
                         continue;
                     }
@@ -61,6 +67,9 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
                     stats.count++;
                     if (indexFieldTypes.add(type)) {
                         stats.indexCount++;
+                    }
+                    if (concreteFieldNames.contains(runtimeFieldName)) {
+                        stats.shadowedCount++;
                     }
                     Object scriptObject = runtimeFieldMapping.get("script");
                     if (scriptObject == null) {
@@ -87,6 +96,21 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
         List<RuntimeFieldStats> runtimeFieldStats = new ArrayList<>(fieldTypes.values());
         runtimeFieldStats.sort(Comparator.comparing(RuntimeFieldStats::type));
         return new RuntimeFieldsFeatureSetUsage(Collections.unmodifiableList(runtimeFieldStats));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void findFieldNames(Map<String, Object> mappings, String path, Consumer<String> fieldNameConsumer) {
+        Object o = mappings.get("properties");
+        if (o instanceof Map == false) {
+            return;
+        }
+        Map<String, Object> fields = (Map<String, Object>) o;
+        for (String fieldName : fields.keySet()) {
+            fieldNameConsumer.accept(path + fieldName);
+            if (fields.get(fieldName) instanceof Map) {
+                findFieldNames((Map<String, Object>) fields.get(fieldName), path + fieldName + ".", fieldNameConsumer);
+            }
+        }
     }
 
     private final List<RuntimeFieldStats> stats;
@@ -159,6 +183,7 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
         private int indexCount = 0;
         private final Set<String> scriptLangs;
         private long scriptLessCount = 0;
+        private long shadowedCount = 0;
         private long maxLines = 0;
         private long totalLines = 0;
         private long maxChars = 0;
@@ -179,6 +204,7 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             this.indexCount = in.readInt();
             this.scriptLangs = in.readSet(StreamInput::readString);
             this.scriptLessCount = in.readLong();
+            this.shadowedCount = in.readLong();
             this.maxLines = in.readLong();
             this.totalLines = in.readLong();
             this.maxChars = in.readLong();
@@ -200,6 +226,7 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeInt(indexCount);
             out.writeCollection(scriptLangs, StreamOutput::writeString);
             out.writeLong(scriptLessCount);
+            out.writeLong(shadowedCount);
             out.writeLong(maxLines);
             out.writeLong(totalLines);
             out.writeLong(maxChars);
@@ -217,6 +244,7 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field("count", count);
             builder.field("index_count", indexCount);
             builder.field("scriptless_count", scriptLessCount);
+            builder.field("shadowed_count", shadowedCount);
             builder.array("lang", scriptLangs.toArray(new String[0]));
             builder.field("lines_max", maxLines);
             builder.field("lines_total", totalLines);
@@ -253,6 +281,7 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
             return count == that.count &&
                 indexCount == that.indexCount &&
                 scriptLessCount == that.scriptLessCount &&
+                shadowedCount == that.shadowedCount &&
                 maxLines == that.maxLines &&
                 totalLines == that.totalLines &&
                 maxChars == that.maxChars &&
@@ -267,7 +296,8 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, count, indexCount, scriptLangs, scriptLessCount, maxLines, totalLines, maxChars, totalChars,
+            return Objects.hash(type, count, indexCount, scriptLangs, scriptLessCount, shadowedCount,
+                maxLines, totalLines, maxChars, totalChars,
                 maxSourceUsages, totalSourceUsages, maxDocUsages, totalDocUsages);
         }
     }

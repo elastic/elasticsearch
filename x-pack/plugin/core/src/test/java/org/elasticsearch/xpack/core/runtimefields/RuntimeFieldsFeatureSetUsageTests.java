@@ -42,7 +42,7 @@ public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTe
                 "    \"keyword2\": {" +
                 "      \"type\": \"keyword\"" +
                 "    }," +
-                "    \"keyword3\": {" +
+                "    \"object.keyword3\": {" +
                 "      \"type\": \"keyword\"," +
                 "      \"script\": " + Strings.toString(script2) +
                 "    }," +
@@ -53,6 +53,16 @@ public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTe
                 "    \"long2\": {" +
                 "      \"type\": \"long\"," +
                 "      \"script\": " + Strings.toString(script4) +
+                "    }" +
+                "  }," +
+                "  \"properties\":{" +
+                "    \"object\":{" +
+                "      \"type\":\"object\"," +
+                "      \"properties\":{" +
+                "         \"keyword3\":{" +
+                "           \"type\": \"keyword\"" +
+                "         }" +
+                "      }" +
                 "    }" +
                 "  }" +
                 "}")
@@ -68,6 +78,7 @@ public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTe
             "      \"count\" : 6,\n" +
             "      \"index_count\" : 2,\n" +
             "      \"scriptless_count\" : 2,\n" +
+            "      \"shadowed_count\" : 2,\n" +
             "      \"lang\" : [\n" +
             "        \"painless\"\n" +
             "      ],\n" +
@@ -85,6 +96,7 @@ public class RuntimeFieldsFeatureSetUsageTests extends AbstractWireSerializingTe
             "      \"count\" : 4,\n" +
             "      \"index_count\" : 2,\n" +
             "      \"scriptless_count\" : 0,\n" +
+            "      \"shadowed_count\" : 0,\n" +
             "      \"lang\" : [\n" +
             "        \"painless\"\n" +
             "      ],\n" +

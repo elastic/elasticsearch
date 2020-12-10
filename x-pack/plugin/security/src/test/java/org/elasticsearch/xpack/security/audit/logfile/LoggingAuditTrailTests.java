@@ -826,7 +826,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             putRoleMappingAuditEventStringBuilder.append("null");
         }
         if (putRoleMappingRequest.getRoles() != null && false == putRoleMappingRequest.getRoles().isEmpty()) {
-            putRoleMappingAuditEventStringBuilder.append(",\"role_names\":[");
+            putRoleMappingAuditEventStringBuilder.append(",\"roles\":[");
             for (String roleName : putRoleMappingRequest.getRoles()) {
                 putRoleMappingAuditEventStringBuilder.append("\"").append(roleName).append("\",");
             }
@@ -848,9 +848,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             putRoleMappingAuditEventStringBuilder.append("]");
         }
         if (hasRules) {
-            putRoleMappingAuditEventStringBuilder.append(",\"rule\":{\"mock\":\"A mock role mapper expression\"}");
+            putRoleMappingAuditEventStringBuilder.append(",\"rules\":{\"mock\":\"A mock role mapper expression\"}");
         } else {
-            putRoleMappingAuditEventStringBuilder.append(",\"rule\":null");
+            putRoleMappingAuditEventStringBuilder.append(",\"rules\":null");
         }
         putRoleMappingAuditEventStringBuilder.append(",\"enabled\":").append(putRoleMappingRequest.isEnabled());
         if (hasMetadata) {
@@ -936,7 +936,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         putUserAuditEventStringBuilder.append("\"" + putUserRequest.username() + "\"");
         putUserAuditEventStringBuilder.append(",\"enabled\":");
         putUserAuditEventStringBuilder.append(putUserRequest.enabled());
-        putUserAuditEventStringBuilder.append(",\"role_names\":");
+        putUserAuditEventStringBuilder.append(",\"roles\":");
         if (putUserRequest.roles() == null) {
             putUserAuditEventStringBuilder.append("null");
         } else if (putUserRequest.roles().length == 0) {

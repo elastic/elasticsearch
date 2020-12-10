@@ -846,7 +846,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .startObject("user")
                     .field("name", putUserRequest.username())
                     .field("enabled", putUserRequest.enabled())
-                    .array("role_names", putUserRequest.roles());
+                    .array("roles", putUserRequest.roles());
                     if (putUserRequest.fullName() != null) {
                         builder.field("full_name", putUserRequest.fullName());
                     }
@@ -905,14 +905,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .startObject("role_mapping")
                     .field("name", putRoleMappingRequest.getName());
                     if (putRoleMappingRequest.getRoles() != null && false == putRoleMappingRequest.getRoles().isEmpty()) {
-                        builder.field("role_names", putRoleMappingRequest.getRoles());
+                        builder.field("roles", putRoleMappingRequest.getRoles());
                     }
                     if (putRoleMappingRequest.getRoleTemplates() != null && false == putRoleMappingRequest.getRoleTemplates().isEmpty()) {
                         // the toXContent method of the {@code TemplateRoleName} does a good job
                         builder.field("role_templates", putRoleMappingRequest.getRoleTemplates());
                     }
                     // the toXContent methods of the {@code RoleMapperExpression} instances do a good job
-                    builder.field("rule", putRoleMappingRequest.getRules())
+                    builder.field("rules", putRoleMappingRequest.getRules())
                     .field("enabled", putRoleMappingRequest.isEnabled());
                     if (putRoleMappingRequest.getMetadata() != null && false == putRoleMappingRequest.getMetadata().isEmpty()) {
                         builder.field("metadata", putRoleMappingRequest.getMetadata());

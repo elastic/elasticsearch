@@ -110,8 +110,13 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testGetAssignment_GivenJobThatRequiresMigration() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
+            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -125,8 +130,13 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     public void testGetAssignment_GivenUnavailableIndicesWithLazyNode() {
         Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 1).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
+            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -150,8 +160,13 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     public void testGetAssignment_GivenLazyJobAndNoGlobalLazyNodes() {
         Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 0).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
+            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 

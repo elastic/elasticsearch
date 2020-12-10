@@ -72,12 +72,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     private final NodeLoadDetector nodeLoadDetector;
     private final MlMemoryTracker mlMemoryTracker;
     private final Supplier<Long> timeSupplier;
-    private final boolean useAuto;
 
     private volatile boolean isMaster;
     private volatile boolean running;
     private volatile int maxMachineMemoryPercent;
     private volatile int maxOpenJobs;
+    private volatile boolean useAuto;
     private volatile long lastTimeToScale;
     private volatile long scaleDownDetected;
 
@@ -99,6 +99,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
             this::setMaxMachineMemoryPercent);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
         clusterService.addLocalNodeMasterListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -204,6 +205,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
     void setMaxOpenJobs(int maxOpenJobs) {
         this.maxOpenJobs = maxOpenJobs;
+    }
+
+    void setUseAuto(boolean useAuto) {
+        this.useAuto = useAuto;
     }
 
     @Override

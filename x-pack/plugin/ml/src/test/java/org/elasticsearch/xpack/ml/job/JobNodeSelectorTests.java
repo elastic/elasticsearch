@@ -49,6 +49,8 @@ import static org.mockito.Mockito.when;
 // TODO: in 8.0.0 remove all instances of MAX_OPEN_JOBS_NODE_ATTR from this file
 public class JobNodeSelectorTests extends ESTestCase {
 
+    // To simplify the logic in this class all jobs have the same memory requirement
+    private static final long MAX_JOB_BYTES = ByteSizeValue.ofGb(1).getBytes();
     private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = ByteSizeValue.ofMb(10);
 
     private MlMemoryTracker memoryTracker;
@@ -122,6 +124,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
             2,
             30,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertEquals("", result.getExplanation());
@@ -147,6 +150,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
             2,
             maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull(result.getExecutorNode());
@@ -174,6 +178,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
             2,
             maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull(result.getExecutorNode());
@@ -206,6 +211,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
             2,
             maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull(result.getExecutorNode());
@@ -233,6 +239,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
             2,
             maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNotNull(result.getExecutorNode());
@@ -258,6 +265,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
             2,
             maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull(result.getExecutorNode());
@@ -293,6 +301,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             maxRunningJobsPerNode,
             2,
             maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull(result.getExecutorNode());
@@ -323,6 +332,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             maxRunningJobsPerNode,
             2,
             maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull(result.getExecutorNode());
@@ -357,6 +367,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             20,
             2,
             30,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertTrue(result.getExplanation().contains("because this node isn't a ml node"));
@@ -400,6 +411,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             10,
             2,
             30,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertEquals("_node_id3", result.getExecutorNode());
@@ -419,6 +431,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         result = jobNodeSelector.selectNode(10,
             2,
             30,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
@@ -434,7 +447,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs = csBuilder.build();
         jobNodeSelector = new JobNodeSelector(cs, job7.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
             node -> nodeFilter(node, job7));
-        result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -448,7 +461,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         jobNodeSelector = new JobNodeSelector(cs, job7.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
 
             node -> nodeFilter(node, job7));
-        result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because null state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -494,6 +507,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
             2,
             30,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertEquals("_node_id1", result.getExecutorNode());
@@ -509,7 +523,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         jobNodeSelector = new JobNodeSelector(cs, job8.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
 
             node -> nodeFilter(node, job8));
-        result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -547,6 +561,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
             2,
             30,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
@@ -583,6 +598,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
             2,
             30,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertThat(result.getExplanation(), containsString(
@@ -617,6 +633,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
             2,
             30,
+            MAX_JOB_BYTES,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNotNull(result.getExecutorNode());
@@ -671,7 +688,6 @@ public class JobNodeSelectorTests extends ESTestCase {
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
-        nodeAttr.put(MachineLearning.MAX_NODE_SIZE_NODE_ATTR, Long.toString(10L));
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, maxRunningJobsPerNode);
 
@@ -684,6 +700,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
             2,
             maxMachineMemoryPercent,
+            10L,
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNull(result.getExecutorNode());

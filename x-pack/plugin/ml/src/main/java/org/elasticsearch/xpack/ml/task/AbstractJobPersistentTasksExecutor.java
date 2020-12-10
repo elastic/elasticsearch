@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -27,6 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
@@ -59,7 +61,6 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return unavailableIndices;
     }
 
-    protected final boolean useAutoMemoryPercentage;
 
     protected final MlMemoryTracker memoryTracker;
     protected final IndexNameExpressionResolver expressionResolver;
@@ -67,6 +68,8 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
     protected volatile int maxConcurrentJobAllocations;
     protected volatile int maxMachineMemoryPercent;
     protected volatile int maxLazyMLNodes;
+    protected volatile boolean useAutoMemoryPercentage;
+    protected volatile long maxNodeMemory;
     protected volatile int maxOpenJobs;
 
     protected AbstractJobPersistentTasksExecutor(String taskName,
@@ -83,12 +86,15 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.useAutoMemoryPercentage = USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.maxNodeMemory = MAX_ML_NODE_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAutoMemoryPercentage);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_ML_NODE_SIZE, this::setMaxNodeSize);
     }
 
     protected abstract String[] indicesOfInterest(Params params);
@@ -131,6 +137,14 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
 
     void setMaxOpenJobs(int maxOpenJobs) {
         this.maxOpenJobs = maxOpenJobs;
+    }
+
+    void setUseAutoMemoryPercentage(boolean useAutoMemoryPercentage) {
+        this.useAutoMemoryPercentage = useAutoMemoryPercentage;
+    }
+
+    void setMaxNodeSize(ByteSizeValue maxNodeSize) {
+        this.maxNodeMemory = maxNodeSize.getBytes();
     }
 
     public Optional<PersistentTasksCustomMetadata.Assignment> checkRequiredIndices(String jobId,

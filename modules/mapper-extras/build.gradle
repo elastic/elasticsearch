@@ -19,8 +19,6 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
-import org.elasticsearch.gradle.info.BuildParams
-
 esplugin {
   description 'Adds advanced field mappers'
   classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
@@ -30,9 +28,4 @@ restResources {
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get'
   }
-}
-if (BuildParams.inFipsJvm){
-  // The cluster fails to form with a trial license and we can't test FIPS 140 mode with a basic license
-  tasks.named("yamlRestTest").configure{enabled = false }
-  tasks.named("javaRestTest").configure{enabled = false }
 }

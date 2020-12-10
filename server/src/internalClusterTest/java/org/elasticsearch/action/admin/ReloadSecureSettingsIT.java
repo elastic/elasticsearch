@@ -57,6 +57,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void disableInFips() {
+        // Reload secure settings with a password protected keystore is tested in ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT
         assumeFalse("Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload" +
             "settings api call, require TLS to be configured for the transport layer", inFipsJvm());
     }

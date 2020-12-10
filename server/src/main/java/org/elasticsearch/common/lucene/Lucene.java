@@ -809,6 +809,9 @@ public class Lucene {
         }
     }
 
+    /**
+     * Returns a base64 encoded string of the commit id of the given {@link SegmentInfos}
+     */
     public static String getCommitId(SegmentInfos segmentInfos) {
         return Base64.getEncoder().encodeToString(segmentInfos.getId());
     }

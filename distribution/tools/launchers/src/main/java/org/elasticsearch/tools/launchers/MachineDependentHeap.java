@@ -63,8 +63,11 @@ public final class MachineDependentHeap {
      * @return final heap options, or an empty collection if user provided heap options are to be used
      * @throws IOException if unable to load elasticsearch.yml
      */
-    public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions) throws IOException {
-        if (userDefinedJvmOptions.stream().anyMatch(s -> s.startsWith("-Xms") || s.startsWith("-Xmx"))) {
+    public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions)
+            throws IOException, InterruptedException {
+        // TODO: this could be more efficient, to only parse final options once
+        final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
+        if (JvmOption.isMaxHeapSpecified(finalJvmOptions) || JvmOption.isMinHeapSpecified(finalJvmOptions)) {
             // User has explicitly set memory settings so we use those
             return Collections.emptyList();
         }

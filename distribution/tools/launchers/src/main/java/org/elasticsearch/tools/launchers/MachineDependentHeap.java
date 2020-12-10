@@ -114,11 +114,9 @@ public final class MachineDependentHeap {
             Map<String, Object> root;
             try {
                 root = yaml.load(config);
-            } catch (ClassCastException ex) {
+            } catch (YAMLException|ClassCastException ex) {
                 // Strangely formatted config, so just return defaults and let startup settings validation catch the problem
                 return MachineNodeRole.UNKNOWN;
-            } catch (YAMLException ex) {
-                throw new IllegalStateException("Unable to parse elasticsearch.yml:", ex);
             }
 
             if (root != null) {
@@ -134,15 +132,15 @@ public final class MachineDependentHeap {
                             roles = (List<String>) map.get("node.roles");
                         }
                     } catch (ClassCastException ex) {
-                        throw new IllegalStateException("Unable to parse elasticsearch.yml. Expected 'node.roles' to be a list.");
+                        return MachineNodeRole.UNKNOWN;
                     }
 
                     if (roles == null || roles.isEmpty()) {
                         // If roles are missing or empty (coordinating node) assume defaults and consider this a data node
                         return MachineNodeRole.DATA;
-                    } else if (containsOnly(roles, "master", "voting_only")) {
+                    } else if (containsOnly(roles, "master")) {
                         return MachineNodeRole.MASTER_ONLY;
-                    } else if (containsOnly(roles, "ml", "voting_only")) {
+                    } else if (containsOnly(roles, "ml")) {
                         return MachineNodeRole.ML_ONLY;
                     } else {
                         return MachineNodeRole.DATA;

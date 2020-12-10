@@ -343,6 +343,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
             // for now we only look at data-streams. We might want to also detect alias based time-based indices.
             DataStreamMetadata dataStreamMetadata = state.metadata().custom(DataStreamMetadata.TYPE);
+            if (dataStreamMetadata == null) {
+                return this;
+            }
             List<SingleForecast> singleForecasts = dataStreamMetadata.dataStreams()
                 .keySet()
                 .stream()

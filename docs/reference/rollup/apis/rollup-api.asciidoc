@@ -43,7 +43,7 @@ POST /my-index-000001/_rollup/my-rollup-index
 [[rollup-api-request]]
 ==== {api-request-title}
 
-`PUT /<index>/_rollup`
+`PUT /<index>/_rollup/<rollup_index>`
 
 [[rollup-api-prereqs]]
 ==== {api-prereq-title}
@@ -60,19 +60,19 @@ Index to roll up. Cannot be a <<data-streams,data stream>> or
 <<indices-aliases,index alias>>. Does not support <<multi-index,multi-target
 syntax>> or wildcards (`*`).
 
-`rollup_index`::
+`<rollup_index>`::
 (Required, string)
 New index that stores the rollup results. Cannot be an existing index,
 a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
-
-[role="child_attributes"]
-[[rollup-api-request-body]]
-==== {api-request-body-title}
-
++
 The request creates this index with
 <<index-modules-blocks,`index.blocks.write`>> set to `true`. If the original
 `<index>` is a backing index for a data stream, this index is a backing index
 for the same stream.
+
+[role="child_attributes"]
+[[rollup-api-request-body]]
+==== {api-request-body-title}
 
 `groups`::
 (Required, object)

@@ -22,23 +22,20 @@ setup:
   - do:
       index:
         index: test
+        refresh: true
         body:
-          id: 1
           "title" : "The quick brown fox is brown"
           "description" : "The quick pink panther is pink"
 
   - do:
       index:
         index: test
+        refresh: true
         body:
-          id: 2
           "title" : "The quick blue fox is blue"
           "nested":
             - "title": "purple octopus"
             - "title": "purple fish"
-
-  - do:
-      indices.refresh: {}
 
 ---
 "Highlight query":
@@ -75,7 +72,6 @@ setup:
           query:
             match:
               title: fox
-          sort: ["id"]
           highlight:
             type: fvh
             fields:

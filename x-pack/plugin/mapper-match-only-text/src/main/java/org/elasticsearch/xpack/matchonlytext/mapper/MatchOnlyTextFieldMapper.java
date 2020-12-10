@@ -17,7 +17,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -287,16 +286,4 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return (MatchOnlyTextFieldType) super.fieldType();
     }
 
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        // this is a pain, but we have to do this to maintain BWC
-        builder.field("type", contentType());
-        this.builder.store.toXContent(builder, includeDefaults);
-        this.multiFields.toXContent(builder, params);
-        this.copyTo.toXContent(builder, params);
-        this.builder.meta.toXContent(builder, includeDefaults);
-        this.builder.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
-        this.builder.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
-        this.builder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
-    }
 }

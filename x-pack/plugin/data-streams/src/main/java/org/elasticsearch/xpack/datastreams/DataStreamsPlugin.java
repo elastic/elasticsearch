@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.datastreams.action.DeleteDataStreamTransportActio
 import org.elasticsearch.xpack.datastreams.action.GetDataStreamsTransportAction;
 import org.elasticsearch.xpack.datastreams.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.xpack.datastreams.rest.RestPromoteDataStreamAction;
+import org.elasticsearch.xpack.datastreams.rest.RestMigrateToDataStreamAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -87,8 +88,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         RestHandler deleteDsAction = new RestDeleteDataStreamAction();
         RestHandler getDsAction = new RestGetDataStreamsAction();
         RestHandler dsStatsAction = new RestDataStreamsStatsAction();
+        RestHandler migrateAction = new RestMigrateToDataStreamAction();
         RestHandler promoteAction = new RestPromoteDataStreamAction();
-        return Arrays.asList(createDsAction, deleteDsAction, getDsAction, dsStatsAction, promoteAction);
+        return Arrays.asList(createDsAction, deleteDsAction, getDsAction, dsStatsAction, migrateAction, promoteAction);
     }
 
     public Collection<Module> createGuiceModules() {

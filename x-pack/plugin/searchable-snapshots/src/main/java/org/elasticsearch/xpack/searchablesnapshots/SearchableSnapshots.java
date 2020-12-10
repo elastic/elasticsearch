@@ -277,6 +277,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         });
     }
 
+    static final Comparator<String> SEGMENT_FILENAME_COMPARATOR = Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName);
+
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
@@ -292,7 +294,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                             final Directory directory = engineConfig.getStore().directory();
                             final String oldestSegmentsFile = Arrays.stream(directory.listAll())
                                 .filter(s -> s.startsWith(IndexFileNames.SEGMENTS + "_"))
-                                .min(Comparator.naturalOrder())
+                                .min(SEGMENT_FILENAME_COMPARATOR)
                                 .orElseThrow(() -> new IOException("segments_N file not found"));
                             final SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
                             segmentInfos.updateGeneration(SegmentInfos.readCommit(directory, oldestSegmentsFile));

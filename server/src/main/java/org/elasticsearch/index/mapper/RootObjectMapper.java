@@ -42,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -384,16 +385,19 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     private static void validateDynamicTemplate(Mapper.TypeParser.ParserContext parserContext,
-                                                DynamicTemplate dynamicTemplate) {
+                                                DynamicTemplate template) {
 
-        if (containsSnippet(dynamicTemplate.getMapping(), "{name}")) {
+        if (containsSnippet(template.getMapping(), "{name}")) {
             // Can't validate template, because field names can't be guessed up front.
             return;
         }
 
         final XContentFieldType[] types;
-        if (dynamicTemplate.getXContentFieldType() != null) {
-            types = new XContentFieldType[]{dynamicTemplate.getXContentFieldType()};
+        if (template.getXContentFieldType() != null) {
+            types = new XContentFieldType[]{template.getXContentFieldType()};
+        } else if (template.isRuntimeMapping()) {
+            types = Arrays.stream(XContentFieldType.values()).filter(XContentFieldType::supportsRuntimeField)
+                .toArray(XContentFieldType[]::new);
         } else {
             types = XContentFieldType.values();
         }
@@ -401,28 +405,28 @@ public class RootObjectMapper extends ObjectMapper {
         Exception lastError = null;
         boolean dynamicTemplateInvalid = true;
 
-        for (XContentFieldType contentFieldType : types) {
-            String defaultDynamicType = contentFieldType.defaultMappingType();
-            String mappingType = dynamicTemplate.mappingType(defaultDynamicType);
-            Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
-            if (typeParser == null) {
-                lastError = new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
-                continue;
-            }
-
-            String templateName = "__dynamic__" + dynamicTemplate.name();
-            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
+        for (XContentFieldType fieldType : types) {
+            String dynamicType = template.isRuntimeMapping() ? fieldType.defaultRuntimeMappingType() : fieldType.defaultMappingType();
+            String mappingType = template.mappingType(dynamicType);
             try {
-                Mapper.Builder dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
-                fieldTypeConfig.remove("type");
-                if (fieldTypeConfig.isEmpty()) {
-                    dummyBuilder.build(new ContentPath(1));
-                    dynamicTemplateInvalid = false;
-                    break;
+                if (template.isRuntimeMapping()) {
+                    RuntimeFieldType.Parser parser = parserContext.runtimeFieldTypeParser(mappingType);
+                    if (parser == null) {
+                        lastError = new IllegalArgumentException("No runtime field found for type [" + mappingType + "]");
+                        continue;
+                    }
+                    validate(template, dynamicType, (name, mapping) -> parser.parse(name, mapping, parserContext));
                 } else {
-                    lastError = new IllegalArgumentException("Unused mapping attributes [" + fieldTypeConfig + "]");
+                    Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+                    if (typeParser == null) {
+                        lastError = new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
+                        continue;
+                    }
+                    validate(template, dynamicType,
+                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(new ContentPath(1)));
                 }
-            } catch (Exception e) {
+                dynamicTemplateInvalid = false;
+            } catch(Exception e) {
                 lastError = e;
             }
         }
@@ -430,8 +434,8 @@ public class RootObjectMapper extends ObjectMapper {
         final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
         if (dynamicTemplateInvalid) {
             String format = "dynamic template [%s] has invalid content [%s], " +
-                "attempted to validate it with the following match_mapping_type: [%s]";
-            String message = String.format(Locale.ROOT, format, dynamicTemplate.getName(), Strings.toString(dynamicTemplate),
+                "attempted to validate it with the following match_mapping_type: %s";
+            String message = String.format(Locale.ROOT, format, template.getName(), Strings.toString(template),
                 Arrays.toString(types));
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
@@ -447,27 +451,27 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
+    private static void validate(DynamicTemplate template,
+                                 String dynamicType,
+                                 BiConsumer<String, Map<String, Object>> mappingConsumer) {
+        String templateName = "__dynamic__" + template.name();
+        Map<String, Object> fieldTypeConfig = template.mappingForName(templateName, dynamicType);
+        mappingConsumer.accept(templateName, fieldTypeConfig);
+        fieldTypeConfig.remove("type");
+        if (fieldTypeConfig.isEmpty() == false) {
+            throw new IllegalArgumentException("Unknown mapping attributes [" + fieldTypeConfig + "]");
+        }
+    }
+
     private static boolean containsSnippet(Map<?, ?> map, String snippet) {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             String key = entry.getKey().toString();
             if (key.contains(snippet)) {
                 return true;
             }
-
             Object value = entry.getValue();
-            if (value instanceof Map) {
-                if (containsSnippet((Map<?, ?>) value, snippet)) {
-                    return true;
-                }
-            } else if (value instanceof List) {
-                if (containsSnippet((List<?>) value, snippet)) {
-                    return true;
-                }
-            } else if (value instanceof String) {
-                String valueString = (String) value;
-                if (valueString.contains(snippet)) {
-                    return true;
-                }
+            if (containsSnippet(value, snippet)) {
+                return true;
             }
         }
 
@@ -476,20 +480,20 @@ public class RootObjectMapper extends ObjectMapper {
 
     private static boolean containsSnippet(List<?> list, String snippet) {
         for (Object value : list) {
-            if (value instanceof Map) {
-                if (containsSnippet((Map<?, ?>) value, snippet)) {
-                    return true;
-                }
-            } else if (value instanceof List) {
-                if (containsSnippet((List<?>) value, snippet)) {
-                    return true;
-                }
-            } else if (value instanceof String) {
-                String valueString = (String) value;
-                if (valueString.contains(snippet)) {
-                    return true;
-                }
+            if (containsSnippet(value, snippet)) {
+                return true;
             }
+        }
+        return false;
+    }
+
+    private static boolean containsSnippet(Object value, String snippet) {
+        if (value instanceof Map) {
+            return containsSnippet((Map<?, ?>) value, snippet);
+        } else if (value instanceof List) {
+            return containsSnippet((List<?>) value, snippet);
+        } else if (value instanceof String) {
+            return ((String) value).contains(snippet);
         }
         return false;
     }

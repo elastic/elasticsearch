@@ -45,10 +45,12 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
 
     private final boolean missing;
     private final boolean datesAsEpochMillis;
+    private final String timestampField;
 
     public DateHistogramGroupByIT() {
         missing = randomBoolean();
         datesAsEpochMillis = randomBoolean();
+        timestampField = randomFrom(TIMESTAMP_FIELDS);
     }
 
     @Override
@@ -66,7 +68,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         pivotConfigBuilder.setGroups(
             new GroupConfig.Builder().groupBy(
                 "second",
-                new DateHistogramGroupSource.Builder().setField("timestamp")
+                new DateHistogramGroupSource.Builder().setField(timestampField)
                     .setInterval(new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.SECOND))
                     .setMissingBucket(missing)
                     .build()
@@ -90,7 +92,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
-        DateHistogramAggregationBuilder bySecond = new DateHistogramAggregationBuilder("second").field("timestamp")
+        DateHistogramAggregationBuilder bySecond = new DateHistogramAggregationBuilder("second").field(timestampField)
             .fixedInterval(DateHistogramInterval.SECOND)
             .order(BucketOrder.key(true));
         if (missing) {

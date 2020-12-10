@@ -45,10 +45,14 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
 
     private final boolean addGroupByTerms;
     private final boolean datesAsEpochMillis;
+    private final String metricTimestampField;
+    private final String termsField;
 
     public DateHistogramGroupByOtherTimeFieldIT() {
         addGroupByTerms = randomBoolean();
         datesAsEpochMillis = randomBoolean();
+        metricTimestampField = randomFrom(METRIC_TIMESTAMP_FIELDS);
+        termsField = randomFrom(TERMS_FIELDS);
     }
 
     @Override
@@ -64,12 +68,12 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         PivotConfig.Builder pivotConfigBuilder = new PivotConfig.Builder();
         GroupConfig.Builder groups = new GroupConfig.Builder().groupBy(
             "second",
-            new DateHistogramGroupSource.Builder().setField("metric-timestamp")
+            new DateHistogramGroupSource.Builder().setField(metricTimestampField)
                 .setInterval(new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.SECOND))
                 .build()
         );
         if (addGroupByTerms) {
-            groups.groupBy("event", new TermsGroupSource.Builder().setField("event").build());
+            groups.groupBy("event", new TermsGroupSource.Builder().setField(termsField).build());
         }
         pivotConfigBuilder.setGroups(groups.build());
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
@@ -90,12 +94,12 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
-        DateHistogramAggregationBuilder bySecond = new DateHistogramAggregationBuilder("second").field("metric-timestamp")
+        DateHistogramAggregationBuilder bySecond = new DateHistogramAggregationBuilder("second").field(metricTimestampField)
             .fixedInterval(DateHistogramInterval.SECOND)
             .order(BucketOrder.key(true));
 
         if (addGroupByTerms) {
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("event").size(1000).field("event").order(BucketOrder.key(true));
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("event").size(1000).field(termsField).order(BucketOrder.key(true));
             bySecond.subAggregation(terms);
         }
         sourceBuilderSource.aggregation(bySecond);

@@ -46,6 +46,12 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
     public static final String INGEST_PIPELINE = "transform-ingest";
     public static final String MAX_RUN_FIELD = "run.max";
     public static final String INGEST_RUN_FIELD = "run_ingest";
+    // mixture of fields to choose from, indexed and runtime
+    public static final Set<String> METRIC_FIELDS = Set.of("metric", "metric-rt-2x");
+    public static final Set<String> METRIC_TIMESTAMP_FIELDS = Set.of("metric-timestamp", "metric-timestamp-5m-earlier");
+    public static final Set<String> TERMS_FIELDS = Set.of("event", "event-upper");
+    public static final Set<String> TIMESTAMP_FIELDS = Set.of("timestamp", "timestamp-at-runtime");
+    public static final Set<String> OTHER_TIMESTAMP_FIELDS = Set.of("some-timestamp", "some-timestamp-10m-earlier");
     public static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
         .append(ISO_LOCAL_DATE)
         .appendLiteral('T')

@@ -130,6 +130,7 @@ public class SnapshotFiles {
 
     @Override
     public String toString() {
-        return "SnapshotFiles{" + indexFiles.toString() + "}";
+        return "SnapshotFiles{snapshot=[" + snapshot + "], shardStateIdentifier=[" + shardStateIdentifier + "], indexFiles=" + indexFiles
+                + "}";
     }
 }

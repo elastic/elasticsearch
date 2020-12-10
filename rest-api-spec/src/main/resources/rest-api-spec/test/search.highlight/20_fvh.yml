@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/66147"
   - do:
       indices.create:
         index: test

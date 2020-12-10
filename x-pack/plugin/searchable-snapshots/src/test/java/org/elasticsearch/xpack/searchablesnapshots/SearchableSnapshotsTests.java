@@ -29,8 +29,11 @@ public class SearchableSnapshotsTests extends ESTestCase {
         fileNames.sort(Comparator.comparing(Tuple::v2, SearchableSnapshots.SEGMENT_FILENAME_COMPARATOR));
         long previousGeneration = 0;
         for (Tuple<Long, String> fileName : fileNames) {
-            assertThat(fileNames + " should be sorted, found disorder at " + fileName,
-                    fileName.v1(), greaterThanOrEqualTo(previousGeneration));
+            assertThat(
+                fileNames + " should be sorted, found disorder at " + fileName,
+                fileName.v1(),
+                greaterThanOrEqualTo(previousGeneration)
+            );
             previousGeneration = fileName.v1();
         }
 

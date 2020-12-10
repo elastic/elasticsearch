@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/66147"
   - do:
       indices.create:
         index: test
@@ -22,23 +25,20 @@ setup:
   - do:
       index:
         index: test
+        refresh: true
         body:
-          id: 1
           "title" : "The quick brown fox is brown"
           "description" : "The quick pink panther is pink"
 
   - do:
       index:
         index: test
+        refresh: true
         body:
-          id: 2
           "title" : "The quick blue fox is blue"
           "nested":
             - "title": "purple octopus"
             - "title": "purple fish"
-
-  - do:
-      indices.refresh: {}
 
 ---
 "Highlight query":
@@ -66,8 +66,8 @@ setup:
 ---
 "Highlight multiple documents":
   - skip:
-      version: " - 7.99.99"
-      reason: Bug fix not yet backported
+      version: " - 7.10.1"
+      reason: Bug fixed in 7.10.2
   - do:
       search:
         rest_total_hits_as_int: true
@@ -75,7 +75,6 @@ setup:
           query:
             match:
               title: fox
-          sort: ["id"]
           highlight:
             type: fvh
             fields:
@@ -90,8 +89,8 @@ setup:
 ---
 "Highlight multiple nested documents":
   - skip:
-      version: " - 7.99.99"
-      reason: Bug fix not yet backported
+      version: " - 7.10.1"
+      reason: Bug fixed in 7.10.2
   - do:
       search:
         rest_total_hits_as_int: true

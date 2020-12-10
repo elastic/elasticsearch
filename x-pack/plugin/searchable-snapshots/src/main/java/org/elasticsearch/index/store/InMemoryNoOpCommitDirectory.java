@@ -17,6 +17,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 
@@ -75,6 +76,7 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         ensureMutable(name);
+        assert notOverwritingRealSegmentsFile(name) : name;
         return super.createOutput(name, context);
     }
 
@@ -82,6 +84,7 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     public void rename(String source, String dest) throws IOException {
         ensureMutable(source);
         ensureMutable(dest);
+        assert notOverwritingRealSegmentsFile(dest) : dest;
         super.rename(source, dest);
     }
 
@@ -121,6 +124,10 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
 
             throw new ImmutableDirectoryException("file [" + name + "] is not mutable");
         }
+    }
+
+    private boolean notOverwritingRealSegmentsFile(String name) throws IOException {
+        return name.startsWith("segments_") == false || Arrays.stream(realDirectory.listAll()).noneMatch(s -> s.equals(name));
     }
 
 }

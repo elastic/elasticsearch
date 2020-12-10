@@ -5,6 +5,10 @@
       "description":"Provides explanations for shard allocations in the cluster."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

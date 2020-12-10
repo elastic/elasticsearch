@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions-slack]]
-=== Slack Action
+=== {watcher} Slack Action
+++++
+<titleabbrev>Slack action</titleabbrev>
+++++
 
 Use the `slack` action to send messages to a https://slack.com/[Slack]
 team's channels or users. To send Slack messages, you need to 

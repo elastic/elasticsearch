@@ -3,7 +3,7 @@
   - skip:
       version: " - 7.5.99"
       reason: "synced flush is deprecated in 7.6"
-      features: "warnings"
+      features: "allowed_warnings"
   - do:
       indices.create:
         index: testing

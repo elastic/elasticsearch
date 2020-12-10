@@ -42,9 +42,13 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
@@ -104,6 +108,16 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis())
         );
 
+        final AtomicInteger reroutesTriggered = new AtomicInteger(0);
+        final Map<DiscoveryNode, Long> existingCacheSizes = Map.of(
+            node1,
+            randomLongBetween(0, shardSize),
+            node2,
+            randomLongBetween(0, shardSize),
+            node3,
+            randomLongBetween(0, shardSize)
+        );
+
         final Client client = new NoOpNodeClient(deterministicTaskQueue.getThreadPool()) {
 
             @SuppressWarnings("unchecked")
@@ -114,12 +128,21 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
                 ActionListener<Response> listener
             ) {
                 if (action == ClusterRerouteAction.INSTANCE) {
+                    reroutesTriggered.incrementAndGet();
                     listener.onResponse((Response) new ClusterRerouteResponse(true, state, new RoutingExplanations()));
                 } else if (action == TransportSearchableSnapshotCacheStoresAction.TYPE) {
                     listener.onResponse(
                         (Response) new TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata(
                             clusterName,
-                            List.of(),
+                            existingCacheSizes.entrySet()
+                                .stream()
+                                .map(
+                                    entry -> new TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata(
+                                        entry.getKey(),
+                                        entry.getValue()
+                                    )
+                                )
+                                .collect(Collectors.toList()),
                             List.of()
                         )
                     );
@@ -135,5 +158,8 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         while (iterator.hasNext()) {
             allocator.allocateUnassigned(iterator.next(), allocation, iterator);
         }
+
+        assertEquals(1, reroutesTriggered.get());
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
     }
 }

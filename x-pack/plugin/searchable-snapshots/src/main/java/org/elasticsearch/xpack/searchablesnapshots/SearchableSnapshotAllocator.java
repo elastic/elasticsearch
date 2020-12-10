@@ -110,8 +110,17 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
         final AllocateUnassignedDecision allocateUnassignedDecision = decideAllocation(allocation, shardRouting);
 
-        if (allocateUnassignedDecision.isDecisionTaken() && allocateUnassignedDecision.getAllocationDecision() != AllocationDecision.YES) {
-            unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
+        if (allocateUnassignedDecision.isDecisionTaken()) {
+            if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
+                unassignedAllocationHandler.initialize(
+                    allocateUnassignedDecision.getTargetNode().getId(),
+                    allocateUnassignedDecision.getAllocationId(),
+                    allocation.snapshotShardSizeInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                    allocation.changes()
+                );
+            } else {
+                unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
+            }
         }
     }
 

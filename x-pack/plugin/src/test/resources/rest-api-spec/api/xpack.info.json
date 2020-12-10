@@ -5,6 +5,9 @@
       "description":"Retrieves information about the installed X-Pack features."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

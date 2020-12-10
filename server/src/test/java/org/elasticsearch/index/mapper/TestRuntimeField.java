@@ -61,7 +61,7 @@ public class TestRuntimeField extends RuntimeFieldType {
         @Override
         public Map<String, Parser> getRuntimeFieldTypes() {
             return Map.of(
-                "string", (name, node, parserContext) -> new TestRuntimeField(name, "string"),
+                "keyword", (name, node, parserContext) -> new TestRuntimeField(name, "keyword"),
                 "double", (name, node, parserContext) -> new TestRuntimeField(name, "double"),
                 "long", (name, node, parserContext) -> new TestRuntimeField(name, "long"),
                 "boolean", (name, node, parserContext) -> new TestRuntimeField(name, "boolean"),
@@ -73,7 +73,7 @@ public class TestRuntimeField extends RuntimeFieldType {
             return new DynamicRuntimeFieldsBuilder() {
                 @Override
                 public RuntimeFieldType newDynamicStringField(String name) {
-                    return new TestRuntimeField(name, "string");
+                    return new TestRuntimeField(name, "keyword");
                 }
 
                 @Override

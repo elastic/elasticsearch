@@ -61,7 +61,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testParseWithRuntimeField() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "string")));
+        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "keyword")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
         //field defined as runtime field but not under properties: no dynamic updates, the field does not get indexed
         assertNull(doc.dynamicMappingsUpdate());
@@ -69,7 +69,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testParseWithRuntimeFieldArray() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "string")));
+        DocumentMapper mapper = createDocumentMapper(runtimeFieldMapping(b -> b.field("type", "keyword")));
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "value1", "value2")));
         //field defined as runtime field but not under properties: no dynamic updates, the field does not get indexed
         assertNull(doc.dynamicMappingsUpdate());
@@ -79,7 +79,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseWithShadowedField() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");
-        builder.startObject("field").field("type", "string").endObject();
+        builder.startObject("field").field("type", "keyword").endObject();
         builder.endObject();
         builder.startObject("properties");
         builder.startObject("field").field("type", "keyword").endObject();
@@ -95,7 +95,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseWithRuntimeFieldDottedNameDisabledObject() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");
-        builder.startObject("path1.path2.path3.field").field("type", "string").endObject();
+        builder.startObject("path1.path2.path3.field").field("type", "keyword").endObject();
         builder.endObject();
         builder.startObject("properties");
         builder.startObject("path1").field("type", "object").field("enabled", false).endObject();
@@ -113,7 +113,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseWithShadowedSubField() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");
-        builder.startObject("field.keyword").field("type", "string").endObject();
+        builder.startObject("field.keyword").field("type", "keyword").endObject();
         builder.endObject();
         builder.startObject("properties");
         builder.startObject("field").field("type", "text");
@@ -131,7 +131,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testParseWithShadowedMultiField() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
         builder.startObject("runtime");
-        builder.startObject("field").field("type", "string").endObject();
+        builder.startObject("field").field("type", "keyword").endObject();
         builder.endObject();
         builder.startObject("properties");
         builder.startObject("field").field("type", "text");
@@ -151,7 +151,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("dynamic", "true");
             b.startObject("runtime");
             {
-                b.startObject("object").field("type", "string").endObject();
+                b.startObject("object").field("type", "keyword").endObject();
             }
             b.endObject();
         }));
@@ -186,8 +186,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("dynamic", "true");
             b.startObject("runtime");
             {
-                b.startObject("location").field("type", "string").endObject();
-                b.startObject("country").field("type", "string").endObject();
+                b.startObject("location").field("type", "keyword").endObject();
+                b.startObject("country").field("type", "keyword").endObject();
             }
             b.endObject();
             b.startObject("properties");
@@ -526,7 +526,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
         assertNull(doc.rootDoc().getField("foo.bar.baz"));
         assertEquals("{\"_doc\":{\"dynamic\":\"false\"," +
-            "\"runtime\":{\"foo.bar.baz\":{\"type\":\"string\"},\"foo.baz\":{\"type\":\"string\"}}," +
+            "\"runtime\":{\"foo.bar.baz\":{\"type\":\"keyword\"},\"foo.baz\":{\"type\":\"keyword\"}}," +
             "\"properties\":{\"foo\":{\"dynamic\":\"runtime\",\"properties\":{\"bar\":{\"type\":\"object\"}}}}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
     }
@@ -793,7 +793,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("test1").value("test2").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
         RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
-        assertEquals("string", foo.typeName());
+        assertEquals("keyword", foo.typeName());
     }
 
     public void testDynamicRuntimeBooleanArray() throws Exception {

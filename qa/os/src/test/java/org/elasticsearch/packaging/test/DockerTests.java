@@ -38,9 +38,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
@@ -725,7 +727,7 @@ public class DockerTests extends PackagingTestCase {
             .collect(Collectors.toList());
 
         // This is roughly 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms376", "-Xmx376"));
+        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
     }
 
     /**

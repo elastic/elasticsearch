@@ -261,6 +261,10 @@ the indexer.
 be shared with other {rollup-jobs}. The data is stored so that it doesn't
 interfere with unrelated jobs.
 
+`timeout`::
+(Optional, <<time-units,time value>>)
+Time to wait for the request to complete. Defaults to `20s` (20 seconds).
+
 [[rollup-put-job-api-example]]
 ==== {api-example-title}
 

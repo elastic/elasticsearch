@@ -40,7 +40,6 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 
@@ -270,17 +269,12 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Invalidate cache entries with keys matching the given predicate
+     * Evicts the cache file associated with the specified cache key.
      *
-     * @param predicate the predicate to evaluate
+     * @param cacheKey the {@link CacheKey} whose associated {@link CacheFile} must be evicted from cache
      */
-    public void removeFromCache(final Predicate<CacheKey> predicate) {
-        for (CacheKey cacheKey : cache.keys()) {
-            if (predicate.test(cacheKey)) {
-                cache.invalidate(cacheKey);
-            }
-        }
-        cache.refresh();
+    public void removeFromCache(final CacheKey cacheKey) {
+        cache.invalidate(cacheKey);
     }
 
     void setCacheSyncInterval(TimeValue interval) {

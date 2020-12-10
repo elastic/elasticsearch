@@ -5,6 +5,9 @@
       "description":"Start the index lifecycle management (ILM) plugin."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

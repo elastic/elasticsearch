@@ -122,7 +122,9 @@ curl -X GET "localhost:9200/_cat/nodes?v&pretty"
 // NOTCONSOLE
 
 Log messages go to the console and are handled by the configured Docker logging driver.
-By default you can access logs with `docker logs`.
+By default you can access logs with `docker logs`. If you would prefer the {es}
+container to write logs to disk, set the `ES_LOG_STYLE` environment variable to `file`.
+This causes {es} to use the same logging configuration as other {es} distribution formats.
 
 To stop the cluster, run `docker-compose down`.
 The data in the Docker volumes is preserved and loaded

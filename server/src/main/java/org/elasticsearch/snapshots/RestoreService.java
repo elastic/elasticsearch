@@ -623,7 +623,7 @@ public class RestoreService implements ClusterStateApplier {
             .map(i -> metadata.get(renameIndex(i.getName(), request, true)).getIndex())
             .collect(Collectors.toList());
         return new DataStream(dataStreamName, dataStream.getTimeStampField(), updatedIndices, dataStream.getGeneration(),
-            dataStream.getMetadata(), dataStream.isHidden());
+            dataStream.getMetadata(), dataStream.isHidden(), dataStream.isReplicated());
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {

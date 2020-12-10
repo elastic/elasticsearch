@@ -3,8 +3,6 @@
 [[eql-ex-threat-detection]]
 == Example: Detect threats with EQL
 
-beta::[]
-
 This example tutorial shows how you can use EQL to detect security threats and
 other suspicious behavior. In the scenario, you're tasked with detecting
 https://attack.mitre.org/techniques/T1218/010/[regsvr32 misuse] in Windows event

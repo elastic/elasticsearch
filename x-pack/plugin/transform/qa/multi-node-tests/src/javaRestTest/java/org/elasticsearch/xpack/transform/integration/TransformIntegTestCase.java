@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.Is.is;
@@ -266,34 +267,26 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         return new AggregationConfig(aggregations);
     }
 
-    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations)
-        throws Exception {
-        return createPivotConfig(groups, aggregations, null);
-    }
-
-    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations, Integer size)
-        throws Exception {
-        PivotConfig.Builder builder = PivotConfig.builder()
+    protected PivotConfig createPivotConfig(
+        Map<String, SingleGroupSource> groups,
+        AggregatorFactories.Builder aggregations
+    ) throws Exception {
+        return PivotConfig.builder()
             .setGroups(createGroupConfig(groups))
             .setAggregationConfig(createAggConfig(aggregations))
-            .setMaxPageSearchSize(size);
-        return builder.build();
-    }
-
-    protected TransformConfig createTransformConfig(
-        String id,
-        Map<String, SingleGroupSource> groups,
-        AggregatorFactories.Builder aggregations,
-        String destinationIndex,
-        String... sourceIndices
-    ) throws Exception {
-        return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), null, sourceIndices);
+            .build();
     }
 
     protected TransformConfig.Builder createTransformConfigBuilder(
         String id,
-        Map<String, SingleGroupSource> groups,
-        AggregatorFactories.Builder aggregations,
+        String destinationIndex,
+        String... sourceIndices
+    ) throws Exception {
+        return createTransformConfigBuilder(id, destinationIndex, QueryBuilders.matchAllQuery(), null, sourceIndices);
+    }
+
+    protected TransformConfig.Builder createTransformConfigBuilder(
+        String id,
         String destinationIndex,
         QueryBuilder queryBuilder,
         SettingsConfig.Builder settingsBuilder,
@@ -304,22 +297,8 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
             .setFrequency(TimeValue.timeValueSeconds(10))
-            .setPivotConfig(createPivotConfig(groups, aggregations))
             .setSettings(settingsBuilder != null ? settingsBuilder.build() : null)
             .setDescription("Test transform config id: " + id);
-    }
-
-    protected TransformConfig createTransformConfig(
-        String id,
-        Map<String, SingleGroupSource> groups,
-        AggregatorFactories.Builder aggregations,
-        String destinationIndex,
-        QueryBuilder queryBuilder,
-        SettingsConfig.Builder settingsBuilder,
-        String... sourceIndices
-    ) throws Exception {
-        return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, settingsBuilder, sourceIndices)
-            .build();
     }
 
     protected void bulkIndexDocs(BulkRequest request) throws Exception {
@@ -335,7 +314,12 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         }
     }
 
-    protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
+    protected void createReviewsIndex(String indexName,
+                                      int numDocs,
+                                      int numUsers,
+                                      Function<Integer, Integer> userIdProvider,
+                                      Function<Integer, String> dateStringProvider) throws Exception {
+        assert numUsers > 0;
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
 
             // create mapping
@@ -368,22 +352,22 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
             // create index
             BulkRequest bulk = new BulkRequest(indexName);
-            int day = 10;
             for (int i = 0; i < numDocs; i++) {
-                long user = i % 28;
-                int stars = (i + 20) % 5;
-                long business = (i + 100) % 50;
-                int hour = 10 + (i % 13);
-                int min = 10 + (i % 49);
-                int sec = 10 + (i % 49);
+                Integer user = userIdProvider.apply(i);
+                int stars = i % 5;
+                long business = i % 50;
+                String dateString = dateStringProvider.apply(i);
 
-                String date_string = "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
-
-                StringBuilder sourceBuilder = new StringBuilder();
-                sourceBuilder.append("{\"user_id\":\"")
-                    .append("user_")
-                    .append(user)
-                    .append("\",\"count\":")
+                StringBuilder sourceBuilder = new StringBuilder().append("{");
+                if (user != null) {
+                    sourceBuilder
+                        .append("\"user_id\":\"")
+                        .append("user_")
+                        .append(user)
+                        .append("\",");
+                }
+                sourceBuilder
+                    .append("\"count\":")
                     .append(i)
                     .append(",\"business_id\":\"")
                     .append("business_")
@@ -391,7 +375,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                     .append("\",\"stars\":")
                     .append(stars)
                     .append(",\"timestamp\":\"")
-                    .append(date_string)
+                    .append(dateString)
                     .append("\"}");
                 bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
@@ -399,7 +383,6 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                     BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                     assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
                     bulk = new BulkRequest(indexName);
-                    day = (day + 1) % 28;
                 }
             }
             BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);

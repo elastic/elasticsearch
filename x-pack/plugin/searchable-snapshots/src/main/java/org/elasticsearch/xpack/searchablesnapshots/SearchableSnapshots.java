@@ -291,6 +291,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
                     {
                         try {
+                            // We have to use a generation number that corresponds to a real segments_N file since we read this file from
+                            // the directory during the snapshotting process. The oldest segments_N file is the one in the snapshot
+                            // (recalling that we may perform some no-op commits which make newer segments_N files too). The good thing
+                            // about using the oldest segments_N file is that a restore will find that we already have this file "locally",
+                            // avoid overwriting the real one with the bogus one, and then use the real one for the rest of the recovery.
+
                             final Directory directory = engineConfig.getStore().directory();
                             final String oldestSegmentsFile = Arrays.stream(directory.listAll())
                                 .filter(s -> s.startsWith(IndexFileNames.SEGMENTS + "_"))

@@ -5,7 +5,8 @@
       "description":"Promotes a data stream from a replicated data stream managed by CCR to a regular data stream"
     },
     "stability":"stable",
-    "header":{
+    "visibility":"public",
+    "headers":{
       "accept": [ "application/json"]
     },
     "url":{

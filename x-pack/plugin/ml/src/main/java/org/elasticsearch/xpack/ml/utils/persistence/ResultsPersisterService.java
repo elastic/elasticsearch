@@ -23,9 +23,12 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -82,7 +85,9 @@ public class ResultsPersisterService {
 
     private final ThreadPool threadPool;
     private final OriginSettingClient client;
+    private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
     private volatile int maxFailureRetries;
+    private volatile boolean isShutdown = false;
 
     // Visible for testing
     public ResultsPersisterService(ThreadPool threadPool,
@@ -94,6 +99,24 @@ public class ResultsPersisterService {
         this.maxFailureRetries = PERSIST_RESULTS_MAX_RETRIES.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(PERSIST_RESULTS_MAX_RETRIES, this::setMaxFailureRetries);
+        clusterService.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void beforeStop() {
+                shutdown();
+            }
+        });
+    }
+
+    void shutdown() {
+        isShutdown = true;
+        if (onGoingRetryableActions.isEmpty()) {
+            return;
+        }
+        final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("Node is shutting down");
+        for (RetryableAction<?> action : onGoingRetryableActions.values()) {
+            action.cancel(exception);
+        }
+        onGoingRetryableActions.clear();
     }
 
     void setMaxFailureRetries(int value) {
@@ -150,16 +173,25 @@ public class ResultsPersisterService {
                                             Supplier<Boolean> shouldRetry,
                                             Consumer<String> retryMsgHandler,
                                             BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor) {
-        PlainActionFuture<BulkResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<BulkResponse> getResponse = PlainActionFuture.newFuture();
+        final Object key = new Object();
+        final ActionListener<BulkResponse> removeListener = ActionListener.runBefore(
+            getResponse,
+            () -> onGoingRetryableActions.remove(key)
+        );
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
             jobId,
             new BulkRequestRewriter(bulkRequest),
-            shouldRetry,
+            shouldRetryWrapper(shouldRetry),
             retryMsgHandler,
             actionExecutor,
-            getResponse
+            removeListener
         );
+        onGoingRetryableActions.put(key, bulkRetryableAction);
         bulkRetryableAction.run();
+        if (isShutdown) {
+            bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));
+        }
         return getResponse.actionGet();
     }
 
@@ -167,16 +199,29 @@ public class ResultsPersisterService {
                                           String jobId,
                                           Supplier<Boolean> shouldRetry,
                                           Consumer<String> retryMsgHandler) {
-        PlainActionFuture<SearchResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<SearchResponse> getResponse = PlainActionFuture.newFuture();
+        final Object key = new Object();
+        final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
+            getResponse,
+            () -> onGoingRetryableActions.remove(key)
+        );
         SearchRetryableAction mlRetryableAction = new SearchRetryableAction(
             jobId,
             searchRequest,
             client,
-            shouldRetry,
+            shouldRetryWrapper(shouldRetry),
             retryMsgHandler,
-            getResponse);
+            removeListener);
+        onGoingRetryableActions.put(key, mlRetryableAction);
         mlRetryableAction.run();
+        if (isShutdown) {
+            mlRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));
+        }
         return getResponse.actionGet();
+    }
+
+    private Supplier<Boolean> shouldRetryWrapper(Supplier<Boolean> shouldRetry) {
+        return () -> (isShutdown == false) && shouldRetry.get();
     }
 
     static class RecoverableException extends Exception { }
@@ -407,6 +452,12 @@ public class ResultsPersisterService {
         @Override
         protected long minimumDelayMillis() {
             return currentMin;
+        }
+
+        @Override
+        public void cancel(Exception e) {
+            super.cancel(e);
+            LOGGER.debug(() -> new ParameterizedMessage("[{}] retrying cancelled for action [{}]", jobId, getName()), e);
         }
     }
 

@@ -2,6 +2,7 @@
 include::overview.asciidoc[]
 include::built-in-users.asciidoc[]
 include::internal-users.asciidoc[]
+include::token-authentication-services.asciidoc[]
 include::realms.asciidoc[]
 include::realm-chains.asciidoc[]
 include::active-directory-realm.asciidoc[]

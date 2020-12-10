@@ -3,20 +3,20 @@
 [[start-stop-ilm]]
 == Start and stop {ilm}
 
-All indices that are managed by ILM will continue to execute
+All indices that are managed by {ilm-init} will continue to execute
 their policies. There may be times when this is not desired on certain
 indices, or maybe even all the indices in a cluster. For example,
 maybe there are scheduled maintenance windows when cluster topology
-changes are desired that may impact running ILM actions. For this reason,
-ILM has two ways to disable operations.
+changes are desired that may impact running {ilm-init} actions. For this reason,
+{ilm-init} has two ways to disable operations.
 
-When stopping ILM, snapshot lifecycle management operations are also stopped,
+When stopping {ilm-init}, snapshot lifecycle management operations are also stopped,
 this means that no scheduled snapshots are created (currently ongoing snapshots
 are unaffected).
 
-Normally, ILM will be running by default.
-To see the current operating status of ILM, use the <<ilm-get-status,Get Status API>>
-to see the current state of ILM.
+Normally, {ilm-init} will be running by default.
+To see the current operating status of {ilm-init}, use the <<ilm-get-status,Get Status API>>
+to see the current state of {ilm-init}.
 
 ////
 [source,console]
@@ -66,22 +66,22 @@ If the request does not encounter errors, you receive the following result:
 }
 --------------------------------------------------
 
-The operating modes of ILM:
+The operating modes of {ilm-init}:
 
 [[ilm-operating-modes]]
-.ILM Operating Modes
+.{ilm-init} Operating Modes
 [options="header"]
 |===
 |Name |Description
 |RUNNING |Normal operation where all policies are executed as normal
-|STOPPING|ILM has received a request to stop but is still processing some policies
+|STOPPING|{ilm-init} has received a request to stop but is still processing some policies
 |STOPPED |This represents a state where no policies are executed
 |===
 
-[float]
-=== Stopping ILM
+[discrete]
+=== Stopping {ilm-init}
 
-The ILM service can be paused such that no further steps will be executed
+The {ilm-init} service can be paused such that no further steps will be executed
 using the <<ilm-stop,Stop API>>.
 
 [source,console]
@@ -109,8 +109,8 @@ GET _ilm/status
 --------------------------------------------------
 // TESTRESPONSE[s/"STOPPING"/$body.operation_mode/]
 
-The ILM service will then, asynchronously, run all policies to a point
-where it is safe to stop. After ILM verifies that it is safe, it will
+The {ilm-init} service will then, asynchronously, run all policies to a point
+where it is safe to stop. After {ilm-init} verifies that it is safe, it will
 move to the `STOPPED` mode.
 
 ////
@@ -131,10 +131,10 @@ GET _ilm/status
 --------------------------------------------------
 // TESTRESPONSE[s/"STOPPED"/$body.operation_mode/]
 
-[float]
-=== Starting ILM
+[discrete]
+=== Starting {ilm-init}
 
-To start ILM and continue executing policies, use the <<ilm-start, Start API>>.
+To start {ilm-init} and continue executing policies, use the <<ilm-start, Start API>>.
 
 
 [source,console]
@@ -151,7 +151,7 @@ GET _ilm/status
 // TEST[continued]
 ////
 
-The Start API will send a request to the ILM service to immediately begin
+The Start API will send a request to the {ilm-init} service to immediately begin
 normal operations.
 
 [source,console-result]

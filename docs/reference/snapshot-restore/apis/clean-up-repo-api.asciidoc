@@ -1,0 +1,116 @@
+[[clean-up-snapshot-repo-api]]
+=== Clean up snapshot repository API
+++++
+<titleabbrev>Clean up snapshot repository</titleabbrev>
+++++
+
+Triggers the review of a snapshot repository's contents and deletes any stale
+data that is not referenced by existing snapshots.
+
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// TESTSETUP
+////
+
+[source,console]
+----
+POST /_snapshot/my_repository/_cleanup
+----
+
+[[clean-up-snapshot-repo-api-request]]
+==== {api-request-title}
+
+`POST /_snapshot/<repository>/_cleanup`
+
+[[clean-up-snapshot-repo-api-desc]]
+==== {api-description-title}
+
+Over time, snapshot repositories can accumulate stale data that is no longer
+referenced by existing snapshots.
+
+While this unreferenced data does not negatively impact the performance or
+safety of a snapshot repository, it can lead to more storage use than necessary.
+
+You can use the clean up snapshot repository API to detect and delete this
+unreferenced data.
+
+[TIP]
+====
+Most cleanup operations performed by this API are performed automatically when
+a snapshot is deleted from a repository.
+
+If you regularly delete snapshots, calling this API may only reduce your storage
+slightly or not at all.
+====
+
+[[clean-up-snapshot-repo-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Name of the snapshot repository to review and clean up.
+
+[[clean-up-snapshot-repo-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[role="child_attributes"]
+[[clean-up-snapshot-repo-api-response-body]]
+==== {api-response-body-title}
+
+`results`::
+(object)
+Contains statistics for cleanup operations.
++
+.Properties of `results`
+[%collapsible%open]
+====
+`deleted_bytes`::
+(integer)
+Number of bytes freed by cleanup operations.
+
+`deleted_blobs`::
+(integer)
+Number of binary large objects (blobs) removed from the snapshot repository
+during cleanup operations. Any non-zero value implies that unreferenced blobs
+were found and subsequently cleaned up.
+====
+
+[[clean-up-snapshot-repo-api-example]]
+==== {api-examples-title}
+
+[source,console]
+----
+POST /_snapshot/my_repository/_cleanup
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "results": {
+    "deleted_bytes": 20,
+    "deleted_blobs": 5
+  }
+}
+----
+// TEST[s/"deleted_bytes": 20/"deleted_bytes": 0/]
+// TEST[s/"deleted_blobs": 5/"deleted_blobs": 0/]
+
+////
+[source,console]
+----
+DELETE /_snapshot/my_repository
+----
+////

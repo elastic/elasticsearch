@@ -2,13 +2,18 @@
 [[esms]]
 == {esms}
 
+[IMPORTANT]
+====
+We have stopped adding new customers to our {esms}.
+
+If you are interested in similar capabilities, contact
+https://support.elastic.co[Elastic Support] to discuss available options.
+====
+
 The {esms} ({esms-init}) is a monitoring cluster on {ecloud}. Elastic provides
 and maintains {esms-init} for self-managed commercial customers. If you send
 your monitoring data to {esms-init}, it can also be used by Elastic support to
 provide better and faster incident resolution.
-
-NOTE: You must obtain your {esms-init} cluster URLs and credentials from the
-Elastic support team.
 
 [discrete]
 [[esms-elasticsearch]]

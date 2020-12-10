@@ -28,7 +28,7 @@ Retrieves the current {ilm} ({ilm-init}) status.
 Returns the status of the {ilm-init} plugin. The `operation_mode` field in the
 response shows one of three states: `STARTED`, `STOPPING`,
 or `STOPPED`. You can change the status of the {ilm-init} plugin with the
-<<ilm-start,start ILM>> and <<ilm-stop,stop ILM>> APIs.
+<<ilm-start,start {ilm-init}>> and <<ilm-stop,stop {ilm-init}>> APIs.
 
 [[ilm-get-status-query-params]]
 ==== {api-query-parms-title}

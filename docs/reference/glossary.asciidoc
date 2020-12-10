@@ -192,8 +192,6 @@ Most {es} APIs accept an index alias in place of an index name.
 
 See {ref}/indices-add-alias.html[Add index alias].
 // end::index-alias-def[]
-
-See <<indices-add-alias>>.
 --
 
 [[glossary-index-lifecycle]] index lifecycle ::

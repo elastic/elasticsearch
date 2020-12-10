@@ -9,14 +9,33 @@ process so upgrading does not interrupt service. Rolling upgrades are supported:
 * Between minor versions
 * From 5.6 to 6.8
 * From 6.8 to {version}
+ifeval::[ "{version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
 
+[TIP]
+====
+For rolling upgrades between major versions (e.g., 5.6 to 6.8), we recommend
+using the {kibana-ref}/upgrade-assistant.html[Kibana Upgrade Assistant].
+
+The upgrade assistant identifies deprecated settings in your cluster and guides
+you through the process of resolving issues, including reindexing.
+
+We also recommend checking your <<deprecation-logging,deprecation logs>> for any
+other functionality that may have changed.
+====
 
 The following table shows the recommended upgrade paths to {version}.
 
-[cols="<1m,3",options="header",]
+[cols="<1,3",options="header",]
 |====
 |Upgrade from   
-|Recommended upgrade path  to {version}
+|Recommended upgrade path to {version}
+
+ifeval::[ "{version}" != "{minor-version}.0" ]
+|A previous {minor-version} version (e.g., {minor-version}.0)
+|<<rolling-upgrades,Rolling upgrade>> to {version}
+endif::[]
 
 |7.0–7.5
 |<<rolling-upgrades,Rolling upgrade>> to {version}

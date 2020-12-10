@@ -1,23 +1,34 @@
 [role="xpack"]
 [testenv="basic"]
 [[getting-started-snapshot-lifecycle-management]]
-=== Configure snapshot lifecycle policies
+=== Tutorial: Automate backups with {slm-init}
 
-Let's get started with {slm} ({slm-init}) by working through a
-hands-on scenario. The goal of this example is to automatically back up {es}
-indices using the <<snapshot-restore,snapshots>> every day at a particular
-time. Once these snapshots have been created, they are kept for a configured
-amount of time and then deleted per a configured retention policy.
+This tutorial demonstrates how to automate daily backups of {es} indices using an {slm-init} policy.
+The policy takes <<modules-snapshots, snapshots>> of all indices in the cluster 
+and stores them in a local repository.
+It also defines a retention policy and automatically deletes snapshots 
+when they are no longer needed.
 
-[float]
+To manage snapshots with {slm-init}, you:
+
+. <<slm-gs-register-repository, Register a repository>>.
+. <<slm-gs-create-policy, Create an {slm-init} policy>>.
+
+To test the policy, you can manually trigger it to take an initial snapshot. 
+
+[discrete]
 [[slm-gs-register-repository]]
 ==== Register a repository
 
-Before we can set up an SLM policy, we'll need to set up a
-snapshot repository where the snapshots will be
-stored. Repositories can use {plugins}/repository.html[many different backends],
-including cloud storage providers. You'll probably want to use one of these in
-production, but for this example we'll use a shared file system repository:
+To use {slm-init}, you must have a snapshot repository configured. 
+The repository can be local (shared filesystem) or remote (cloud storage).  
+Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
+or any other platform supported by a {plugins}/repository.html[repository plugin].
+Remote repositories are generally used for production deployments.
+
+For this tutorial, you can register a local repository from 
+{kibana-ref}/snapshot-repositories.html[{kib} Management]
+or use the put repository API:
 
 [source,console]
 -----------------------------------
@@ -30,19 +41,26 @@ PUT /_snapshot/my_repository
 }
 -----------------------------------
 
-[float]
+[discrete]
 [[slm-gs-create-policy]]
-==== Setting up a snapshot policy
+==== Set up a snapshot policy
 
-Now that we have a repository in place, we can create a policy to automatically
-take snapshots. Policies are written in JSON and will define when to take
-snapshots, what the snapshots should be named, and which indices should be
-included, among other things.  We'll use the <<slm-api-put-policy>> API
-to create the policy.
+Once you have a repository in place, 
+you can define an {slm-init} policy to take snapshots automatically. 
+The policy defines when to take snapshots, which indices should be included, 
+and what to name the snapshots. 
+A policy can also specify a <<slm-retention,retention policy>> and 
+automatically delete snapshots when they are no longer needed.
 
-When configurating a policy, retention can also optionally be configured. See
-the <<slm-retention,SLM retention>> documentation for the full documentation of
-how retention works.
+TIP: Don't be afraid to configure a policy that takes frequent snapshots.
+Snapshots are incremental and make efficient use of storage.
+
+You can define and manage policies through {kib} Management or with the put policy API.
+
+For example, you could define a `nightly-snapshots` policy 
+to back up all of your indices daily at 2:30AM UTC.
+
+A put policy request defines the policy configuration in JSON:
 
 [source,console]
 --------------------------------------------------
@@ -62,44 +80,40 @@ PUT /_slm/policy/nightly-snapshots
 }
 --------------------------------------------------
 // TEST[continued]
-<1> when the snapshot should be taken, using 
-    <<schedule-cron,Cron syntax>>, in this 
-    case at 1:30AM each day
-<2> whe name each snapshot should be given, using 
-    <<date-math-index-names,date math>> to include the current date in the name
-    of the snapshot
-<3> the repository the snapshot should be stored in
-<4> the configuration to be used for the snapshot requests (see below)
-<5> which indices should be included in the snapshot, in this case, every index
-<6> Optional retention configuration
-<7> Keep snapshots for 30 days
-<8> Always keep at least 5 successful snapshots
-<9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
+<1> When the snapshot should be taken in
+    <<schedule-cron,Cron syntax>>: daily at 2:30AM UTC
+<2> How to name the snapshot: use  
+    <<date-math-index-names,date math>> to include the current date in the snapshot name
+<3> Where to store the snapshot
+<4> The configuration to be used for the snapshot requests (see below)
+<5> Which indices to include in the snapshot: all indices
+<6> Optional retention policy: keep snapshots for 30 days, 
+retaining at least 5 and no more than 50 snapshots regardless of age 
 
-This policy will take a snapshot of every index each day at 1:30AM UTC.
-Snapshots are incremental, allowing frequent snapshots to be stored efficiently,
-so don't be afraid to configure a policy to take frequent snapshots.
+You can specify additional snapshot configuration options to customize how snapshots are taken.
+For example, you could configure the policy to fail the snapshot 
+if one of the specified indices is missing. 
+For more information about snapshot options, see <<snapshots-take-snapshot,snapshot requests>>.
 
-In addition to specifying the indices that should be included in the snapshot,
-the `config` field can be used to customize other aspects of the snapshot. You
-can use any option allowed in <<snapshots-take-snapshot,a regular snapshot 
-request>>, so you can specify, for example, whether the snapshot should fail in
-special cases, such as if one of the specified indices cannot be found.
-
-[float]
+[discrete]
 [[slm-gs-test-policy]]
 ==== Test the snapshot policy
 
-While snapshots taken by SLM policies can be viewed through the standard snapshot
-API, SLM also keeps track of policy successes and failures in ways that are a bit
-easier to use to make sure the policy is working.  Once a policy has executed at
-least once, when you view the policy using the <<slm-api-get-policy>>, 
-some metadata will be returned indicating whether the snapshot was sucessfully 
-initiated or not.
+A snapshot taken by {slm-init} is just like any other snapshot. 
+You can view information about snapshots in {kib} Management or 
+get info with the <<snapshots-monitor-snapshot-restore, snapshot APIs>>. 
+In addition, {slm-init} keeps track of policy successes and failures so you 
+have insight into how the policy is working. If the policy has executed at
+least once, the <<slm-api-get-policy, get policy>> API returns additional metadata
+that shows if the snapshot succeeded.
 
-Instead of waiting for our policy to run, let's tell SLM to take a snapshot
-as using the configuration from our policy right now instead of waiting for
-1:30AM.
+You can manually execute a snapshot policy to take a snapshot immediately. 
+This is useful for taking snapshots before making a configuration change, 
+upgrading, or to test a new policy. 
+Manually executing a policy does not affect its configured schedule. 
+
+Instead of waiting for the policy to run, tell {slm-init} to take a snapshot
+using the configuration right now instead of waiting for 1:30 a.m..
 
 [source,console]
 --------------------------------------------------
@@ -107,11 +121,9 @@ POST /_slm/policy/nightly-snapshots/_execute
 --------------------------------------------------
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
-This request will kick off a snapshot for our policy right now, regardless of
-the schedule in the policy. This is useful for taking snapshots before making 
-a configuration change, upgrading, or for our purposes, making sure our policy
-is going to work successfully. The policy will continue to run on its configured
-schedule after this execution of the policy.
+
+After forcing the `nightly-snapshots` policy to run, 
+you can retrieve the policy to get success or failure information.
 
 [source,console]
 --------------------------------------------------
@@ -119,9 +131,14 @@ GET /_slm/policy/nightly-snapshots?human
 --------------------------------------------------
 // TEST[continued]
 
-This request will return a response that includes the policy, as well as
-information about the last time the policy succeeded and failed, as well as the
-next time the policy will be executed.
+Only the most recent success and failure are returned, 
+but all policy executions are recorded in the `.slm-history*` indices.
+The response also shows when the policy is scheduled to execute next.
+
+NOTE: The response shows if the policy succeeded in _initiating_ a snapshot.
+However, that does not guarantee that the snapshot completed successfully. 
+It is possible for the initiated snapshot to fail if, for example, the connection to a remote
+repository is lost while copying files.
 
 [source,console-result]
 --------------------------------------------------
@@ -143,44 +160,25 @@ next time the policy will be executed.
         "max_count": 50
       }
     },
-    "last_success": { <1>
+    "last_success": {                                                    <1>
       "snapshot_name": "nightly-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a", <2>
       "time_string": "2019-04-24T16:43:49.316Z",
       "time": 1556124229316
     } ,
-    "last_failure": { <3>
+    "last_failure": {                                                    <3>
       "snapshot_name": "nightly-snap-2019.04.02-lohisb5ith2n8hxacaq3mw",
       "time_string": "2019-04-02T01:30:00.000Z",
       "time": 1556042030000,
       "details": "{\"type\":\"index_not_found_exception\",\"reason\":\"no such index [important]\",\"resource.type\":\"index_or_alias\",\"resource.id\":\"important\",\"index_uuid\":\"_na_\",\"index\":\"important\",\"stack_trace\":\"[important] IndexNotFoundException[no such index [important]]\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.indexNotFoundException(IndexNameExpressionResolver.java:762)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.innerResolve(IndexNameExpressionResolver.java:714)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.resolve(IndexNameExpressionResolver.java:670)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndices(IndexNameExpressionResolver.java:163)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndexNames(IndexNameExpressionResolver.java:142)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndexNames(IndexNameExpressionResolver.java:102)\\n\\tat org.elasticsearch.snapshots.SnapshotsService$1.execute(SnapshotsService.java:280)\\n\\tat org.elasticsearch.cluster.ClusterStateUpdateTask.execute(ClusterStateUpdateTask.java:47)\\n\\tat org.elasticsearch.cluster.service.MasterService.executeTasks(MasterService.java:687)\\n\\tat org.elasticsearch.cluster.service.MasterService.calculateTaskOutputs(MasterService.java:310)\\n\\tat org.elasticsearch.cluster.service.MasterService.runTasks(MasterService.java:210)\\n\\tat org.elasticsearch.cluster.service.MasterService$Batcher.run(MasterService.java:142)\\n\\tat org.elasticsearch.cluster.service.TaskBatcher.runIfNotProcessed(TaskBatcher.java:150)\\n\\tat org.elasticsearch.cluster.service.TaskBatcher$BatchedTask.run(TaskBatcher.java:188)\\n\\tat org.elasticsearch.common.util.concurrent.ThreadContext$ContextPreservingRunnable.run(ThreadContext.java:688)\\n\\tat org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.runAndClean(PrioritizedEsThreadPoolExecutor.java:252)\\n\\tat org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.run(PrioritizedEsThreadPoolExecutor.java:215)\\n\\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)\\n\\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)\\n\\tat java.base/java.lang.Thread.run(Thread.java:834)\\n\"}"
     } ,
-    "next_execution": "2019-04-24T01:30:00.000Z", <4>
+    "next_execution": "2019-04-24T01:30:00.000Z",                        <4>
     "next_execution_millis": 1556048160000
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:the presence of last_failure and last_success is asynchronous and will be present for users, but is untestable]
 
-<1> information about the last time the policy successfully initated a snapshot
-<2> the name of the snapshot that was successfully initiated
-<3> information about the last time the policy failed to initiate a snapshot
-<4> the is the next time the policy will execute
-
-NOTE: This metadata only indicates whether the request to initiate the snapshot was
-made successfully or not - after the snapshot has been successfully started, it
-is possible for the snapshot to fail if, for example, the connection to a remote
-repository is lost while copying files.
-
-If you're following along, the returned SLM policy shouldn't have a `last_failure`
-field - it's included above only as an example. You should, however, see a 
-`last_success` field and a snapshot name. If you do, you've successfully taken
-your first snapshot using SLM!
-
-While only the most recent sucess and failure are available through the Get Policy 
-API, all policy executions are recorded to a history index, which may be queried
-by searching the index pattern `.slm-history*`.
-
-That's it! We have our first SLM policy set up to periodically take snapshots
-so that our backups are always up to date. You can read more details in the 
-<<snapshot-lifecycle-management-api,SLM API documentation>> and the
-<<modules-snapshots,general snapshot documentation.>>
+<1> Information about the last time the policy successfully initated a snapshot
+<2> The name of the snapshot that was successfully initiated
+<3> Unformation about the last time the policy failed to initiate a snapshot
+<4> The next time the policy will execute

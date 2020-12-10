@@ -29,6 +29,7 @@ not be included yet.
 * <<rollup-apis,Rollup APIs>>
 * <<search, Search APIs>>
 * <<security-api,Security APIs>>
+* <<snapshot-restore-apis,Snapshot and restore APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<transform-apis,{transform-cap} APIs>>
 * <<usage-api,Usage API>>
@@ -54,6 +55,7 @@ include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
+include::{es-repo-dir}/snapshot-restore/apis/snapshot-restore-apis.asciidoc[]
 include::{es-repo-dir}/slm/apis/slm-api.asciidoc[]
 include::{es-repo-dir}/transform/apis/index.asciidoc[]
 include::usage.asciidoc[]

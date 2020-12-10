@@ -81,6 +81,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_1_4 = new Version(6010499, org.apache.lucene.util.Version.LUCENE_7_1_0);
     // The below version is missing from the 7.3 JAR
     private static final org.apache.lucene.util.Version LUCENE_7_2_1 = org.apache.lucene.util.Version.fromBits(7, 2, 1);
+    // Version constant for Lucene 7.7.3 release with index corruption bug fix
+    private static final org.apache.lucene.util.Version LUCENE_7_7_3 = org.apache.lucene.util.Version.fromBits(7, 7, 3);
     public static final Version V_6_2_0 = new Version(6020099, LUCENE_7_2_1);
     public static final Version V_6_2_1 = new Version(6020199, LUCENE_7_2_1);
     public static final Version V_6_2_2 = new Version(6020299, LUCENE_7_2_1);
@@ -113,7 +115,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_8_6 = new Version(6080699, org.apache.lucene.util.Version.LUCENE_7_7_2);
     public static final Version V_6_8_7 = new Version(6080799, org.apache.lucene.util.Version.LUCENE_7_7_2);
     public static final Version V_6_8_8 = new Version(6080899, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final Version V_6_8_9 = new Version(6080999, org.apache.lucene.util.Version.LUCENE_7_7_2);
+    public static final Version V_6_8_9 = new Version(6080999, LUCENE_7_7_3);
     public static final Version V_7_0_0 = new Version(7000099, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_0_1 = new Version(7000199, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_1_0 = new Version(7010099, org.apache.lucene.util.Version.LUCENE_8_0_0);

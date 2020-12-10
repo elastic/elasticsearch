@@ -48,6 +48,7 @@ the config, or by using an external stopwords file by setting
 `stopwords_path`. Check <<analysis-stop-analyzer,Stop Analyzer>> for
 more details.
 
+[[_excluding_words_from_stemming]]
 ===== Excluding words from stemming
 
 The `stem_exclusion` parameter allows you to specify an array

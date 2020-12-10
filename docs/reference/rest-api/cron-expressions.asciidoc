@@ -1,0 +1,182 @@
+[[cron-expressions]]
+=== Cron expressions
+
+A cron expression is a string of the following form:
+
+[source,txt]
+------------------------------
+    <seconds> <minutes> <hours> <day_of_month> <month> <day_of_week> [year]
+------------------------------
+
+{es} uses the cron parser from the http://www.quartz-scheduler.org[Quartz Job Scheduler]. 
+For more information about writing Quartz cron expressions, see the
+http://www.quartz-scheduler.org/documentation/quartz-2.2.x/tutorials/tutorial-lesson-06.html[Quartz CronTrigger Tutorial].
+
+All schedule times are in coordinated universal time (UTC); other timezones are not supported.
+
+TIP: You can use the <<elasticsearch-croneval>> command line tool to validate your cron expressions.
+
+
+[[cron-elements]]
+==== Cron expression elements
+
+All elements are required except for `year`. 
+See <<cron-special-characters>> for information about the allowed special characters.
+
+`<seconds>`::
+(Required)
+Valid values: `0`-`59` and the special characters `,` `-` `*` `/`
+
+`<minutes>`:: 
+(Required)
+Valid values: `0`-`59` and the special characters `,` `-` `*` `/`
+
+`<hours>`:: 
+(Required)
+Valid values: `0`-`23` and the special characters `,` `-` `*` `/`
+
+`<day_of_month>`:: 
+(Required)
+Valid values: `1`-`31` and the special characters `,` `-` `*` `/` `?` `L` `W`
+
+`<month>`::  
+(Required)
+Valid values: `1`-`12`, `JAN`-`DEC`, `jan`-`dec`, and the special characters `,` `-` `*` `/`
+
+`<day_of_week>`:: 
+(Required)
+Valid values: `1`-`7`, `SUN`-`SAT`, `sun`-`sat`,  and the special characters `,` `-` `*` `/` `?` `L` `#`
+
+`<year>`:: 
+(Optional)
+Valid values: `1970`-`2099` and the special characters `,` `-` `*` `/`
+
+[[cron-special-characters]]
+==== Cron special characters
+
+`*`::
+Selects every possible value for a field. For
+example, `*` in the `hours` field means "every hour".
+
+`?`::                
+No specific value. Use when you don't care what the value
+is. For example, if you want the schedule to trigger on a
+particular day of the month, but don't care what day of
+the week that happens to be, you can specify `?` in the
+`day_of_week` field.
+
+`-`::                 
+A range of values (inclusive). Use to separate a minimum
+and maximum value. For example, if you want the schedule
+to trigger every hour between 9:00 a.m. and 5:00 p.m., you
+could specify `9-17` in the `hours` field.
+
+`,`::
+Multiple values. Use to separate multiple values for a
+field. For example, if you want the schedule to trigger
+every Tuesday and Thursday, you could specify `TUE,THU`
+in the `day_of_week` field.
+
+`/`::
+Increment. Use to separate values when specifying a time
+increment. The first value represents the starting point,
+and the second value represents the interval. For example,
+if you want the schedule to trigger every 20 minutes
+starting at the top of the hour, you could specify `0/20`
+in the `minutes` field. Similarly, specifying `1/5` in
+`day_of_month` field will trigger every 5 days starting on
+the first day of the month.
+
+`L`::
+Last. Use in the `day_of_month` field to mean the last day
+of the month--day 31 for January, day 28 for February in
+non-leap years, day 30 for April, and so on. Use alone in
+the `day_of_week` field in place of `7` or `SAT`, or after
+a particular day of the week to select the last day of that
+type in the month. For example `6L` means the last Friday
+of the month. You can specify `LW` in the `day_of_month`
+field to specify the last weekday of the month. Avoid using
+the `L` option when specifying lists or ranges of values,
+as the results likely won't be what you expect.
+
+`W`::
+Weekday. Use to specify the weekday (Monday-Friday) nearest
+the given day. As an example, if you specify `15W` in the
+`day_of_month` field and the 15th is a Saturday, the
+schedule will trigger on the 14th. If the 15th is a Sunday,
+the schedule will trigger on Monday the 16th. If the 15th
+is a Tuesday, the schedule will trigger on Tuesday the 15th.
+However if you specify `1W` as the value for `day_of_month`,
+and the 1st is a Saturday, the schedule will trigger on
+Monday the 3rd--it won't jump over the month boundary. You
+can specify `LW` in the `day_of_month` field to specify the
+last weekday of the month. You can only use the `W` option
+when the `day_of_month` is a single day--it is not valid
+when specifying a range or list of days.
+
+`#`::
+Nth XXX day in a month. Use in the `day_of_week` field to
+specify the nth XXX day of the month. For example, if you
+specify `6#1`, the schedule will trigger on the first
+Friday of the month. Note that if you specify `3#5` and
+there are not 5 Tuesdays in a particular month, the
+schedule won't trigger that month.
+
+[[cron-expression-examples]]
+==== Examples
+
+[[cron-example-daily]]
+===== Setting daily triggers
+
+`0 5 9 * * ?`::
+Trigger at 9:05 a.m. UTC every day.
+
+`0 5 9 * * ? 2020`::
+Trigger at 9:05 a.m. UTC every day during the year 2020.
+
+[[cron-example-range]]
+===== Restricting triggers to a range of days or times
+
+`0 5 9 ? * MON-FRI`::
+Trigger at 9:05 a.m. UTC Monday through Friday.
+
+`0 0-5 9 * * ?`::
+Trigger every minute starting at 9:00 a.m. UTC and ending at 9:05 a.m. UTC every day.
+
+[[cron-example-interval]]
+===== Setting interval triggers
+
+`0 0/15 9 * * ?`::
+Trigger every 15 minutes starting at 9:00 a.m. UTC and ending at 9:45 a.m. UTC every day.
+
+`0 5 9 1/3 * ?`::
+Trigger at 9:05 a.m. UTC every 3 days every month, starting on the first day of the month.
+
+[[cron-example-day]]
+===== Setting schedules that trigger on a particular day
+
+`0 1 4 1 4 ?`::
+Trigger every April 1st at 4:01 a.m. UTC.
+`0 0,30 9 ? 4 WED`::
+Trigger at 9:00 a.m. UTC and at 9:30 a.m. UTC every Wednesday in the month of April.
+
+`0 5 9 15 * ?`::
+Trigger at 9:05 a.m. UTC on the 15th day of every month.
+
+`0 5 9 15W * ?`::
+Trigger at 9:05 a.m. UTC on the nearest weekday to the 15th of every month.
+
+`0 5 9 ? * 6#1`::
+Trigger at 9:05 a.m. UTC on the first Friday of every month.
+
+[[cron-example-last]]
+===== Setting triggers using last
+
+`0 5 9 L * ?`::
+Trigger at 9:05 a.m. UTC on the last day of every month.
+
+`0 5 9 ? * 2L`::
+Trigger at 9:05 a.m. UTC on the last Monday of every month.
+
+`0 5 9 LW * ?`::
+Trigger at 9:05 a.m. UTC on the last weekday of every month.

@@ -160,7 +160,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, boolean)
+If `true`, {es} refreshes the affected shards to make this operation visible to
+search. If `false`, do nothing with refreshes. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 

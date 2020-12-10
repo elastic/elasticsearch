@@ -1,6 +1,0 @@
-- job:
-    name: elastic+elasticsearch+%BRANCH%+periodic-next
-    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic
-    display-name: "elastic / elasticsearch # %BRANCH% - periodic (experimental)"
-    description: "Periodic testing of the Elasticsearch %BRANCH% branch.\n"
-    triggers: []

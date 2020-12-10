@@ -1,32 +1,34 @@
 [role="xpack"]
 [testenv="basic"]
 [[slm-retention]]
-=== Snapshot retention
+== Snapshot lifecycle management retention
 
-Automatic deletion of older snapshots is an optional feature of snapshot lifecycle management.
-Retention is run as a cluster level task that is not associated with a particular policy's schedule
-(though the configuration of which snapshots to keep is done on a per-policy basis). Retention
-configuration conists of two parts—The first a cluster-level configuration for when retention is
-run and for how long, the second configured on a policy for which snapshots should be eligible for
-retention.
+You can include a retention policy in an {slm-init} policy to automatically delete old snapshots. 
+Retention runs as a cluster-level task and is not associated with a particular policy's schedule.
+The retention criteria are evaluated as part of the retention task, not when the policy executes.
+For the retention task to automatically delete snapshots, 
+you need to include a <<slm-api-put-retention,`retention`>> object in your {slm-init} policy.
 
-The cluster level settings for retention are shown below, and can be changed dynamically using the
-<<cluster-update-settings>> API:
+To control when the retention task runs, configure 
+<<slm-retention-schedule,`slm.retention_schedule`>> in the cluster settings.
+You can define the schedule as a periodic or absolute <<schedule-cron, cron schedule>>.
+The <<slm-retention-duration,`slm.retention_duration`>> setting limits how long 
+{slm-init} should spend deleting old snapshots.
 
-|=====================================
-| Setting | Default value | Description
+You can update the schedule and duration dynamically with the 
+<<cluster-update-settings, update settings>> API.
+You can run the retention task manually with the 
+<<slm-api-execute-retention, execute retention >> API. 
 
-| `slm.retention_schedule` | `0 30 1 * * ?` | A periodic or absolute time schedule for when
-  retention should be run. Supports all values supported by the cron scheduler: <<schedule-cron,Cron
-  scheduler configuration>>. Retention can also be manually run using the
-  <<slm-api-execute-retention>> API. Defaults to daily at 1:30am UTC.
+The retention task only considers snapshots initiated through {slm-init} policies,  
+either according to the policy schedule or through the 
+<<slm-api-execute-lifecycle, execute lifecycle>> API. 
+Manual snapshots are ignored and don't count toward the retention limits.
 
-| `slm.retention_duration` | `"1h"` | A limit of how long SLM should spend deleting old snapshots.
-|=====================================
+To retrieve information about the snapshot retention task history, 
+use the  <<slm-api-get-stats, get stats>> API:
 
-Policy level configuration for retention is done inside the `retention` object when creating or
-updating a policy. All of the retention configurations options are optional.
-
+////
 [source,console]
 --------------------------------------------------
 PUT /_slm/policy/daily-snapshots
@@ -46,35 +48,7 @@ PUT /_slm/policy/daily-snapshots
 <2> Keep snapshots for 30 days
 <3> Always keep at least 5 successful snapshots
 <4> Keep no more than 50 successful snapshots
-
-Supported configuration for retention from within a policy are as follows. The default value for
-each is unset unless specified by the user in the policy configuration.
-
-NOTE: The oldest snapshots are always deleted first, in the case of a `max_count` of 5 for a policy
-with 6 snapshots, the oldest snapshot will be deleted.
-
-|=====================================
-| Setting | Description
-| `expire_after` | A timevalue for how old a snapshot must be in order to be eligible for deletion.
-| `min_count` | A minimum number of snapshots to keep, regardless of age.
-| `max_count` | The maximum number of snapshots to keep, regardless of age.
-|=====================================
-
-As an example, the retention setting in the policy configured about would read in English as:
-
-____
-Remove snapshots older than thirty days, but always keep the latest five snapshots. If there are
-more than fifty snapshots, remove the oldest surplus snapshots until there are no more than fifty
-successful snapshots.
-____
-
-If multiple policies are configured to snapshot to the same repository, or manual snapshots have
-been taken without using the <<slm-api-execute-lifecycle>> API, they are treated as not
-eligible for retention, and do not count towards any limits. This allows multiple policies to have
-differing retention configuration while using the same snapshot repository.
-
-Statistics for snapshot retention can be retrieved using the 
-<<slm-api-get-stats>> API:
+////
 
 [source,console]
 --------------------------------------------------
@@ -82,7 +56,7 @@ GET /_slm/stats
 --------------------------------------------------
 // TEST[continued]
 
-Which returns a response
+The response includes the following statistics:
 
 [source,js]
 --------------------------------------------------

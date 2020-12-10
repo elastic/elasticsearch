@@ -37,7 +37,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[ilm-start-example]]
 ==== {api-examples-title}
 
-The following example starts the ILM plugin.
+The following example starts the {ilm-init} plugin.
 
 //////////////////////////
 

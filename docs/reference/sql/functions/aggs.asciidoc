@@ -542,7 +542,7 @@ SUM_OF_SQUARES(field_name) <1>
 
 *Description*:
 
-Returns the https://en.wikipedia.org/wiki/Total_sum_of_squares[sum of squares] of input values in the field `field_name`.
+Returns the sum of squares of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

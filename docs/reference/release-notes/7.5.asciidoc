@@ -1,15 +1,62 @@
 [[release-notes-7.5.2]]
 == {es} version 7.5.2
 
-coming::[7.5.2]
+[[enhancement-7.5.2]]
+[float]
+=== Enhancements
+
+Features/Ingest::
+* Fork recursive calls in Foreach processor {pull}50514[#50514]
+
+Infra/Core::
+* Fix unintended debug logging in subclasses of TransportMasterNodeAction  {pull}50839[#50839] (issues: {issue}50056[#50056], {issue}50074[#50074], {issue}50076[#50076])
+
 
 [[bug-7.5.2]]
 [float]
 === Bug fixes
 
+Analysis::
+* Fix caching for PreConfiguredTokenFilter {pull}50912[#50912] (issue: {issue}50734[#50734])
+
+CRUD::
+* Block too many concurrent mapping updates {pull}51038[#51038] (issue: {issue}50670[#50670])
+
+Engine::
+* Account soft-deletes in FrozenEngine {pull}51192[#51192] (issue: {issue}50775[#50775])
+
+Features/ILM+SLM::
+* Fix SLM check for restore in progress {pull}50868[#50868]
+
+Features/Ingest::
+* Fix ingest simulate response document order if processor executes async {pull}50244[#50244]
+
+Features/Java Low Level REST Client::
+* Improve warning value extraction performance in response {pull}50208[#50208] (issue: {issue}24114[#24114])
+
 Machine Learning::
 * Fixes potential memory corruption or inconsistent state when background
 persisting categorizer state. {ml-pull}921[#921]
+
+Mapping::
+* Ensure that field collapsing works with field aliases. {pull}50722[#50722] (issues: {issue}32648[#32648], {issue}50121[#50121])
+* Fix meta version of task index mapping {pull}50363[#50363] (issue: {issue}48393[#48393])
+
+Recovery::
+* Check allocation ID when failing shard on recovery {pull}50656[#50656] (issue: {issue}50508[#50508])
+
+SQL::
+* Change the way unsupported data types fields are handled {pull}50823[#50823]
+* Optimization fixes for conjunction merges {pull}50703[#50703] (issue: {issue}49637[#49637])
+*  Fix issue with CAST and NULL checking. {pull}50371[#50371] (issue: {issue}50191[#50191])
+* Fix NPE for JdbcResultSet.getDate(param, Calendar) calls {pull}50184[#50184] (issue: {issue}50174[#50174])
+
+Search::
+* Fix upgrade of custom similarity {pull}50851[#50851] (issue: {issue}50763[#50763])
+
+Security::
+* Always consume the request body of `has_privileges` API {pull}50298[#50298] (issue: {issue}50288[#50288])
+
 
 [[release-notes-7.5.1]]
 == {es} version 7.5.1
@@ -93,6 +140,14 @@ Also see <<breaking-changes-7.5,Breaking changes in 7.5>>.
 [[known-issues-7.5.0]]
 [float]
 === Known issues
+
+* Applying deletes or updates on an index after it has been shrunk may corrupt
+the index. In order to prevent this issue, it is recommended to stop shrinking
+read-write indices. For read-only indices, it is recommended to force-merge
+indices after shrinking, which significantly reduces the likeliness of this
+corruption in the case that deletes/updates would be applied by mistake. This
+bug is fixed in {es} 7.7 and later versions. More details can be found on the
+https://issues.apache.org/jira/browse/LUCENE-9300[corresponding issue].
 
 * Stop all {transforms} during a rolling upgrade to 7.5.
 If a {transform} is running during upgrade, the {transform} audit index might disappear.

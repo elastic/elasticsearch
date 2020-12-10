@@ -20,7 +20,7 @@ This getting-started guide for {ccr} shows you how to:
 
 . Obtain a license that includes the {ccr} features. See
   https://www.elastic.co/subscriptions[subscriptions] and
-  {stack-ov}/license-management.html[License-management].
+  {kibana-ref}/managing-licenses.html[License management].
 
 . If the Elastic {security-features} are enabled in your local and remote
   clusters, you need a user that has appropriate authority to perform the steps

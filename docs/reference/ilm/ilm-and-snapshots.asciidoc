@@ -25,9 +25,9 @@ paused>> to allow the policy to be removed.
 For example, the following workflow can be used in the above situation to
 prevent the execution of the lifecycle policy for an index:
 
-1. Pause execution of all lifecycle policies using the <<ilm-stop,Stop ILM API>>
+1. Pause execution of all lifecycle policies using the <<ilm-stop,Stop {ilm-init} API>>
 2. Restore the snapshot.
 3. Perform whatever operations you wish before resuming lifecycle execution, or
     remove the lifecycle policy from the index using the
     <<ilm-remove-policy,Remove Policy from Index API>>
-4. Resume execution of lifecycle policies using the <<ilm-start,Start ILM API>>
+4. Resume execution of lifecycle policies using the <<ilm-start,Start {ilm-init} API>>

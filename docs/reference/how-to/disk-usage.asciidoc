@@ -124,7 +124,7 @@ PUT index
 [float]
 === Watch your shard size
 
-Larger shards are going to be more efficient at storing data. To increase the size of your shards, you can decrease the number of primary shards in an index by <<indices-create-index,creating indices>> with less primary shards, creating less indices (e.g. by leveraging the <<indices-rollover-index,Rollover API>>), or modifying an existing index using the <<indices-shrink-index,Shrink API>>.
+Larger shards are going to be more efficient at storing data. To increase the size of your shards, you can decrease the number of primary shards in an index by <<indices-create-index,creating indices>> with fewer primary shards, creating fewer indices (e.g. by leveraging the <<indices-rollover-index,Rollover API>>), or modifying an existing index using the <<indices-shrink-index,Shrink API>>.
 
 Keep in mind that large shard sizes come with drawbacks, such as long full recovery times.
 

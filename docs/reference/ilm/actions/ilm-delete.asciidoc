@@ -1,0 +1,26 @@
+[role="xpack"]
+[[ilm-delete]]
+=== Delete
+
+Phases allowed: delete.
+
+Permanently removes the index.
+
+[[ilm-delete-action-ex]]
+==== Example
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "delete": {
+        "actions": {
+          "delete" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

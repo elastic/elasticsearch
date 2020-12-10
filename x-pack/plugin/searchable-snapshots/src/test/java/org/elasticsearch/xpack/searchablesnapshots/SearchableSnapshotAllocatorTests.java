@@ -79,15 +79,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             )
             .build();
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        routingTableBuilder.addAsRestore(
-            metadata.index(shardId.getIndex()),
-            new RecoverySource.SnapshotRecoverySource(
-                UUIDs.randomBase64UUID(random()),
-                new Snapshot("test-repo", new SnapshotId("test-snap", UUIDs.randomBase64UUID(random()))),
-                Version.CURRENT,
-                new IndexId("test-idx", UUIDs.randomBase64UUID(random()))
-            )
-        );
+        routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
         final ClusterState state = ClusterState.builder(clusterName)
             .metadata(metadata)
             .routingTable(routingTableBuilder.build())
@@ -153,13 +145,25 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         };
 
         final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client);
+        allocateAllUnassigned(allocation, allocator);
 
+        assertEquals(1, reroutesTriggered.get());
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+    }
+
+    private static void allocateAllUnassigned(RoutingAllocation allocation, ExistingShardsAllocator allocator) {
         final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
             allocator.allocateUnassigned(iterator.next(), allocation, iterator);
         }
+    }
 
-        assertEquals(1, reroutesTriggered.get());
-        assertThat(allocation.routingNodesChanged(), equalTo(true));
+    private static RecoverySource.SnapshotRecoverySource randomSnapshotSource(ShardId shardId) {
+        return new RecoverySource.SnapshotRecoverySource(
+                UUIDs.randomBase64UUID(random()),
+                new Snapshot("test-repo", new SnapshotId("test-snap", UUIDs.randomBase64UUID(random()))),
+                Version.CURRENT,
+                new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
+        );
     }
 }

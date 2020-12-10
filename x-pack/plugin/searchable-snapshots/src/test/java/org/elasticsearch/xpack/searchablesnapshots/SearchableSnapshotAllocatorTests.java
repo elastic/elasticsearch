@@ -160,10 +160,10 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
     private static RecoverySource.SnapshotRecoverySource randomSnapshotSource(ShardId shardId) {
         return new RecoverySource.SnapshotRecoverySource(
-                UUIDs.randomBase64UUID(random()),
-                new Snapshot("test-repo", new SnapshotId("test-snap", UUIDs.randomBase64UUID(random()))),
-                Version.CURRENT,
-                new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
+            UUIDs.randomBase64UUID(random()),
+            new Snapshot("test-repo", new SnapshotId("test-snap", UUIDs.randomBase64UUID(random()))),
+            Version.CURRENT,
+            new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
         );
     }
 }

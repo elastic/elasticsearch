@@ -6,11 +6,11 @@
 
 package org.elasticsearch.xpack.ingest;
 
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -150,12 +150,12 @@ public class UriPartsProcessorTests extends ESTestCase {
         String field = "field";
         UriPartsProcessor processor = new UriPartsProcessor(null, null, field, field, true, false);
 
-        Map<String, Object> source = new HashMap<>();
+        java.util.Map<String, Object> source = new HashMap<>();
         source.put(field, "http://www.google.com");
         IngestDocument input = new IngestDocument(source, Map.of());
         IngestDocument output = processor.execute(input);
 
-        Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
+        java.util.Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
         expectedSourceAndMetadata.put(field, Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
         assertThat(output.getSourceAndMetadata().entrySet(), containsInAnyOrder(expectedSourceAndMetadata.entrySet().toArray()));
     }
@@ -164,7 +164,7 @@ public class UriPartsProcessorTests extends ESTestCase {
         String uri = "not:\\/_a_valid_uri";
         UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false);
 
-        Map<String, Object> source = new HashMap<>();
+        java.util.Map<String, Object> source = new HashMap<>();
         source.put("field", uri);
         IngestDocument input = new IngestDocument(source, Map.of());
 
@@ -172,26 +172,26 @@ public class UriPartsProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unable to parse URI [" + uri + "]"));
     }
 
-    private void testUriParsing(String uri, Map<String, Object> expectedValues) throws Exception {
+    private void testUriParsing(String uri, java.util.Map<String, Object> expectedValues) throws Exception {
         testUriParsing(false, false, uri, expectedValues);
     }
 
-    private void testUriParsing(boolean keepOriginal, boolean removeIfSuccessful, String uri, Map<String, Object> expectedValues)
+    private void testUriParsing(boolean keepOriginal, boolean removeIfSuccessful, String uri, java.util.Map<String, Object> expectedValues)
         throws Exception {
         UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", removeIfSuccessful, keepOriginal);
 
-        Map<String, Object> source = new HashMap<>();
+        java.util.Map<String, Object> source = new HashMap<>();
         source.put("field", uri);
         IngestDocument input = new IngestDocument(source, Map.of());
         IngestDocument output = processor.execute(input);
 
-        Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
+        java.util.Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
 
         if (removeIfSuccessful == false) {
             expectedSourceAndMetadata.put("field", uri);
         }
 
-        Map<String, Object> values;
+        java.util.Map<String, Object> values;
         if (keepOriginal) {
             values = new HashMap<>(expectedValues);
             values.put("original", uri);

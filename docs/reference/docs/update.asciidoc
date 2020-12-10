@@ -73,7 +73,17 @@ You can also specify a comma-separated list of the fields you want to retrieve.
 `_source_includes`::
 (Optional, list) Specify the source fields you want to retrieve.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>)
+Period to wait for the following operations:
+
+* <<dynamic-mapping,Dynamic mapping>> updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+The timeout applies to each operation separately. Defaults to `1m` (one minute).
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 

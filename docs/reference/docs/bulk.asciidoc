@@ -220,9 +220,17 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 `timeout`::
-(Optional, <<time-units, time units>>) Time period to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `1m` (one minute).
++
+--
+(Optional, <<time-units, time units>>)
+Period each action waits for the following operations:
+
+* <<index-creation,Automatic index creation>>
+* <<dynamic-mapping,Dynamic mapping>> updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+The timeout applies to each operation separately. Defaults to `1m` (one minute).
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 

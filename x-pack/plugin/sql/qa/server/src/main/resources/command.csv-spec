@@ -67,7 +67,6 @@ DOM              |SCALAR
 DOW              |SCALAR
 DOY              |SCALAR
 FORMAT           |SCALAR
-TO_CHAR          |SCALAR
 HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR
 IDOW             |SCALAR
@@ -96,6 +95,7 @@ TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
 TIME_PARSE       |SCALAR
 TODAY            |SCALAR
+TO_CHAR          |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR
 YEAR             |SCALAR

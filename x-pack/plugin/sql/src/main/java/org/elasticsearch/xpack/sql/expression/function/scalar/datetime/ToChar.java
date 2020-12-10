@@ -29,6 +29,11 @@ public class ToChar extends BaseDateTimeFormatFunction {
     protected NodeInfo.NodeCtor3<Expression, Expression, ZoneId, BaseDateTimeFormatFunction> ctor() {
         return ToChar::new;
     }
+    
+    @Override
+    protected String scriptMethodName() {
+        return "toChar";
+    }
 
     @Override
     protected BinaryScalarFunction replaceChildren(Expression timestamp, Expression pattern) {

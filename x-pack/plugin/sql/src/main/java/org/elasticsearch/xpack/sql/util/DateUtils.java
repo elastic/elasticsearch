@@ -243,16 +243,16 @@ public final class DateUtils {
             case 12:
                 return "XII";
             default:
-                return "";
+                throw new IllegalArgumentException("invalid month: " + month);
         }
     }
 
     public static int century(int year) {
-        if (year > 0) {
-            return year / 100 + 1;
-        } else {
-            return year / 100 - 1;
+        int century = year > 0 ? year / 100 + 1 : year / 100 - 1;
+        if (year % 100 == 0) {
+            century -= 1;
         }
+        return century;
     }
 
     private static int timeSeparatorIdx(String timestampStr) {

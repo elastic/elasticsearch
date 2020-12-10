@@ -838,23 +838,33 @@ TO_CHAR(
 *Output*: string
 
 *Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
-pattern used is one from
-https://www.postgresql.org/docs/9.1/functions-formatting.html#FUNCTIONS-FORMATTING-DATETIME-TABLE[PostgreSQL Template Patterns for Date/Time Formatting]
-or, if the pattern is not found, from Java
-https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[Pattern Letters and Symbols].
+pattern conforms to
+https://www.postgresql.org/docs/13/functions-formatting.html[PostgreSQL Template Patterns for Date/Time Formatting].
 If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
 
 [NOTE]
-If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+If the 1st argument is of type `time`, then the pattern specified by the 2nd argument cannot contain date related units
 (e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
 
 *Special Cases*
 
-- Postgres formats `IDDD` and `WW` are not covered.
-- Format Specifier `y` will return year-of-era instead of one/two low-order digits.
-eg.: For year `2009`, `y` will be returning `2009` instead of `9`. For year `43`, `y` format specifier will return `43`.
-- Special characters like `"` , `\` and `%` will be returned as it is without any change. eg.: formatting date `17-sep-2020` with `%M` will return `%9`
+- The result of the pattern `TZ`, `tz` and `OF` patterns is equivalent with, but differs from the results returned by the PostgreSQL implementation.
+- Only the `FM`, `TH` and `th` pattern modifiers implemented.
 
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[toCharDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[toCharDateTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[toCharTime]
+--------------------------------------------------
 
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH/DOM/DAY`

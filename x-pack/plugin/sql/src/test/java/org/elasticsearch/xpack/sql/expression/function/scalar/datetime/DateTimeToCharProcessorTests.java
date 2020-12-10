@@ -6,476 +6,293 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor.Formatter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.junit.After;
+import org.junit.Before;
 
-import java.time.Instant;
-import java.time.OffsetTime;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.*;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.*;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 
-public class DateTimeToCharProcessorTests extends AbstractSqlWireSerializingTestCase<DateTimeFormatProcessor> {
+public class DateTimeToCharProcessorTests extends ESTestCase {
 
-    public static DateTimeFormatProcessor randomDateTimeFormatProcessor() {
-        return new DateTimeFormatProcessor(
-            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
-            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-            randomZone(),
-            randomFrom(Formatter.values())
-        );
+    public static class TestCase {
+        private static final AtomicInteger COUNTER = new AtomicInteger(0);
+
+        private final int id;
+        private final BigDecimal secondsAndFractionsSinceEpoch;
+        private final String formatString;
+        private final String zoneId;
+        
+        TestCase(BigDecimal secondsAndFractionsSinceEpoch, String formatString) {
+            this.id = COUNTER.incrementAndGet();
+            this.secondsAndFractionsSinceEpoch = secondsAndFractionsSinceEpoch;
+            this.formatString = formatString;
+            this.zoneId = TestGenerator.randomFromCollection(ZoneId.getAvailableZoneIds().stream().filter(
+                z -> z.startsWith("America") || z.startsWith("Europe") || z.startsWith("Asia") || z.startsWith("Africa") 
+                    || Set.of("UTC", "GMT", "Z").contains(z)
+            ).collect(Collectors.toList()));
+        }
+
     }
 
-    public static Literal randomTimeLiteral() {
-        return l(OffsetTime.ofInstant(Instant.ofEpochMilli(ESTestCase.randomLong()), ESTestCase.randomZone()), TIME);
-    }
+    private static class TestGenerator {
+        
+        private static final long SECONDS_IN_YEAR = 365 * 24 * 60 * 60L;
+        private static final String DELIMITER = "|";
+        private static final String PATTERN_DELIMITER = " @ ";
+        // these patterns are hard to sync up between PostgreSQL and Elasticsearch, so we just warn, but actually
+        // accept the output of Elasticsearch as is
+        private static final Set<String> NOT_FULLY_MATCHABLE_PATTERNS = Set.of("TZ", "tz", "TZH", "tzh", "TZM", "tzm");
+        private static final Set<String> UNSUPPORTED_PATTERN_MODIFIERS = Set.of("FX", "TM", "SP");
+        private static final String[] PATTERNS = new String[] {
+            "HH", "HH12", "HH24", "MI", "SS", "MS", "US", "FF1", "FF2", "FF3", "FF4", "FF5", "FF6", "SSSS", "SSSSS", "AM", "am", "PM",
+            "pm", "A.M.", "a.m.", "P.M.", "p.m.", "Y,YYY", "YYYY", "YYY", "YY", "Y", "IYYY", "IYY", "IY", "I", "BC", "bc", "AD", "ad",
+            "B.C.", "b.c.", "A.D.", "a.d.", "MONTH", "Month", "month", "MON", "Mon", "mon", "MM", "DAY", "Day", "day", "DY", "Dy",
+            "dy", "DDD", "IDDD", "DD", "D", "ID", "W", "WW", "IW", "CC", "J", "Q", "RM", "rm", "TZ", "tz", "TZH", "TZM", "OF"
+        };
+        private static final Set<String> PATTERNS_WITHOUT_MODIFIER_TEST = NOT_FULLY_MATCHABLE_PATTERNS;
+        private static final List<String> FILL_MODIFIERS = List.of("FM", "fm", "");
+        private static final List<String> ORDINAL_SUFFIX_MODIFIERS = List.of("TH", "th", "");
 
-    @Override
-    protected DateTimeFormatProcessor createTestInstance() {
-        return randomDateTimeFormatProcessor();
-    }
+        @SuppressForbidden(reason = "It is ok to use ThreadLocalRandom outside of an actual test")
+        private static Random rnd() {
+            return ThreadLocalRandom.current();
+        }
 
-    @Override
-    protected Reader<DateTimeFormatProcessor> instanceReader() {
-        return DateTimeFormatProcessor::new;
-    }
+        private static BigDecimal randomSecondsWithFractions(int minYear, int maxYear) {
+            BigDecimal seconds = new BigDecimal(RandomNumbers.randomLongBetween(rnd(), 
+                (minYear - 1970) * SECONDS_IN_YEAR, (maxYear - 1970) * SECONDS_IN_YEAR));
+            BigDecimal fractions = new BigDecimal(RandomNumbers.randomIntBetween(rnd(), 0, 999_999)).movePointLeft(6);
+            return seconds.add(fractions);
+        }
 
-    @Override
-    protected ZoneId instanceZoneId(DateTimeFormatProcessor instance) {
-        return instance.zoneId();
-    }
-
-    @Override
-    protected DateTimeFormatProcessor mutateInstance(DateTimeFormatProcessor instance) {
-        return new DateTimeFormatProcessor(
-            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
-            new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
-            randomZone(),
-            randomValueOtherThan(instance.formatter(), () -> randomFrom(Formatter.values()))
-        );
-    }
-
-    public void testSeconds() {
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 1))
-            .withFormat("US")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("000001");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 12))
-            .withFormat("US")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("000012");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 123))
-            .withFormat("US")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("000123");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 1234))
-            .withFormat("US")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("001234");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 12345))
-            .withFormat("US")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("012345");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 123456789))
-            .withFormat("US")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("123456");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 123456789))
-            .withFormat("ss.MS")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("37.123");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 1, 0))
-            .withFormat("ss.MS")
-            .isFormattedTo("01.000");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 123456789))
-            .withFormat("ss.n")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("37.123456789");
-        assertThat(time(21, 11, 2, 123456789))
-            .withFormat("s-ss")
-            .isFormattedTo("2-02");
-    }
-
-    public void testSecondOfDay() {
-        assertThat(dateTime(2020, 10, 13, 13, 26, 41, 0))
-            .withFormat("SSSS")
-            .isFormattedTo("48401");
-    }
-
-    public void testMinutes() {
-        assertThat(dateTime(2019, 9, 3, 18, 0, 37, 123456789))
-            .withFormat("mm MI")
-            .isFormattedTo("00 00");
-
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 123456789))
-            .withFormat("mm MI")
-            .isFormattedTo("10 10");
-
-        assertThat(dateTime(2019, 9, 3, 18, 59, 37, 123456789))
-            .withFormat("mm MI")
-            .isFormattedTo("59 59");
-    }
-
-    public void testHours() {
-        var dateTime = dateTime(2019, 9, 3, 16, 10, 37, 123456789);
-        assertThat(dateTime)
-            .withFormat("HH")
-            .isFormattedTo("04");
-        assertThat(dateTime)
-            .withFormat("HH12")
-            .isFormattedTo("04");
-        assertThat(dateTime)
-            .withFormat("HH24")
-            .isFormattedTo("16");
-        assertThat(dateTime)
-            .withFormat("HH24")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("02");
-    }
-
-    public void testMonths() {
-        assertThat(date(2019, 9, 3, UTC))
-            .withFormat("M-MM-MMM-MMMM")
-            .isFormattedTo("9-09-Sep-September");
-        assertThat(date(2019, 9, 3, UTC))
-            .withFormat("Month MONTH month")
-            .isFormattedTo("September SEPTEMBER september");
-        assertThat(date(2019, 9, 3, UTC))
-            .withFormat("Mon MON mon")
-            .isFormattedTo("Sep SEP sep");
-        assertThat(date(2019, 9, 3, UTC))
-            .withFormat("%M-\"MM-\\MMM-MMMM")
-            .isFormattedTo("%9-\"09-\\Sep-September");
-    }
-
-    public void testRomeMonths() {
-        assertThat(date(2001, 1, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("I i");
-        assertThat(date(2001, 2, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("II ii");
-        assertThat(date(2001, 3, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("III iii");
-        assertThat(date(2001, 4, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("IV iv");
-        assertThat(date(2001, 5, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("V v");
-        assertThat(date(2001, 6, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("VI vi");
-        assertThat(date(2001, 7, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("VII vii");
-        assertThat(date(2001, 8, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("VIII viii");
-        assertThat(date(2001, 9, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("IX ix");
-        assertThat(date(2001, 10, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("X x");
-        assertThat(date(2001, 11, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("XI xi");
-        assertThat(date(2001, 12, 3, UTC))
-            .withFormat("RM rm")
-            .isFormattedTo("XII xii");
-    }
-
-    public void testYearOfEra() {
-        assertThat(date(2001, 9, 3, UTC))
-            .withFormat("y-yy-yyyy-yyyyy")
-            .isFormattedTo("2001-01-2001-02001");
-
-        assertThat(dateTime(45, 9, 3, 18, 10, 37, 123456789))
-            .withFormat("y-yyyy")
-            .isFormattedTo("45-0045");
-
-        assertThat(dateTime(2017, 1, 1, 1, 1, 1, 0))
-            .withFormat("Y,YYY Y YY YYY YYYY")
-            .isFormattedTo("2,017 7 17 017 2017");
-    }
-
-    public void testWeekBasedYear() {
-        assertThat(date(2017, 1, 1, UTC))
-            .withFormat("IYYY IYY IY I")
-            .isFormattedTo("2016 016 16 6");
-    }
-
-    public void testDayOfWeek() {
-        var zoneId = ZoneId.of("Etc/GMT-10");
-        var dateTime = dateTime(2019, 9, 3, 18, 10, 37, 123456789);
-        assertThat(dateTime)
-            .withFormat("Dy DY dy")
-            .withZoneId(zoneId)
-            .isFormattedTo("Wed WED wed");
-
-        assertThat(dateTime)
-            .withFormat("Day DAY day")
-            .withZoneId(zoneId)
-            .isFormattedTo("Wednesday WEDNESDAY wednesday");
-
-        assertThat(date(2019, 9, 3, UTC))
-            .withFormat("ID D Day")
-            .isFormattedTo("2 3 Tuesday");
-
-        assertThat(date(2019, 9, 8, UTC))
-            .withFormat("ID D")
-            .isFormattedTo("7 1");
-
-        assertThat(date(2019, 9, 9, UTC))
-            .withFormat("ID D")
-            .isFormattedTo("1 2");
-    }
-
-    public void testDayOfMonth() {
-        assertThat(date(2019, 9, 23, UTC))
-            .withFormat("d")
-            .isFormattedTo("23");
-
-        assertThat(date(2019, 9, 3, UTC))
-            .withFormat("d")
-            .isFormattedTo("3");
-    }
-
-    public void testDayOfYear() {
-        assertThat(date(2018, 9, 23, UTC))
-            .withFormat("DDD")
-            .isFormattedTo("266");
-
-        assertThat(date(2018, 1, 1, UTC))
-            .withFormat("DDD")
-            .isFormattedTo("001");
-
-        assertThat(date(2019, 9, 23, UTC))
-            .withFormat("DDD")
-            .isFormattedTo("266");
-
-        assertThat(date(2019, 12, 31, UTC))
-            .withFormat("DDD")
-            .isFormattedTo("365");
-
-        assertThat(date(2020, 12, 31, UTC))
-            .withFormat("DDD")
-            .isFormattedTo("366");
-    }
-
-    public void testWeekNumber() {
-        assertThat(date(2020, 1, 1, UTC))
-            .withFormat("W IW")
-            .isFormattedTo("1 01");
-
-//        assertThat(dateTime(2018, 6, 8, 12, 0, 0, 0))
-//            .withFormat("W IW")
-//            .isFormattedTo("2 23");
-    }
-
-    public void testEra() {
-        assertThat(date(2019, 9, 3, UTC))
-            .withFormat("G AD A.D. a.d. ad")
-            .isFormattedTo("AD AD A.D. a.d. ad");
-
-        assertThat(date(-2019, 9, 3, UTC))
-            .withFormat("G BC A.D. a.d. ad")
-            .isFormattedTo("BC BC B.C. b.c. bc");
-
-        assertThat(date(-2019, 9, 3, UTC))
-            .withFormat("G BC B.C. b.c. bc")
-            .isFormattedTo("BC BC B.C. b.c. bc");
-
-        assertThat(date(2019, 9, 3, UTC))
-            .withFormat("G AD A.D. a.d. ad")
-            .isFormattedTo("AD AD A.D. a.d. ad");
-    }
-
-    public void testQuarterOfYear() {
-        for (int month = 0; month < 12; month++) {
-            assertThat(date(2019, month + 1, 3, UTC))
-                .withFormat("Q")
-                .isFormattedTo(String.valueOf((month / 3) + 1));
+        private static <T> T randomFromCollection(Collection<T> list) {
+            List<T> l = new ArrayList<>(list);
+            return l.get(rnd().nextInt(l.size()));
+        }
+        
+        private static String patternWithRandomModifiers(String pattern) {
+            if (PATTERNS_WITHOUT_MODIFIER_TEST.contains(pattern)) {
+                return pattern;
+            }
+            return randomFromCollection(FILL_MODIFIERS) + pattern + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS);
+        }
+    
+        private static List<TestCase> generateTestCases() {
+            
+            final List<BigDecimal> testEpochSeconds = new LinkedList<>();
+            for (int i = 0; i < 50; i++) {
+                testEpochSeconds.add(randomSecondsWithFractions(-1200, 2500));
+            }
+            for (int i = 0; i < 5; i++) {
+                testEpochSeconds.add(randomSecondsWithFractions(-1, 1));
+            }
+    
+            List<TestCase> testCases = new ArrayList<>();
+    
+            // check each format string alone
+            for (String pattern : PATTERNS) {
+                testCases.add(new TestCase(randomFromCollection(testEpochSeconds), PATTERNS_WITHOUT_MODIFIER_TEST.contains(pattern) 
+                    ? pattern 
+                    : String.join(PATTERN_DELIMITER, pattern, FILL_MODIFIERS.get(0) + pattern + ORDINAL_SUFFIX_MODIFIERS.get(0))));
+            }
+            
+            // let's check all of the format strings with a non-ambiguous format string
+            for (BigDecimal es : testEpochSeconds) {
+                testCases.add(new TestCase(es, IntStream.range(0, PATTERNS.length)
+                    .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(PATTERNS[idx]))
+                    .collect(Collectors.joining(PATTERN_DELIMITER))));
+            }
+    
+            // check the lowercase versions of the format strings
+            testCases.add(new TestCase(randomFromCollection(testEpochSeconds), IntStream.range(0, PATTERNS.length)
+                .mapToObj(idx -> (idx + ":" + patternWithRandomModifiers(PATTERNS[idx])).toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining(PATTERN_DELIMITER))));
+    
+            // potentially ambiguous format string test cases, to check if our format string parsing is in-sync with PostgreSQL
+            // greedy and prefers the longer format strings
+            testCases.add(new TestCase(randomFromCollection(testEpochSeconds), "YYYYYYYYYYYYYYY,YYYYYYYYY"));
+            testCases.add(new TestCase(randomFromCollection(testEpochSeconds), "SSSSSSSSSSSSSSSS"));
+            testCases.add(new TestCase(randomFromCollection(testEpochSeconds), "DDDDDDDD"));
+    
+            // Roman numbers
+            for (int i = 1; i <= 12; i++) {
+                testCases.add(new TestCase(
+                    new BigDecimal(dateTime(0).withMonth(i).toEpochSecond()), rnd().nextBoolean() ? "RM" : "rm"));
+            }
+            
+            // random strings made out of template patterns and random characters
+            final String randomCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy _-.:;";
+            final List<String> formatStringsToRandomTest = Arrays.stream(PATTERNS)
+                .filter(s -> NOT_FULLY_MATCHABLE_PATTERNS.contains(s) == false)
+                .collect(Collectors.toList());
+            
+            for (int i = 0; i < 20; i++) {
+                String patternWithLiterals = IntStream.rangeClosed(1, 30).mapToObj(idx -> 
+                    rnd().nextInt(100) < 80 
+                        ? randomCharacters.substring(rnd().nextInt(randomCharacters.length())).substring(0, 1) 
+                        : (randomFromCollection(FILL_MODIFIERS) 
+                            + randomFromCollection(formatStringsToRandomTest) 
+                            + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS)))
+                    .collect(Collectors.joining());
+                
+                // clean up the random string from the unsupported modifiers
+                for (String unsupportedPatternModifier : UNSUPPORTED_PATTERN_MODIFIERS) {
+                    patternWithLiterals = patternWithLiterals
+                        .replace(unsupportedPatternModifier, "")
+                        .replace(unsupportedPatternModifier.toLowerCase(Locale.ROOT), "");
+                }
+                testCases.add(new TestCase(randomFromCollection(testEpochSeconds), patternWithLiterals));
+            }
+    
+            return testCases;
+        }
+        
+        /**
+         * Generates an SQL file that can be used to create the test dataset for the unit test of the <code>TO_CHAR</code>
+         * implementation. In case the <code>TO_CHAR</code> implementation needs an upgrade, add the list of the new format
+         * strings to the list of the format string, regenerate the SQL, run it against the PostgreSQL version you are targeting
+         * and update the test CSV file.
+         */
+        private static String unitTestExporterScript() {
+            return generateTestCases().stream().map(tc -> {
+                long seconds = tc.secondsAndFractionsSinceEpoch.longValue();
+                BigDecimal fractions = tc.secondsAndFractionsSinceEpoch.remainder(BigDecimal.ONE).movePointRight(6);
+                return String.format(Locale.ROOT,
+                    "SET TIME ZONE '%6$s';\n" +
+                    "\\copy (SELECT %1$d as id, %2$s as epoch_seconds_and_microsends, '%6$s' as zone_id, '%5$s' as format_string, " +
+                        "TO_CHAR((TO_TIMESTAMP(%3$d) + INTERVAL '%4$d microseconds'), '%5$s') as to_char_result) to stdout " +
+                        "with DELIMITER as '" + DELIMITER + "' NULL as '' csv \n",
+                    tc.id, tc.secondsAndFractionsSinceEpoch.toPlainString(), seconds, fractions.intValue(), tc.formatString, tc.zoneId
+                );
+            }).collect(Collectors.joining("\n"));
+        }
+    
+        /**
+         * Saves the generated test script into the file specified as the first and only argument.
+         *
+         * Once the file is generated, you can execute the following command to generate the output dataset with:
+         *
+         * <p>
+         *  <code>
+         *  PGPASSWORD="mysecretpassword" psql --quiet -h localhost -p 5432 -U postgres -f /tmp/postgresql-tochar-test.sql &gt; /tochar.csv
+         *  </code>
+         * </p>
+         */
+        public static void main(String[] args) throws Exception {
+            String scriptFilename = args.length < 1 ? "/tmp/postgresql-tochar-test.sql" : args[0];
+            Files.writeString(Path.of(scriptFilename), unitTestExporterScript(), StandardCharsets.UTF_8);
         }
     }
 
-    public void testJulianDays() {
-        assertThat(dateTime(2017, 1, 1, 1, 1, 1, 0))
-            .withFormat("J")
-            .isFormattedTo("2457755");
-
-        assertThat(dateTime(500, 4, 11, 23, 59, 0, 0))
-            .withFormat("J")
-            .isFormattedTo("1903782");
+    @ParametersFactory(argumentFormatting = "%1$s: timestamp=%2$s, zone=%3$s, format=%4$s")
+    public static List<Object[]> readCsv() throws Exception {
+        Path testFilePath = Path.of(DateTimeToCharProcessorTests.class.getResource("tochar.csv").toURI());
+        return Files.readAllLines(testFilePath).stream().map(line -> {
+            String[] cols = line.split(Pattern.quote(TestGenerator.DELIMITER));
+            return new Object[]{ cols[0], cols[1], cols[2], cols[3], cols[4] };
+        }).collect(Collectors.toList());
     }
 
-    public void testCentury() {
-        assertThat(date(2001, 1, 1, UTC))
-            .withFormat("CC")
-            .isFormattedTo("21");
+    private final String id;
+    private final String secondsAndFractionsSinceEpoch;
+    private final String zone;
+    private final String formatString;
+    private final String expectedResult;
+    
+    private Locale defaultLocale = null;
 
-        assertThat(date(2000, 1, 1, UTC))
-            .withFormat("CC")
-            .isFormattedTo("20");
-
-        assertThat(date(1, 1, 1, UTC))
-            .withFormat("CC")
-            .isFormattedTo("01");
-
-        assertThat(date(0, 1, 1, UTC))
-            .withFormat("CC")
-            .isFormattedTo("-01");
-
-        assertThat(date(-1, 1, 1, UTC))
-            .withFormat("CC")
-            .isFormattedTo("-01");
-
-        assertThat(date(-101, 1, 1, UTC))
-            .withFormat("CC")
-            .isFormattedTo("-02");
-
-        assertThat(date(-2000, 1, 1, UTC))
-            .withFormat("CC")
-            .isFormattedTo("-21");
-
-        assertThat(date(-2001, 1, 1, UTC))
-            .withFormat("CC")
-            .isFormattedTo("-21");
+    public DateTimeToCharProcessorTests(String id, String secondsAndFractionsSinceEpoch, String zone, String formatString, 
+        String expectedResult) {
+        this.id = id;
+        this.secondsAndFractionsSinceEpoch = secondsAndFractionsSinceEpoch;
+        this.zone = zone;
+        this.formatString = formatString;
+        this.expectedResult = expectedResult;
     }
 
-    public void testAmPmOfDay() {
-        var zoneId = ZoneId.of("America/Sao_Paulo");
-        var dateTime = dateTime(2019, 9, 3, 18, 10, 37, 123456789);
-
-        assertThat(dateTime(2034, 9, 3, 9, 10, 37, 123456789))
-            .withFormat("am a.m. AM A.M.")
-            .withZoneId(zoneId)
-            .isFormattedTo("am a.m. AM A.M.");
-        assertThat(dateTime(2034, 9, 3, 18, 10, 37, 123456789))
-            .withFormat("am a.m. AM A.M.")
-            .withZoneId(zoneId)
-            .isFormattedTo("pm p.m. PM P.M.");
-
-        assertThat(dateTime)
-            .withFormat("'arr:' h:m am")
-            .withZoneId(zoneId)
-            .isFormattedTo("arr: 3:10 pm");
-    }
-
-    public void testDate() {
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 123456789))
-            .withFormat("YYYY-MM-dd")
-            .withZoneId("Etc/GMT-10")
-            .isFormattedTo("2019-09-04");
-    }
-
-    public void testWithNulls() {
-        assertThat(randomDatetimeLiteral())
-            .withFormat(NULL)
-            .withZoneId(randomZone())
-            .isNull();
-        assertThat(randomDatetimeLiteral())
-            .withFormat(l(""))
-            .withZoneId(randomZone())
-            .isNull();
-        assertThat(NULL)
-            .withFormat(randomStringLiteral())
-            .withZoneId(randomZone())
-            .isNull();
-    }
-
-    public void testFormatInvalidInputs() {
-        assertThat(l("foo"))
-            .withFormat(randomStringLiteral())
-            .withZoneId(randomZone())
-            .throwsWithMessage(SqlIllegalArgumentException.class, "A date/datetime/time is required; received [foo]");
-        assertThat(randomDatetimeLiteral())
-            .withFormat(l(5))
-            .withZoneId(randomZone())
-            .throwsWithMessage(SqlIllegalArgumentException.class, "A string is required; received [5]");
-        assertThat(dateTime(2019, 9, 3, 18, 10, 37, 0))
-            .withFormat("invalid")
-            .withZoneId(randomZone())
-            .throwsWithMessage(SqlIllegalArgumentException.class, "Invalid pattern [invalid] is received for formatting date/time [2019-09-03T18:10:37Z]; Unknown pattern letter: i");
-        assertThat(time(18, 10, 37, 123000000))
-            .withFormat("MM/dd")
-            .withZoneId(randomZone())
-            .throwsWithMessage(SqlIllegalArgumentException.class, "Invalid pattern [MM/dd] is received for formatting date/time [18:10:37.123Z]; Unsupported field: MonthOfYear");
-    }
-
-    private ToCharAssert assertThat(ZonedDateTime zonedDateTime) {
-        return assertThat(l(zonedDateTime));
-    }
-
-    private ToCharAssert assertThat(OffsetTime offsetTime) {
-        return assertThat(l(offsetTime, TIME));
-    }
-
-    private ToCharAssert assertThat(Literal literal) {
-        return new ToCharAssert(literal);
-    }
-
-    static class ToCharAssert {
-
-        private final Literal time;
-        private Literal format;
-        private ZoneId zoneId = UTC;
-
-        public ToCharAssert(Literal time) {
-            this.time = time;
+    private static ZonedDateTime dateTimeWithFractions(String secondAndFractionsSinceEpoch) {
+        BigDecimal b = new BigDecimal(secondAndFractionsSinceEpoch);
+        long seconds = b.longValue();
+        int fractions = b.remainder(BigDecimal.ONE).movePointRight(9).intValueExact();
+        int adjustment = 0;
+        if (fractions < 0) {
+            fractions += 1e9;
+            adjustment = -1;
         }
+        return dateTime((seconds + adjustment) * 1000).withNano(fractions);
+    }
 
-        ToCharAssert withFormat(Literal format) {
-            this.format = format;
-            return this;
-        }
-
-        ToCharAssert withFormat(String format) {
-            this.format = l(format);
-            return this;
-        }
-
-        ToCharAssert withZoneId(ZoneId zoneId) {
-            this.zoneId = zoneId;
-            return this;
-        }
-
-        ToCharAssert withZoneId(String zoneId) {
-            this.zoneId = ZoneId.of(zoneId);
-            return this;
-        }
-
-        void isFormattedTo(String expectedFormat) {
-            assertEquals(expectedFormat, execute());
-        }
-
-        void isNull() {
-            assertNull(execute());
-        }
-
-        void throwsWithMessage(Class<? extends Throwable> exceptionClass, String expectedMessage) {
-            var ex = expectThrows(exceptionClass, this::execute);
-            assertEquals(expectedMessage, ex.getMessage());
-        }
-
-        private Object execute() {
-            return new ToChar(Source.EMPTY, time, format, zoneId)
+    /**
+     * Since the test dataset was exported from PostgreSQL using en_US locale, 
+     * let's stick with to that Locale during the testing of this function.
+     */
+    @Before
+    public void changeLocaleToUS() {
+        this.defaultLocale = Locale.getDefault();
+        Locale.setDefault(Locale.US);
+    }
+    
+    @After
+    public void revertLocale() {
+        Locale.setDefault(this.defaultLocale);
+    }
+    
+    public void test() throws Exception {
+        ZoneId zoneId = ZoneId.of(zone);
+        ZonedDateTime timestamp = dateTimeWithFractions(secondsAndFractionsSinceEpoch);
+        String result = (String) new ToChar(Source.EMPTY, l(timestamp, DataTypes.DATETIME), l(formatString, DataTypes.KEYWORD), zoneId)
                 .makePipe()
                 .asProcessor()
                 .process(null);
+        List<String> expectedResultSplitted = List.of(expectedResult.split(Pattern.quote(TestGenerator.PATTERN_DELIMITER)));
+        List<String> resultSplitted = List.of(result.split(Pattern.quote(TestGenerator.PATTERN_DELIMITER)));
+        List<String> formatStringSplitted = List.of(formatString.split(TestGenerator.PATTERN_DELIMITER));
+        assertEquals(formatStringSplitted.size(), resultSplitted.size());
+        assertEquals(formatStringSplitted.size(), expectedResultSplitted.size());
+        for (int i = 0; i < formatStringSplitted.size(); i++) {
+            String patternMaybeWithIndex = formatStringSplitted.get(i);
+            String pattern = patternMaybeWithIndex.contains(":") 
+                ? patternMaybeWithIndex.substring(patternMaybeWithIndex.indexOf(":") + 1)
+                : patternMaybeWithIndex;
+            String expected = expectedResultSplitted.get(i);
+            String actual = resultSplitted.get(i);
+            try {
+                assertEquals(String.format(Locale.ROOT,
+                    "test id: %1s\nseconds and fractions: %2s\njava timestamp: %3s\nformat string: %4s\nfailed pattern: %5s\n\n",
+                    id, secondsAndFractionsSinceEpoch, timestamp, formatString, patternMaybeWithIndex), expected, actual);
+            } catch (AssertionError err) {
+                if (TestGenerator.NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern)) {
+                    logger.info(err);
+                } else {
+                    throw err;
+                }
+            }
         }
     }
 }

@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class SearchableSnapshotsTests extends ESTestCase {
+public class SearchableSnapshotsUtilsTests extends ESTestCase {
 
     public void testSegmentFilenameComparator() {
 
@@ -26,7 +26,7 @@ public class SearchableSnapshotsTests extends ESTestCase {
             fileNames.add(Tuple.tuple(generation, IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", generation)));
         }
 
-        fileNames.sort(Comparator.comparing(Tuple::v2, SearchableSnapshots.SEGMENT_FILENAME_COMPARATOR));
+        fileNames.sort(Comparator.comparing(Tuple::v2, SearchableSnapshotsUtils.SEGMENT_FILENAME_COMPARATOR));
         long previousGeneration = 0;
         for (Tuple<Long, String> fileName : fileNames) {
             assertThat(

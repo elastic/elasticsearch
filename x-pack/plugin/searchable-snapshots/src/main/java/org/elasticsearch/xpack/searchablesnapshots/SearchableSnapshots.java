@@ -6,11 +6,7 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.SetOnce;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
@@ -22,7 +18,6 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -75,13 +70,9 @@ import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnaps
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -95,6 +86,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.emptyIndexCommit;
 
 /**
  * Plugin for Searchable Snapshots feature
@@ -277,8 +269,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         });
     }
 
-    static final Comparator<String> SEGMENT_FILENAME_COMPARATOR = Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName);
-
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
@@ -287,28 +277,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false) {
 
                     // present an empty IndexCommit to the snapshot mechanism so that we copy no shard data to the repository
-                    private final IndexCommit emptyIndexCommit;
-
-                    {
-                        try {
-                            // We have to use a generation number that corresponds to a real segments_N file since we read this file from
-                            // the directory during the snapshotting process. The oldest segments_N file is the one in the snapshot
-                            // (recalling that we may perform some no-op commits which make newer segments_N files too). The good thing
-                            // about using the oldest segments_N file is that a restore will find that we already have this file "locally",
-                            // avoid overwriting the real one with the bogus one, and then use the real one for the rest of the recovery.
-
-                            final Directory directory = engineConfig.getStore().directory();
-                            final String oldestSegmentsFile = Arrays.stream(directory.listAll())
-                                .filter(s -> s.startsWith(IndexFileNames.SEGMENTS + "_"))
-                                .min(SEGMENT_FILENAME_COMPARATOR)
-                                .orElseThrow(() -> new IOException("segments_N file not found"));
-                            final SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
-                            segmentInfos.updateGeneration(SegmentInfos.readCommit(directory, oldestSegmentsFile));
-                            emptyIndexCommit = Lucene.getIndexCommit(segmentInfos, directory);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
+                    private final IndexCommit emptyIndexCommit = emptyIndexCommit(engineConfig.getStore().directory());
 
                     @Override
                     public IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {

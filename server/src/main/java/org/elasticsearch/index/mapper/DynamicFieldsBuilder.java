@@ -120,10 +120,6 @@ final class DynamicFieldsBuilder {
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             createDynamicField(context, name, DynamicTemplate.XContentFieldType.BOOLEAN,
                 () -> strategy.newDynamicBooleanField(context, name));
-        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-            //runtime binary fields are not supported, hence binary objects always get created as concrete fields
-            createDynamicField(context, name, DynamicTemplate.XContentFieldType.BINARY,
-                () -> CONCRETE.newDynamicBinaryField(context, name));
         } else {
             createDynamicStringFieldFromTemplate(context, name);
         }

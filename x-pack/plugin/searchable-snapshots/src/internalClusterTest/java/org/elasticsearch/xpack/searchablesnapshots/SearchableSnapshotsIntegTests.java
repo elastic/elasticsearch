@@ -703,9 +703,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getSnapshots()
             .get(0);
-        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(snapshotOneTotalFileCount));
-        assertThat(snapshotTwoStatus.getStats().getIncrementalFileCount(), equalTo(numShards)); // one segment_N per shard
-        assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(numShards)); // one segment_N per shard
+        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(numShards)); // one segment_N per shard
+        assertThat(snapshotTwoStatus.getStats().getIncrementalFileCount(), equalTo(0));
+        assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(0));
     }
 
     public void testSnapshotMountedIndexWithTimestampsRecordsTimestampRangeInIndexMetadata() throws Exception {

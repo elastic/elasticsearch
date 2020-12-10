@@ -246,6 +246,7 @@ The response includes indexed values for documents matching model number
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "F1BeSXYBg_szTodcYCmk",
         "_score" : 1.0296195,
         "_source" : {
@@ -258,6 +259,7 @@ The response includes indexed values for documents matching model number
       },
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "l02aSXYBkpNf6QRDO62Q",
         "_score" : 1.0296195,
         "_source" : {
@@ -327,6 +329,7 @@ which still returns in the response:
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "F1BeSXYBg_szTodcYCmk",
         "_score" : 1.0296195,
         "_source" : {
@@ -344,6 +347,7 @@ which still returns in the response:
       },
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "l02aSXYBkpNf6QRDO62Q",
         "_score" : 1.0296195,
         "_source" : {
@@ -544,6 +548,7 @@ and determine which fields to index.
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "oWs5KXYB-XyJbifr9mrz",
         "_score" : 1.0,
         "_source" : {
@@ -628,6 +633,7 @@ allows you to modify the mapping without changing any field values.
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "oWs5KXYB-XyJbifr9mrz",
         "_score" : 1.0,
         "_source" : {

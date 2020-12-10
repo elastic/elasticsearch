@@ -5,6 +5,9 @@
       "description":"Halts all lifecycle management operations and stops the index lifecycle management (ILM) plugin"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

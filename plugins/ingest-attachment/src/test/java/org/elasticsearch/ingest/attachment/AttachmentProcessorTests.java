@@ -349,6 +349,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66086")
     public void testIndexedCharsWithResourceName() throws Exception {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 100,

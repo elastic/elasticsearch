@@ -5,6 +5,9 @@
       "description":"Immediately creates a snapshot according to the lifecycle policy, without waiting for the scheduled time."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

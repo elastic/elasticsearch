@@ -484,7 +484,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * this method considers all mapper plugins
      */
     public boolean isMetadataField(String field) {
-        return mapperRegistry.isMetadataField(indexVersionCreated, field);
+        return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {

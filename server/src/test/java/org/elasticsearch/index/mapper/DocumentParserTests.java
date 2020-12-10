@@ -151,7 +151,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("dynamic", "true");
             b.startObject("runtime");
             {
-                b.startObject("child.name").field("type", "test").endObject();
+                b.startObject("child.name").field("type", "string").endObject();
             }
             b.endObject();
             b.startObject("properties");

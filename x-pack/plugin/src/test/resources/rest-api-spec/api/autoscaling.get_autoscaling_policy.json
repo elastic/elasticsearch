@@ -5,6 +5,9 @@
       "description": "Retrieves an autoscaling policy."
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

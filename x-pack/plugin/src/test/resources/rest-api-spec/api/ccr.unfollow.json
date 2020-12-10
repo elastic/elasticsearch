@@ -5,6 +5,9 @@
       "description": "Stops the following task associated with a follower index and removes index metadata and settings associated with cross-cluster replication."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

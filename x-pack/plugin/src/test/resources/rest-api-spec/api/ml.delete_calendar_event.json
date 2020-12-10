@@ -5,6 +5,9 @@
       "description":"Deletes scheduled events from a calendar."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

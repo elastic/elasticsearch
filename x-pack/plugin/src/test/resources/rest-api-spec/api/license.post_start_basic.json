@@ -5,6 +5,9 @@
       "description":"Starts an indefinite basic license."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

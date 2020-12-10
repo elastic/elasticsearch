@@ -23,12 +23,16 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -81,5 +85,40 @@ public interface IndexStorePlugin {
      */
     default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * {@link IndexFoldersDeletionListener} are invoked before the folders of a shard or an index are deleted from disk.
+     */
+    interface IndexFoldersDeletionListener {
+        /**
+         * Invoked before the folders of an index are deleted from disk. The list of folders contains {@link Path}s that may or may not
+         * exist on disk. Shard locks are expected to be acquired at the time this method is invoked.
+         *
+         * @param index         the {@link Index} of the index whose folders are going to be deleted
+         * @param indexSettings settings for the index whose folders are going to be deleted
+         * @param indexPaths    the paths of the folders that are going to be deleted
+         */
+        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths);
+
+        /**
+         * Invoked before the folders of a shard are deleted from disk. The list of folders contains {@link Path}s that may or may not
+         * exist on disk. Shard locks are expected to be acquired at the time this method is invoked.
+         *
+         * @param shardId       the {@link ShardId} of the shard whose folders are going to be deleted
+         * @param indexSettings index settings of the shard whose folders are going to be deleted
+         * @param shardPaths    the paths of the folders that are going to be deleted
+         */
+        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths);
+    }
+
+    /**
+     * The {@link IndexFoldersDeletionListener} listeners for this plugin. When the folders of an index or a shard are deleted from disk,
+     * these listeners are invoked before the deletion happens in order to allow plugin to clean up any resources if needed.
+     *
+     * @return a list of {@link IndexFoldersDeletionListener} listeners
+     */
+    default List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        return Collections.emptyList();
     }
 }

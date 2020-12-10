@@ -83,7 +83,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().get("field2"));
 
         assertEquals("{\"_doc\":{\"dynamic\":\"runtime\"," +
-                "\"runtime\":{\"field2\":{\"type\":\"string\"}}}}",
+                "\"runtime\":{\"field2\":{\"type\":\"keyword\"}}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
     }
 
@@ -208,7 +208,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testDynamicUpdateWithRuntimeField() throws Exception {
-        MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "string")));
+        MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "keyword")));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("test", "value")));
         assertEquals("{\"_doc\":{\"properties\":{" +
             "\"test\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
@@ -222,7 +222,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
     public void testDynamicUpdateWithRuntimeFieldDottedName() throws Exception {
         MapperService mapperService = createMapperService(runtimeMapping(
-            b -> b.startObject("path1.path2.path3.field").field("type", "string").endObject()));
+            b -> b.startObject("path1.path2.path3.field").field("type", "keyword").endObject()));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("path1").startObject("path2").startObject("path3");
             b.field("field", "value");
@@ -356,7 +356,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertEquals("{\"_doc\":{\"dynamic\":\"true\",\"" +
-                "runtime\":{\"runtime_object.foo.bar.baz\":{\"type\":\"string\"}}," +
+                "runtime\":{\"runtime_object.foo.bar.baz\":{\"type\":\"keyword\"}}," +
                 "\"properties\":{\"object\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"properties\":{" +
                 "\"baz\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}}}}," +
                 "\"runtime_object\":{\"dynamic\":\"runtime\",\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\":\"object\"}}}}}}}}",
@@ -552,8 +552,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
 
-        assertThat(mapperService.fieldType("s_long").typeName(), equalTo("string"));
-        assertThat(mapperService.fieldType("s_double").typeName(), equalTo("string"));
+        assertThat(mapperService.fieldType("s_long").typeName(), equalTo("keyword"));
+        assertThat(mapperService.fieldType("s_double").typeName(), equalTo("keyword"));
     }
 
     public void testDateDetectionInheritsFormat() throws Exception {
@@ -640,5 +640,148 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         assertThat(mapperService.fieldType("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+    }
+
+    public void testDynamicTemplateRuntimeMatchMappingType() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("runtime").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("s", "hello");
+            b.field("l", 1);
+        }));
+        assertEquals("{\"_doc\":{\"runtime\":{\"s\":{\"type\":\"long\"}},\"properties\":{\"l\":{\"type\":\"long\"}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+    }
+
+    public void testDynamicTemplateRuntimeMatch() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "field*");
+                        b.startObject("runtime").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("field_string", "hello");
+            b.field("field_long", 1);
+            b.field("field_boolean", true);
+            b.field("concrete_string", "text");
+            b.startObject("field_object");
+            b.field("field_date", "2020-12-15");
+            b.field("concrete_date", "2020-12-15");
+            b.endObject();
+            b.startArray("field_array");
+            b.startObject();
+            b.field("field_double", 1.25);
+            b.field("concrete_double", 1.25);
+            b.endObject();
+            b.endArray();
+        }));
+        assertEquals("{\"_doc\":{\"runtime\":{" +
+                "\"field_array.field_double\":{\"type\":\"double\"}," +
+                "\"field_boolean\":{\"type\":\"boolean\"}," +
+                "\"field_long\":{\"type\":\"long\"}," +
+                "\"field_object.field_date\":{\"type\":\"date\"}," +
+                "\"field_string\":{\"type\":\"keyword\"}}," +
+                "\"properties\":" +
+                "{\"concrete_string\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}," +
+                "\"field_array\":{\"properties\":{\"concrete_double\":{\"type\":\"float\"}}}," +
+                "\"field_object\":{\"properties\":{\"concrete_date\":{\"type\":\"date\"}}}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+    }
+
+    public void testDynamicTemplateRuntimePathMatch() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("path_match", "object.*");
+                        b.field("path_unmatch", "*.concrete*");
+                        b.startObject("runtime").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("double", 1.23);
+            b.startObject("object");
+            {
+                b.field("date", "2020-12-15");
+                b.field("long", 1);
+                b.startObject("object").field("string", "hello").field("concrete", false).endObject();
+            }
+            b.endObject();
+            b.startObject("concrete").field("boolean", true).endObject();
+        }));
+        assertEquals("{\"_doc\":{\"runtime\":{" +
+                "\"object.date\":{\"type\":\"date\"}," +
+                "\"object.long\":{\"type\":\"long\"}," +
+                "\"object.object.string\":{\"type\":\"keyword\"}}," +
+                "\"properties\":" + "{" +
+                "\"concrete\":{\"properties\":{\"boolean\":{\"type\":\"boolean\"}}}," +
+                "\"double\":{\"type\":\"float\"}," +
+                "\"object\":{\"properties\":{\"object\":{\"properties\":{\"concrete\":{\"type\":\"boolean\"}}}}}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+    }
+
+    public void testDynamicRuntimeWithDynamicTemplate() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", "runtime");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("concrete");
+                    {
+                        b.field("match", "concrete*");
+                        b.startObject("mapping").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("double", 1.23);
+            b.field("concrete_double", 1.23);
+        }));
+        assertEquals("{\"_doc\":{\"dynamic\":\"runtime\"," +
+                "\"runtime\":{" + "\"double\":{\"type\":\"double\"}}," +
+                "\"properties\":{\"concrete_double\":{\"type\":\"float\"}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate()));
     }
 }

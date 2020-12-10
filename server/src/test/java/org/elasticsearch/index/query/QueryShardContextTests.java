@@ -325,7 +325,7 @@ public class QueryShardContextTests extends ESTestCase {
          * shards are parsed on the same node.
          */
         Map<String, Object> runtimeMappings = org.elasticsearch.common.collect.Map.ofEntries(
-            org.elasticsearch.common.collect.Map.entry("cat", org.elasticsearch.common.collect.Map.of("type", "string")),
+            org.elasticsearch.common.collect.Map.entry("cat", org.elasticsearch.common.collect.Map.of("type", "keyword")),
             org.elasticsearch.common.collect.Map.entry("dog", org.elasticsearch.common.collect.Map.of("type", "long"))
         );
         QueryShardContext qsc = createQueryShardContext(

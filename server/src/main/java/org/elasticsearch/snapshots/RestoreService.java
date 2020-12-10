@@ -719,6 +719,12 @@ public class RestoreService implements ClusterStateApplier {
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .map(descriptor -> descriptor.getIndexPattern())
             .toArray(String[]::new);
+
+        if (indexPatternsToDelete.length == 0) {
+            // If this is empty, it'll resolve to all indices, so explicitly return an empty set here.
+            return Collections.emptySet();
+        }
+
         final String[] indexNamesToDelete = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState,
             LENIENT_EXPAND_OPEN_CLOSED, indexPatternsToDelete);
         return Stream.of(indexNamesToDelete)

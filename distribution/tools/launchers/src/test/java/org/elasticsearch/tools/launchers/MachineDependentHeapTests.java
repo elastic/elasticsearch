@@ -37,13 +37,13 @@ import static org.junit.Assert.assertThat;
 
 public class MachineDependentHeapTests extends LaunchersTestCase {
 
-    public void testDetermineHeapSize() throws IOException {
+    public void testDefaultHeapSize() throws Exception {
         MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));
         List<String> options = heap.determineHeapSettings(configPath(), Collections.emptyList());
         assertThat(options, containsInAnyOrder("-Xmx4096m", "-Xms4096m"));
     }
 
-    public void testUserPassedHeapArgs() throws IOException {
+    public void testUserPassedHeapArgs() throws Exception {
         MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));
         List<String> options = heap.determineHeapSettings(configPath(), List.of("-Xmx4g"));
         assertThat(options, empty());
@@ -88,7 +88,7 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
         assertThat(options, containsInAnyOrder("-Xmx128m", "-Xms128m"));
     }
 
-    public void testFallbackOptions() throws IOException {
+    public void testFallbackOptions() throws Exception {
         MachineDependentHeap machineDependentHeap = new MachineDependentHeap(errorThrowingMemoryInfo());
         List<String> options = machineDependentHeap.determineHeapSettings(configPath(), Collections.emptyList());
         assertThat(options, containsInAnyOrder("-Xmx1024m", "-Xms1024m"));

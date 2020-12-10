@@ -306,13 +306,10 @@ public class ArchiveTests extends PackagingTestCase {
     public void test73CustomJvmOptionsDirectoryFilesWithoutOptionsExtensionIgnored() throws Exception {
         final Path jvmOptionsIgnored = installation.config(Paths.get("jvm.options.d", "jvm.options.ignored"));
         try {
-            append(jvmOptionsIgnored, "-Xms512\n-Xmx512m\n");
+            append(jvmOptionsIgnored, "-Xthis_is_not_a_valid_option\n");
 
             startElasticsearch();
-
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, not(containsString("\"heap_init_in_bytes\":536870912")));
-
+            ServerUtils.runElasticsearchTests();
             stopElasticsearch();
         } finally {
             rm(jvmOptionsIgnored);

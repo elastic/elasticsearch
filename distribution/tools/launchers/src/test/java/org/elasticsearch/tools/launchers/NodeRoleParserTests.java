@@ -30,97 +30,90 @@ import static org.elasticsearch.tools.launchers.MachineDependentHeap.MachineNode
 import static org.elasticsearch.tools.launchers.MachineDependentHeap.MachineNodeRole.MASTER_ONLY;
 import static org.elasticsearch.tools.launchers.MachineDependentHeap.MachineNodeRole.ML_ONLY;
 import static org.elasticsearch.tools.launchers.MachineDependentHeap.MachineNodeRole.UNKNOWN;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.fail;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 public class NodeRoleParserTests extends LaunchersTestCase {
 
-    public void testMasterOnlyNode() {
+    public void testMasterOnlyNode() throws IOException {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("node.roles: [master]"));
-        assertEquals(nodeRole, MASTER_ONLY);
-
-        nodeRole = parseConfig(sb -> sb.append("node.roles: [master, voting_only]"));
-        assertEquals(nodeRole, MASTER_ONLY);
+        assertThat(nodeRole, equalTo(MASTER_ONLY));
 
         nodeRole = parseConfig(sb -> sb.append("node.roles: [master, some_other_role]"));
-        assertNotEquals(nodeRole, MASTER_ONLY);
+        assertThat(nodeRole, not(equalTo(MASTER_ONLY)));
     }
 
-    public void testMlOnlyNode() {
+    public void testMlOnlyNode() throws IOException {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("node.roles: [ml]"));
-        assertEquals(nodeRole, ML_ONLY);
-
-        nodeRole = parseConfig(sb -> sb.append("node.roles: [ml, voting_only]"));
-        assertEquals(nodeRole, ML_ONLY);
+        assertThat(nodeRole, equalTo(ML_ONLY));
 
         nodeRole = parseConfig(sb -> sb.append("node.roles: [ml, some_other_role]"));
-        assertNotEquals(nodeRole, ML_ONLY);
+        assertThat(nodeRole, not(equalTo(ML_ONLY)));
     }
 
-    public void testDataNode() {
+    public void testDataNode() throws IOException {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> {});
-        assertEquals(nodeRole, DATA);
+        assertThat(nodeRole, equalTo(DATA));
 
         nodeRole = parseConfig(sb -> sb.append("node.roles: []"));
-        assertEquals(nodeRole, DATA);
+        assertThat(nodeRole, equalTo(DATA));
 
         nodeRole = parseConfig(sb -> sb.append("node.roles: [some_unknown_role]"));
-        assertEquals(nodeRole, DATA);
+        assertThat(nodeRole, equalTo(DATA));
 
         nodeRole = parseConfig(sb -> sb.append("node.roles: [master, ingest]"));
-        assertEquals(nodeRole, DATA);
+        assertThat(nodeRole, equalTo(DATA));
 
         nodeRole = parseConfig(sb -> sb.append("node.roles: [ml, master]"));
-        assertEquals(nodeRole, DATA);
+        assertThat(nodeRole, equalTo(DATA));
     }
 
-    public void testLegacySettings() {
+    public void testLegacySettings() throws IOException {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("node.ml: true"));
-        assertEquals(nodeRole, UNKNOWN);
+        assertThat(nodeRole, equalTo(UNKNOWN));
 
         nodeRole = parseConfig(sb -> sb.append("node.master: true"));
-        assertEquals(nodeRole, UNKNOWN);
+        assertThat(nodeRole, equalTo(UNKNOWN));
 
         nodeRole = parseConfig(sb -> sb.append("node.data: false"));
-        assertEquals(nodeRole, UNKNOWN);
+        assertThat(nodeRole, equalTo(UNKNOWN));
 
         nodeRole = parseConfig(sb -> sb.append("node.ingest: false"));
-        assertEquals(nodeRole, UNKNOWN);
+        assertThat(nodeRole, equalTo(UNKNOWN));
     }
 
-    public void testYamlSyntax() {
+    public void testYamlSyntax() throws IOException {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> {
             sb.append("node:\n");
             sb.append("  roles:\n");
             sb.append("    - master");
         });
-        assertEquals(nodeRole, MASTER_ONLY);
+        assertThat(nodeRole, equalTo(MASTER_ONLY));
 
         nodeRole = parseConfig(sb -> {
             sb.append("node:\n");
             sb.append("  roles: [ml]");
         });
-        assertEquals(nodeRole, ML_ONLY);
+        assertThat(nodeRole, equalTo(ML_ONLY));
     }
 
-    public void testInvalidRoleSyntax() {
-        try {
-            parseConfig(sb -> sb.append("node.roles: foo"));
-            fail("expected config parse exception");
-        } catch (IllegalStateException expected) {
-            assertEquals(expected.getMessage(), "Unable to parse elasticsearch.yml. Expected 'node.roles' to be a list.");
-        }
+    public void testInvalidYaml() throws IOException {
+        MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("notyaml"));
+        assertThat(nodeRole, equalTo(UNKNOWN));
     }
 
-    private static MachineDependentHeap.MachineNodeRole parseConfig(Consumer<StringBuilder> action) {
+    public void testInvalidRoleSyntax() throws IOException {
+        MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("node.roles: foo"));
+        assertThat(nodeRole, equalTo(UNKNOWN));
+    }
+
+    private static MachineDependentHeap.MachineNodeRole parseConfig(Consumer<StringBuilder> action) throws IOException {
         StringBuilder sb = new StringBuilder();
         action.accept(sb);
 
         try (InputStream config = new ByteArrayInputStream(sb.toString().getBytes(StandardCharsets.UTF_8))) {
             return MachineDependentHeap.NodeRoleParser.parse(config);
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
         }
     }
 }

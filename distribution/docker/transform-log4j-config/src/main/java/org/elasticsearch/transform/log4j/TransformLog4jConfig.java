@@ -22,6 +22,7 @@ package org.elasticsearch.transform.log4j;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,7 +48,7 @@ public class TransformLog4jConfig {
             System.exit(1);
         }
 
-        Path configPath = Path.of(args[0]);
+        Path configPath = Paths.get(args[0]);
 
         if (Files.exists(configPath) == false) {
             System.err.println("ERROR: [" + configPath + "] does not exist");
@@ -85,7 +86,7 @@ public class TransformLog4jConfig {
                 // We don't need to explicitly define a console appender because the
                 // "rolling" appender will become a console appender. We also don't
                 // carry over "rolling_old"
-                if (keyParts[1].equals("console") || keyParts[1].equals("rolling_old")) {
+                if (keyParts[1].equals("console") || keyParts[1].equals("rolling_old") || keyParts[1].equals("deprecation_rolling_old")) {
                     continue;
                 }
 

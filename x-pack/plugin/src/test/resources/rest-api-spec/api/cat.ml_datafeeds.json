@@ -5,6 +5,9 @@
       "description": "Gets configuration and usage information about datafeeds."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

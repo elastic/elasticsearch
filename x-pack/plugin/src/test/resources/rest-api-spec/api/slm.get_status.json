@@ -5,6 +5,9 @@
       "description":"Retrieves the status of snapshot lifecycle management (SLM)."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

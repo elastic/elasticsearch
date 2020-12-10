@@ -5,6 +5,10 @@
       "description": "Executes a search request asynchronously."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

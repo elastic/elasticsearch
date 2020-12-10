@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -604,6 +605,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     @Override
     public List<Setting<?>> deciderSettings() {
         return List.of(NUM_ANALYTICS_JOBS_IN_QUEUE, NUM_ANOMALY_JOBS_IN_QUEUE, DOWN_SCALE_DELAY);
+    }
+
+    @Override
+    public List<DiscoveryNodeRole> roles() {
+        return List.of(MachineLearning.ML_ROLE);
     }
 }
 

@@ -5,6 +5,9 @@
       "description":"Removes role mappings."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

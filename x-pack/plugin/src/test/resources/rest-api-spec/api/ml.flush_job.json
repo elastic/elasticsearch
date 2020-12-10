@@ -5,6 +5,10 @@
       "description":"Forces any buffered data to be processed by the job."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

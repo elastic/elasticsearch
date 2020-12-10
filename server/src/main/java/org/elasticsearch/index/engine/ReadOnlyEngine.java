@@ -111,7 +111,7 @@ public class ReadOnlyEngine extends Engine {
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
-                this.commitId = lastCommittedSegmentInfos.userData.get(ES_COMMIT_ID);
+                this.commitId = Lucene.getCommitId(lastCommittedSegmentInfos);
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);

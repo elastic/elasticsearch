@@ -107,7 +107,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
-    public static final String ES_COMMIT_ID = "commit_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";

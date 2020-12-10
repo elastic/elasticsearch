@@ -500,17 +500,6 @@ public class CloseIndexIT extends ESIntegTestCase {
         try (Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier(randomFrom(Engine.SearcherScope.values()))) {
             assertThat(searcherSupplier.getCommitId(), equalTo(commitId));
         }
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get());
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        ensureGreen(indexName);
-        for (String nodeName : internalCluster().nodesInclude(indexName)) {
-            final IndexShard indexShard = internalCluster().getInstance(IndicesService.class, nodeName)
-                .indexService(resolveIndex(indexName)).getShard(0);
-            try (Engine.SearcherSupplier searcherSupplier = indexShard.acquireSearcherSupplier(randomFrom(Engine.SearcherScope.values()))) {
-                assertThat(searcherSupplier.getCommitId(), equalTo(commitId));
-            }
-        }
     }
 
     private static void closeIndices(final String... indices) {

@@ -304,9 +304,9 @@ public class IndexingIT extends ESRestTestCase {
                 ResponseException responseException = expectThrows(ResponseException.class, () -> oldNodeClient.performRequest(request));
                 assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
                 assertThat(responseException.getResponse().getWarnings(),
-                    oneOf(
-                        contains("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."),
-                        contains("Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.")
+                    contains(
+                        oneOf("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.",
+                            "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.")
                     ));
                 Map<String, Object> result = ObjectPath.createFromResponse(responseException.getResponse()).evaluate("_shards");
                 assertThat(result.get("total"), equalTo(totalShards));

@@ -20,7 +20,9 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.DynamicRuntimeFieldsBuilder;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
@@ -182,6 +185,45 @@ public class IndicesModuleTests extends ESTestCase {
     public void testDuplicateRuntimeFieldPlugin() {
         TestRuntimeField.Plugin plugin = new TestRuntimeField.Plugin();
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(plugins));
+        assertThat(e.getMessage(), containsString("already registered"));
+    }
+
+    public void testTwoDynamicRuntimeFieldsBuilders() {
+        TestRuntimeField.Plugin plugin = new TestRuntimeField.Plugin();
+        MapperPlugin second = new MapperPlugin() {
+            @Override
+            public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
+                return new DynamicRuntimeFieldsBuilder() {
+                    @Override
+                    public RuntimeFieldType newDynamicStringField(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public RuntimeFieldType newDynamicLongField(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public RuntimeFieldType newDynamicDoubleField(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public RuntimeFieldType newDynamicBooleanField(String name) {
+                        return null;
+                    }
+
+                    @Override
+                    public RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter) {
+                        return null;
+                    }
+                };
+            }
+        };
+        List<MapperPlugin> plugins = Arrays.asList(plugin, second);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));

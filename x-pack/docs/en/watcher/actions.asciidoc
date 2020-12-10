@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions]]
-== Actions
+== {watcher} actions
+++++
+<titleabbrev>Actions</titleabbrev>
+++++
 
 When a watch's condition is met, its actions are executed unless it is being
 <<actions-ack-throttle,throttled>>. A watch can perform multiple actions.
@@ -15,10 +18,14 @@ Actions have access to the payload in the execution context. They can use it to
 support their execution in any way they need. For example, the payload might
 serve as a model for a templated email body.
 
-{watcher} supports the following types of actions:
-<<actions-email,`email`>>, <<actions-webhook,`webhook`>>, <<actions-index,`index`>>,
-<<actions-logging,`logging`>>, <<actions-slack,`slack`>>,
-and <<actions-pagerduty,`pagerduty`>>.
+{watcher} supports the following actions:
+
+* <<actions-email,`email`>>
+* <<actions-webhook,`webhook`>>
+* <<actions-index,`index`>>
+* <<actions-logging,`logging`>>
+* <<actions-slack,`slack`>>
+* <<actions-pagerduty,`pagerduty`>>
 
 [discrete]
 [[actions-ack-throttle]]
@@ -189,6 +196,21 @@ of a watch during its execution:
 
 image::images/action-throttling.jpg[align="center"]
 
+[discrete]
+[[actions-ssl-openjdk]]
+=== Using SSL/TLS with OpenJDK
+
+As each distributor is free to choose how to package OpenJDK, it may happen,
+that even despite the exact same version, an OpenJDK distribution contains
+different parts under different Linux distributions.
+
+This can lead to issues with any action or input that uses TLS, like the `jira`,
+`pagerduty`, `slack`, or `webhook` one, because of missing CA certs.
+If you encounter TLS errors, when writing watches that connect to TLS endpoints,
+you should try to upgrade to the latest available OpenJDK distribution for your
+platform and if that does not help, try to upgrade to Oracle JDK.
+
+
 [role="xpack"]
 [[action-foreach]]
 === Running an action for each element in an array
@@ -237,7 +259,10 @@ PUT _watcher/watch/log_event_watch
 
 [role="xpack"]
 [[action-conditions]]
-=== Adding conditions to actions
+=== Adding conditions to {watcher} actions
+++++
+<titleabbrev>Adding conditions to actions</titleabbrev>
+++++
 
 When a watch is triggered, its condition determines whether or not to execute the
 watch actions. Within each action, you can also add a condition per action. These
@@ -302,6 +327,7 @@ PUT _watcher/watch/log_event_watch
 <1> A `condition` that only applies to the `notify_pager` action, which
     restricts its execution to when the condition succeeds (at least 5 hits in this case).
 
+
 include::actions/email.asciidoc[]
 
 include::actions/webhook.asciidoc[]
@@ -316,16 +342,3 @@ include::actions/pagerduty.asciidoc[]
 
 include::actions/jira.asciidoc[]
 
-[discrete]
-[[actions-ssl-openjdk]]
-=== Using SSL/TLS with OpenJDK
-
-As each distributor is free to choose how to package OpenJDK, it may happen,
-that even despite the exact same version, an OpenJDK distribution contains
-different parts under different Linux distributions.
-
-This can lead to issues with any action or input that uses TLS, like the `jira`,
-`pagerduty`, `slack`, or `webhook` one, because of missing CA certs.
-If you encounter TLS errors, when writing watches that connect to TLS endpoints,
-you should try to upgrade to the latest available OpenJDK distribution for your
-platform and if that does not help, try to upgrade to Oracle JDK.

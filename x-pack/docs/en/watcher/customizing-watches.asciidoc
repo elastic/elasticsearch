@@ -147,7 +147,7 @@ returned any hits:
 [source,js]
 --------------------------------------------------
 "condition" : {
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
   },
 --------------------------------------------------
 // NOTCONSOLE
@@ -223,7 +223,7 @@ attaches the payload data to the message:
     "email" : { <2>
       "to" : "email@example.org",
       "subject" : "Watcher Notification",
-      "body" : "{{ctx.payload.hits.total.value}} error logs found",
+      "body" : "{{ctx.payload.hits.total}} error logs found",
       "attachments" : {
         "data_attachment" : {
           "data" : {
@@ -252,7 +252,7 @@ creates a new issue in GitHub
       "url" : "https://api.github.com/repos/<owner>/<repo>/issues", <1>
       "body" : "{
         \"title\": \"Found errors in 'contact.html'\",
-        \"body\": \"Found {{ctx.payload.hits.total.value}} errors in this page in the last 5 minutes\",
+        \"body\": \"Found {{ctx.payload.hits.total}} errors in this page in the last 5 minutes\",
         \"assignee\": \"web-admin\",
         \"labels\": [ \"bug\", \"sev2\" ]
       }",

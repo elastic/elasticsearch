@@ -5,6 +5,10 @@
       "description": "Explore extracted and summarized information about the documents and terms in an index."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -220,12 +220,10 @@ public class NodeEnvironmentTests extends ESTestCase {
             Files.createDirectories(path.resolve("1"));
         }
 
-        {
-            SetOnce<Path[]> listener = new SetOnce<>();
-            ShardLockObtainFailedException ex = expectThrows(ShardLockObtainFailedException.class,
-                () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, listener::set));
-            assertNull(listener.get());
-        }
+        expectThrows(ShardLockObtainFailedException.class,
+            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPaths -> {
+                assert false : "should not be called " + shardPaths;
+            }));
 
         for (Path path : env.indexPaths(index)) {
             assertTrue(Files.exists(path.resolve("0")));
@@ -246,12 +244,10 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertFalse(Files.exists(path.resolve("1")));
         }
 
-        {
-            SetOnce<Path[]> listener = new SetOnce<>();
-            ShardLockObtainFailedException ex = expectThrows(ShardLockObtainFailedException.class,
-                () -> env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings, listener::set));
-            assertNull(listener.get());
-        }
+        expectThrows(ShardLockObtainFailedException.class,
+            () -> env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings, indexPaths -> {
+                assert false : "should not be called " + indexPaths;
+            }));
 
         fooLock.close();
 

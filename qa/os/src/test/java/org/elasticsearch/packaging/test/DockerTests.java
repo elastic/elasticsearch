@@ -685,6 +685,13 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));
     }
 
+    public void test150MachineDependentHeap() throws Exception {
+        runContainer(distribution(), builder().memory("942m"));
+        final Result containerLogs = getContainerLogs();
+        assertThat(containerLogs.stdout, containsString("-Xmx471"));
+        assertThat(containerLogs.stdout, containsString("-Xms471"));
+    }
+
     /**
      * Check that the UBI images has the correct license information in the correct place.
      */

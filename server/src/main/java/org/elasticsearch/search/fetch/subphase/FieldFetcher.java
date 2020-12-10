@@ -48,7 +48,7 @@ public class FieldFetcher {
                                       SearchLookup searchLookup,
                                       Collection<FieldAndFormat> fieldAndFormats) {
 
-        List<FieldContext> fieldContexts = new ArrayList<>();
+        Map<String, FieldContext> fieldContexts = new HashMap<>();
         List<String> unmappedFetchPattern = new ArrayList<>();
         Set<String> mappedToExclude = new HashSet<>();
         boolean includeUnmapped = false;
@@ -69,7 +69,7 @@ public class FieldFetcher {
                 }
                 ValueFetcher valueFetcher = ft.valueFetcher(context, format);
                 mappedToExclude.add(field);
-                fieldContexts.add(new FieldContext(field, valueFetcher));
+                fieldContexts.put(field, new FieldContext(field, valueFetcher));
             }
         }
         CharacterRunAutomaton unmappedFetchAutomaton = new CharacterRunAutomaton(Automata.makeEmpty());
@@ -81,13 +81,13 @@ public class FieldFetcher {
         return new FieldFetcher(fieldContexts, unmappedFetchAutomaton, mappedToExclude, includeUnmapped);
     }
 
-    private final List<FieldContext> fieldContexts;
+    private final Map<String, FieldContext> fieldContexts;
     private final CharacterRunAutomaton unmappedFetchAutomaton;
     private final Set<String> mappedToExclude;
     private final boolean includeUnmapped;
 
     private FieldFetcher(
-        List<FieldContext> fieldContexts,
+        Map<String, FieldContext> fieldContexts,
         CharacterRunAutomaton unmappedFetchAutomaton,
         Set<String> mappedToExclude,
         boolean includeUnmapped
@@ -100,7 +100,7 @@ public class FieldFetcher {
 
     public Map<String, DocumentField> fetch(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
-        for (FieldContext context : fieldContexts) {
+        for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
             if (ignoredFields.contains(field)) {
                 continue;
@@ -192,7 +192,7 @@ public class FieldFetcher {
     }
 
     public void setNextReader(LeafReaderContext readerContext) {
-        for (FieldContext field : fieldContexts) {
+        for (FieldContext field : fieldContexts.values()) {
             field.valueFetcher.setNextReader(readerContext);
         }
     }

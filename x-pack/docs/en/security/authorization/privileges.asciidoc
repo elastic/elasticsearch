@@ -288,6 +288,9 @@ clear_scroll, search, suggest, tv).
 `read_cross_cluster`::
 Read-only access to the search action from a <<cross-cluster-configuring,remote cluster>>.
 
+`read_ingest_pipelines`::
+Read-only access to ingest pipline (get, simulate).
+
 `view_index_metadata`::
 Read-only access to index and data stream metadata (aliases, aliases exists,
 get index, get data stream, exists, field mappings, mappings, search shards,

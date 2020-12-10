@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +82,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         RoutingAllocation allocation,
         UnassignedAllocationHandler unassignedAllocationHandler
     ) {
+        // TODO: cancel and jump to better available allocations?
         if (shardRouting.primary()
             && (shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE
                 || shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE)) {
@@ -182,6 +182,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true);
             }
         } else if (matchingNodes.hasAnyData() == false && shardRouting.unassignedInfo().isDelayed()) {
+            // TODO: Delay replicas?
             // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
             // unassigned due to a node leaving, so we delay allocation of this replica to see if the
             // node with the shard copy will rejoin so we can re-use the copy it has
@@ -354,7 +355,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> data,
         boolean explain
     ) {
-        Map<DiscoveryNode, MatchingNode> matchingNodes = new HashMap<>();
+        Map<DiscoveryNode, Long> matchingNodes = new HashMap<>();
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
         for (Map.Entry<DiscoveryNode, NodeCacheFilesMetadata> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
@@ -369,14 +370,12 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 continue;
             }
 
-            // check if we can allocate on that node...
-            // we only check for NO, since if this node is THROTTLING and it has enough "same data"
-            // then we will try and assign it next time
+            // check if we can allocate on the node
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
-            MatchingNode matchingNode = null;
+            Long matchingBytes = null;
             if (explain) {
-                matchingNode = computeMatchingNode(nodeCacheFilesMetadata);
-                NodeAllocationResult.ShardStoreInfo shardStoreInfo = new NodeAllocationResult.ShardStoreInfo(matchingNode.matchingBytes);
+                matchingBytes = nodeCacheFilesMetadata.bytesCached();
+                NodeAllocationResult.ShardStoreInfo shardStoreInfo = new NodeAllocationResult.ShardStoreInfo(matchingBytes);
                 nodeDecisions.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStoreInfo, decision));
             }
 
@@ -384,26 +383,22 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 continue;
             }
 
-            if (matchingNode == null) {
-                matchingNode = computeMatchingNode(nodeCacheFilesMetadata);
+            if (matchingBytes == null) {
+                matchingBytes = nodeCacheFilesMetadata.bytesCached();
             }
-            matchingNodes.put(discoNode, matchingNode);
+            matchingNodes.put(discoNode, matchingBytes);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "{}: node [{}] has [{}/{}] bytes of re-usable data",
                     shard,
                     discoNode.getName(),
-                    new ByteSizeValue(matchingNode.matchingBytes),
-                    matchingNode.matchingBytes
+                    new ByteSizeValue(matchingBytes),
+                    matchingBytes
                 );
             }
         }
 
         return new MatchingNodes(matchingNodes, nodeDecisions);
-    }
-
-    private static MatchingNode computeMatchingNode(NodeCacheFilesMetadata replicaStore) {
-        return new MatchingNode(replicaStore.bytesCached());
     }
 
     private static final class AsyncCacheStatusFetch {
@@ -421,33 +416,18 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
     }
 
-    private static class MatchingNode {
-        static final Comparator<MatchingNode> COMPARATOR = Comparator.comparing(m -> m.matchingBytes);
-
-        final long matchingBytes;
-
-        MatchingNode(long matchingBytes) {
-            this.matchingBytes = matchingBytes;
-        }
-
-        boolean anyMatch() {
-            return matchingBytes > 0;
-        }
-    }
-
     static class MatchingNodes {
-        private final Map<DiscoveryNode, MatchingNode> matchingNodes;
+        private final Map<DiscoveryNode, Long> matchingNodes;
         private final DiscoveryNode nodeWithHighestMatch;
         @Nullable
         private final Map<String, NodeAllocationResult> nodeDecisions;
 
-        MatchingNodes(Map<DiscoveryNode, MatchingNode> matchingNodes, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
+        MatchingNodes(Map<DiscoveryNode, Long> matchingNodes, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
             this.matchingNodes = matchingNodes;
             this.nodeDecisions = nodeDecisions;
             this.nodeWithHighestMatch = matchingNodes.entrySet()
                 .stream()
-                .filter(e -> e.getValue().anyMatch())
-                .max(Map.Entry.comparingByValue(MatchingNode.COMPARATOR))
+                .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
                 .orElse(null);
         }

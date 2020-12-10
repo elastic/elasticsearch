@@ -36,7 +36,7 @@ public class TransformLog4jConfig {
     public static void main(String[] args) throws IOException {
         List<String> lines = getConfigFile(args);
 
-        final List<String> output = transformConfig(lines);
+        final List<String> output = skipBlanks(transformConfig(lines));
 
         output.forEach(System.out::println);
     }
@@ -62,20 +62,50 @@ public class TransformLog4jConfig {
         return Files.readAllLines(configPath);
     }
 
-    public static List<String> transformConfig(List<String> lines) {
+    /** Squeeze multiple empty lines into a single line. */
+    static List<String> skipBlanks(List<String> lines) {
+        boolean skipNextEmpty = false;
+
+        final List<String> output = new ArrayList<>(lines.size());
+
+        for (final String line : lines) {
+            if (line.isEmpty()) {
+                if (skipNextEmpty) {
+                    continue;
+                } else {
+                    skipNextEmpty = true;
+                }
+            } else {
+                skipNextEmpty = false;
+            }
+
+            output.add(line);
+        }
+
+        return output;
+    }
+
+    static List<String> transformConfig(List<String> lines) {
         final List<String> output = new ArrayList<>(lines.size());
 
         // This flag provides a way to handle properties whose values are split
         // over multiple lines and we need to omit those properties.
         boolean skipNext = false;
 
-        for (final String line : lines) {
+        for (String line : lines) {
             if (skipNext) {
                 if (line.endsWith("\\") == false) {
                     skipNext = false;
                 }
                 continue;
             }
+
+            // Skip lines with this comment - we remove the relevant config
+            if (line.contains("old style pattern")) {
+                skipNext = line.endsWith("\\");
+                continue;
+            }
+
             if (line.startsWith("appender.")) {
                 String[] parts = line.split("\\s*=\\s*");
                 String key = parts[0];
@@ -84,8 +114,9 @@ public class TransformLog4jConfig {
 
                 // We don't need to explicitly define a console appender because the
                 // "rolling" appender will become a console appender. We also don't
-                // carry over "rolling_old"
-                if (keyParts[1].equals("console") || keyParts[1].equals("rolling_old")) {
+                // carry over "*_old" appenders
+                if (keyParts[1].equals("console") || keyParts[1].endsWith("_old")) {
+                    skipNext = line.endsWith("\\");
                     continue;
                 }
 
@@ -94,7 +125,7 @@ public class TransformLog4jConfig {
                         if (value.equals("RollingFile")) {
                             value = "Console";
                         }
-                        output.add(key + " = " + value);
+                        line = key + " = " + value;
                         break;
 
                     case "fileName":
@@ -103,22 +134,31 @@ public class TransformLog4jConfig {
                     case "strategy":
                         // No longer applicable. Omit it.
                         skipNext = line.endsWith("\\");
-                        break;
+                        continue;
 
                     default:
-                        output.add(line);
                         break;
                 }
             } else if (line.startsWith("rootLogger.appenderRef")) {
                 String[] parts = line.split("\\s*=\\s*");
 
                 // The root logger only needs this appender
-                if (parts[1].equals("rolling")) {
-                    output.add(line);
+                if (parts[1].equals("rolling") == false) {
+                    skipNext = line.endsWith("\\");
+                    continue;
                 }
-            } else {
-                output.add(line);
+            } else if (line.startsWith("logger.")) {
+                String[] parts = line.split("\\s*=\\s*");
+                String key = parts[0];
+                String[] keyParts = key.split("\\.");
+
+                if (keyParts[2].equals("appenderRef") && keyParts[3].endsWith("_old")) {
+                    skipNext = line.endsWith("\\");
+                    continue;
+                }
             }
+
+            output.add(line);
         }
 
         return output;

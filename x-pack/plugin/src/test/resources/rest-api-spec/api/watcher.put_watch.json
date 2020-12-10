@@ -5,6 +5,10 @@
       "description":"Creates a new watch, or updates an existing one."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

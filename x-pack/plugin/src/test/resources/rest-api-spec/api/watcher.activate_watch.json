@@ -5,6 +5,9 @@
       "description":"Activates a currently inactive watch."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

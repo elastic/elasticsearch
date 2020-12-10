@@ -1,6 +1,5 @@
 [[queries]]
 queryNo = 1
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [62, 0]
@@ -18,7 +17,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 2
-case_insensitive = true
 count = 4
 expected_event_ids = [2764897, 2788555, 2794007, 2794299, 2793418, 2794327, 2843304, 2843338]
 filter_counts = [62, 78]
@@ -33,7 +31,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 3
-case_insensitive = true
 count = 53
 expected_event_ids = [364053, 364054, 364076, 364077, 364100, 364101, 364130, 364131, 364136, 364137, 364142, 364143, 364147, 364148, 1967526, 1967527, 2278881, 2278882, 2678783, 2678784, 2678794, 2678804, 2737404, 2737405, 2756749, 2756750, 2764897, 2764898, 2788555, 2788556, 2792766, 2792767, 2793418, 2793419, 2794007, 2794008, 2794299, 2794300, 2794327, 2794328, 2829654, 2830021, 2842421, 2843199, 2843251, 2843274, 2843271, 2843275, 2843304, 2843335, 2843335, 2843336, 2843343, 2843344, 2843338, 2857636, 2857636, 2857638, 3285819, 3285822, 3285918, 3285919, 3299548, 3299549, 3299718, 3325408, 3335292, 3335296, 3338473, 3338475, 3338509, 3338510, 3371674, 3371675, 3371854, 3371857, 3372130, 3372131, 3372288, 3372289, 3372456, 3372457, 3335324, 3396038, 3414954, 3414958, 3415019, 3419532, 3440375, 3440376, 3440379, 3440382, 3440446, 3440447, 3440460, 3440461, 3440563, 3440566, 3440581, 3440582, 3440602, 3440603, 3441061, 3441064, 3441199, 3441201]
 filter_counts = [62, 84067]
@@ -48,7 +45,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 4
-case_insensitive = true
 count = 25
 expected_event_ids = [2278881, 2278882, 2678783, 2678784, 2678794, 2678804, 2737404, 2737405, 2756749, 2756750, 2764897, 2764898, 2788555, 2788556, 2792766, 2792767, 2793418, 2793419, 2794007, 2794008, 2794299, 2794300, 2794327, 2794328, 2843251, 2843274, 2843271, 2843275, 2843304, 2843335, 2843335, 2843336, 2843343, 2843344, 2857636, 2857638, 3285819, 3285822, 3285918, 3285919, 3299548, 3299549, 3335292, 3335296, 3338473, 3338475, 3338509, 3338510, 3414954, 3414958]
 filter_counts = [62, 84067]
@@ -63,7 +59,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 5
-case_insensitive = true
 count = 3
 expected_event_ids = [2683341, 2684165, 2683271, 2691427, 2683272, 2691428]
 filter_counts = [186, 57805]
@@ -78,7 +73,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 6
-case_insensitive = true
 count = 1
 expected_event_ids = [3338473, 3338491, 3338493]
 filter_counts = [62, 14814, 32]
@@ -98,7 +92,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 7
-case_insensitive = true
 count = 2
 expected_event_ids = [3338473, 3338491, 3338493, 3335324, 3335350, 3400089]
 filter_counts = [62, 14814, 32]
@@ -118,7 +111,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 8
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [0, 18063]
@@ -133,7 +125,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 9
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [0, 18063]
@@ -148,7 +139,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 10
-case_insensitive = true
 count = 10
 expected_event_ids = [3940731, 3940732, 3941991, 3941995, 3942330, 3942334, 3942862, 3942863, 3943079, 3943083, 3943496, 3943501, 3943887, 3943893, 3944253, 3944254, 3945063, 3945071, 3945287, 3945292]
 filter_counts = [64209, 56911]
@@ -167,7 +157,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 11
-case_insensitive = true
 count = 10
 expected_event_ids = [7440, 7447, 9514, 9525, 15795, 15799, 15996, 16007, 16025, 16032, 16026, 16033, 16027, 16034, 16138, 16141, 16186, 16190, 17595, 17596]
 filter_counts = [64209, 56911]
@@ -186,7 +175,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 12
-case_insensitive = true
 count = 11
 expected_event_ids = [2294841, 2294859, 2726535, 2726553, 2727759, 2727778, 2818590, 2818600, 2818608, 2818612, 2818609, 2818615, 2818610, 2818616, 2823235, 2823258, 2840855, 2840863, 2883850, 2883860, 3412418, 3412436]
 filter_counts = [28612, 4325]
@@ -204,7 +192,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 13
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [28612, 6]
@@ -222,7 +209,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 14
-case_insensitive = true
 count = 10
 expected_event_ids = [2294859, 2294908, 2726553, 2726804, 2727778, 2728887, 2818615, 2818696, 2818616, 2818697, 2818600, 2818698, 2818612, 2818699, 2840863, 2840951, 2883860, 2884007, 3412436, 3412605]
 filter_counts = [4325, 28612]
@@ -240,7 +226,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 15
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [0, 28612]
@@ -260,7 +245,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 16
-case_insensitive = true
 count = 10
 expected_event_ids = [2294574, 2294577, 2294613, 2294616, 2294636, 2294637, 2729536, 2729537, 2729661, 2729667, 2729683, 2729684, 2731764, 2731765, 2733260, 2733261, 2733324, 2733326, 2733347, 2733348]
 filter_counts = [12, 78]
@@ -278,7 +262,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 17
-case_insensitive = true
 count = 10
 expected_event_ids = [2294574, 2294577, 2294613, 2294616, 2294636, 2294637, 2729536, 2729537, 2729661, 2729667, 2729683, 2729684, 2731764, 2731765, 2733260, 2733261, 2733324, 2733326, 2733347, 2733348]
 filter_counts = [12, 84944]
@@ -293,7 +276,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 18
-case_insensitive = true
 count = 10
 expected_event_ids = [2294574, 2294577, 2294613, 2294616, 2294636, 2294637, 2729536, 2729537, 2729661, 2729667, 2729683, 2729684, 2731764, 2731765, 2733260, 2733261, 2733324, 2733326, 2733347, 2733348]
 filter_counts = [12, 78]
@@ -311,7 +293,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 19
-case_insensitive = true
 count = 10
 expected_event_ids = [2294574, 2294577, 2294613, 2294616, 2294636, 2294637, 2729536, 2729537, 2729661, 2729667, 2729683, 2729684, 2731764, 2731765, 2733260, 2733261, 2733324, 2733326, 2733347, 2733348]
 filter_counts = [12, 78]
@@ -329,7 +310,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 20
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [2, 35]
@@ -347,7 +327,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 21
-case_insensitive = true
 count = 1
 expected_event_ids = [3364186, 3364187]
 filter_counts = [2, 2]
@@ -365,7 +344,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 22
-case_insensitive = true
 count = 1
 expected_event_ids = [3299718, 3364047]
 filter_counts = [24, 3, 37]
@@ -386,7 +364,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 23
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [6, 6, 6, 6]
@@ -408,7 +385,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 24
-case_insensitive = true
 count = 1
 expected_event_ids = [2860083, 2860090, 2860098]
 filter_counts = [6, 6, 6]
@@ -428,7 +404,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 25
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [9562, 124]
@@ -443,7 +418,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 26
-case_insensitive = true
 count = 1
 expected_event_ids = [2732749, 2732788]
 filter_counts = [89, 1]
@@ -466,7 +440,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 27
-case_insensitive = true
 count = 1
 expected_event_ids = [2732749, 2732788]
 filter_counts = [89, 1]
@@ -489,7 +462,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 28
-case_insensitive = true
 count = 1
 expected_event_ids = [3299718, 3364047]
 filter_counts = [24, 3, 37]
@@ -526,7 +498,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 30
-case_insensitive = true
 count = 20
 expected_event_ids = [15690, 15830, 15688, 16224, 18863, 19287, 20086, 20441, 20946, 21142, 25134, 25417, 25798, 25950, 29432, 29536, 29785, 30405, 32089, 32403, 33047, 33172, 33795, 33967, 39085, 39377, 39583, 39716, 43074, 43268, 43577, 43824, 45298, 45508, 45930, 46089, 46430, 46529, 50566, 51674]
 filter_counts = [37787, 1823, 37776]
@@ -544,7 +515,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 31
-case_insensitive = true
 count = 5
 expected_event_ids = [43577, 43824, 45298, 45508, 45930, 46089, 46430, 46529, 50566, 51674]
 filter_counts = [37787, 1823, 37776]
@@ -561,27 +531,25 @@ until
 time = 2.4966301918029785
 type = "sequence"
 
-#[[queries]]
-#queryNo = 32
-#case_insensitive = true
-#count = 0
-#expected_event_ids = []
-#filter_counts = [1823, 645795, 37776]
-#filters = ['process where opcode == 1 and process_name == "cmd.exe"', "file where opcode == 0", "process where opcode in (2, 4)"]
-#query = """
-#sequence by hostname
-#  [process where opcode == 1 and process_name == "cmd.exe"] by unique_pid
-#  [file where opcode == 0] by unique_ppid
-#until
-#  [process where opcode in (2, 4)] by unique_pid
-#| tail 20
-#"""
-#time = 4.667104005813599
-#type = "sequence"
-#
+[[queries]]
+queryNo = 32
+count = 0
+expected_event_ids = []
+filter_counts = [1823, 645795, 37776]
+filters = ['process where opcode == 1 and process_name == "cmd.exe"', "file where opcode == 0", "process where opcode in (2, 4)"]
+query = """
+sequence by hostname
+  [process where opcode == 1 and process_name == "cmd.exe"] by unique_pid
+  [file where opcode == 0] by unique_ppid
+until
+  [process where opcode in (2, 4)] by unique_pid
+| tail 20
+"""
+time = 4.667104005813599
+type = "sequence"
+
 [[queries]]
 queryNo = 33
-case_insensitive = true
 count = 11
 expected_event_ids = [43267, 43268, 43820, 43824, 45507, 45508, 46088, 46089, 46528, 46529, 51672, 51674, 51883, 51888, 55263, 55264, 56139, 56141, 57907, 57908, 58228, 58230]
 filter_counts = [645795, 1823, 37776]
@@ -600,7 +568,6 @@ type = "sequence"
 
 [[queries]]
 queryNo = 34
-case_insensitive = true
 count = 0
 expected_event_ids = []
 filter_counts = [4, 2, 54954, 394]

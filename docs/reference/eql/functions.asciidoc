@@ -6,8 +6,6 @@
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-beta::[]
-
 {es} supports the following <<eql-functions,EQL functions>>. Most EQL functions
 are case-sensitive by default.
 

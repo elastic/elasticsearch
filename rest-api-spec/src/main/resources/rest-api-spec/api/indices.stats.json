@@ -5,6 +5,9 @@
       "description":"Provides statistics on operations happening in an index."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

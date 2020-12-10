@@ -118,6 +118,7 @@ public class ClientYamlSuiteRestApiTests extends ESTestCase {
         "      \"description\":\"Creates or updates a document in an index.\"\n" +
         "    },\n" +
         "    \"stability\":\"stable\",\n" +
+        "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
         "        {\n" +

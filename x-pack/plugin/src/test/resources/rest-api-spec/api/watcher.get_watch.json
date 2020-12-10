@@ -5,6 +5,9 @@
       "description":"Retrieves a watch by its ID."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

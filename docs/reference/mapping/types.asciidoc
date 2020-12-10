@@ -113,8 +113,8 @@ zero or more values by default, however, all values in the array must be of the
 same field type. See <<array>>.
 
 [discrete]
+[[types-multi-fields]]
 === Multi-fields
-
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be mapped as
 a `text` field for full-text search, and as a `keyword` field for

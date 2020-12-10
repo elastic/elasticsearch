@@ -5,6 +5,9 @@
       "description":"Returns the information about the capabilities of fields among multiple indices."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

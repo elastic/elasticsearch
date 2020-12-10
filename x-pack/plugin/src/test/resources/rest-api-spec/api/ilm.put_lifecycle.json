@@ -5,6 +5,10 @@
       "description":"Creates a lifecycle policy"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

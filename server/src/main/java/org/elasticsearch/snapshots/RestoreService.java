@@ -386,7 +386,8 @@ public class RestoreService implements ClusterStateApplier {
                                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
                                         .timestampMillisRange(IndexLongFieldRange.NO_SHARDS);
                                     shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
-                                    if (!request.includeAliases() && !snapshotIndexMetadata.getAliases().isEmpty()) {
+                                    if (!request.includeAliases() && !snapshotIndexMetadata.getAliases().isEmpty()
+                                            && isSystemIndex(snapshotIndexMetadata) == false) {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
@@ -424,7 +425,7 @@ public class RestoreService implements ClusterStateApplier {
                                             Math.max(snapshotIndexMetadata.primaryTerm(shard), currentIndexMetadata.primaryTerm(shard)));
                                     }
 
-                                    if (!request.includeAliases()) {
+                                    if (!request.includeAliases() && isSystemIndex(snapshotIndexMetadata) == false) {
                                         // Remove all snapshot aliases
                                         if (!snapshotIndexMetadata.getAliases().isEmpty()) {
                                             indexMdBuilder.removeAllAliases();
@@ -654,6 +655,10 @@ public class RestoreService implements ClusterStateApplier {
                 request.repository() + ":" + request.snapshot()), e);
             listener.onFailure(e);
         }
+    }
+
+    private boolean isSystemIndex(IndexMetadata indexMetadata) {
+        return indexMetadata.isSystem() || systemIndices.isSystemIndex(indexMetadata.getIndex());
     }
 
     private Map<String, DataStream> getDataStreamsToRestore(Repository repository, SnapshotId snapshotId, SnapshotInfo snapshotInfo,

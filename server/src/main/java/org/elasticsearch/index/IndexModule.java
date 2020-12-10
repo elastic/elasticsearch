@@ -413,7 +413,8 @@ public final class IndexModule {
                                         IndicesFieldDataCache indicesFieldDataCache,
                                         NamedWriteableRegistry namedWriteableRegistry,
                                         BooleanSupplier idFieldDataEnabled,
-                                        ValuesSourceRegistry valuesSourceRegistry) throws IOException {
+                                        ValuesSourceRegistry valuesSourceRegistry,
+                                        IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
             indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();
@@ -442,7 +443,7 @@ public final class IndexModule {
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
                 indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries, expressionResolver,
-                valuesSourceRegistry, recoveryStateFactory);
+                valuesSourceRegistry, recoveryStateFactory, indexFoldersDeletionListener);
             success = true;
             return indexService;
         } finally {

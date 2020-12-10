@@ -8,15 +8,13 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
+            dynamic: false
             runtime:
               location:
                 type: geo_point
             properties:
               timestamp:
                 type: date
-              location:
-                type: object
-                enabled: false
 
   - do:
       bulk:

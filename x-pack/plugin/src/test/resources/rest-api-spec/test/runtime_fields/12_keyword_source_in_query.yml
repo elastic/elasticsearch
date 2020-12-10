@@ -9,9 +9,6 @@ setup:
             number_of_replicas: 0
           mappings:
             dynamic: false
-            runtime:
-              status.active:
-                type: keyword
             properties:
               timestamp:
                 type: date
@@ -42,19 +39,14 @@ setup:
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "status" : { "active" : "off" } }
 
 ---
-"get mapping":
-  - do:
-      indices.get_mapping:
-        index: sensor
-  - match: { sensor.mappings.runtime.status\.active.type: keyword }
-  - is_false: sensor.mappings.runtime.status\.active.script
-
----
 "test matching":
   - do:
       search:
         index: sensor
         body:
+          runtime_mappings:
+            status.active:
+              type: keyword
           query:
             term:
               status.active: "on"
@@ -63,6 +55,9 @@ setup:
       search:
         index: sensor
         body:
+          runtime_mappings:
+            status.active:
+              type: keyword
           query:
             term:
               status.active: "off"

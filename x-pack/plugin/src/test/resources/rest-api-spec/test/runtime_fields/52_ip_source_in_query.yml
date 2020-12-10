@@ -9,9 +9,6 @@ setup:
             number_of_replicas: 0
           mappings:
             dynamic: false
-            runtime:
-              host.ip:
-                type: ip
             properties:
               timestamp:
                 type: date
@@ -41,19 +38,14 @@ setup:
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "host" : { "ip" : "128.192.7.6" } }
 
 ---
-"get mapping":
-  - do:
-      indices.get_mapping:
-        index: sensor
-  - match: { sensor.mappings.runtime.host\.ip.type: ip }
-  - is_false: sensor.mappings.runtime.host\.ip.script
-
----
 "test matching":
   - do:
       search:
         index: sensor
         body:
+          runtime_mappings:
+            host.ip:
+              type: ip
           query:
             range:
               host.ip:

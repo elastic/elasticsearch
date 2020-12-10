@@ -9,9 +9,6 @@ setup:
             number_of_replicas: 0
           mappings:
             dynamic: false
-            runtime:
-              location:
-                type: geo_point
             properties:
               timestamp:
                 type: date
@@ -36,19 +33,14 @@ setup:
 
 
 ---
-"get mapping":
-  - do:
-      indices.get_mapping:
-        index: locations
-  - match: {locations.mappings.runtime.location.type: geo_point }
-  - is_false: locations.mappings.runtime.location.script
-
----
 "fetch fields from source":
   - do:
       search:
         index: locations
         body:
+          runtime_mappings:
+            location:
+              type: geo_point
           sort: timestamp
           fields: [location]
   - match: {hits.total.value: 6}
@@ -60,6 +52,9 @@ setup:
       search:
         index: locations
         body:
+          runtime_mappings:
+            location:
+              type: geo_point
           query:
             exists:
               field: location
@@ -71,6 +66,9 @@ setup:
       search:
         index: locations
         body:
+          runtime_mappings:
+            location:
+              type: geo_point
           query:
             geo_bounding_box:
               location:
@@ -88,6 +86,9 @@ setup:
       search:
         index: locations
         body:
+          runtime_mappings:
+            location:
+              type: geo_point
           query:
             geo_shape:
               location:
@@ -102,6 +103,9 @@ setup:
       search:
         index: locations
         body:
+          runtime_mappings:
+            location:
+              type: geo_point
           query:
             geo_distance:
               distance: "2000km"
@@ -116,6 +120,9 @@ setup:
       search:
         index: locations
         body:
+          runtime_mappings:
+            location:
+              type: geo_point
           aggs:
             bounds:
               geo_bounds:
@@ -133,6 +140,9 @@ setup:
       search:
         index: locations
         body:
+          runtime_mappings:
+            location:
+              type: geo_point
           sort:
             _geo_distance:
               location:

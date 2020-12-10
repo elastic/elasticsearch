@@ -20,35 +20,41 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
-final class MappingVisitor {
+public final class MappingVisitor {
 
     private MappingVisitor() {}
 
-    static void visitMapping(Map<String, ?> mapping, Consumer<Map<String, ?>> fieldMappingConsumer) {
+    public static void visitMapping(Map<String, ?> mapping, BiConsumer<String, Map<String, ?>> fieldMappingConsumer) {
+        visitMapping(mapping, "", fieldMappingConsumer);
+    }
+
+    private static void visitMapping(Map<String, ?> mapping, String path, BiConsumer<String, Map<String, ?>> fieldMappingConsumer) {
         Object properties = mapping.get("properties");
-        if (properties != null && properties instanceof Map) {
+        if (properties instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, ?> propertiesAsMap = (Map<String, ?>) properties;
-            for (Object v : propertiesAsMap.values()) {
-                if (v != null && v instanceof Map) {
+            for (String field : propertiesAsMap.keySet()) {
+                Object v = propertiesAsMap.get(field);
+                if (v instanceof Map) {
 
                     @SuppressWarnings("unchecked")
                     Map<String, ?> fieldMapping = (Map<String, ?>) v;
-                    fieldMappingConsumer.accept(fieldMapping);
-                    visitMapping(fieldMapping, fieldMappingConsumer);
+                    fieldMappingConsumer.accept(path + field, fieldMapping);
+                    visitMapping(fieldMapping, path + field + ".", fieldMappingConsumer);
 
                     // Multi fields
                     Object fieldsO = fieldMapping.get("fields");
-                    if (fieldsO != null && fieldsO instanceof Map) {
+                    if (fieldsO instanceof Map) {
                         @SuppressWarnings("unchecked")
                         Map<String, ?> fields = (Map<String, ?>) fieldsO;
-                        for (Object v2 : fields.values()) {
+                        for (String subfield : fields.keySet()) {
+                            Object v2 = fields.get(subfield);
                             if (v2 instanceof Map) {
                                 @SuppressWarnings("unchecked")
                                 Map<String, ?> fieldMapping2 = (Map<String, ?>) v2;
-                                fieldMappingConsumer.accept(fieldMapping2);
+                                fieldMappingConsumer.accept(path + field + "." + subfield, fieldMapping2);
                             }
                         }
                     }

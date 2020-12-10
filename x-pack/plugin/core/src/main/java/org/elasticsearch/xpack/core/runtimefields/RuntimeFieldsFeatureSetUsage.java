@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.runtimefields;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,7 +51,7 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, ?> runtimeMappings = (Map<String, ?>) runtimeObject;
-                findFieldNames(sourceAsMap, "", concreteFieldNames::add);
+                MappingVisitor.visitMapping(sourceAsMap, (f, m) -> concreteFieldNames.add(f));
                 for (String runtimeFieldName : runtimeMappings.keySet()) {
                     Object runtimeFieldMappingObject = runtimeMappings.get(runtimeFieldName);
                     if (runtimeFieldMappingObject instanceof Map == false) {
@@ -96,21 +96,6 @@ public class RuntimeFieldsFeatureSetUsage extends XPackFeatureSet.Usage {
         List<RuntimeFieldStats> runtimeFieldStats = new ArrayList<>(fieldTypes.values());
         runtimeFieldStats.sort(Comparator.comparing(RuntimeFieldStats::type));
         return new RuntimeFieldsFeatureSetUsage(Collections.unmodifiableList(runtimeFieldStats));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void findFieldNames(Map<String, Object> mappings, String path, Consumer<String> fieldNameConsumer) {
-        Object o = mappings.get("properties");
-        if (o instanceof Map == false) {
-            return;
-        }
-        Map<String, Object> fields = (Map<String, Object>) o;
-        for (String fieldName : fields.keySet()) {
-            fieldNameConsumer.accept(path + fieldName);
-            if (fields.get(fieldName) instanceof Map) {
-                findFieldNames((Map<String, Object>) fields.get(fieldName), path + fieldName + ".", fieldNameConsumer);
-            }
-        }
     }
 
     private final List<RuntimeFieldStats> stats;

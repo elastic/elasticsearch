@@ -60,7 +60,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             Set<String> indexFieldTypes = new HashSet<>();
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {
-                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), fieldMapping -> {
+                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), (field, fieldMapping) -> {
                     String type = null;
                     Object typeO = fieldMapping.get("type");
                     if (typeO != null) {

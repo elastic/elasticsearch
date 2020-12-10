@@ -85,6 +85,8 @@
                     }
               bad_map:
                 type: double    # shadows the bad_map field in properties
+              message.text:
+                type: keyword   # shadows the message.text subfield in properties
               location_from_source:
                 type: geo_point
                 script:
@@ -95,6 +97,9 @@
                 type: date
               message:
                 type: keyword
+                fields:
+                  text:
+                    type: text
               voltage:
                 type: double
               location:
@@ -184,9 +189,10 @@
 
   - match: { runtime_fields.field_types.5.name: keyword }
   - match: { runtime_fields.field_types.5.lang: [painless] }
-  - match: { runtime_fields.field_types.5.count: 3 }
+  - match: { runtime_fields.field_types.5.count: 4 }
   - match: { runtime_fields.field_types.5.index_count: 1 }
-  - match: { runtime_fields.field_types.5.scriptless_count: 1 }
+  - match: { runtime_fields.field_types.5.scriptless_count: 2 }
+  - match: { runtime_fields.field_types.5.shadowed_count: 1 }
   - match: { runtime_fields.field_types.5.source_max: 1 }
   - match: { runtime_fields.field_types.5.source_total: 1 }
   - match: { runtime_fields.field_types.5.lines_max:  3 }

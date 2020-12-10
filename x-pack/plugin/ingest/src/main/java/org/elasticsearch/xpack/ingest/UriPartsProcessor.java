@@ -59,7 +59,7 @@ public class UriPartsProcessor extends AbstractProcessor {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("unable to parse URI [" + value + "]");
         }
-        var uriParts = new HashMap<String, Object>();
+        Map<String, Object> uriParts = new HashMap<String, Object>();
         uriParts.put("domain", uri.getHost());
         if (uri.getFragment() != null) {
             uriParts.put("fragment", uri.getFragment());

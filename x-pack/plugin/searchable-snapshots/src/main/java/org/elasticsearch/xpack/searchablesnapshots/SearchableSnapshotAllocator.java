@@ -12,8 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -31,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
@@ -168,7 +164,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     shardRouting,
                     nodeWithHighestMatch.node()
                 );
-                // we are throttling this, as we have enough other shards to allocate to this node, so ignore it for now
                 return AllocateUnassignedDecision.throttle(nodeDecisions);
             } else {
                 logger.debug(
@@ -178,27 +173,10 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     shardRouting,
                     nodeWithHighestMatch.node()
                 );
-                // we found a match
                 return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true);
             }
-        } else if (matchingNodes.hasAnyData() == false && shardRouting.unassignedInfo().isDelayed()) {
-            // TODO: Delay replicas?
-            // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
-            // unassigned due to a node leaving, so we delay allocation of this replica to see if the
-            // node with the shard copy will rejoin so we can re-use the copy it has
-            logger.debug("{}: allocation of [{}] is delayed", shardRouting.shardId(), shardRouting);
-            long remainingDelayMillis = 0L;
-            long totalDelayMillis = 0L;
-            if (explain) {
-                UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-                Metadata metadata = allocation.metadata();
-                IndexMetadata indexMetadata = metadata.index(shardRouting.index());
-                totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
-                long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), indexMetadata.getSettings());
-                remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
-            }
-            return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
         }
+        // TODO: do we need handling of delayed allocation for leaving replicas here?
         return AllocateUnassignedDecision.NOT_TAKEN;
     }
 
@@ -417,13 +395,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     static class MatchingNodes {
-        private final Map<DiscoveryNode, Long> matchingNodes;
         private final DiscoveryNode nodeWithHighestMatch;
         @Nullable
         private final Map<String, NodeAllocationResult> nodeDecisions;
 
         MatchingNodes(Map<DiscoveryNode, Long> matchingNodes, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
-            this.matchingNodes = matchingNodes;
             this.nodeDecisions = nodeDecisions;
             this.nodeWithHighestMatch = matchingNodes.entrySet()
                 .stream()
@@ -439,13 +415,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         @Nullable
         public DiscoveryNode getNodeWithHighestMatch() {
             return this.nodeWithHighestMatch;
-        }
-
-        /**
-         * Did we manage to find any data, regardless how well they matched or not.
-         */
-        public boolean hasAnyData() {
-            return matchingNodes.isEmpty() == false;
         }
     }
 }

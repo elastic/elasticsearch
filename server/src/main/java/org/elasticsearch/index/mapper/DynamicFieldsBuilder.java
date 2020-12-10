@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
+import java.util.Map;
 
 /**
  * Encapsulates the logic for dynamically creating fields as part of document parsing.
@@ -144,7 +145,7 @@ final class DynamicFieldsBuilder {
      * Note that objects are always mapped under properties.
      */
     Mapper createObjectMapperFromTemplate(ParseContext context, String name) {
-        Mapper.Builder templateBuilder = findTemplateBuilder(context, name, DynamicTemplate.XContentFieldType.OBJECT, null);
+        Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
         return templateBuilder == null ? null : templateBuilder.build(context.path());
     }
 
@@ -176,38 +177,70 @@ final class DynamicFieldsBuilder {
                                            DynamicTemplate.XContentFieldType matchType,
                                            DateFormatter dateFormatter,
                                            CheckedRunnable<IOException> dynamicFieldStrategy) throws IOException {
-        Mapper.Builder templateBuilder = findTemplateBuilder(context, name, matchType, dateFormatter);
-        if (templateBuilder == null) {
+        if (applyMatchingTemplate(context, name, matchType, dateFormatter) == false) {
             dynamicFieldStrategy.run();
-        } else {
-            CONCRETE.createDynamicField(templateBuilder, context);
         }
     }
 
     /**
-     * Find a template. Returns {@code null} if no template could be found.
+     * Find and apply a matching dynamic template. Returns {@code true} if a template could be found, {@code false} otherwise.
      * @param context        the parse context for this document
      * @param name           the current field name
      * @param matchType      the type of the field in the json document or null if unknown
      * @param dateFormatter  a date formatter to use if the type is a date, null if not a date or is using the default format
-     * @return a mapper builder, or null if there is no template for such a field
+     * @return true if a template was found and applied, false otherwise
      */
-    private static Mapper.Builder findTemplateBuilder(ParseContext context,
-                                                      String name,
-                                                      DynamicTemplate.XContentFieldType matchType,
-                                                      DateFormatter dateFormatter) {
+    private static boolean applyMatchingTemplate(ParseContext context,
+                                                 String name,
+                                                 DynamicTemplate.XContentFieldType matchType,
+                                                 DateFormatter dateFormatter) throws IOException {
+        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        if (dynamicTemplate == null) {
+            return false;
+        }
+        String dynamicType = dynamicTemplate.isRuntimeMapping() ? matchType.defaultRuntimeMappingType() : matchType.defaultMappingType();
+
+        String mappingType = dynamicTemplate.mappingType(dynamicType);
+        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
+        if (dynamicTemplate.isRuntimeMapping()) {
+            Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
+            RuntimeFieldType.Parser parser = parserContext.runtimeFieldTypeParser(mappingType);
+            String fullName = context.path().pathAsText(name);
+            if (parser == null) {
+                throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + fullName + "]");
+            }
+            RuntimeFieldType runtimeFieldType = parser.parse(fullName, mapping, parserContext);
+            Runtime.createDynamicField(runtimeFieldType, context);
+        } else {
+            Mapper.Builder builder = parseMapping(name, mappingType, mapping, dateFormatter, context);
+            CONCRETE.createDynamicField(builder, context);
+        }
+        return true;
+    }
+
+    private static Mapper.Builder findTemplateBuilderForObject(ParseContext context, String name) {
+        DynamicTemplate.XContentFieldType matchType = DynamicTemplate.XContentFieldType.OBJECT;
         DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
         String dynamicType = matchType.defaultMappingType();
-        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
+        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
+        return parseMapping(name, mappingType, mapping, null, context);
+    }
+
+    private static Mapper.Builder parseMapping(String name,
+                                               String mappingType,
+                                               Map<String, Object> mapping,
+                                               DateFormatter dateFormatter,
+                                               ParseContext context) {
+        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
             throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
         }
-        return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
+        return typeParser.parse(name, mapping, parserContext);
     }
 
     /**
@@ -284,39 +317,43 @@ final class DynamicFieldsBuilder {
      * @see Dynamic
      */
     private static final class Runtime implements Strategy {
+        static void createDynamicField(RuntimeFieldType runtimeFieldType, ParseContext context) {
+            context.addDynamicRuntimeField(runtimeFieldType);
+        }
+
         @Override
         public void newDynamicStringField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
             RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicStringField(fullName);
-            context.addDynamicRuntimeField(runtimeFieldType);
+            createDynamicField(runtimeFieldType, context);
         }
 
         @Override
         public void newDynamicLongField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
             RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicLongField(fullName);
-            context.addDynamicRuntimeField(runtimeFieldType);
+            createDynamicField(runtimeFieldType, context);
         }
 
         @Override
         public void newDynamicDoubleField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
             RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDoubleField(fullName);
-            context.addDynamicRuntimeField(runtimeFieldType);
+            createDynamicField(runtimeFieldType, context);
         }
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
             RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicBooleanField(fullName);
-            context.addDynamicRuntimeField(runtimeFieldType);
+            createDynamicField(runtimeFieldType, context);
         }
 
         @Override
         public void newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
             RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDateField(fullName, dateFormatter);
-            context.addDynamicRuntimeField(runtimeFieldType);
+            createDynamicField(runtimeFieldType, context);
         }
     }
 }

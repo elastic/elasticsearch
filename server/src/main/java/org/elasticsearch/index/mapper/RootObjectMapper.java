@@ -444,7 +444,7 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 deprecationMessage = message;
             }
-                DEPRECATION_LOGGER.deprecate("invalid_dynamic_template", deprecationMessage);
+            DEPRECATION_LOGGER.deprecate("invalid_dynamic_template", deprecationMessage);
         }
     }
 

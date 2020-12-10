@@ -29,7 +29,11 @@ public class ShellRetry {
     }
 
     static String loop(String name, String command, int indentSize, String exitKeyword) {
-        String indent = " ".repeat(indentSize);
+        StringBuilder indentBuilder = new StringBuilder();
+        for (int i = 0; i < indentSize; i++) {
+            indentBuilder.append(" ");
+        }
+        String indent = indentBuilder.toString();
 
         StringBuilder commandWithRetry = new StringBuilder("for iter in {1..10}; do \n");
         commandWithRetry.append(indent).append("  ").append(command).append(" && \n");

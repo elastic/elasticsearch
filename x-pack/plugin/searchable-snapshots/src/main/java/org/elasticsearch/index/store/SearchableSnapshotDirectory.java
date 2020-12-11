@@ -126,7 +126,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final Path cacheDir;
     private final ShardPath shardPath;
     private final AtomicBoolean closed;
-    private final AtomicBoolean clearCacheOnClose;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
@@ -163,7 +162,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.cacheDir = Objects.requireNonNull(cacheDir);
         this.shardPath = Objects.requireNonNull(shardPath);
         this.closed = new AtomicBoolean(false);
-        this.clearCacheOnClose = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
         this.prewarmCache = useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
@@ -326,14 +324,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";
         return new UnsupportedOperationException("Searchable snapshot directory does not support this operation");
-    }
-
-    /**
-     * Flag the current directory so that cache files associated to it will be evicted when the directory is closed.
-     */
-    public void clearCacheOnClose() {
-        final boolean value = clearCacheOnClose.getAndSet(true);
-        assert value == false : "cache clearing is already set";
     }
 
     @Override

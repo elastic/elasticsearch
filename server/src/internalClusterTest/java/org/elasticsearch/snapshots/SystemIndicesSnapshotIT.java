@@ -335,6 +335,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 
+        // Delete the index so we can restore it without requesting the feature state
+        assertAcked(client().admin().indices().prepareDelete(SystemIndexTestPlugin.SYSTEM_INDEX_NAME).get());
+
         MockLogAppender mockLogAppender = new MockLogAppender();
         Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation.snapshots.RestoreService"), mockLogAppender);
         mockLogAppender.start();

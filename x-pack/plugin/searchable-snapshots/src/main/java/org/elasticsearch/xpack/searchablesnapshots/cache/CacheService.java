@@ -311,14 +311,12 @@ public class CacheService extends AbstractLifecycleComponent {
                                 cacheFilesToEvict.put(cacheKey, cacheFile);
                             }
                         });
-                        if (cacheFilesToEvict.isEmpty() == false) {
-                            for (Map.Entry<CacheKey, CacheFile> cacheFile : cacheFilesToEvict.entrySet()) {
-                                try {
-                                    cache.invalidate(cacheFile.getKey(), cacheFile.getValue());
-                                } catch (Exception e) {
-                                    assert e instanceof IOException : e;
-                                    logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getKey()), e);
-                                }
+                        for (Map.Entry<CacheKey, CacheFile> cacheFile : cacheFilesToEvict.entrySet()) {
+                            try {
+                                cache.invalidate(cacheFile.getKey(), cacheFile.getValue());
+                            } catch (RuntimeException e) {
+                                assert false : e;
+                                logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getKey()), e);
                             }
                         }
                     });
@@ -326,6 +324,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
                 @Override
                 public void onFailure(Exception e) {
+                    assert false : e;
                     logger.warn(
                         () -> new ParameterizedMessage("failed to evict cache files associated with evicted shard {}", shardEviction),
                         e
@@ -365,6 +364,7 @@ public class CacheService extends AbstractLifecycleComponent {
                 }
                 success = true;
             } finally {
+                assert success : "shard eviction should be successful: " + shardEviction;
                 if (success == false) {
                     final boolean added = evictedShards.add(shardEviction);
                     assert added : shardEviction;

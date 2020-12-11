@@ -36,7 +36,9 @@ import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
-import com.azure.storage.common.StorageInputStream;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.ReferenceCountUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -77,8 +79,7 @@ import java.util.function.BiPredicate;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
-    // See com.azure.storage.blob.specialized.BlobClientBase.openInputStream(com.azure.storage.blob.options.BlobInputStreamOptions)
-    private static final long DEFAULT_READ_CHUNK_SIZE = new ByteSizeValue(4, ByteSizeUnit.MB).getBytes();
+    private static final long DEFAULT_READ_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
 
     private final AzureStorageService service;
 
@@ -201,7 +202,7 @@ public class AzureBlobStore implements BlobStore {
     public void close() {
     }
 
-    public boolean blobExists(String blob) {
+    public boolean blobExists(String blob) throws IOException {
         final BlobServiceClient client = client();
 
         try {
@@ -209,11 +210,11 @@ public class AzureBlobStore implements BlobStore {
                 final BlobClient azureBlob = client.getBlobContainerClient(container).getBlobClient(blob);
                 return azureBlob.exists();
             });
-            return blobExists != null ? blobExists : false;
+            return Boolean.TRUE.equals(blobExists);
         } catch (Exception e) {
             logger.warn("can not access [{}] in container {{}}: {}", blob, container, e.getMessage());
+            throw new IOException("Unable to check if blob " + blob + " exists", e);
         }
-        return false;
     }
 
     public DeleteResult deleteBlobDirectory(String path) throws IOException {
@@ -291,10 +292,12 @@ public class AzureBlobStore implements BlobStore {
 
     public InputStream getInputStream(String blob, long position, final @Nullable Long length) throws IOException {
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
-        final BlobServiceClient client = client();
+        final AzureBlobServiceClient azureBlobServiceClient = getAzureBlobServiceClientClient();
+        final BlobServiceClient syncClient = azureBlobServiceClient.getSyncClient();
+        final BlobServiceAsyncClient asyncClient = azureBlobServiceClient.getAsyncClient();
 
         return SocketAccess.doPrivilegedException(() ->{
-            final BlobContainerClient blobContainerClient = client.getBlobContainerClient(container);
+            final BlobContainerClient blobContainerClient = syncClient.getBlobContainerClient(container);
             final BlobClient blobClient = blobContainerClient.getBlobClient(blob);
             final long totalSize;
             if (length == null) {
@@ -302,9 +305,10 @@ public class AzureBlobStore implements BlobStore {
             } else {
                 totalSize = position + length;
             }
-            BlobAsyncClient blobAsyncClient = asyncClient().getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
+            BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
             int maxReadRetries = service.getMaxReadRetries(clientName);
-            return new AzureInputStream(blobAsyncClient, position, totalSize, (int) getReadChunkSize(), totalSize, maxReadRetries);
+            return new AzureInputStream(blobAsyncClient, position, length == null ? totalSize : length , totalSize, maxReadRetries,
+                azureBlobServiceClient.getAllocator());
         });
     }
 
@@ -449,88 +453,118 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    private static class AzureInputStream extends StorageInputStream {
-        private final BlobAsyncClient client;
-        private final ByteBuffer buffer;
-        private final int maxRetries;
-        private final long firstReadOffset;
-        private final int firstReadLength;
+    private static class AzureInputStream extends InputStream {
+        private final CancellableRateLimitedFluxIterator<ByteBuf> cancellableRateLimitedFluxIterator;
+        private ByteBuf byteBuf;
+        private boolean closed;
+        private final ByteBufAllocator allocator;
 
         private AzureInputStream(final BlobAsyncClient client,
                                  long rangeOffset,
-                                 Long rangeLength,
-                                 int chunkSize,
+                                 long rangeLength,
                                  long contentLength,
-                                 int maxRetries) throws IOException {
-            super(rangeOffset, rangeLength, chunkSize, contentLength);
-            this.client = client;
-            this.buffer = ByteBuffer.allocate(chunkSize);
-            this.maxRetries = maxRetries;
-
-            // Read eagerly the first chunk so we can throw early if the
-            // blob doesn't exist
-            this.firstReadOffset = rangeOffset;
-            this.firstReadLength = (int) Math.min(chunkSize, contentLength - rangeOffset);
-            executeRead(firstReadLength, rangeOffset);
-        }
-
-        @Override
-        protected ByteBuffer dispatchRead(int readLength, long offset) throws IOException {
-            // If the request is for the first chunk, don't download it again
-            // Since we disabled marking in this InputStream, the offset only advances
-            // and never goes back requesting the firstReadOffset again
-            if (offset != firstReadOffset || readLength != firstReadLength) {
-                executeRead(readLength, offset);
-            }
-
-            this.bufferSize = buffer.remaining();
-            this.bufferStartOffset = offset;
-            return buffer;
-        }
-
-        private void executeRead(long readLength, long offset) throws IOException {
-            try {
-                buffer.clear();
-                final BlobRange range = new BlobRange(offset, readLength);
-                DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions()
-                    .setMaxRetryRequests(maxRetries);
+                                 int maxRetries,
+                                 ByteBufAllocator allocator) throws IOException {
+            rangeLength = Math.min(rangeLength, contentLength - rangeOffset);
+            final BlobRange range = new BlobRange(rangeOffset, rangeLength);
+            DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions()
+                .setMaxRetryRequests(maxRetries);
+            Flux<ByteBuf> byteBufFlux =
                 client.downloadWithResponse(range, downloadRetryOptions, null, false)
                     .flux()
-                    .flatMap(ResponseBase::getValue)
+                    .concatMap(ResponseBase::getValue) // it's important to use concatMap, since flatMap doesn't provide ordering
+                                                       // guarantees and that's not fun to debug :(
                     .filter(Objects::nonNull)
-                    .collect(() -> buffer, ByteBuffer::put)
-                    .block();
-            } catch (Exception e) {
-                this.streamFaulted = true;
-                this.lastError = new IOException(e);
-                throw this.lastError;
+                    .map(this::copyBuffer); // Sadly we have to copy the buffers since the memory is released after the flux execution
+                                            // ends and we need that the byte buffer outlives that lifecycle. Since the SDK provides an
+                                            // ByteBuffer instead of a ByteBuf we cannot just increase the ref count and release the
+                                            // memory later on.
+            this.allocator = allocator;
+
+            // On the transport layer we read the recv buffer in 64kb chunks, but later on those buffers are
+            // split into 8kb chunks (see HttpObjectDecoder), so we request upstream the equivalent to 64kb. (i.e. 8 elements per batch *
+            // 8kb)
+            this.cancellableRateLimitedFluxIterator =
+                new CancellableRateLimitedFluxIterator<>(8, ReferenceCountUtil::safeRelease);
+            // Read eagerly the first chunk so we can throw early if the
+            // blob doesn't exist
+            byteBufFlux.subscribe(cancellableRateLimitedFluxIterator);
+            getNextByteBuf();
+        }
+
+        private ByteBuf copyBuffer(ByteBuffer buffer) {
+            ByteBuf byteBuf = allocator.heapBuffer(buffer.remaining(), buffer.remaining());
+            byteBuf.writeBytes(buffer);
+            return byteBuf;
+        }
+
+        @Override
+        public int read() throws IOException {
+            byte[] b = new byte[1];
+            return read(b, 0, 1);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (off < 0 || len < 0 || len > b.length - off) {
+                throw new IndexOutOfBoundsException();
             }
 
-            buffer.flip();
+            ByteBuf buffer = getNextByteBuf();
+            if (buffer == null || buffer.readableBytes() == 0) {
+                releaseByteBuf(buffer);
+                return -1;
+            }
+
+            int totalBytesRead = 0;
+            while (buffer != null && totalBytesRead < len) {
+                int toRead = Math.min(len - totalBytesRead, buffer.readableBytes());
+                buffer.readBytes(b, off + totalBytesRead, toRead);
+                totalBytesRead += toRead;
+                if (buffer.readableBytes() == 0) {
+                    releaseByteBuf(buffer);
+                    buffer = getNextByteBuf();
+                }
+            }
+
+            return totalBytesRead;
         }
 
         @Override
-        public synchronized void mark(int readlimit) {
-            throwNotSupported();
+        public void close() {
+            if (closed == false) {
+                cancellableRateLimitedFluxIterator.cancel();
+                closed = true;
+                releaseByteBuf(byteBuf);
+            }
         }
 
         @Override
-        public boolean markSupported() {
-            return false;
+        public long skip(long n) {
+            throw new UnsupportedOperationException("skip is not supported");
         }
 
-        @Override
-        public synchronized void reset() {
-            throwNotSupported();
+        private void releaseByteBuf(ByteBuf buf) {
+            ReferenceCountUtil.safeRelease(buf);
+            this.byteBuf = null;
         }
 
-        @Override
-        public synchronized long skip(long n) {
-            return throwNotSupported();
-        }
+        @Nullable
+        private ByteBuf getNextByteBuf() throws IOException {
+            try {
+                if (byteBuf == null && cancellableRateLimitedFluxIterator.hasNext() == false) {
+                    return null;
+                }
 
-        private long throwNotSupported() {
-            throw new UnsupportedOperationException("mark is not supported");
+                if (byteBuf != null) {
+                    return byteBuf;
+                }
+
+                byteBuf = cancellableRateLimitedFluxIterator.next();
+                return byteBuf;
+            } catch (Exception e) {
+                throw new IOException("Unable to read blob", e.getCause());
+            }
         }
     }
 

@@ -255,44 +255,6 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         }
     }
 
-    public void testReadBlobInSmallChunks() throws Exception {
-        final int maxRetries = randomIntBetween(1, 5);
-        final int chunkSize = randomIntBetween(4096, 4096 * 2);
-        final byte[] bytes = randomBlobContent();
-        httpServer.createContext("/account/container/read_blob_small_chunks", exchange -> {
-            try {
-                Streams.readFully(exchange.getRequestBody());
-                if ("HEAD".equals(exchange.getRequestMethod())) {
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
-                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(bytes.length));
-                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-                } else if ("GET".equals(exchange.getRequestMethod())) {
-                    final int rangeStart = getRangeStart(exchange);
-                    assertThat(rangeStart, lessThan(bytes.length));
-                    int rangeSize = Math.min(chunkSize, bytes.length - rangeStart);
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.getResponseHeaders().add("Content-Range",
-                        "bytes " + rangeStart + "-" + (rangeStart + rangeSize) + "/" + bytes.length);
-                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(rangeSize));
-                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(rangeSize));
-                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.getResponseHeaders().add("ETag", UUIDs.base64UUID());
-                    exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), rangeSize);
-                    exchange.getResponseBody().write(bytes, rangeStart, rangeSize);
-                }
-            } finally {
-                exchange.close();
-            }
-        });
-
-        final BlobContainer blobContainer = createBlobContainer(maxRetries);
-        try (InputStream inputStream = blobContainer.readBlob("read_blob_small_chunks")) {
-            assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
-        }
-    }
-
     public void testReadRangeBlobWithRetries() throws Exception {
         final int maxRetries = randomIntBetween(1, 5);
         final CountDown countDownGet = new CountDown(maxRetries);

@@ -50,7 +50,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(String blobName) throws IOException {
         logger.trace("blobExists({})", blobName);
         return blobStore.blobExists(buildKey(blobName));
     }

@@ -420,7 +420,10 @@ public class SparseFileTrackerTests extends ESTestCase {
         final SortedSet<Tuple<Long, Long>> completedRanges = randomRanges(fileLength);
 
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileLength, completedRanges);
-        assertThat(sparseFileTracker.getCompletedRanges(), equalTo(completedRanges));
+        assertThat(
+            sparseFileTracker.getCompletedRanges().toArray(new Tuple<?, ?>[0]),
+            equalTo(completedRanges.toArray(new Tuple<?, ?>[0]))
+        );
 
         for (Tuple<Long, Long> completedRange : completedRanges) {
             assertThat(sparseFileTracker.getAbsentRangeWithin(completedRange.v1(), completedRange.v2()), nullValue());

@@ -78,8 +78,8 @@ class JvmOption {
     /**
      * Determine the options present when invoking a JVM with the given user defined options.
      */
-    public static Map<String, JvmOption> findFinalOptions(final List<String> userDefinedJvmOptions)
-            throws InterruptedException, IOException {
+    public static Map<String, JvmOption> findFinalOptions(final List<String> userDefinedJvmOptions) throws InterruptedException,
+        IOException {
         return flagsFinal(userDefinedJvmOptions).stream()
             .map(OPTION::matcher)
             .filter(Matcher::matches)

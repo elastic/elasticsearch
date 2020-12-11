@@ -87,17 +87,12 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testMaxDirectMemorySizeUnset() throws InterruptedException, IOException {
-        assertThat(
-            JvmOption.extractMaxDirectMemorySize(JvmOption.findFinalOptions(Collections.singletonList("-Xmx1g"))),
-            equalTo(0L)
-        );
+        assertThat(JvmOption.extractMaxDirectMemorySize(JvmOption.findFinalOptions(Collections.singletonList("-Xmx1g"))), equalTo(0L));
     }
 
     public void testMaxDirectMemorySizeSet() throws InterruptedException, IOException {
         assertThat(
-            JvmOption.extractMaxDirectMemorySize(
-                JvmOption.findFinalOptions(Arrays.asList("-Xmx1g", "-XX:MaxDirectMemorySize=512m"))
-            ),
+            JvmOption.extractMaxDirectMemorySize(JvmOption.findFinalOptions(Arrays.asList("-Xmx1g", "-XX:MaxDirectMemorySize=512m"))),
             equalTo(512L << 20)
         );
     }

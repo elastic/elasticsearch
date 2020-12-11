@@ -111,8 +111,8 @@ public class MetadataMigrateToDataStreamService {
     static ClusterState migrateToDataStream(ClusterState currentState,
                                             Function<IndexMetadata, MapperService> mapperSupplier,
                                             MigrateToDataStreamClusterStateUpdateRequest request) throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
-            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_8_0_0);
+        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_11_0)) {
+            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_7_11_0);
         }
 
         validateRequest(currentState, request);

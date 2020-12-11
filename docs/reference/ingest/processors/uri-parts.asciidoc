@@ -3,7 +3,7 @@
 [[uri-parts-processor]]
 === URI parts processor
 ++++
-<titleabbrev>URI Parts</titleabbrev>
+<titleabbrev>URI parts</titleabbrev>
 ++++
 
 Parses a Uniform Resource Identifier (URI) string and extracts its components as

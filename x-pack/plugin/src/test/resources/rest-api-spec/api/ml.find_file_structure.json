@@ -5,6 +5,10 @@
       "description":"Finds the structure of a text file. The text file must contain data that is suitable to be ingested into Elasticsearch."
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
     "url":{
       "paths":[
         {

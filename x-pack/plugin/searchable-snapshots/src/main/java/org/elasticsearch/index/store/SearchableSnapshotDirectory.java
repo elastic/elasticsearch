@@ -195,7 +195,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
      *
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot(RecoveryState recoveryState) {
+    public boolean loadSnapshot(RecoveryState recoveryState, ActionListener<Void> preWarmListener) {
         assert recoveryState != null;
         assert recoveryState instanceof SearchableSnapshotRecoveryState;
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
@@ -214,8 +214,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
+                    cleanExistingCacheFiles();
                     this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
-                    prewarmCache();
+                    prewarmCache(preWarmListener);
                 }
             }
         }
@@ -339,15 +340,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public final void close() {
         if (closed.compareAndSet(false, true)) {
             isOpen = false;
-            if (useCache && clearCacheOnClose.get()) {
-                clearCache();
-            }
         }
     }
 
     public void clearCache() {
-        for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : files()) {
-            cacheService.removeFromCache(createCacheKey(fileInfo.physicalName()));
+        for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
+            cacheService.removeFromCache(createCacheKey(file.physicalName()));
         }
     }
 
@@ -425,19 +423,29 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    private void prewarmCache() {
+    /**
+     * Evicts all cache files associated to the current searchable snapshot shard in case a
+     * previous instance of that same shard has been marked as evicted on this node.
+     */
+    private void cleanExistingCacheFiles() {
+        assert Thread.holdsLock(this);
+        cacheService.runIfShardMarkedAsEvictedInCache(snapshotId, indexId, shardId, this::clearCache);
+    }
+
+    private void prewarmCache(ActionListener<Void> listener) {
         if (prewarmCache == false) {
             recoveryState.setPreWarmComplete();
+            listener.onResponse(null);
             return;
         }
 
         final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
-        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(
-            ActionListener.wrap(voids -> recoveryState.setPreWarmComplete(), e -> {}), // Ignore pre-warm errors
-            snapshot().totalFileCount()
-        );
+        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(ActionListener.wrap(voids -> {
+            recoveryState.setPreWarmComplete();
+            listener.onResponse(null);
+        }, listener::onFailure), snapshot().totalFileCount());
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
             if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {
@@ -459,11 +467,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 fileCompletionListener.whenComplete(voids -> input.close(), e -> IOUtils.closeWhileHandlingException(input));
                 fileCompletionListener.whenComplete(voids -> completionListener.onResponse(null), completionListener::onFailure);
 
-                final GroupedActionListener<Void> listener = new GroupedActionListener<>(fileCompletionListener, numberOfParts);
+                final GroupedActionListener<Void> partsListener = new GroupedActionListener<>(fileCompletionListener, numberOfParts);
 
                 for (int p = 0; p < numberOfParts; p++) {
                     final int part = p;
-                    queue.add(Tuple.tuple(listener, () -> {
+                    queue.add(Tuple.tuple(partsListener, () -> {
                         ensureOpen();
 
                         logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);

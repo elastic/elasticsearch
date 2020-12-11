@@ -5,6 +5,10 @@
       "description":"Allows to execute several search template operations in one request."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
     "url":{
       "paths":[
         {

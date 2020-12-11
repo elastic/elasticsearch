@@ -324,7 +324,7 @@ public class QueryShardContextTests extends ESTestCase {
          * shards are parsed on the same node.
          */
         Map<String, Object> runtimeMappings = Map.ofEntries(
-            Map.entry("cat", Map.of("type", "string")),
+            Map.entry("cat", Map.of("type", "keyword")),
             Map.entry("dog", Map.of("type", "long"))
         );
         QueryShardContext qsc = createQueryShardContext(

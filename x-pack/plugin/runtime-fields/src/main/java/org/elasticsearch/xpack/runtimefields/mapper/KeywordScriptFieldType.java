@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldWildcardQuer
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,6 +52,10 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             return new KeywordScriptFieldType(name, factory, this);
         }
     });
+
+    KeywordScriptFieldType(String name) {
+        this(name, StringFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
+    }
 
     private KeywordScriptFieldType(String name, StringFieldScript.Factory scriptFactory, Builder builder) {
         super(name, scriptFactory::newFactory, builder);

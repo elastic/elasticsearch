@@ -5,6 +5,9 @@
       "description":"Retrieves configuration information for datafeeds."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

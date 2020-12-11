@@ -5,6 +5,10 @@
       "description":"Sends data to an anomaly detection job for analysis."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson", "application/json"]
+    },
     "url":{
       "paths":[
         {

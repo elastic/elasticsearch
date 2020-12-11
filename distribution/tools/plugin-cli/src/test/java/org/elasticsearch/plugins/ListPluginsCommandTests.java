@@ -154,6 +154,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
+                "Licensed: false",
                 "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake"
@@ -177,6 +178,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: true",
+                "Licensed: false",
                 "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake"
@@ -201,6 +203,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
+                "Licensed: false",
                 "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
@@ -212,6 +215,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
+                "Licensed: false",
                 "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake2"

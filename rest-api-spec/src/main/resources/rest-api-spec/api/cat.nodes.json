@@ -5,6 +5,9 @@
       "description":"Returns basic statistics about performance of cluster nodes."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

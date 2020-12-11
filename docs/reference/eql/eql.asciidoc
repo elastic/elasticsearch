@@ -6,8 +6,6 @@
 <titleabbrev>EQL</titleabbrev>
 ++++
 
-beta::[]
-
 Event Query Language (EQL) is a query language for event-based time series
 data, such as logs, metrics, and traces.
 

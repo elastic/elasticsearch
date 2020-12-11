@@ -5,8 +5,13 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -23,6 +28,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 
 public class SearchableSnapshotIndexEventListener implements IndexEventListener {
 
+    private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
+
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
@@ -33,8 +40,23 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
         final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
         assert directory != null;
-
-        final boolean success = directory.loadSnapshot(indexShard.recoveryState());
+        final StepListener<Void> preWarmListener = new StepListener<>();
+        final boolean success = directory.loadSnapshot(indexShard.recoveryState(), preWarmListener);
+        final ShardRouting shardRouting = indexShard.routingEntry();
+        if (success && shardRouting.isRelocationTarget()) {
+            final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
+            preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "pre-warm operation failed for [{}] while it was the target of primary relocation [{}]",
+                        shardRouting.shardId(),
+                        shardRouting
+                    ),
+                    e
+                );
+                preWarmCondition.run();
+            });
+        }
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success
             || indexShard.routingEntry()

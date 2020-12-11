@@ -77,6 +77,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -89,6 +90,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
+    public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -1481,29 +1483,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    Map<String, IndexAbstraction> conflicts =
-                        indicesLookup.subMap(DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-",
-                            DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
-                            .entrySet().stream()
-                            .filter(entry -> {
-                                if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
-                                    return true;
-                                } else {
-                                    int indexNameCounter;
-                                    try {
-                                        indexNameCounter = IndexMetadata.parseIndexNameCounter(entry.getKey());
-                                    } catch (IllegalArgumentException e) {
-                                        // index name is not in the %s-%d+ format so it will not crash with backing indices
-                                        return false;
-                                    }
-                                    return indexNameCounter > ds.getGeneration();
-                                }
-                            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
+                    Set<String> conflicts =
+                        indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
+                            .keySet().stream()
+                            .filter(s -> NUMBER_PATTERN.matcher(s.substring(prefix.length())).matches())
+                            .filter(s -> IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
+                            .collect(Collectors.toSet());
 
                     if (conflicts.size() > 0) {
                         throw new IllegalStateException("data stream [" + ds.getName() +
                             "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
-                            " including '" + conflicts.keySet().iterator().next() + "'");
+                            " including '" + conflicts.iterator().next() + "'");
                     }
                 }
             }

@@ -12,43 +12,10 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class CacheKeyTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createInstance(), this::copy, this::mutate);
-    }
-
-    public void testBelongsTo() {
-        final CacheKey cacheKey = createInstance();
-
-        SnapshotId snapshotId = cacheKey.getSnapshotId();
-        IndexId indexId = cacheKey.getIndexId();
-        ShardId shardId = cacheKey.getShardId();
-
-        final boolean belongsTo;
-        switch (randomInt(2)) {
-            case 0:
-                snapshotId = randomValueOtherThan(cacheKey.getSnapshotId(), this::randomSnapshotId);
-                belongsTo = false;
-                break;
-            case 1:
-                indexId = randomValueOtherThan(cacheKey.getIndexId(), this::randomIndexId);
-                belongsTo = false;
-                break;
-            case 2:
-                shardId = randomValueOtherThan(cacheKey.getShardId(), this::randomShardId);
-                belongsTo = false;
-                break;
-            case 3:
-                belongsTo = true;
-                break;
-            default:
-                throw new AssertionError("Unsupported value");
-        }
-
-        assertThat(cacheKey.belongsTo(snapshotId, indexId, shardId), equalTo(belongsTo));
     }
 
     private SnapshotId randomSnapshotId() {

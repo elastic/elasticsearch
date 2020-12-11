@@ -100,7 +100,17 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(QueryShardContext context) throws IOException {
+        Query query = doToQuery(context, 0);
+        return addDefaultQuery(context, query);
+    }
+
+    @Override
+    public final Query toQuery(QueryShardContext context, int nestedDepth) throws IOException {
         Query query = doToQuery(context);
+        return addDefaultQuery(context, query);
+    }
+
+    private Query addDefaultQuery(QueryShardContext context, Query query) {
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof SpanQuery) {
@@ -117,6 +127,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected abstract Query doToQuery(QueryShardContext context) throws IOException;
+
+    protected Query doToQuery(QueryShardContext context, int nestedDepth) throws IOException {
+        return doToQuery(context);
+    }
+
 
     /**
      * Sets the query name for the query.

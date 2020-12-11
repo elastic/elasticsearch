@@ -37,6 +37,8 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
      */
     Query toQuery(QueryShardContext context) throws IOException;
 
+    Query toQuery(QueryShardContext context, int nestedDepth) throws IOException;
+
     /**
      * Sets the arbitrary name to be assigned to the query (see named queries).
      * Implementers should return the concrete type of the

@@ -347,6 +347,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
 
         @Override
+        public Query toQuery(QueryShardContext context, int nestedDepth) throws IOException {
+            return toQuery(context);
+        }
+
+        @Override
         public String queryName() {
             throw new UnsupportedOperationException();
         }

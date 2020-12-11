@@ -59,6 +59,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private static final ParseField MUST = new ParseField("must");
     private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
+    private static int maxNestedCount = 200;
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
 
@@ -89,6 +90,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         filterClauses.addAll(readQueries(in));
         adjustPureNegative = in.readBoolean();
         minimumShouldMatch = in.readOptionalString();
+    }
+
+    /**
+     * Set the maximum number of nested permitted per BooleanQuery.
+     * Default value is 200.
+     */
+    public static void setMaxClauseCount(int maxNestedCount) {
+        if (maxNestedCount < 1) {
+            throw new IllegalArgumentException("maxNestedCount must be >= 1");
+        }
+        BoolQueryBuilder.maxNestedCount = maxNestedCount;
     }
 
     @Override
@@ -299,11 +311,19 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        return doToQuery(context, 0);
+    }
+
+    protected Query doToQuery(QueryShardContext context, int nestedDepth) throws IOException {
+        nestedDepth = nestedDepth + 1;
+        if (nestedDepth > maxNestedCount) {
+            throw new IllegalArgumentException("maxNestedDepth is set to" + maxNestedCount + ", but current depth is" + nestedDepth);
+        }
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
-        addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
-        addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
-        addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
-        addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER);
+        addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST, nestedDepth);
+        addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT, nestedDepth);
+        addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD, nestedDepth);
+        addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER, nestedDepth);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
             return new MatchAllDocsQuery();
@@ -314,9 +334,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     private static void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder,
-                                          List<QueryBuilder> clauses, Occur occurs) throws IOException {
+                                          List<QueryBuilder> clauses, Occur occurs, int nestedDepth) throws IOException {
         for (QueryBuilder query : clauses) {
-            Query luceneQuery = query.toQuery(context);
+            Query luceneQuery = query.toQuery(context, nestedDepth);
             booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
         }
     }

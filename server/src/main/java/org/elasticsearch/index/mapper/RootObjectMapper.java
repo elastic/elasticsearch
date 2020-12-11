@@ -426,6 +426,7 @@ public class RootObjectMapper extends ObjectMapper {
                         (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(new ContentPath(1)));
                 }
                 dynamicTemplateInvalid = false;
+                break;
             } catch(Exception e) {
                 lastError = e;
             }

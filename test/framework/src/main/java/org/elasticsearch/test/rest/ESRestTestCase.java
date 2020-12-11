@@ -1433,13 +1433,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected void syncedFlush(String indexName) throws Exception {
         final List<String> deprecationMessages = List.of(
             "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.");
+        final List<String> fixedDeprecationMessages = List.of(
+            "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.");
         final List<String> transitionMessages = List.of(
             "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
         final WarningsHandler warningsHandler;
         if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
             warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
         } else if (minimumNodeVersion().onOrAfter(Version.V_7_6_0)) {
-            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false;
+            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false &&
+                warnings.equals(fixedDeprecationMessages) == false;
         } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_8_0_0))) {
             warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
         } else {

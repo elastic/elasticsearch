@@ -70,8 +70,13 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
         final String dataNode = randomFrom(discoveryNodes.getDataNodes().values().toArray(DiscoveryNode.class)).getName();
 
-        mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName,
-            Settings.builder().put(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", dataNode).build());
+        mountSnapshot(
+            fsRepoName,
+            snapshotName,
+            indexName,
+            restoredIndexName,
+            Settings.builder().put(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", dataNode).build()
+        );
         ensureGreen(restoredIndexName);
 
         final Index restoredIndex = client().admin()

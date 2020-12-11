@@ -22,7 +22,6 @@ package org.elasticsearch.tools.launchers;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 

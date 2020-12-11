@@ -126,6 +126,7 @@ Result:
     {
       "doc" : {
         "_index" : "_index",
+        "_type" : "_doc",
         "_id" : "_id",
         "_source" : {
           "bar": ["foo1", "foo2"],

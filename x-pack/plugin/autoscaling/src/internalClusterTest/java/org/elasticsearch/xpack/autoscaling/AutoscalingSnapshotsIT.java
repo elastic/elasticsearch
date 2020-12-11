@@ -22,7 +22,9 @@ import java.nio.file.Path;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicyOfName;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
 
@@ -39,13 +41,8 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
     public void testAutoscalingPolicyWillNotBeRestored() {
         final Client client = client();
 
-        final AutoscalingPolicy policy = randomAutoscalingPolicy();
-        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
-            policy.name(),
-            policy.roles(),
-            policy.deciders()
-        );
-        assertAcked(client.execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
+        AutoscalingPolicy policy = randomAutoscalingPolicy();
+        putPolicy(policy);
 
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
@@ -53,12 +50,19 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
             .setWaitForCompletion(true)
             .setIncludeGlobalState(true)
             .get();
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
 
-        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
-        assertEquals(RestStatus.OK, status);
-
-        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(policy.name());
-        assertAcked(client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
+        final boolean deletePolicy = randomBoolean();
+        if (deletePolicy) {
+            final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(policy.name());
+            assertAcked(client.execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
+        } else {
+            // Update the policy
+            policy = randomAutoscalingPolicyOfName(policy.name());
+            putPolicy(policy);
+        }
+        final AutoscalingPolicy anotherPolicy = randomAutoscalingPolicy();
+        putPolicy(anotherPolicy);
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
@@ -68,6 +72,30 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
             .get();
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
+        if (deletePolicy) {
+            assertPolicyNotFound(policy);
+        } else {
+            assertPolicy(policy);
+        }
+        assertPolicy(anotherPolicy);
+    }
+
+    private void putPolicy(AutoscalingPolicy policy) {
+        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            policy.name(),
+            policy.roles(),
+            policy.deciders()
+        );
+        assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
+    }
+
+    private void assertPolicy(AutoscalingPolicy policy) {
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
+        final AutoscalingPolicy actualPolicy = client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet().policy();
+        assertThat(actualPolicy, equalTo(policy));
+    }
+
+    private void assertPolicyNotFound(AutoscalingPolicy policy) {
         final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
@@ -75,5 +103,4 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
         );
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + policy.name() + "] does not exist"));
     }
-
 }

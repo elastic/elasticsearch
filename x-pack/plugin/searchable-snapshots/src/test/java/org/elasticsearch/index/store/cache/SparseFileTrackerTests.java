@@ -18,6 +18,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -425,7 +426,7 @@ public class SparseFileTrackerTests extends ESTestCase {
             assertThat(sparseFileTracker.getAbsentRangeWithin(completedRange.v1(), completedRange.v2()), nullValue());
 
             final AtomicBoolean listenerCalled = new AtomicBoolean();
-            assertThat(sparseFileTracker.waitForRange(completedRange, completedRange, new ActionListener<>() {
+            assertThat(sparseFileTracker.waitForRange(completedRange, completedRange, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void aVoid) {
                     listenerCalled.set(true);

@@ -71,6 +71,13 @@ public class CacheService extends AbstractLifecycleComponent {
         MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
     );
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "recovery_range_size",
+        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
+        Setting.Property.NodeScope
+    );
 
     public static final TimeValue MIN_SNAPSHOT_CACHE_SYNC_INTERVAL = TimeValue.timeValueSeconds(1L);
     public static final Setting<TimeValue> SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING = Setting.timeSetting(
@@ -109,6 +116,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ByteSizeValue cacheSize;
     private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
+    private final ByteSizeValue recoveryRangeSize;
 
     private volatile int maxCacheFilesToSyncAtOnce;
 
@@ -122,6 +130,7 @@ public class CacheService extends AbstractLifecycleComponent {
         this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
         this.cacheCleaner = Objects.requireNonNull(cacheCleaner);
         this.rangeSize = SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings);
+        this.recoveryRangeSize = SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
             .weigher((key, entry) -> entry.getLength())
@@ -207,6 +216,13 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     public int getRangeSize() {
         return toIntBytes(rangeSize.getBytes());
+    }
+
+    /**
+     * @return the cache range size (in bytes) to use during recovery (until post_recovery)
+     */
+    public int getRecoveryRangeSize() {
+        return toIntBytes(recoveryRangeSize.getBytes());
     }
 
     /**

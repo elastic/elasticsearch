@@ -10,7 +10,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
-import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
@@ -52,20 +51,14 @@ public class Criterion<Q extends QueryRequest> {
         return queryRequest;
     }
 
-    public int keySize() {
-        return keys.size();
-    }
-
-    public SequenceKey key(SearchHit hit) {
-        SequenceKey key;
-        if (keys.isEmpty()) {
-            key = SequenceKey.NONE;
-        } else {
+    public Object[] key(SearchHit hit) {
+        Object[] key = null;
+        if (keys.isEmpty() == false) {
             Object[] docKeys = new Object[keys.size()];
             for (int i = 0; i < docKeys.length; i++) {
                 docKeys[i] = keys.get(i).extract(hit);
             }
-            key = new SequenceKey(docKeys);
+            key = docKeys;
         }
         return key;
     }

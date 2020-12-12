@@ -49,6 +49,7 @@ def urlFixtureTaskProvider = tasks.register("urlFixture", AntFixture) {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
+
 tasks.named("yamlRestTest").configure {
   dependsOn urlFixtureTaskProvider
 }

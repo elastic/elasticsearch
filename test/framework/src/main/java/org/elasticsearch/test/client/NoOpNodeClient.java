@@ -34,7 +34,6 @@ import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;

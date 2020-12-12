@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +40,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {

@@ -220,7 +220,7 @@ public class CacheFileTests extends ESTestCase {
                 }
 
                 final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
-                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0L : 1L));
+                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertArrayEquals(completedRanges.toArray(new Tuple<?, ?>[0]), expectedCompletedRanges.toArray(new Tuple<?, ?>[0]));
                 assertFalse(cacheFile.needsFsync());
                 assertFalse(needsFSyncCalled.get());
@@ -257,8 +257,7 @@ public class CacheFileTests extends ESTestCase {
 
                     final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                     assertArrayEquals(completedRanges.toArray(new Tuple<?, ?>[0]), expectedCompletedRanges.toArray(new Tuple<?, ?>[0]));
-                    assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1L));
-                    assertFalse(cacheFile.needsFsync());
+                    assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1));
                 }
                 assertFalse(cacheFile.needsFsync());
                 assertFalse(needsFSyncCalled.get());
@@ -323,7 +322,7 @@ public class CacheFileTests extends ESTestCase {
 
                 final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                 assertArrayEquals(completedRanges.toArray(new Tuple<?, ?>[0]), expectedCompletedRanges.toArray(new Tuple<?, ?>[0]));
-                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0L : 1L));
+                assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertFalse(cacheFile.needsFsync());
                 assertFalse(needsFSyncCalled.get());
             } finally {

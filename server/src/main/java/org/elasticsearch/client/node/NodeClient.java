@@ -49,7 +49,6 @@ public class NodeClient extends AbstractClient {
      * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
      */
     private Supplier<String> localNodeId;
-    private Transport.Connection localConnection;
     private RemoteClusterService remoteClusterService;
     private NamedWriteableRegistry namedWriteableRegistry;
 
@@ -61,7 +60,6 @@ public class NodeClient extends AbstractClient {
                            RemoteClusterService remoteClusterService, NamedWriteableRegistry namedWriteableRegistry) {
         this.actions = actions;
         this.localNodeId = localNodeId;
-        this.localConnection = localConnection;
         this.remoteClusterService = remoteClusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
     }

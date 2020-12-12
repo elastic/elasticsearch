@@ -18,9 +18,9 @@ dependencies {
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 //no unit tests
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 javaRestTest {
-  dependsOn buildZip
+  dependsOn "buildZip"
   systemProperty 'tests.security.manager', 'false'
 }
 

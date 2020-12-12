@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -69,11 +70,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS.size() + 1);
-        entries.addAll(ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS);
-        entries.add(new NamedXContentRegistry.Entry(ExecutableSection.class,
-                new ParseField("compare_analyzers"), CompareAnalyzers::parse));
-        NamedXContentRegistry executableSectionRegistry = new NamedXContentRegistry(entries);
+        NamedXContentRegistry executableSectionRegistry = new NamedXContentRegistry(CollectionUtils.appendToCopy(
+                ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS, new NamedXContentRegistry.Entry(ExecutableSection.class,
+                        new ParseField("compare_analyzers"), CompareAnalyzers::parse)));
         return ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry);
     }
 

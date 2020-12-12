@@ -14,28 +14,66 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
+import org.elasticsearch.xpack.autoscaling.action.PolicyValidator;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class AutoscalingCalculateCapacityService {
-    private Map<String, AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciderByName;
+import static org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService.EMPTY_ROLES;
 
-    public AutoscalingCalculateCapacityService(Set<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders) {
+public class AutoscalingCalculateCapacityService implements PolicyValidator {
+    private final Map<String, AutoscalingDeciderService> deciderByName;
+
+    public AutoscalingCalculateCapacityService(Set<AutoscalingDeciderService> deciders) {
         assert deciders.size() >= 1; // always have fixed
         this.deciderByName = deciders.stream().collect(Collectors.toMap(AutoscalingDeciderService::name, Function.identity()));
+    }
+
+    public void validate(AutoscalingPolicy policy) {
+        policy.deciders().forEach((name, configuration) -> validate(name, configuration, policy.roles()));
+    }
+
+    private void validate(final String deciderName, final Settings configuration, SortedSet<String> roles) {
+        AutoscalingDeciderService deciderService = deciderByName.get(deciderName);
+        if (deciderService == null) {
+            throw new IllegalArgumentException("unknown decider [" + deciderName + "]");
+        }
+
+        if (appliesToPolicy(deciderService, roles) == false) {
+            throw new IllegalArgumentException("decider [" + deciderName + "] not applicable to policy with roles [ " + roles + "]");
+        }
+
+        Map<String, Setting<?>> deciderSettings = deciderService.deciderSettings()
+            .stream()
+            .collect(Collectors.toMap(Setting::getKey, Function.identity()));
+
+        configuration.keySet().forEach(key -> validateSetting(key, configuration, deciderSettings, deciderName));
+    }
+
+    private void validateSetting(String key, Settings configuration, Map<String, Setting<?>> deciderSettings, String decider) {
+        Setting<?> setting = deciderSettings.get(key);
+        if (setting == null) {
+            throw new IllegalArgumentException("unknown setting [" + key + "] for decider [" + decider + "]");
+        }
+
+        // check the setting, notice that `get` throws when `configuration` contains an invalid value for `setting`
+        setting.get(configuration);
     }
 
     public static class Holder {
@@ -77,16 +115,42 @@ public class AutoscalingCalculateCapacityService {
         if (hasUnknownRoles(policy)) {
             return new AutoscalingDeciderResults(
                 AutoscalingCapacity.ZERO,
+                Collections.emptySortedSet(),
                 new TreeMap<>(Map.of("_unknown_role", new AutoscalingDeciderResult(null, null)))
             );
         }
+        SortedMap<String, Settings> deciders = addDefaultDeciders(policy);
         DefaultAutoscalingDeciderContext context = new DefaultAutoscalingDeciderContext(policy.roles(), state, clusterInfo);
-        SortedMap<String, AutoscalingDeciderResult> results = policy.deciders()
-            .entrySet()
+        SortedMap<String, AutoscalingDeciderResult> results = deciders.entrySet()
             .stream()
-            .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getValue(), context)))
+            .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context)))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
-        return new AutoscalingDeciderResults(context.currentCapacity, results);
+        return new AutoscalingDeciderResults(context.currentCapacity, context.currentNodes, results);
+    }
+
+    private SortedMap<String, Settings> addDefaultDeciders(AutoscalingPolicy policy) {
+        SortedMap<String, Settings> deciders = new TreeMap<>(policy.deciders());
+        deciderByName.entrySet()
+            .stream()
+            .filter(e -> defaultForPolicy(e.getValue(), policy.roles()))
+            .forEach(e -> deciders.putIfAbsent(e.getKey(), Settings.EMPTY));
+        return deciders;
+    }
+
+    private boolean defaultForPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
+        if (deciderService.defaultOn()) {
+            return appliesToPolicy(deciderService, roles);
+        } else {
+            return false;
+        }
+    }
+
+    private boolean appliesToPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
+        if (roles.isEmpty()) {
+            return deciderService.roles().contains(EMPTY_ROLES);
+        } else {
+            return deciderService.roles().stream().map(DiscoveryNodeRole::roleName).anyMatch(roles::contains);
+        }
     }
 
     /**
@@ -97,14 +161,10 @@ public class AutoscalingCalculateCapacityService {
         return DiscoveryNode.getPossibleRoleNames().containsAll(policy.roles()) == false;
     }
 
-    private <T extends AutoscalingDeciderConfiguration> AutoscalingDeciderResult calculateForDecider(
-        T decider,
-        AutoscalingDeciderContext context
-    ) {
-        assert deciderByName.containsKey(decider.name());
-        @SuppressWarnings("unchecked")
-        AutoscalingDeciderService<T> service = (AutoscalingDeciderService<T>) deciderByName.get(decider.name());
-        return service.scale(decider, context);
+    private AutoscalingDeciderResult calculateForDecider(String name, Settings configuration, AutoscalingDeciderContext context) {
+        assert deciderByName.containsKey(name);
+        AutoscalingDeciderService service = deciderByName.get(name);
+        return service.scale(configuration, context);
     }
 
     static class DefaultAutoscalingDeciderContext implements AutoscalingDeciderContext {
@@ -112,6 +172,7 @@ public class AutoscalingCalculateCapacityService {
         private final SortedSet<DiscoveryNodeRole> roles;
         private final ClusterState state;
         private final ClusterInfo clusterInfo;
+        private final SortedSet<DiscoveryNode> currentNodes;
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
 
@@ -121,6 +182,9 @@ public class AutoscalingCalculateCapacityService {
             Objects.requireNonNull(clusterInfo);
             this.state = state;
             this.clusterInfo = clusterInfo;
+            this.currentNodes = StreamSupport.stream(state.nodes().spliterator(), false)
+                .filter(this::rolesFilter)
+                .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
             this.currentCapacity = calculateCurrentCapacity();
             this.currentCapacityAccurate = calculateCurrentCapacityAccurate();
         }
@@ -141,13 +205,11 @@ public class AutoscalingCalculateCapacityService {
 
         @Override
         public Set<DiscoveryNode> nodes() {
-            return StreamSupport.stream(state.nodes().spliterator(), false).filter(this::rolesFilter).collect(Collectors.toSet());
+            return currentNodes;
         }
 
         private boolean calculateCurrentCapacityAccurate() {
-            return StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(this::rolesFilter)
-                .allMatch(this::nodeHasAccurateCapacity);
+            return currentNodes.stream().allMatch(this::nodeHasAccurateCapacity);
         }
 
         private boolean nodeHasAccurateCapacity(DiscoveryNode node) {
@@ -156,13 +218,12 @@ public class AutoscalingCalculateCapacityService {
         }
 
         private AutoscalingCapacity calculateCurrentCapacity() {
-            return StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(this::rolesFilter)
+            return currentNodes.stream()
                 .map(this::resourcesFor)
                 .map(c -> new AutoscalingCapacity(c, c))
                 .reduce(
                     (c1, c2) -> new AutoscalingCapacity(
-                        AutoscalingCapacity.AutoscalingResources.sum(c1.tier(), c2.tier()),
+                        AutoscalingCapacity.AutoscalingResources.sum(c1.total(), c2.total()),
                         AutoscalingCapacity.AutoscalingResources.max(c1.node(), c2.node())
                     )
                 )

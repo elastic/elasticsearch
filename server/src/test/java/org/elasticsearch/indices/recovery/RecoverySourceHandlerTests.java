@@ -863,7 +863,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext) {
+        public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext, ActionListener<Void> listener) {
         }
 
         @Override

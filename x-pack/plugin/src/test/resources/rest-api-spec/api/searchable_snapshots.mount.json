@@ -5,6 +5,10 @@
       "description": "Mount a snapshot as a searchable index."
     },
     "stability": "experimental",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url": {
       "paths": [
         {

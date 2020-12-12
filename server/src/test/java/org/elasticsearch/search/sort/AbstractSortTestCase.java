@@ -70,6 +70,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
@@ -202,7 +203,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
-                () -> randomNonNegativeLong(), null, null, () -> true, null) {
+                () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
 
             @Override
             public MappedFieldType getFieldType(String name) {

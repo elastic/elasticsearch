@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BaseSurrogateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
@@ -93,14 +94,9 @@ public class Wildcard extends BaseSurrogateFunction {
 
     @Override
     public ScalarFunction makeSubstitute() {
-        ScalarFunction result = null;
-
-        for (Expression pattern: patterns) {
-            String wcString = pattern.fold().toString();
-            Like like = new Like(source(), field, StringUtils.toLikePattern(wcString));
-            result = result == null ? like : new Or(source(), result, like);
-        }
-
-        return result;
+        return (ScalarFunction) Predicates.combineOr(
+            patterns.stream()
+            .map(e -> new Like(source(), field, StringUtils.toLikePattern(e.fold().toString())))
+            .collect(toList()));
     }
 }

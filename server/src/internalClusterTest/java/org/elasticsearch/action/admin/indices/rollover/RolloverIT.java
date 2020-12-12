@@ -450,6 +450,7 @@ public class RolloverIT extends ESIntegTestCase {
             "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64921")
     public void testRolloverWithClosedIndexInAlias() throws Exception {
         final String aliasName = "alias";
         final String openNonwriteIndex = "open-index-nonwrite";

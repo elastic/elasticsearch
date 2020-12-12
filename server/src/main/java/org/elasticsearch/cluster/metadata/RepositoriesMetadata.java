@@ -47,6 +47,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
 
     public static final String TYPE = "repositories";
 
+    public static final RepositoriesMetadata EMPTY = new RepositoriesMetadata(Collections.emptyList());
+
     /**
      * Serialization parameter used to hide the {@link RepositoryMetadata#generation()} and {@link RepositoryMetadata#pendingGeneration()}
      * in {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.

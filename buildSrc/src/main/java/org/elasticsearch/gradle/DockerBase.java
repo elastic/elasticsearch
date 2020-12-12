@@ -25,7 +25,9 @@ package org.elasticsearch.gradle;
 public enum DockerBase {
     CENTOS("centos:8"),
     // "latest" here is intentional, since the image name specifies "8"
-    UBI("docker.elastic.co/ubi8/ubi-minimal:latest");
+    UBI("docker.elastic.co/ubi8/ubi-minimal:latest"),
+    // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
+    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}");
 
     private final String image;
 

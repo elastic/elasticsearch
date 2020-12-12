@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'x-pack-rollup'
@@ -5,12 +7,25 @@ esplugin {
   classname 'org.elasticsearch.xpack.rollup.Rollup'
   extendedPlugins = ['x-pack-core']
 }
+
 archivesBaseName = 'x-pack-rollup'
 
 dependencies {
   compileOnly project(":server")
-
   compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('analytics'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+  project.subprojects
+    .find { it.path == project.path + ":qa" }
+    .subprojects
+    .findAll { it.path.startsWith(project.path + ":qa") }
+    .each { check.dependsOn it.check }
+}
+
+test {
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+}

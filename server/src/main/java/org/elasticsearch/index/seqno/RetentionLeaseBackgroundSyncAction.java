@@ -171,7 +171,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
 
     public static final class Request extends ReplicationRequest<Request> {
 
-        private RetentionLeases retentionLeases;
+        private final RetentionLeases retentionLeases;
 
         public RetentionLeases getRetentionLeases() {
             return retentionLeases;

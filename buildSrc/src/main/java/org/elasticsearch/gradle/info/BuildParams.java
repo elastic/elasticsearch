@@ -154,6 +154,36 @@ public class BuildParams {
         return propertyName.substring(0, 1).toLowerCase() + propertyName.substring(1);
     }
 
+    public static InternalMarker withInternalBuild(Runnable configBlock) {
+        if (isInternal()) {
+            configBlock.run();
+            return InternalMarker.INTERNAL;
+        } else {
+            return InternalMarker.EXTERNAL;
+        }
+    }
+
+    public enum InternalMarker {
+        INTERNAL(true),
+        EXTERNAL(false);
+
+        private final boolean internal;
+
+        InternalMarker(boolean internal) {
+            this.internal = internal;
+        }
+
+        public void orElse(Runnable configBlock) {
+            if (internal == false) {
+                configBlock.run();
+            }
+        }
+
+        public boolean isInternal() {
+            return internal;
+        }
+    }
+
     public static class MutableBuildParams {
         private static MutableBuildParams INSTANCE = new MutableBuildParams();
 

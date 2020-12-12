@@ -31,6 +31,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -49,6 +50,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -108,7 +110,15 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             clusters.put(clusterAlias, cluster);
         }
         clusterGroup = new ClusterGroup(clusters);
-        configureRemoteClusters();
+        configureAndConnectsToRemoteClusters();
+    }
+
+    @After
+    public void assertAfterTest() throws Exception {
+        for (InternalTestCluster cluster : clusters().values()) {
+            cluster.wipe(Set.of());
+            cluster.assertAfterTest();
+        }
     }
 
     @AfterClass
@@ -117,7 +127,23 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         clusterGroup = null;
     }
 
-    private void configureRemoteClusters() throws Exception {
+    protected void disconnectFromRemoteClusters() throws Exception {
+        Settings.Builder settings = Settings.builder();
+        final Set<String> clusterAliases = clusterGroup.clusterAliases();
+        for (String clusterAlias : clusterAliases) {
+            if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
+                settings.putNull("cluster.remote." + clusterAlias + ".seeds");
+            }
+        }
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        assertBusy(() -> {
+            for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
+                assertThat(transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), empty());
+            }
+        });
+    }
+
+    protected void configureAndConnectsToRemoteClusters() throws Exception {
         Map<String, List<String>> seedNodes = new HashMap<>();
         for (String clusterAlias : clusterGroup.clusterAliases()) {
             if (clusterAlias.equals(LOCAL_CLUSTER) == false) {

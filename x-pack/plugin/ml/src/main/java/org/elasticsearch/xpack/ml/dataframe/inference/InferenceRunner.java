@@ -160,6 +160,6 @@ public class InferenceRunner {
             bulkRequest,
             config.getId(),
             () -> isCancelled == false,
-            errorMsg -> {});
+            retryMessage -> {});
     }
 }

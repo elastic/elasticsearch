@@ -5,7 +5,7 @@
 <titleabbrev>Execute watch</titleabbrev>
 ++++
 
-Forces the execution of a stored watch. 
+Forces the execution of a stored watch.
 
 [[watcher-api-execute-watch-request]]
 ==== {api-request-title}
@@ -189,6 +189,7 @@ This is an example of the output:
 {
   "_id": "my_watch_0-2015-06-02T23:17:55.124Z", <1>
   "watch_record": { <2>
+    "@timestamp": "2015-06-02T23:17:55.124Z",
     "watch_id": "my_watch",
     "node": "my_node",
     "messages": [],
@@ -276,6 +277,7 @@ This is an example of the output:
 --------------------------------------------------
 // TESTRESPONSE[s/my_watch_0-2015-06-02T23:17:55.124Z/$body._id/]
 // TESTRESPONSE[s/"triggered_time": "2015-06-02T23:17:55.124Z"/"triggered_time": "$body.watch_record.trigger_event.triggered_time"/]
+// TESTRESPONSE[s/"@timestamp": "2015-06-02T23:17:55.124Z"/"@timestamp": "$body.watch_record.trigger_event.triggered_time"/]
 // TESTRESPONSE[s/"scheduled_time": "2015-06-02T23:17:55.124Z"/"scheduled_time": "$body.watch_record.trigger_event.manual.schedule.scheduled_time"/]
 // TESTRESPONSE[s/"execution_time": "2015-06-02T23:17:55.124Z"/"execution_time": "$body.watch_record.result.execution_time"/]
 // TESTRESPONSE[s/"timestamp": "2015-06-02T23:17:55.111Z"/"timestamp": "$body.watch_record.status.state.timestamp"/]

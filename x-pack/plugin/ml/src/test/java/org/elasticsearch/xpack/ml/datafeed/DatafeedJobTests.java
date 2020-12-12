@@ -491,7 +491,7 @@ public class DatafeedJobTests extends ESTestCase {
                                           long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
-            client, auditor, new AnnotationPersister(resultsPersisterService, auditor), currentTimeSupplier,
+            client, auditor, new AnnotationPersister(resultsPersisterService), currentTimeSupplier,
             delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs, haveSeenDataPreviously);
     }
 

@@ -14,7 +14,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +62,11 @@ public class JobNodeSelector {
      *                   reasons why a job cannot be assigned to a particular node.  May
      *                   be <code>null</code> if no such function is needed.
      */
-    public JobNodeSelector(ClusterState clusterState, String jobId, String taskName, MlMemoryTracker memoryTracker, int maxLazyNodes,
+    public JobNodeSelector(ClusterState clusterState,
+                           String jobId,
+                           String taskName,
+                           MlMemoryTracker memoryTracker,
+                           int maxLazyNodes,
                            Function<DiscoveryNode, String> nodeFilter) {
         this.jobId = Objects.requireNonNull(jobId);
         this.taskName = Objects.requireNonNull(taskName);
@@ -76,8 +82,11 @@ public class JobNodeSelector {
         };
     }
 
-    public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs, int maxConcurrentJobAllocations,
-                                                               int maxMachineMemoryPercent, boolean isMemoryTrackerRecentlyRefreshed,
+    public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs,
+                                                               int maxConcurrentJobAllocations,
+                                                               int maxMachineMemoryPercent,
+                                                               long maxNodeSize,
+                                                               boolean isMemoryTrackerRecentlyRefreshed,
                                                                boolean useAutoMemoryPercentage) {
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
@@ -101,8 +110,7 @@ public class JobNodeSelector {
                 reasons.add(reason);
                 continue;
             }
-
-            NodeLoadDetector.NodeLoad currentLoad = nodeLoadDetector.detectNodeLoad(
+            NodeLoad currentLoad = nodeLoadDetector.detectNodeLoad(
                 clusterState,
                 true, // Remove in 8.0.0
                 node,
@@ -118,7 +126,6 @@ public class JobNodeSelector {
                 reasons.add(reason);
                 continue;
             }
-
             // Assuming the node is eligible at all, check loading
             allocateByMemory = currentLoad.isUseMemory();
             int maxNumberOfOpenJobs = currentLoad.getMaxJobs();
@@ -196,14 +203,38 @@ public class JobNodeSelector {
                 }
             }
         }
-        return createAssignment(allocateByMemory ? minLoadedNodeByMemory : minLoadedNodeByCount, reasons);
+
+        return createAssignment(
+            allocateByMemory ? minLoadedNodeByMemory : minLoadedNodeByCount,
+            reasons,
+            allocateByMemory && maxNodeSize > 0L ?
+                NativeMemoryCalculator.allowedBytesForMl(maxNodeSize, maxMachineMemoryPercent, useAutoMemoryPercentage) :
+                Long.MAX_VALUE);
     }
 
-    private PersistentTasksCustomMetadata.Assignment createAssignment(DiscoveryNode minLoadedNode, List<String> reasons) {
+    PersistentTasksCustomMetadata.Assignment createAssignment(DiscoveryNode minLoadedNode,
+                                                              List<String> reasons,
+                                                              long biggestPossibleJob) {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);
+            PersistentTasksCustomMetadata.Assignment currentAssignment =
+                new PersistentTasksCustomMetadata.Assignment(null, explanation);
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
-            return considerLazyAssignment(new PersistentTasksCustomMetadata.Assignment(null, explanation));
+            Long estimatedMemoryUsage = memoryTracker.getJobMemoryRequirement(taskName, jobId);
+            if (estimatedMemoryUsage != null
+                && (MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > biggestPossibleJob) {
+                ParameterizedMessage message = new ParameterizedMessage(
+                    "[{}] not waiting for node assignment as estimated job size [{}] is greater than largest possible job size [{}]",
+                    jobId,
+                    MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage,
+                    biggestPossibleJob);
+                logger.info(message);
+                List<String> newReasons = new ArrayList<>(reasons);
+                newReasons.add(message.getFormattedMessage());
+                explanation = String.join("|", newReasons);
+                return new PersistentTasksCustomMetadata.Assignment(null, explanation);
+            }
+            return considerLazyAssignment(currentAssignment);
         }
         logger.debug("selected node [{}] for job [{}]", minLoadedNode, jobId);
         return new PersistentTasksCustomMetadata.Assignment(minLoadedNode.getId(), "");

@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    public void testThatStatusGetsUpdated() {
+    public void testThatStatusGetsUpdated() throws Exception {
         new PutWatchRequestBuilder(client(), "_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, SECONDS)))

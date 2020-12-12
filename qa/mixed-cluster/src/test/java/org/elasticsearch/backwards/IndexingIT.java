@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 
 public class IndexingIT extends ESRestTestCase {
 
@@ -303,7 +304,10 @@ public class IndexingIT extends ESRestTestCase {
                 ResponseException responseException = expectThrows(ResponseException.class, () -> oldNodeClient.performRequest(request));
                 assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
                 assertThat(responseException.getResponse().getWarnings(),
-                    contains("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."));
+                    contains(
+                        oneOf("Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.",
+                            "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.")
+                    ));
                 Map<String, Object> result = ObjectPath.createFromResponse(responseException.getResponse()).evaluate("_shards");
                 assertThat(result.get("total"), equalTo(totalShards));
                 assertThat(result.get("successful"), equalTo(0));

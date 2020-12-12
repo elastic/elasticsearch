@@ -10,7 +10,7 @@ dependencies {
 }
 
 task 'leader-cluster'(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+  mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
 }
 testClusters.'leader-cluster' {
@@ -31,5 +31,5 @@ testClusters.'follow-cluster' {
     { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }
 }
 
-check.dependsOn "follow-cluster"
-test.enabled = false
+tasks.named("check").configure { dependsOn "follow-cluster" }
+tasks.named("test").configure { enabled = false }

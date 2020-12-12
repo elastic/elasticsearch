@@ -71,7 +71,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
   from('config/repository-s3') {
     into 'config'
   }
@@ -144,7 +144,7 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
   throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
 
-processYamlRestTestResources {
+tasks.named("processYamlRestTestResources").configure {
   Map<String, Object> expansions = [
     'permanent_bucket'        : s3PermanentBucket,
     'permanent_base_path'     : s3PermanentBasePath + "_integration_tests",
@@ -215,7 +215,7 @@ if (useFixture) {
 
   task yamlRestTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
-    dependsOn tasks.bundlePlugin
+    dependsOn tasks.named("bundlePlugin")
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
     SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
@@ -228,7 +228,7 @@ if (useFixture) {
       'repository_s3/50_repository_ecs_credentials/*'
     ].join(",")
   }
-  check.dependsOn(yamlRestTestMinio)
+  tasks.named("check").configure { dependsOn(yamlRestTestMinio) }
 
   testClusters.yamlRestTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
@@ -255,7 +255,7 @@ if (useFixture) {
       'repository_s3/40_repository_ec2_credentials/*'
     ].join(",")
   }
-  check.dependsOn(yamlRestTestECS)
+  tasks.named("check").configure { dependsOn(yamlRestTestECS) }
 
   testClusters.yamlRestTestECS {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
@@ -281,32 +281,32 @@ TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
 }
 tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // classes are missing
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'software.amazon.ion.IonReader',
-  'software.amazon.ion.IonSystem',
-  'software.amazon.ion.IonType',
-  'software.amazon.ion.IonWriter',
-  'software.amazon.ion.Timestamp',
-  'software.amazon.ion.system.IonBinaryWriterBuilder',
-  'software.amazon.ion.system.IonSystemBuilder',
-  'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder',
-  // We don't use the kms dependency
-  'com.amazonaws.services.kms.AWSKMS',
-  'com.amazonaws.services.kms.AWSKMSClient',
-  'com.amazonaws.services.kms.model.DecryptRequest',
-  'com.amazonaws.services.kms.model.DecryptResult',
-  'com.amazonaws.services.kms.model.EncryptRequest',
-  'com.amazonaws.services.kms.model.EncryptResult',
-  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
-)
-
-thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
-
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'software.amazon.ion.IonReader',
+          'software.amazon.ion.IonSystem',
+          'software.amazon.ion.IonType',
+          'software.amazon.ion.IonWriter',
+          'software.amazon.ion.Timestamp',
+          'software.amazon.ion.system.IonBinaryWriterBuilder',
+          'software.amazon.ion.system.IonSystemBuilder',
+          'software.amazon.ion.system.IonTextWriterBuilder',
+          'software.amazon.ion.system.IonWriterBuilder',
+          // We don't use the kms dependency
+          'com.amazonaws.services.kms.AWSKMS',
+          'com.amazonaws.services.kms.AWSKMSClient',
+          'com.amazonaws.services.kms.model.DecryptRequest',
+          'com.amazonaws.services.kms.model.DecryptResult',
+          'com.amazonaws.services.kms.model.EncryptRequest',
+          'com.amazonaws.services.kms.model.EncryptResult',
+          'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+          'com.amazonaws.services.kms.model.GenerateDataKeyResult',
+          'javax.activation.DataHandler'
+  )
+}

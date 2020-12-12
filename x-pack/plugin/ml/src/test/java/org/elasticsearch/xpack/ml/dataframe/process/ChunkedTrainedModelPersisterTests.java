@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
@@ -97,6 +98,12 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
             storeListener.onResponse(null);
             return null;
         }).when(trainedModelProvider).storeTrainedModelMetadata(any(TrainedModelMetadata.class), any(ActionListener.class));
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<RefreshResponse> storeListener = (ActionListener<RefreshResponse>) invocationOnMock.getArguments()[0];
+            storeListener.onResponse(null);
+            return null;
+        }).when(trainedModelProvider).refreshInferenceIndex(any(ActionListener.class));
 
         ChunkedTrainedModelPersister resultProcessor = createChunkedTrainedModelPersister(extractedFieldList, analyticsConfig);
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();

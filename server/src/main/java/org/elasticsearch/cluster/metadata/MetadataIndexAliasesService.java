@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -149,7 +150,7 @@ public class MetadataIndexAliasesService {
                         // the context is only used for validation so it's fine to pass fake values for the shard id,
                         // but the current timestamp should be set to real value as we may use `now` in a filtered alias
                         aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null,
-                            () -> System.currentTimeMillis(), null), xContentRegistry);
+                            () -> System.currentTimeMillis(), null, emptyMap()), xContentRegistry);
                     }
                 };
                 if (action.apply(newAliasValidator, metadata, index)) {

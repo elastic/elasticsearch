@@ -14,7 +14,7 @@ dependencies {
   testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the cluster
   // but do not know the exact address that is first in the http ports file

@@ -63,6 +63,11 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
 
         for (IndexMetadata indexMetadata : metadata) {
+            if (indexMetadata.isSystem()) {
+                // Don't include system indices in statistics about analysis,
+                // we care about the user's indices.
+                continue;
+            }
             Set<String> indexAnalyzers = new HashSet<>();
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {

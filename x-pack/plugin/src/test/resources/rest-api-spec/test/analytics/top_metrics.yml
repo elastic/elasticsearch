@@ -550,3 +550,36 @@
   - match: { aggregations.tm.top.1.sort: [2] }
   - match: { aggregations.tm.top.2.metrics.v: 3.1414999961853027 }
   - match: { aggregations.tm.top.2.sort: [1] }
+
+---
+"fetch keyword":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "animal": "cat"}'
+          - '{"index": {}}'
+          - '{"s": 2, "animal": "dog"}'
+          - '{"index": {}}'
+          - '{"s": 3, "animal": "chicken"}'
+
+  - do:
+      search:
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: animal.keyword
+                sort:
+                  s: asc
+                size: 3
+  - match: { aggregations.tm.top.0.metrics.animal\.keyword: cat}
+  - match: { aggregations.tm.top.0.sort: [1] }
+  - match: { aggregations.tm.top.1.metrics.animal\.keyword: dog}
+  - match: { aggregations.tm.top.1.sort: [2] }
+  - match: { aggregations.tm.top.2.metrics.animal\.keyword: chicken}
+  - match: { aggregations.tm.top.2.sort: [3] }

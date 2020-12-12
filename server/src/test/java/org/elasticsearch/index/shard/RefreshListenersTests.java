@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -47,6 +46,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -122,7 +122,7 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        store.createEmpty(Version.CURRENT.luceneVersion);
+        store.createEmpty();
         final long primaryTerm = randomNonNegativeLong();
         final String translogUUID =
             Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
@@ -344,7 +344,8 @@ public class RefreshListenersTests extends ESTestCase {
                         listener.assertNoError();
 
                         Engine.Get get = new Engine.Get(false, false, threadId);
-                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
+                        final DocumentMapper mapper = EngineTestCase.docMapper();
+                        try (Engine.GetResult getResult = engine.get(get, mapper, EngineTestCase.randomSearcherWrapper())) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             org.apache.lucene.document.Document document =

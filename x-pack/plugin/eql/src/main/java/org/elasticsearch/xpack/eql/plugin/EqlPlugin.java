@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -91,15 +90,6 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
-    }
-
-    boolean isSnapshot() {
-        return Build.CURRENT.isSnapshot();
-    }
-
-    // TODO: this needs to be used by all plugin methods - including getActions and createComponents
-    public static boolean isEnabled() {
-        return true; // basic license level features are always enabled
     }
 
     @Override

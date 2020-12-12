@@ -77,11 +77,11 @@ public class TransportStopTransformActionTests extends ESTestCase {
                 "failed-task",
                 new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0L, "task has failed", null)
             );
-        csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
+        final ClusterState cs = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build())).build();
 
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), Arrays.asList("non-failed-task", "failed-task"), true);
+        TransportStopTransformAction.validateTaskState(cs, Arrays.asList("non-failed-task", "failed-task"), true);
 
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(cs, Collections.singletonList("non-failed-task"), false);
 
         ClusterState.Builder csBuilderFinal = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
         ElasticsearchStatusException ex = expectThrows(

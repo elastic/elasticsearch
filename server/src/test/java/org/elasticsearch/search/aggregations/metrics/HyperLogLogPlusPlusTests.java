@@ -21,17 +21,21 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
+
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MAX_PRECISION;
-import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MIN_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MAX_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -183,4 +187,12 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         }
     }
 
+    public void testAllocation() {
+        int precision = between(MIN_PRECISION, MAX_PRECISION);
+        long initialBucketCount = between(0, 100);
+        MockBigArrays.assertFitsIn(
+            ByteSizeValue.ofBytes((initialBucketCount << precision) + initialBucketCount * 4 + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2),
+            bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
+        );
+    }
 }

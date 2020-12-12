@@ -20,8 +20,8 @@
 package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.CollectionUtils;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -57,9 +57,7 @@ public class BlobPath implements Iterable<String> {
     }
 
     public BlobPath add(String path) {
-        List<String> paths = new ArrayList<>(this.paths);
-        paths.add(path);
-        return new BlobPath(Collections.unmodifiableList(paths));
+        return new BlobPath(CollectionUtils.appendToCopy(this.paths, path));
     }
 
     public String buildAsString() {

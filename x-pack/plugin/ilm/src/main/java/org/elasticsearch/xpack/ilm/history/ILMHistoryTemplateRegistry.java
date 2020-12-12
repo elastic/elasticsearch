@@ -30,7 +30,8 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     // version 2: convert to hidden index
     // version 3: templates moved to composable templates
     // version 4: add `allow_auto_create` setting
-    public static final int INDEX_TEMPLATE_VERSION = 4;
+    // version 5: convert to data stream
+    public static final int INDEX_TEMPLATE_VERSION = 5;
 
     public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";
     public static final String ILM_TEMPLATE_NAME = "ilm-history";

@@ -22,11 +22,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -55,8 +58,19 @@ public final class TransportActionProxy {
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode targetNode = request.targetNode;
             TransportRequest wrappedRequest = request.wrapped;
+            assert assertConsistentTaskType(task, wrappedRequest);
+            TaskId taskId = task.taskInfo(service.localNode.getId(), false).getTaskId();
+            wrappedRequest.setParentTask(taskId);
             service.sendRequest(targetNode, action, wrappedRequest,
                     new ProxyResponseHandler<>(channel, responseFunction.apply(wrappedRequest)));
+        }
+
+        private boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
+            final Task targetTask = wrapped.createTask(0, proxyTask.getType(), proxyTask.getAction(), TaskId.EMPTY_TASK_ID, Map.of());
+            assert targetTask instanceof CancellableTask == proxyTask instanceof CancellableTask :
+                "Cancellable property of proxy action [" + proxyTask.getAction() + "] is configured inconsistently: " +
+                    "expected [" + (targetTask instanceof CancellableTask) + "] actual [" + (proxyTask instanceof CancellableTask) + "]";
+            return true;
         }
     }
 
@@ -117,27 +131,54 @@ public final class TransportActionProxy {
         }
     }
 
+    private static class CancellableProxyRequest<T extends TransportRequest> extends ProxyRequest<T> {
+        CancellableProxyRequest(StreamInput in, Writeable.Reader<T> reader) throws IOException {
+            super(in, reader);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+                @Override
+                public boolean shouldCancelChildrenOnCancellation() {
+                    return true;
+                }
+
+                @Override
+                public String getDescription() {
+                    return "proxy task [" + wrapped.getDescription() + "]";
+                }
+            };
+        }
+    }
+
     /**
      * Registers a proxy request handler that allows to forward requests for the given action to another node. To be used when the
      * response type changes based on the upcoming request (quite rare)
      */
-    public static void registerProxyActionWithDynamicResponseType(TransportService service, String action,
+    public static void registerProxyActionWithDynamicResponseType(TransportService service, String action, boolean cancellable,
                                                                   Function<TransportRequest,
                                                                       Writeable.Reader<? extends TransportResponse>> responseFunction) {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
-            in -> new ProxyRequest<>(in, requestHandler::newRequest), new ProxyRequestHandler<>(service, action, responseFunction));
+            in -> cancellable ?
+                new CancellableProxyRequest<>(in, requestHandler::newRequest) :
+                new ProxyRequest<>(in, requestHandler::newRequest),
+            new ProxyRequestHandler<>(service, action, responseFunction));
     }
 
     /**
      * Registers a proxy request handler that allows to forward requests for the given action to another node. To be used when the
      * response type is always the same (most of the cases).
      */
-    public static void registerProxyAction(TransportService service, String action,
+    public static void registerProxyAction(TransportService service, String action, boolean cancellable,
                                            Writeable.Reader<? extends TransportResponse> reader) {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
-            in -> new ProxyRequest<>(in, requestHandler::newRequest), new ProxyRequestHandler<>(service, action, request -> reader));
+            in -> cancellable ?
+                new CancellableProxyRequest<>(in, requestHandler::newRequest) :
+                new ProxyRequest<>(in, requestHandler::newRequest),
+            new ProxyRequestHandler<>(service, action, request -> reader));
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";

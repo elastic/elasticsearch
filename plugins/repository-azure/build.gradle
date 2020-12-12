@@ -53,7 +53,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /stax-.*/, to: 'stax'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // Optional and not enabled by Elasticsearch
     'org.slf4j.Logger',
@@ -108,7 +108,7 @@ Map<String, Object> expansions = [
   'base_path': azureBasePath + "_integration_tests"
 ]
 
-processYamlRestTestResources {
+tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
@@ -151,4 +151,4 @@ task azureThirdPartyTest(type: Test) {
     nonInputProperties.systemProperty 'test.azure.endpoint_suffix', "${-> azureAddress.call() }"
   }
 }
-check.dependsOn(azureThirdPartyTest)
+tasks.named("check").configure { dependsOn("azureThirdPartyTest") }

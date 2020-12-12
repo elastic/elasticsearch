@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -138,7 +139,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         // Show that removing non-existing alias with mustExist == true fails
         final ClusterState finalCS = after;
-        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+        final ResourceNotFoundException iae = expectThrows(ResourceNotFoundException.class,
             () -> service.applyAliasActions(finalCS, singletonList(new AliasAction.Remove(index, "test_2", true))));
         assertThat(iae.getMessage(), containsString("required alias [test_2] does not exist"));
     }

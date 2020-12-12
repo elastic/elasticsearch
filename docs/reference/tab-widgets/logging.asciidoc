@@ -12,23 +12,35 @@ For <<rpm,RPM installations>>, {es} writes logs to `/var/log/elasticsearch`.
 // end::rpm[]
 
 // tag::mac[]
-For <<targz,MacOS `.tar.gz`>> installations, {es} writes logs to
+For <<targz,macOS `.tar.gz`>> installations, {es} writes logs to
 `$ES_HOME/logs`.
+
+Files in `$ES_HOME` risk deletion during an upgrade. In production, we strongly
+recommend you set `path.logs` to a location outside of `$ES_HOME`.
+See <<path-settings>>.
 // end::mac[]
 
 // tag::brew[]
-For <<brew,MacOS Homebrew>> installations, {es} writes logs to
+For <<brew,macOS Homebrew>> installations, {es} writes logs to
 `/usr/local/var/log/elasticsearch`.
 // end::brew[]
 
 // tag::linux[]
 For <<targz,Linux `.tar.gz`>> installations, {es} writes logs to
 `$ES_HOME/logs`.
+
+Files in `$ES_HOME` risk deletion during an upgrade. In production, we strongly
+recommend you set `path.logs` to a location outside of `$ES_HOME`.
+See <<path-settings>>.
 // end::linux[]
 
 // tag::win-zip[]
 For <<zip-windows,Windows `.zip`>> installations, {es} writes logs to
 `%ES_HOME%\logs`.
+
+Files in `%ES_HOME%` risk deletion during an upgrade. In production, we strongly
+recommend you set `path.logs` to a location outside of `%ES_HOME%``.
+See <<path-settings>>.
 // end::win-zip[]
 
 // tag::win-msi[]

@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -118,6 +119,7 @@ public class AuthorizationService {
     private final AuthorizationEngine authorizationEngine;
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
+    private final OperatorPrivilegesService operatorPrivilegesService;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -125,7 +127,7 @@ public class AuthorizationService {
                                 AuditTrailService auditTrailService, AuthenticationFailureHandler authcFailureHandler,
                                 ThreadPool threadPool, AnonymousUser anonymousUser, @Nullable AuthorizationEngine authorizationEngine,
                                 Set<RequestInterceptor> requestInterceptors, XPackLicenseState licenseState,
-                                IndexNameExpressionResolver resolver) {
+                                IndexNameExpressionResolver resolver, OperatorPrivilegesService operatorPrivilegesService) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
@@ -139,6 +141,7 @@ public class AuthorizationService {
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
         this.licenseState = licenseState;
+        this.operatorPrivilegesService = operatorPrivilegesService;
     }
 
     public void checkPrivileges(Authentication authentication, HasPrivilegesRequest request,
@@ -202,6 +205,16 @@ public class AuthorizationService {
             // sometimes a request might be wrapped within another, which is the case for proxied
             // requests and concrete shard requests
             final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
+
+            // Check operator privileges
+            // TODO: audit?
+            final ElasticsearchSecurityException operatorException =
+                operatorPrivilegesService.check(action, originalRequest, threadContext);
+            if (operatorException != null) {
+                listener.onFailure(denialException(authentication, action, operatorException));
+                return;
+            }
+
             if (SystemUser.is(authentication.getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);

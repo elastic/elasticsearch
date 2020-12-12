@@ -79,8 +79,8 @@ public class RestGetMappingAction extends BaseRestHandler {
             @Override
             protected void processResponse(GetMappingsResponse getMappingsResponse) {
                 final long startTimeMs = threadPool.relativeTimeInMillis();
-                // Process serialization on GENERIC pool since the serialization of the raw mappings to XContent can be too slow to execute
-                // on an IO thread
+                // Process serialization on MANAGEMENT pool since the serialization of the raw mappings to XContent can be too slow to
+                // execute on an IO thread
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
                         ActionRunnable.wrap(this, l -> new RestBuilderListener<GetMappingsResponse>(channel) {
                             @Override

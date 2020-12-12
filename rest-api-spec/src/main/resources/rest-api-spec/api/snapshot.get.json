@@ -5,6 +5,9 @@
       "description":"Returns information about a snapshot."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -58,7 +58,6 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                 .routingTable(routingTable.build())
                 .metadata(metadata);
 
-            csBuilder.build();
             assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver),
                 equalTo(false));
         }

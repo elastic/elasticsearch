@@ -41,7 +41,7 @@ if (System.getProperty('idea.active') == 'true') {
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
-    dependsOn ':client:rest-high-level:shadowJar'
+    dependsOn ':client:rest-high-level:shadowJar', ':plugins:repository-hdfs:hadoop-common:shadowJar'
   }
 
   idea {

@@ -5,6 +5,9 @@
       "description":"Starts one or more transforms."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

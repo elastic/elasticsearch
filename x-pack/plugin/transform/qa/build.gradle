@@ -2,13 +2,12 @@
  * artifacts for them. */
 gradle.projectsEvaluated {
   subprojects {
-    Task assemble = project.tasks.findByName('assemble')
-    if (assemble) {
-      assemble.enabled = false
+    project.tasks.matching { it.name.equals('assemble') }.configureEach {
+      enabled = false
     }
-    Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
-    if (dependenciesInfo) {
-      dependenciesInfo.enabled = false
+
+    project.tasks.matching { it.name.equals('dependenciesInfo') }.configureEach {
+      enabled = false
     }
   }
 }

@@ -330,7 +330,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
         }
 
-        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
+        waitUntilAnalyticsIsStopped(jobId);
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
@@ -570,6 +570,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
+
         waitUntilAnalyticsIsStopped(jobId);
 
         double predictionErrorSum = 0.0;

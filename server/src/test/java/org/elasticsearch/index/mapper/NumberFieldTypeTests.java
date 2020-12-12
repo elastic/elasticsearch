@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -474,7 +475,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         QueryShardContext context = new QueryShardContext(0, indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> 0L, null, null, () -> true, null);
+            null, null, () -> 0L, null, null, () -> true, null, emptyMap());
 
         final int iters = 10;
         for (int iter = 0; iter < iters; ++iter) {

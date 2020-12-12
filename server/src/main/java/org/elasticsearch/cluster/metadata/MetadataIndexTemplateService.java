@@ -80,6 +80,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -1117,7 +1118,7 @@ public class MetadataIndexTemplateService {
                     new AliasValidator(),
                     // the context is only used for validation so it's fine to pass fake values for the
                     // shard id and the current timestamp
-                    xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
+                    xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap()));
 
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;

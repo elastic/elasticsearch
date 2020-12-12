@@ -145,7 +145,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
     }
 
     public void testChangeLeaderIndex() throws Exception {
-        final String settings = getIndexSettings(1, 0, Collections.emptyMap());
+        final String settings = getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
 
         // First, let index-1 is writable and index-2 follows index-1
         assertAcked(client().admin().indices().prepareCreate("index-1").setSource(settings, XContentType.JSON));

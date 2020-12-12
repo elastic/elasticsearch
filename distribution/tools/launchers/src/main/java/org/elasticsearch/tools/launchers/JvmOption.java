@@ -64,11 +64,13 @@ class JvmOption {
     }
 
     public static boolean isMaxHeapSpecified(final Map<String, JvmOption> finalJvmOptions) {
-        return finalJvmOptions.get("MaxHeapSize").isCommandLineOrigin();
+        JvmOption maxHeapSize = finalJvmOptions.get("MaxHeapSize");
+        return maxHeapSize != null && maxHeapSize.isCommandLineOrigin();
     }
 
     public static boolean isMinHeapSpecified(final Map<String, JvmOption> finalJvmOptions) {
-        return finalJvmOptions.get("MinHeapSize").isCommandLineOrigin();
+        JvmOption minHeapSize = finalJvmOptions.get("MinHeapSize");
+        return minHeapSize != null && minHeapSize.isCommandLineOrigin();
     }
 
     public static long extractMaxDirectMemorySize(final Map<String, JvmOption> finalJvmOptions) {

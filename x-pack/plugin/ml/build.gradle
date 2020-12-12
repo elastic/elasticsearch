@@ -34,7 +34,7 @@ configurations {
   }
 }
 
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
   dependsOn configurations.nativeBundle
   from {
     project.zipTree(configurations.nativeBundle.singleFile)

@@ -35,15 +35,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestAnalyzeAction extends BaseRestHandler {
 
     public static class Fields {
-        public static final ParseField ANALYZER = new ParseField("analyzer");
-        public static final ParseField TEXT = new ParseField("text");
-        public static final ParseField FIELD = new ParseField("field");
         public static final ParseField TOKENIZER = new ParseField("tokenizer");
         public static final ParseField TOKEN_FILTERS = new ParseField("filter");
         public static final ParseField CHAR_FILTERS = new ParseField("char_filter");
-        public static final ParseField EXPLAIN = new ParseField("explain");
-        public static final ParseField ATTRIBUTES = new ParseField("attributes");
-        public static final ParseField NORMALIZER = new ParseField("normalizer");
     }
 
     @Override

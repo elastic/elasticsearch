@@ -5,6 +5,9 @@
       "description":"Starts Watcher if it is not already running."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

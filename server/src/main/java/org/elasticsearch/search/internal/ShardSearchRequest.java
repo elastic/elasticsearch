@@ -179,7 +179,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         super(in);
         shardId = new ShardId(in);
         searchType = SearchType.fromId(in.readByte());
-        shardIndex = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readVInt() : -1;
+        shardIndex = in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readVInt() : -1;
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
@@ -197,7 +197,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         requestCache = in.readOptionalBoolean();
         clusterAlias = in.readOptionalString();
         allowPartialSearchResults = in.readBoolean();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_7_11_0)) {
             in.readStringArray();
             in.readOptionalString();
         }
@@ -247,7 +247,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         shardId.writeTo(out);
         out.writeByte(searchType.id());
         if (asKey == false) {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
                 out.writeVInt(shardIndex);
             }
             out.writeVInt(numberOfShards);
@@ -266,7 +266,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeOptionalBoolean(requestCache);
         out.writeOptionalString(clusterAlias);
         out.writeBoolean(allowPartialSearchResults);
-        if (asKey == false && out.getVersion().before(Version.V_8_0_0)) {
+        if (asKey == false && out.getVersion().before(Version.V_7_11_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
             out.writeOptionalString(null);
         }

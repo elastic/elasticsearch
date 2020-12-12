@@ -65,10 +65,4 @@ public class CacheKey {
     public String toString() {
         return "[" + "snapshotId=" + snapshotId + ", indexId=" + indexId + ", shardId=" + shardId + ", fileName='" + fileName + "']";
     }
-
-    public boolean belongsTo(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        return Objects.equals(this.snapshotId, snapshotId)
-            && Objects.equals(this.indexId, indexId)
-            && Objects.equals(this.shardId, shardId);
-    }
 }

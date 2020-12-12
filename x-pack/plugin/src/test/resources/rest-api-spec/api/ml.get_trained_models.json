@@ -5,6 +5,9 @@
       "description":"Retrieves configuration information for a trained inference model."
     },
     "stability":"beta",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -109,7 +109,8 @@ public final class DataStreamTestHelper {
         if (randomBoolean()) {
             metadata = Map.of("key", "value");
         }
-        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata, randomBoolean());
+        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata,
+            randomBoolean(), randomBoolean());
     }
 
     /**

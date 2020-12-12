@@ -5,6 +5,9 @@
       "description":"Returns help for the Cat APIs."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "text/plain" ]
+    },
     "url":{
       "paths":[
         {

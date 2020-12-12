@@ -42,6 +42,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
     public static void installFileSystem() {
         fileSystemProvider = new FSyncTrackingFileSystemProvider(PathUtils.getDefaultFileSystem(), createTempDir());
         PathUtilsForTesting.installMock(fileSystemProvider.getFileSystem(null));
+        fileSystemProvider = null;
     }
 
     @AfterClass

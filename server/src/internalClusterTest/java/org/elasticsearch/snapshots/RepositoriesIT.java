@@ -230,54 +230,17 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    public void testSnapshotDeleteWithRepositoryOutage() throws Exception {
-        disableRepoConsistencyCheck("This test expects residual files in repository");
-        Client client = client();
-        Path repo = randomRepoPath();
-        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-            .setType("mock").setSettings(Settings.builder()
-                .put("location", repo)
-                .put("compress", false)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
-        logger.info("--> creating index-1 and ingest data");
-        createIndex("test-idx-1");
-        ensureGreen();
-        for (int j = 0; j < 10; j++) {
-            indexDoc("test-idx-1", Integer.toString( 10 + j), "foo", "bar" +  10 + j);
-        }
-        refresh();
-
-        // Make repository to throw exception when trying to delete stale indices
-        String masterNode = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterNode).repository("test-repo"))
-            .setThrowExceptionWhileDelete(true);
-
-        logger.info("--> creating snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
-            .setWaitForCompletion(true).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        logger.info("--> delete the snapshot");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
-
-        logger.info("--> done");
-    }
-
     public void testResidualStaleIndicesAreDeletedByConsecutiveDelete() throws Exception {
         Client client = client();
-        Path repo = randomRepoPath();
-        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-            .setType("mock").setSettings(Settings.builder()
-                .put("location", repo)
-                .put("compress", false)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        Path repositoryPath = randomRepoPath();
+        final String repositoryName = "test-repo";
+        final String snapshot1Name = "test-snap-1";
+        final String snapshot2Name = "test-snap-2";
 
-        int numberOfFiles = numberOfFiles(repo);
+        logger.info("-->  creating repository at {}", repositoryPath.toAbsolutePath());
+        createRepository(repositoryName, "mock", repositoryPath);
+
+        int numberOfFiles = numberOfFiles(repositoryPath);
 
         logger.info("--> creating index-1 and ingest data");
         createIndex("test-idx-1");
@@ -288,11 +251,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         refresh();
 
         logger.info("--> creating first snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
-            .setWaitForCompletion(true).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createFullSnapshot(repositoryName, snapshot1Name);
 
         logger.info("--> creating index-2 and ingest data");
         createIndex("test-idx-2");
@@ -303,11 +262,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         refresh();
 
         logger.info("--> creating second snapshot");
-        CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
-            .setWaitForCompletion(true).get();
-        assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse1.getSnapshotInfo().totalShards()));
+        createFullSnapshot(repositoryName, snapshot2Name);
 
         // Make repository to throw exception when trying to delete stale indices
         // This will make sure stale indices stays in repository after snapshot delete
@@ -316,7 +271,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             setThrowExceptionWhileDelete(true);
 
         logger.info("--> delete the second snapshot");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-2").get();
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot2Name).get();
 
         // Make repository to work normally
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterNode).repository("test-repo")).
@@ -324,10 +279,10 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         // This snapshot should delete last snapshot's residual stale indices as well
         logger.info("--> delete snapshot one");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot1Name).get();
 
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made");
-        assertFileCount(repo, numberOfFiles + 2);
+        assertFileCount(repositoryPath, numberOfFiles + 2);
 
         logger.info("--> done");
     }

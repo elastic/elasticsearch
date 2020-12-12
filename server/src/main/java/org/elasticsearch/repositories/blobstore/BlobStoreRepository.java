@@ -919,7 +919,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (foundIndices.keySet().equals(survivingIndexIds)) {
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
-            cleanupStaleIndices(foundIndices, survivingIndexIds, executor, groupedListener);
+            cleanupStaleIndices(foundIndices, survivingIndexIds, groupedListener);
         }
     }
 
@@ -1028,7 +1028,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds,
-                                             Executor executor, GroupedActionListener<DeleteResult> listener) {
+                                     GroupedActionListener<DeleteResult> listener) {
         final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             for (DeleteResult result : deleteResults) {
@@ -1047,7 +1047,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
                 foundIndices.size() - survivingIndexIds.size());
             for (int i = 0; i < workers; ++i) {
-                executeOneStaeIndexDelete( staleIndicesToDelete, executor, groupedListener);
+                executeOneStaleIndexDelete(staleIndicesToDelete, groupedListener);
             }
         } catch (Exception e) {
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
@@ -1058,23 +1058,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void executeOneStaeIndexDelete(BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete, Executor executor,
-                                           GroupedActionListener<DeleteResult> listener) throws InterruptedException {
+    private void executeOneStaleIndexDelete(BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete,
+                                            GroupedActionListener<DeleteResult> listener) throws InterruptedException {
         Map.Entry<String, BlobContainer> indexEntry  = staleIndicesToDelete.poll(0L, TimeUnit.MILLISECONDS);
         if (indexEntry == null) {
-            listener.onResponse(DeleteResult.ZERO);
+            return;
         } else {
             final String indexSnId = indexEntry.getKey();
-            executor.execute(ActionRunnable.supply(listener, () -> {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
                 try {
                     DeleteResult staleIndexDeleteResult = indexEntry.getValue().delete();
                     logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
-                    executeOneStaeIndexDelete( staleIndicesToDelete, executor, listener);
+                    executeOneStaleIndexDelete(staleIndicesToDelete, listener);
                     return staleIndexDeleteResult;
                 } catch (IOException e) {
                     logger.warn(() -> new ParameterizedMessage(
                         "[{}] index {} is no longer part of any snapshots in the repository, " +
                             "but failed to clean up their index folders", metadata.name(), indexSnId), e);
+                    return DeleteResult.ZERO;
+                } catch (Exception e) {
+                    assert false : e;
+                    logger.warn(new ParameterizedMessage("[{}] Exception during single stale index delete", metadata.name()), e);
                     return DeleteResult.ZERO;
                 }
             }));

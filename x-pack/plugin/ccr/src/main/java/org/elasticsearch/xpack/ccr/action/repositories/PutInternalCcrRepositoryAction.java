@@ -33,7 +33,7 @@ public class PutInternalCcrRepositoryAction extends ActionType<ActionResponse.Em
         @Inject
         public TransportPutInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
                                                     TransportService transportService) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+            super(NAME, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
         }
 

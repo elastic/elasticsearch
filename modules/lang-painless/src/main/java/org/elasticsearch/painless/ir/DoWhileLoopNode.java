@@ -22,7 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
-public class DoWhileLoopNode extends LoopNode {
+public class DoWhileLoopNode extends ConditionNode {
 
     /* ---- begin visitor ---- */
 

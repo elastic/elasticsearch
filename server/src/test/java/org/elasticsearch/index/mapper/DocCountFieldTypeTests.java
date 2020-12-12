@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
@@ -42,14 +41,15 @@ public class DocCountFieldTypeTests extends FieldTypeTestCase {
 
     public void testExistsQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
-        assertTrue(ft.existsQuery(randomMockShardContext()) instanceof DocValuesFieldExistsQuery);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.existsQuery(randomMockShardContext()));
+        assertEquals("Field [_doc_count] of type [_doc_count] does not support exists queries", e.getMessage());
     }
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType fieldType = new DocCountFieldMapper.DocCountFieldType();
-        assertEquals(Arrays.asList(14L), fetchSourceValue(fieldType, 14));
-        assertEquals(Arrays.asList(14L), fetchSourceValue(fieldType, "14"));
-        assertEquals(Arrays.asList(1L), fetchSourceValue(fieldType, ""));
-        assertEquals(Arrays.asList(1L), fetchSourceValue(fieldType, null));
+        assertEquals(Arrays.asList(14), fetchSourceValue(fieldType, 14));
+        assertEquals(Arrays.asList(14), fetchSourceValue(fieldType, "14"));
+        assertEquals(Arrays.asList(1), fetchSourceValue(fieldType, ""));
+        assertEquals(Arrays.asList(1), fetchSourceValue(fieldType, null));
     }
 }

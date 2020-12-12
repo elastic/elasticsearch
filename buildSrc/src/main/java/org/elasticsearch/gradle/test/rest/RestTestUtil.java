@@ -77,16 +77,15 @@ public class RestTestUtil {
      * Setup the dependencies needed for the REST tests.
      */
     static void setupDependencies(Project project, SourceSet sourceSet) {
-        if (BuildParams.isInternal()) {
-            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
-        } else {
+        BuildParams.withInternalBuild(
+            () -> { project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework")); }
+        ).orElse(() -> {
             project.getDependencies()
                 .add(
                     sourceSet.getImplementationConfigurationName(),
                     "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch()
                 );
-        }
-
+        });
     }
 
 }

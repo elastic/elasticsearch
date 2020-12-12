@@ -44,7 +44,7 @@ processTestResources.dependsOn(copyKeyCerts)
 integTest.dependsOn(copyKeyCerts)
 
 def pluginsCount = 0
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
 
@@ -71,10 +71,6 @@ testClusters.integTest {
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
     if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
       // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-      return
-    }
-    if (pluginName == 'quota-aware-fs') {
-      // This plugin has to be configured to work via system properties
       return
     }
     plugin pluginProject.path

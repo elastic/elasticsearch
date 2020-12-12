@@ -90,12 +90,12 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
   - <<ilm-shrink,Shrink>>
   - <<ilm-forcemerge,Force Merge>>
 * Cold
-  - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-set-priority,Set Priority>>
+  - <<ilm-unfollow,Unfollow>>
   - <<ilm-allocate,Allocate>>
   - <<ilm-migrate,Migrate>>
   - <<ilm-freeze,Freeze>>
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete
-  - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
+  - <<ilm-wait-for-snapshot,Wait For Snapshot>>
   - <<ilm-delete,Delete>>

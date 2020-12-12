@@ -74,6 +74,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
         }
 
+        csBuilder = ClusterState.builder(cs);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
         List<String> result = verifyIndicesPrimaryShardsAreActive(csBuilder.build(), resolver,

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transform;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
@@ -28,7 +29,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -56,9 +56,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> types = super.pluginTypes();
-        types.add(CustomScriptPlugin.class);
-        return types;
+        return CollectionUtils.appendToCopy(super.pluginTypes(), CustomScriptPlugin.class);
     }
 
     @Override

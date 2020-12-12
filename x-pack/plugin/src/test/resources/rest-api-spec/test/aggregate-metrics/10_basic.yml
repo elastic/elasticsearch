@@ -1,8 +1,8 @@
 ---
 "Test exists query on aggregate metric field":
   - skip:
-      version: " - 7.99.99"
-      reason: "Aggregate metric fields are currently only implemented in 8.0."
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
       indices.create:
@@ -58,8 +58,8 @@
 ---
 "Test term query on aggregate metric field":
   - skip:
-      version: " - 7.99.99"
-      reason: "Aggregate metric fields are currently only implemented in 8.0."
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
       indices.create:
@@ -134,8 +134,8 @@
 ---
 "Test range query on aggregate metric field":
   - skip:
-      version: " - 7.99.99"
-      reason: "Aggregate metric fields are currently only implemented in 8.0."
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
       indices.create:
@@ -211,8 +211,8 @@
 ---
 "Sort":
   - skip:
-      version: " - 7.99.99"
-      reason: "Aggregate metric fields are currently only implemented in 8.0."
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
       indices.create:

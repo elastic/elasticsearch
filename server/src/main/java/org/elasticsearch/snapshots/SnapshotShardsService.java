@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -452,14 +453,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             },
             (req, reqListener) -> transportService.sendRequest(transportService.getLocalNode(),
                     SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
-                new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
+                new TransportResponseHandler<ActionResponse.Empty>() {
                     @Override
-                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) {
-                        return UpdateIndexShardSnapshotStatusResponse.INSTANCE;
+                    public ActionResponse.Empty read(StreamInput in) {
+                        return ActionResponse.Empty.INSTANCE;
                     }
 
                     @Override
-                    public void handleResponse(UpdateIndexShardSnapshotStatusResponse response) {
+                    public void handleResponse(ActionResponse.Empty response) {
                         reqListener.onResponse(null);
                     }
 

@@ -98,6 +98,34 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
+[[ilm-allocate-assign-index-multi-attribute-ex]]
+===== Assign index to nodes based on multiple attributes
+
+The allocate action can also assign indices to nodes based on multiple node
+attributes. The following action assigns indices based on the `box_type` and
+`storage` node attributes.
+
+[source,console]
+----
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "allocate" : {
+            "require" : {
+              "box_type": "cold",
+              "storage": "high"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+
 [[ilm-allocate-assign-index-node-ex]]
 ===== Assign index to a specific node and update replica settings
 

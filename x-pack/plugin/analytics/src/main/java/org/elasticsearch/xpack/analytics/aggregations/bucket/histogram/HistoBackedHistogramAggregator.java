@@ -17,8 +17,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -39,10 +39,11 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
         DoubleBounds extendedBounds,
         DoubleBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinalityUpperBound,
-        Map<String, Object> metadata) throws IOException {
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds, hardBounds,
             valuesSourceConfig.format(), context, parent, cardinalityUpperBound, metadata);
 

@@ -73,34 +73,31 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id4", "_node_id4", JobState.OPENED, tasksBuilder);
         PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
-        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        cs.nodes(nodes);
-        Metadata.Builder metadata = Metadata.builder();
-        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
-        cs.metadata(metadata);
+        final ClusterState cs = ClusterState.builder(new ClusterName("_name")).nodes(nodes)
+                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks)).build();
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id1"), 10, 30, true, false);
+        NodeLoad load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id1"), 10, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(52428800L));
         assertThat(load.getNumAllocatingJobs(), equalTo(2L));
         assertThat(load.getNumAssignedJobs(), equalTo(2L));
         assertThat(load.getMaxJobs(), equalTo(10));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id2"), 5, 30, true, false);
+        load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id2"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
         assertThat(load.getNumAllocatingJobs(), equalTo(1L));
         assertThat(load.getNumAssignedJobs(), equalTo(1L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id3"), 5, 30, true, false);
+        load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id3"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(0L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
         assertThat(load.getNumAssignedJobs(), equalTo(0L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id4"), 5, 30, true, false);
+        load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id4"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
         assertThat(load.getNumAssignedJobs(), equalTo(1L));
@@ -122,7 +119,7 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         cs.metadata(metadata);
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, 30, true, false);
+        NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, 30, true, false);
         assertThat(load.getError(), containsString("ml.max_open_jobs attribute [foo] is not an integer"));
     }
 
@@ -140,7 +137,7 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         cs.metadata(metadata);
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, -1, true, false);
+        NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, -1, true, false);
         assertThat(load.getError(), containsString("ml.machine_memory attribute [bar] is not a long"));
     }
 

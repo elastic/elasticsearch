@@ -48,6 +48,10 @@ public final class MlTasks {
         return JOB_TASK_ID_PREFIX + jobId;
     }
 
+    public static String jobId(String jobTaskId) {
+        return jobTaskId.substring(JOB_TASK_ID_PREFIX.length());
+    }
+
     /**
      * Namespaces the task ids for datafeeds.
      * A job id can be used as a datafeed id, because they are stored separately in cluster state.
@@ -65,6 +69,10 @@ public final class MlTasks {
      */
     public static String dataFrameAnalyticsTaskId(String id) {
         return DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + id;
+    }
+
+    public static String dataFrameAnalyticsId(String taskId) {
+        return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
     @Nullable

@@ -974,9 +974,62 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
     }
 
+    public void testErrorMessageForPercentileWithWrongMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, 2)] must be [string], found value [2] type [integer]",
+            error("SELECT PERCENTILE(int, 50, 2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithNullMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, null)] must be one of [tdigest, hdr], received [null]",
+            error("SELECT PERCENTILE(int, 50, null) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithHDRRequiresInt() {
+        assertEquals("1:8: fourth argument of [PERCENTILE(int, 50, 'hdr', 2.2)] must be [integer], found value [2.2] type [double]",
+            error("SELECT PERCENTILE(int, 50, 'hdr', 2.2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithWrongMethod() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, 'notExistingMethod', 5)] must be " +
+                "one of [tdigest, hdr], received [notExistingMethod]",
+            error("SELECT PERCENTILE(int, 50, 'notExistingMethod', 5) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithWrongMethodParameterType() {
+        assertEquals("1:8: fourth argument of [PERCENTILE(int, 50, 'tdigest', '5')] must be [numeric], found value ['5'] type [keyword]",
+            error("SELECT PERCENTILE(int, 50, 'tdigest', '5') FROM test"));
+    }
+
     public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
         assertEquals("1:8: second argument of [PERCENTILE_RANK(int, ABS(int))] must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithWrongMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, 2)] must be [string], found value [2] type [integer]",
+            error("SELECT PERCENTILE_RANK(int, 50, 2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithNullMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, null)] must be one of [tdigest, hdr], received [null]",
+            error("SELECT PERCENTILE_RANK(int, 50, null) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithHDRRequiresInt() {
+        assertEquals("1:8: fourth argument of [PERCENTILE_RANK(int, 50, 'hdr', 2.2)] must be [integer], found value [2.2] type [double]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'hdr', 2.2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithWrongMethod() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, 'notExistingMethod', 5)] must be " +
+                "one of [tdigest, hdr], received [notExistingMethod]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'notExistingMethod', 5) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithWrongMethodParameterType() {
+        assertEquals("1:8: fourth argument of [PERCENTILE_RANK(int, 50, 'tdigest', '5')] must be [numeric], " +
+                "found value ['5'] type [keyword]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'tdigest', '5') FROM test"));
     }
 
     public void testTopHitsFirstArgConstant() {

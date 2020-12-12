@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.junit.After;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -92,6 +93,24 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         long timestamp = createDocument(dataStreamName);
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
+        assertEquals(1, stats.getSuccessfulShards());
+        assertEquals(0, stats.getFailedShards());
+        assertEquals(1, stats.getDataStreamCount());
+        assertEquals(1, stats.getBackingIndices());
+        assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(1, stats.getDataStreams()[0].getBackingIndices());
+        assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+    }
+
+    public void testStatsExistingHiddenDataStream() throws Exception {
+        String dataStreamName = createDataStream(true);
+        long timestamp = createDocument(dataStreamName);
+
+        DataStreamsStatsAction.Response stats = getDataStreamsStats(true);
         assertEquals(1, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getDataStreamCount());
@@ -205,6 +224,10 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     private String createDataStream() throws Exception {
+        return createDataStream(false);
+    }
+
+    private String createDataStream(boolean hidden) throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template idxTemplate = new Template(
             null,
@@ -218,7 +241,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
+            new ComposableIndexTemplate.DataStreamTemplate(hidden),
             null
         );
         assertTrue(
@@ -256,7 +279,17 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     private DataStreamsStatsAction.Response getDataStreamsStats() throws Exception {
-        return client().execute(DataStreamsStatsAction.INSTANCE, new DataStreamsStatsAction.Request()).get();
+        return getDataStreamsStats(false);
+    }
+
+    private DataStreamsStatsAction.Response getDataStreamsStats(boolean includeHidden) throws Exception {
+        DataStreamsStatsAction.Request request = new DataStreamsStatsAction.Request();
+        if (includeHidden) {
+            request.indicesOptions(
+                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
+            );
+        }
+        return client().execute(DataStreamsStatsAction.INSTANCE, request).get();
     }
 
     private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {

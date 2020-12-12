@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -311,6 +310,31 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getRootCause().getMessage(), equalTo("No mapper found for type [string]"));
     }
 
+    public void testIllegalDynamicTemplateUnknownRuntimeFieldType() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
+            mapping.startArray("dynamic_templates");
+            {
+                mapping.startObject();
+                mapping.startObject("my_template");
+                mapping.field("match_mapping_type", "string");
+                mapping.startObject("runtime");
+                mapping.field("type", "unknown");
+                mapping.endObject();
+                mapping.endObject();
+                mapping.endObject();
+            }
+            mapping.endArray();
+            mapping.endObject();
+        }
+        mapping.endObject();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getRootCause().getMessage(), equalTo("No runtime field found for type [unknown]"));
+    }
+
     public void testIllegalDynamicTemplateUnknownAttribute() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
@@ -332,10 +356,40 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             mapping.endObject();
         }
         mapping.endObject();
+
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
         assertThat(e.getRootCause().getMessage(),
             equalTo("unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]"));
+    }
+
+    public void testIllegalDynamicTemplateUnknownAttributeRuntime() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
+            mapping.startArray("dynamic_templates");
+            {
+                mapping.startObject();
+                mapping.startObject("my_template");
+                mapping.field("match_mapping_type", "string");
+                mapping.startObject("runtime");
+                mapping.field("type", "test");
+                mapping.field("foo", "bar");
+                mapping.endObject();
+                mapping.endObject();
+                mapping.endObject();
+            }
+            mapping.endArray();
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertEquals("Failed to parse mapping: dynamic template [my_template] has invalid content [" +
+            "{\"match_mapping_type\":\"string\",\"runtime\":{\"foo\":\"bar\",\"type\":\"test\"}}], " +
+            "attempted to validate it with the following match_mapping_type: [string]", e.getMessage());
+        assertEquals("Unknown mapping attributes [{foo=bar}]", e.getRootCause().getMessage());
     }
 
     public void testIllegalDynamicTemplateInvalidAttribute() throws Exception {
@@ -426,6 +480,39 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
+    public void testIllegalDynamicTemplateNoMappingTypeRuntime() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
+            mapping.startArray("dynamic_templates");
+            {
+                mapping.startObject();
+                mapping.startObject("my_template");
+                if (randomBoolean()) {
+                    mapping.field("match_mapping_type", "*");
+                } else {
+                    mapping.field("match", "string_*");
+                }
+                mapping.startObject("runtime");
+                mapping.field("type", "{dynamic_type}");
+                mapping.field("foo", "bar");
+                mapping.endObject();
+                mapping.endObject();
+                mapping.endObject();
+            }
+            mapping.endArray();
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getMessage(), containsString("Failed to parse mapping: dynamic template [my_template] has invalid content ["));
+        assertThat(e.getMessage(), containsString("attempted to validate it with the following match_mapping_type: " +
+            "[string, long, double, boolean, date]"));
+        assertEquals("Unknown mapping attributes [{foo=bar}]", e.getRootCause().getMessage());
+    }
+
     public void testIllegalDynamicTemplate7DotXIndex() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
@@ -450,7 +537,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(createdVersion, mapping);
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":" +
-            "\"string\"}}], attempted to validate it with the following match_mapping_type: [[string]], " +
+            "\"string\"}}], attempted to validate it with the following match_mapping_type: [string], " +
             "last error: [No mapper found for type [string]]");
     }
 
@@ -467,6 +554,48 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }));
         MapperService mapperService = createMapperService(mapping);
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+    }
+
+    public void testRuntimeSectionRejectedUpdate() throws IOException {
+        MapperService mapperService;
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+            builder.startObject("runtime");
+            builder.startObject("field").field("type", "test").endObject();
+            builder.endObject();
+            builder.startObject("properties");
+            builder.startObject("concrete").field("type", "keyword").endObject();
+            builder.endObject();
+            builder.endObject().endObject();
+            mapperService = createMapperService(builder);
+            assertEquals(Strings.toString(builder), mapperService.documentMapper().mappingSource().toString());
+            MappedFieldType concrete = mapperService.fieldType("concrete");
+            assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            MappedFieldType field = mapperService.fieldType("field");
+            assertThat(field, instanceOf(RuntimeField.class));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
+            builder.startObject("runtime");
+            builder.startObject("another_field").field("type", "test").endObject();
+            builder.endObject();
+            builder.startObject("properties");
+            //try changing the type of the existing concrete field, so that merge fails
+            builder.startObject("concrete").field("type", "text").endObject();
+            builder.endObject();
+            builder.endObject().endObject();
+
+            expectThrows(IllegalArgumentException.class, () -> merge(mapperService, builder));
+
+            //make sure that the whole rejected update, including changes to runtime fields, has not been applied
+            MappedFieldType concrete = mapperService.fieldType("concrete");
+            assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            MappedFieldType field = mapperService.fieldType("field");
+            assertThat(field, instanceOf(RuntimeField.class));
+            assertNull(mapperService.fieldType("another_field"));
+            assertEquals("{\"_doc\":{\"runtime\":{\"field\":{\"type\":\"test\"}},\"properties\":{\"concrete\":{\"type\":\"keyword\"}}}}",
+                Strings.toString(mapperService.documentMapper().mapping().root));
+        }
     }
 
     public void testRuntimeSectionMerge() throws IOException {
@@ -533,9 +662,9 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testRuntimeSectionNonRuntimeType() throws IOException {
-        XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "keyword"));
+        XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [keyword] declared on runtime field [field]", e.getMessage());
+        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
     }
 
     public void testRuntimeSectionHandlerNotFound() throws IOException {
@@ -564,35 +693,54 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             "[unsupported : value]", e.getMessage());
     }
 
-    private static class RuntimeFieldPlugin extends Plugin implements MapperPlugin {
-        @Override
-        public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-            return Collections.singletonMap("test", (name, node, parserContext) -> {
-                Object prop1 = node.remove("prop1");
-                Object prop2 = node.remove("prop2");
-                return new RuntimeField(name, prop1 == null ? null : prop1.toString(), prop2 == null ? null : prop2.toString());
-            });
+    public void testDynamicRuntimeNotSupported() {
+        {
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> createMapperService(topMapping(b -> b.field("dynamic", "runtime"))));
+            assertEquals("Failed to parse mapping: unable to set dynamic:runtime as there is no registered dynamic runtime fields builder",
+                e.getMessage());
+        }
+        {
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> createMapperService(mapping(b -> {
+                    b.startObject("object");
+                    b.field("type", "object").field("dynamic", "runtime");
+                    b.endObject();
+                })));
+            assertEquals("Failed to parse mapping: unable to set dynamic:runtime as there is no registered dynamic runtime fields builder",
+                e.getMessage());
         }
     }
 
-    private static final class RuntimeField extends RuntimeFieldType {
+    private static class RuntimeFieldPlugin extends Plugin implements MapperPlugin {
+        @Override
+        public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
+            return Map.of("test", (name, node, parserContext) -> {
+                Object prop1 = node.remove("prop1");
+                Object prop2 = node.remove("prop2");
+                return new RuntimeField(name, prop1 == null ? null : prop1.toString(), prop2 == null ? null : prop2.toString());
+            },
+                "keyword", (name, node, parserContext) -> new TestRuntimeField(name, "keyword"),
+                "boolean", (name, node, parserContext) -> new TestRuntimeField(name, "boolean"),
+                "long", (name, node, parserContext) -> new TestRuntimeField(name, "long"),
+                "double", (name, node, parserContext) -> new TestRuntimeField(name, "double"),
+                "date", (name, node, parserContext) -> new TestRuntimeField(name, "date"));
+        }
+    }
+
+    private static final class RuntimeField extends TestRuntimeField {
         private final String prop1;
         private final String prop2;
 
         protected RuntimeField(String name, String prop1, String prop2) {
-            super(name, Collections.emptyMap());
+            super(name, "test");
             this.prop1 = prop1;
             this.prop2 = prop2;
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return null;
-        }
-
-        @Override
-        public String typeName() {
-            return "test";
         }
 
         @Override
@@ -609,6 +757,5 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 builder.field("prop2", prop2);
             }
         }
-
     }
 }

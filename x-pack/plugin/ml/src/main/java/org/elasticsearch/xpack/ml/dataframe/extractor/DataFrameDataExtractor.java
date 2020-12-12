@@ -282,7 +282,10 @@ public class DataFrameDataExtractor {
             }
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        return new Row(extractedValues, hit, isTraining);
+        Row row = new Row(extractedValues, hit, isTraining);
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] Extracted row: sort key = [{}], is_training = [{}], values = {}",
+            context.jobId, row.getSortKey(), isTraining, Arrays.toString(row.values)));
+        return row;
     }
 
     private void markScrollAsErrored() {

@@ -58,14 +58,14 @@ public class LocalModel implements Closeable {
     private final AtomicLong referenceCount;
 
     LocalModel(String modelId,
-                      String nodeId,
-                      InferenceDefinition trainedModelDefinition,
-                      TrainedModelInput input,
-                      Map<String, String> defaultFieldMap,
-                      InferenceConfig modelInferenceConfig,
-                      License.OperationMode licenseLevel,
-                      TrainedModelStatsService trainedModelStatsService,
-                      CircuitBreaker trainedModelCircuitBreaker) {
+               String nodeId,
+               InferenceDefinition trainedModelDefinition,
+               TrainedModelInput input,
+               Map<String, String> defaultFieldMap,
+               InferenceConfig modelInferenceConfig,
+               License.OperationMode licenseLevel,
+               TrainedModelStatsService trainedModelStatsService,
+               CircuitBreaker trainedModelCircuitBreaker) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());

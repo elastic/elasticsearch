@@ -5,6 +5,9 @@
       "description":"Returns low-level information about REST actions usage on nodes."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

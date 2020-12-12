@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,24 +44,23 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new WeightedAvgAggregator(name, null, format, searchContext, parent, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new WeightedAvgAggregator(name, null, format, context, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                            Map<String, ValuesSourceConfig> configs,
-                                            DocValueFormat format,
-                                            Aggregator parent,
-                                            CardinalityUpperBound cardinality,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         MultiValuesSource.NumericMultiValuesSource numericMultiVS = new MultiValuesSource.NumericMultiValuesSource(configs);
         if (numericMultiVS.areValuesSourcesEmpty()) {
-            return createUnmapped(searchContext, parent, metadata);
+            return createUnmapped(parent, metadata);
         }
-        return new WeightedAvgAggregator(name, numericMultiVS, format, searchContext, parent, metadata);
+        return new WeightedAvgAggregator(name, numericMultiVS, format, context, parent, metadata);
     }
 
     @Override

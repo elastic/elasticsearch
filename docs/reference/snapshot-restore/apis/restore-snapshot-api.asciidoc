@@ -59,7 +59,7 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 [[restore-snapshot-api-request]]
 ==== {api-request-title}
 
-`POST /_snapshot/<repository>/<snapshot>`
+`POST /_snapshot/<repository>/<snapshot>/_restore`
 
 [[restore-snapshot-api-desc]]
 ==== {api-description-title}

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,7 +40,9 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
@@ -65,14 +68,16 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     private static final Logger logger = LogManager.getLogger(TransportPutLifecycleAction.class);
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportPutLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       NamedXContentRegistry namedXContentRegistry, Client client) {
+                                       NamedXContentRegistry namedXContentRegistry, XPackLicenseState licenseState, Client client) {
         super(PutLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
             indexNameExpressionResolver, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME);
         this.xContentRegistry = namedXContentRegistry;
+        this.licenseState = licenseState;
         this.client = client;
     }
 
@@ -86,6 +91,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
+        List<Phase> phasesDefiningSearchableSnapshot = request.getPolicy().getPhases().values().stream()
+            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+            .collect(Collectors.toList());
+        if (phasesDefiningSearchableSnapshot.isEmpty() == false) {
+            if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
+                throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
+                    SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
+            }
+        }
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
                 new AckedClusterStateUpdateTask(request, listener) {
                     @Override

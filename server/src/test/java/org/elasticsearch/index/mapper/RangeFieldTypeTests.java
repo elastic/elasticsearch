@@ -52,6 +52,7 @@ import java.net.InetAddress;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -213,7 +214,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
     }
 
     public void testDateRangeQueryUsingMappingFormat() {

@@ -292,6 +292,10 @@ public abstract class Rounding implements Writeable {
          */
         double roundingSize(long utcMillis, DateTimeUnit timeUnit);
         /**
+         * Returns the size of each rounding bucket in timeUnits.
+         */
+        double roundingSize(DateTimeUnit timeUnit);
+        /**
          * If this rounding mechanism precalculates rounding points then
          * this array stores dates such that each date between each entry.
          * if the rounding mechanism doesn't precalculate points then this
@@ -610,15 +614,40 @@ public abstract class Rounding implements Writeable {
         private abstract class TimeUnitPreparedRounding extends PreparedRounding {
             @Override
             public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
-                if (timeUnit.isMillisBased == unit.isMillisBased) {
-                    return (double) unit.ratio / timeUnit.ratio;
-                } else {
-                    if (unit.isMillisBased == false) {
-                        return (double) (nextRoundingValue(utcMillis) - utcMillis) / timeUnit.ratio;
+                if (unit.isMillisBased) {
+                    if (timeUnit.isMillisBased) {
+                        return (double) unit.ratio / timeUnit.ratio;
                     } else {
                         throw new IllegalArgumentException("Cannot use month-based rate unit [" + timeUnit.shortName +
                             "] with non-month based calendar interval histogram [" + unit.shortName +
                             "] only week, day, hour, minute and second are supported for this histogram");
+                    }
+                } else {
+                    if (timeUnit.isMillisBased) {
+                        return (double) (nextRoundingValue(utcMillis) - utcMillis) / timeUnit.ratio;
+                    } else {
+                        return (double) unit.ratio / timeUnit.ratio;
+                    }
+                }
+            }
+
+            @Override
+            public double roundingSize(DateTimeUnit timeUnit) {
+                if (unit.isMillisBased) {
+                    if (timeUnit.isMillisBased) {
+                        return (double) unit.ratio / timeUnit.ratio;
+                    } else {
+                        throw new IllegalArgumentException("Cannot use month-based rate unit [" + timeUnit.shortName +
+                            "] with non-month based calendar interval histogram [" + unit.shortName +
+                            "] only week, day, hour, minute and second are supported for this histogram");
+                    }
+                } else {
+                    if (timeUnit.isMillisBased) {
+                        throw new IllegalArgumentException("Cannot use non month-based rate unit [" + timeUnit.shortName +
+                            "] with calendar interval histogram [" + unit.shortName +
+                            "] only month, quarter and year are supported for this histogram");
+                    } else {
+                        return (double) unit.ratio / timeUnit.ratio;
                     }
                 }
             }
@@ -996,6 +1025,11 @@ public abstract class Rounding implements Writeable {
         private abstract class TimeIntervalPreparedRounding extends PreparedRounding {
             @Override
             public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+                return roundingSize(timeUnit);
+            }
+
+            @Override
+            public double roundingSize(DateTimeUnit timeUnit) {
                 if (timeUnit.isMillisBased) {
                     return (double) interval / timeUnit.ratio;
                 } else {
@@ -1267,6 +1301,11 @@ public abstract class Rounding implements Writeable {
                 }
 
                 @Override
+                public double roundingSize(DateTimeUnit timeUnit) {
+                    return delegatePrepared.roundingSize(timeUnit);
+                }
+
+                @Override
                 public long[] fixedRoundingPoints() {
                     // TODO we can likely translate here
                     return null;
@@ -1352,6 +1391,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
             return delegate.roundingSize(utcMillis, timeUnit);
+        }
+
+        @Override
+        public double roundingSize(DateTimeUnit timeUnit) {
+            return delegate.roundingSize(timeUnit);
         }
 
         @Override

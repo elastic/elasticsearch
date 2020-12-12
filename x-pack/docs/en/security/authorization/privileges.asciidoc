@@ -94,9 +94,20 @@ authenticated user. The operations include
 `manage_pipeline`::
 All operations on ingest pipelines.
 
+ifdef::permanently-unreleased-branch[]
+
+`manage_rollup`::
+All rollup operations. Includes legacy rollup operations, such as creating,
+starting, stopping and deleting rollup jobs.
+
+endif::[]
+ifndef::permanently-unreleased-branch[]
+
 `manage_rollup`::
 All rollup operations, including creating, starting, stopping and deleting
 rollup jobs.
+
+endif::[]
 
 `manage_saml`::
 Enables the use of internal {es} APIs to initiate and manage SAML authentication
@@ -139,9 +150,20 @@ All read-only operations related to {transforms}.
 All read-only {ml} operations, such as getting information about {dfeeds}, jobs,
 model snapshots, or results.
 
+ifdef::permanently-unreleased-branch[]
+
+`monitor_rollup`::
+All read-only operations for legacy rollups, such as viewing the list of
+historical and currently running rollup jobs and their capabilities.
+
+endif::[]
+ifndef::permanently-unreleased-branch[]
+
 `monitor_rollup`::
 All read-only rollup operations, such as viewing the list of historical and
 currently running rollup jobs and their capabilities.
+
+endif::[]
 
 `monitor_watcher`::
 All read-only watcher operations, such as getting a watch and watcher stats.

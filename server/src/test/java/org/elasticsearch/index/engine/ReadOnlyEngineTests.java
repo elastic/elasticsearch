@@ -155,7 +155,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty(Version.CURRENT.luceneVersion);
+            store.createEmpty();
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , new TranslogStats(), true, Function.identity(), true)) {
                 Class<? extends Throwable> expectedException = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class :
                     UnsupportedOperationException.class;
@@ -175,7 +175,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty(Version.CURRENT.luceneVersion);
+            store.createEmpty();
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , new TranslogStats(), true, Function.identity(), true)) {
                 globalCheckpoint.set(randomNonNegativeLong());
                 try {

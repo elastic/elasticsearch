@@ -138,7 +138,7 @@ final class ExpandSearchPhase extends SearchPhase {
             }
         }
         if (options.getFetchFields() != null) {
-            options.getFetchFields().forEach(ff -> groupSource.fetchField(ff.field, ff.format));
+            options.getFetchFields().forEach(ff -> groupSource.fetchField(ff));
         }
         if (options.getDocValueFields() != null) {
             options.getDocValueFields().forEach(ff -> groupSource.docValueField(ff.field, ff.format));

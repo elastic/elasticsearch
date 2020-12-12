@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -131,7 +130,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 

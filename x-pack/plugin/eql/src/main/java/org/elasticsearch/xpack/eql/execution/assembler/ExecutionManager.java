@@ -57,7 +57,6 @@ public class ExecutionManager {
         HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
         // NB: since there's no aliasing inside EQL, the attribute name is the same as the underlying field name
         String timestampName = Expressions.name(timestamp);
-        String tiebreakerName = Expressions.isPresent(tiebreaker) ? Expressions.name(tiebreaker) : null;
 
         // secondary criteria
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);

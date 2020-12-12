@@ -5,6 +5,10 @@
       "description":"Creates a rollup job."
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

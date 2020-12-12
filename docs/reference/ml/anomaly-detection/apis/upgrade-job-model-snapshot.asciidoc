@@ -1,17 +1,17 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-upgrade-job-model-snapshot]]
-= Upgrade {anomaly-jobs} Snapshot API
+= Upgrade model snapshots API
 ++++
-<titleabbrev>Upgrade job snapshot</titleabbrev>
+<titleabbrev>Upgrade model snapshots</titleabbrev>
 ++++
 
-Upgrades an {anomaly-job} snapshot to the latest major version.
+Upgrades an {anomaly-detect} model snapshot to the latest major version.
 
 [[ml-upgrade-job-model-snapshot-request]]
 == {api-request-title}
 
-`POST _ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_upgrade`
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_upgrade`
 
 [[ml-upgrade-job-model-snapshot-prereqs]]
 == {api-prereq-title}
@@ -25,14 +25,14 @@ Upgrades an {anomaly-job} snapshot to the latest major version.
 [[ml-upgrade-job-model-snapshot-desc]]
 == {api-description-title}
 
-Overtime, older snapshot formats are deprecated and removed. {anomaly-jobs} will only
-support snapshots that are from the current or previous major version.
+Over time, older snapshot formats are deprecated and removed. {anomaly-jobs-cap}
+support only snapshots that are from the current or previous major version.
 
-This API provides a means to upgrade a snapshot to the current major version. This
-aids in preparing the cluster for an upgrade to the next major version.
+This API provides a means to upgrade a snapshot to the current major version.
+This aids in preparing the cluster for an upgrade to the next major version.
 
-Only one snapshot per {anomaly-job} can be upgraded at a time and the upgraded snapshot cannot
-be the current snapshot of the {anomaly-job}.
+Only one snapshot per {anomaly-job} can be upgraded at a time and the upgraded
+snapshot cannot be the current snapshot of the {anomaly-job}.
 
 [[ml-upgrade-job-model-snapshot-path-parms]]
 == {api-path-parms-title}
@@ -44,9 +44,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `<snapshot_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
-
-[[ml-upgrade-job-model-snapshot-path-parms]]
-== {api-path-parms-title}
 
 `timeout`::
   (Optional, time) Controls the time to wait for the request to complete. The default

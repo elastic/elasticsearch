@@ -70,7 +70,9 @@ PUT _ilm/policy/my_policy
 The migrate action in the following policy is disabled and
 the allocate action assigns the index to nodes that have a
 `rack_id` of _one_ or _two_.
+
 NOTE: Explicitly disabling the migrate action is not required--{ilm-init} does not inject the migrate action if you specify allocation options.
+
 [source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy

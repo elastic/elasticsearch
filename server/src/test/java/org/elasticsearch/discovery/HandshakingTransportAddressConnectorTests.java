@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -98,7 +99,11 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                     if (fullConnectionFailure != null && node.getAddress().equals(remoteNode.getAddress())) {
                         handleError(requestId, fullConnectionFailure);
                     } else {
-                        handleResponse(requestId, new HandshakeResponse(remoteNode, new ClusterName(remoteClusterName), Version.CURRENT));
+                        handleResponse(requestId, new HandshakeResponse(
+                                Version.CURRENT,
+                                Build.CURRENT.hash(),
+                                remoteNode,
+                                new ClusterName(remoteClusterName)));
                     }
                 }
             }

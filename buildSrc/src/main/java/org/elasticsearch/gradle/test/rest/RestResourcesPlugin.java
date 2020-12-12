@@ -24,11 +24,13 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
 import java.util.Map;
+
+import static org.gradle.api.tasks.SourceSet.TEST_SOURCE_SET_NAME;
 
 /**
  * <p>
@@ -100,7 +102,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
                 task.coreConfig = testConfig;
-                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
+                task.sourceSetName = TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     // core
                     Dependency restTestdependency = project.getDependencies()
@@ -131,7 +133,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.dependsOn(copyRestYamlTestTask);
                 task.coreConfig = specConfig;
-                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
+                task.sourceSetName = TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     Dependency restSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
@@ -149,12 +151,14 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.dependsOn(xpackSpecConfig);
             });
 
-        project.afterEvaluate(p -> {
+        project.getPlugins().withType(JavaBasePlugin.class).configureEach(javaBasePlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
-            if (testSourceSet != null) {
-                project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlSpecTask));
-            }
+            sourceSets.matching(sourceSet -> sourceSet.getName().equals(TEST_SOURCE_SET_NAME))
+                .configureEach(
+                    testSourceSet -> project.getTasks()
+                        .named(testSourceSet.getProcessResourcesTaskName())
+                        .configure(t -> t.dependsOn(copyRestYamlSpecTask))
+                );
         });
     }
 }

@@ -487,7 +487,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
         ensureGreen(indexName);
         assertAcked(client().admin().indices().prepareClose(indexName));
         assertIndexIsClosed(indexName);

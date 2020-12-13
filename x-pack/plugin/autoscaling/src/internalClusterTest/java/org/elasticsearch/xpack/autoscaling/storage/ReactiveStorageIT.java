@@ -12,8 +12,11 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -31,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
@@ -113,6 +117,25 @@ public class ReactiveStorageIT extends DiskUsageIntegTestCase {
             Matchers.lessThanOrEqualTo(enoughSpace + minShardSize)
         );
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
+    }
+
+    /**
+     * Verify that the list of roles includes all data roles to ensure we consider adding future data roles.
+     */
+    public void testRoles() {
+        // this has to be an integration test to ensure roles are available.
+        internalCluster().startMasterOnlyNode();
+        ReactiveStorageDeciderService service = new ReactiveStorageDeciderService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null
+        );
+        assertThat(
+            service.roles().stream().sorted().collect(Collectors.toList()),
+            Matchers.equalTo(
+                DiscoveryNode.getPossibleRoles().stream().filter(DiscoveryNodeRole::canContainData).sorted().collect(Collectors.toList())
+            )
+        );
     }
 
     public void setTotalSpace(String dataNodeName, long totalSpace) {

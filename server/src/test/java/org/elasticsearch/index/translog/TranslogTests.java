@@ -507,6 +507,7 @@ public class TranslogTests extends ESTestCase {
 
         markCurrentGenAsCommitted(translog);
         {
+            lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));

@@ -213,6 +213,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          */
         private boolean cannotAllocateDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
             assert allocation.debugDecision() == false;
+            // enable debug decisions to see all decisions and preserve the allocation decision label
             allocation.debugDecision(true);
             try {
                 return nodesInTier(allocation.routingNodes()).map(node -> allocationDeciders.canAllocate(shard, node, allocation))
@@ -228,6 +229,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          */
         private boolean cannotRemainDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
             assert allocation.debugDecision() == false;
+            // enable debug decisions to see all decisions and preserve the allocation decision label
             allocation.debugDecision(true);
             try {
                 return isDiskOnlyNoDecision(

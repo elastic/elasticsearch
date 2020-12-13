@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -54,10 +55,8 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
     public void testAllocateToNodeWithLargestCache() {
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        final DiscoveryNode node1 = newNode("node1");
-        final DiscoveryNode node2 = newNode("node2");
-        final DiscoveryNode node3 = newNode("node3");
-        final DiscoveryNode localNode = randomFrom(randomFrom(node1, node2, node3));
+        final List<DiscoveryNode> nodes = randomList(1, 10, () -> newNode("node-" + UUIDs.randomBase64UUID(random())));
+        final DiscoveryNode localNode = randomFrom(nodes);
         final Settings localNodeSettings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
 
         final ClusterName clusterName = org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
@@ -80,10 +79,16 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             .build();
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
+
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        for (DiscoveryNode node : nodes) {
+            nodesBuilder.add(node);
+        }
+        final DiscoveryNodes discoveryNodes = nodesBuilder.build();
         final ClusterState state = ClusterState.builder(clusterName)
             .metadata(metadata)
             .routingTable(routingTableBuilder.build())
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .nodes(discoveryNodes)
             .build();
         final long shardSize = randomNonNegativeLong();
         final RoutingAllocation allocation = new RoutingAllocation(
@@ -101,14 +106,9 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         );
 
         final AtomicInteger reroutesTriggered = new AtomicInteger(0);
-        final Map<DiscoveryNode, Long> existingCacheSizes = Map.of(
-            node1,
-            randomLongBetween(0, shardSize),
-            node2,
-            randomLongBetween(0, shardSize),
-            node3,
-            randomLongBetween(0, shardSize)
-        );
+
+        final Map<DiscoveryNode, Long> existingCacheSizes = nodes.stream()
+            .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> randomLongBetween(0, shardSize)));
 
         final Client client = new NoOpNodeClient(deterministicTaskQueue.getThreadPool()) {
 
@@ -149,6 +149,12 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
         assertEquals(1, reroutesTriggered.get());
         assertThat(allocation.routingNodesChanged(), equalTo(true));
+        final long bestCacheSize = existingCacheSizes.values().stream().mapToLong(l -> l).max().orElseThrow();
+
+        final ShardRouting primaryRouting = allocation.routingNodes().assignedShards(shardId).get(0);
+        final String primaryNodeId = primaryRouting.currentNodeId();
+        final DiscoveryNode primaryNode = discoveryNodes.get(primaryNodeId);
+        assertEquals(bestCacheSize, (long) existingCacheSizes.get(primaryNode));
     }
 
     private static void allocateAllUnassigned(RoutingAllocation allocation, ExistingShardsAllocator allocator) {

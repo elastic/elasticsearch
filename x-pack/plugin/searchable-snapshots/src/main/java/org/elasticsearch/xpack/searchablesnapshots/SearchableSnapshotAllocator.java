@@ -145,6 +145,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         // pre-check if it can be allocated to any node that currently exists, so we won't list the cache sizes for it for nothing
+        // TODO: in the following logic, we do not account for existing cache size when handling disk space checks, should and can we
+        // reliably do this in a world of concurrent cache evictions or are we ok with the cache size just being a best effort hint
+        // here?
         Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(shardRouting, allocation);
         Decision allocateDecision = result.v1();
         if (allocateDecision.type() != Decision.Type.YES && (explain == false || asyncFetchStore.get(shardRouting.shardId()) == null)) {

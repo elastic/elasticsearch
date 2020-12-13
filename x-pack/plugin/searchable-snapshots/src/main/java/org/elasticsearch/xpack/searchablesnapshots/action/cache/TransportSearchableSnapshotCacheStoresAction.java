@@ -86,7 +86,10 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
     @Override
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
-        return new NodeCacheFilesMetadata(clusterService.localNode(), 0L);
+        return new NodeCacheFilesMetadata(
+            clusterService.localNode(),
+            cacheService.getCachedSize(request.shardId, request.indexId, request.snapshotId)
+        );
     }
 
     public static final class Request extends BaseNodesRequest<Request> {

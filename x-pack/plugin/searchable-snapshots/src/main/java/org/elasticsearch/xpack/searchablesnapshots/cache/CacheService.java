@@ -257,6 +257,19 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Get the number of bytes cached for the given shard id in the given snapshot id.
+     * @param shardId    shard id
+     * @param indexId    index id TODO: we should not need this, it's redundant in CacheKey as well since index name + snapshot id form a
+     *                                  unique tuple
+     * @param snapshotId snapshot id
+     * @return number of bytes cached
+     */
+    public long getCachedSize(ShardId shardId, IndexId indexId, SnapshotId snapshotId) {
+        // TODO: implement
+        return 0L;
+    }
+
+    /**
      * Computes a new {@link CacheFile} instance using the specified cache file information (file length, file name, parent directory and
      * already available cache ranges) and associates it with the specified {@link CacheKey} in the cache. If the key is already
      * associated with a {@link CacheFile}, the previous instance is replaced by a new one.

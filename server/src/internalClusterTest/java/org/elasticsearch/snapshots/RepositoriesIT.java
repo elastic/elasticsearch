@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -45,7 +44,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequ
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class RepositoriesIT extends AbstractSnapshotIntegTestCase {

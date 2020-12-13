@@ -25,22 +25,24 @@ apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
-  'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-category.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-job.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-record.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/post-data.asciidoc',
-  'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
-]
+tasks.named("buildRestTests").configure {
+  expectedUnconvertedCandidates = [
+          'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
+          'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-job.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+          'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/update-job.asciidoc'
+  ]
+}
 
 restResources {
   restApi {
@@ -97,7 +99,7 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   }
 }
 
-buildRestTests.docs = fileTree(projectDir) {
+ext.docsFileTree = fileTree(projectDir) {
   // No snippets in here!
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
@@ -116,12 +118,21 @@ buildRestTests.docs = fileTree(projectDir) {
   }
 }
 
-listSnippets.docs = buildRestTests.docs
+tasks.named("buildRestTests").configure {
+  docs = docsFileTree
+}
 
-listConsoleCandidates.docs = buildRestTests.docs
+tasks.named("listSnippets").configure {
+  docs = docsFileTree
+}
+
+tasks.named("listConsoleCandidates").configure {
+  docs = docsFileTree
+}
 
 Closure setupMyIndex = { String name, int count ->
-  buildRestTests.setups[name] = '''
+  tasks.named("buildRestTests").configure { buildRestTests ->
+    buildRestTests.setups[name] = '''
   - do:
         indices.create:
           index: my-index-000001
@@ -151,23 +162,26 @@ Closure setupMyIndex = { String name, int count ->
           index: my-index-000001
           refresh: true
           body: |'''
-  for (int i = 0; i < count; i++) {
-    String ip, user_id
-    if (i == 0) {
-      ip = '127.0.0.1'
-      user_id = 'kimchy'
-    } else {
-      ip = '10.42.42.42'
-      user_id= 'elkbee'
-    }
-    buildRestTests.setups[name] += """
+    for (int i = 0; i < count; i++) {
+      String ip, user_id
+      if (i == 0) {
+        ip = '127.0.0.1'
+        user_id = 'kimchy'
+      } else {
+        ip = '10.42.42.42'
+        user_id = 'elkbee'
+      }
+      buildRestTests.setups[name] += """
             { "index":{"_id": "$i"} }
             { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
+    }
   }
 }
 setupMyIndex('my_index', 5)
 setupMyIndex('my_index_big', 120)
 setupMyIndex('my_index_huge', 1200)
+
+tasks.named("buildRestTests").configure {buildRestTests ->
 
 // Used for several full-text search and agg examples
 buildRestTests.setups['messages'] = '''
@@ -1232,7 +1246,7 @@ buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server
            "job_ids": ["total-requests"]
            }
 '''
-buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages_addjob'] + '''
+setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
   - do:
        ml.post_calendar_events:
          calendar_id: "planned-outages"
@@ -1245,7 +1259,7 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
 '''
 
 // used by median absolute deviation aggregation
-buildRestTests.setups['reviews'] = '''
+setups['reviews'] = '''
   - do:
         indices.create:
           index: reviews
@@ -1269,7 +1283,7 @@ buildRestTests.setups['reviews'] = '''
             {"index": {"_id": "2"}}
             {"product": "widget-foo", "rating": 5}
 '''
-buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
+setups['remote_cluster'] = setups['host'] + '''
   - do:
       cluster.put_settings:
         body:
@@ -1277,7 +1291,8 @@ buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
             cluster.remote.remote_cluster.seeds: $transport_host
 '''
 
-buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups['remote_cluster'] + '''
+
+setups['remote_cluster_and_leader_index'] = setups['remote_cluster'] + '''
   - do:
       indices.create:
         index: leader_index
@@ -1288,7 +1303,7 @@ buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups
             index.soft_deletes.enabled: true
 '''
 
-buildRestTests.setups['seats'] = '''
+setups['seats'] = '''
   - do:
         indices.create:
           index: seats
@@ -1321,7 +1336,7 @@ buildRestTests.setups['seats'] = '''
             {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
             {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
-buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
+setups['kibana_sample_data_ecommerce'] = '''
   - do:
         indices.create:
           index: kibana_sample_data_ecommerce
@@ -1330,7 +1345,7 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
               number_of_shards: 1
               number_of_replicas: 0
 '''
-buildRestTests.setups['add_timestamp_pipeline'] = '''
+setups['add_timestamp_pipeline'] = '''
   - do:
       ingest.put_pipeline:
         id: "add_timestamp_pipeline"
@@ -1346,7 +1361,7 @@ buildRestTests.setups['add_timestamp_pipeline'] = '''
             ]
           }
 '''
-buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + buildRestTests.setups['add_timestamp_pipeline']  + '''
+setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'] + setups['add_timestamp_pipeline']  + '''
   - do:
       raw:
         method: PUT
@@ -1393,7 +1408,7 @@ buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups[
             }
           }
 '''
-buildRestTests.setups['setup_logdata'] = '''
+setups['setup_logdata'] = '''
   - do:
         indices.create:
           index: logdata
@@ -1415,7 +1430,7 @@ buildRestTests.setups['setup_logdata'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}
 '''
-buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
+setups['logdata_job'] = setups['setup_logdata'] + '''
   - do:
       ml.put_data_frame_analytics:
         id: "loganalytics"
@@ -1433,7 +1448,7 @@ buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + 
           }
 '''
 // Used by snapshot lifecycle management docs
-buildRestTests.setups['setup-repository'] = '''
+setups['setup-repository'] = '''
   - do:
       snapshot.create_repository:
         repository: my_repository
@@ -1444,7 +1459,7 @@ buildRestTests.setups['setup-repository'] = '''
 '''
 
 // Fake sec logs data used by EQL search
-buildRestTests.setups['atomic_red_regsvr32'] = '''
+  setups['atomic_red_regsvr32'] = '''
   - do:
         indices.create:
           index: my-index-000001
@@ -1459,13 +1474,15 @@ buildRestTests.setups['atomic_red_regsvr32'] = '''
           body: |
 #atomic_red_data#
 '''
-/* Load the actual events only if we're going to use them. */
-File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
-buildRestTests.inputs.file(atomicRedRegsvr32File)
-buildRestTests.doFirst {
-  String events = atomicRedRegsvr32File.getText('UTF-8')
-  // Indent like a yaml test needs
-  events = events.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['atomic_red_regsvr32'] =
-    buildRestTests.setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
+  /* Load the actual events only if we're going to use them. */
+  File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  inputs.file(atomicRedRegsvr32File)
+
+  doFirst {
+    String events = atomicRedRegsvr32File.getText('UTF-8')
+    // Indent like a yaml test needs
+    events = events.replaceAll('(?m)^', '            ')
+    setups['atomic_red_regsvr32'] =
+    setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
+  }
 }

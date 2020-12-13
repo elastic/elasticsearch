@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -95,18 +96,24 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         AllocationState allocationState = new AllocationState(context, diskThresholdSettings, allocationDeciders);
-        long unassigned = allocationState.storagePreventsAllocation();
-        long assigned = allocationState.storagePreventsRemainOrMove();
-        long maxShard = allocationState.maxShardSize();
-        assert assigned >= 0;
-        assert unassigned >= 0;
-        assert maxShard >= 0;
-        String message = unassigned > 0 || assigned > 0 ? "not enough storage available, needs " + (unassigned + assigned) : "storage ok";
+        long unassignedBytes = allocationState.storagePreventsAllocation();
+        long assignedBytes = allocationState.storagePreventsRemainOrMove();
+        long maxShardSize = allocationState.maxShardSize();
+        assert assignedBytes >= 0;
+        assert unassignedBytes >= 0;
+        assert maxShardSize >= 0;
+        String message = message(unassignedBytes, assignedBytes);
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassigned + assigned, null)
-            .node(maxShard, null)
+            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null)
+            .node(maxShardSize, null)
             .build();
-        return new AutoscalingDeciderResult(requiredCapacity, new ReactiveReason(message, unassigned, assigned));
+        return new AutoscalingDeciderResult(requiredCapacity, new ReactiveReason(message, unassignedBytes, assignedBytes));
+    }
+
+    static String message(long unassignedBytes, long assignedBytes) {
+        return unassignedBytes > 0 || assignedBytes > 0
+            ? "not enough storage available, needs " + new ByteSizeValue(unassignedBytes + assignedBytes)
+            : "storage ok";
     }
 
     static boolean isDiskOnlyNoDecision(Decision decision) {
@@ -227,6 +234,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          */
         private boolean cannotAllocateDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
             assert allocation.debugDecision() == false;
+            // enable debug decisions to see all decisions and preserve the allocation decision label
             allocation.debugDecision(true);
             try {
                 return nodesInTier(allocation.routingNodes()).map(node -> allocationDeciders.canAllocate(shard, node, allocation))
@@ -242,6 +250,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          */
         private boolean cannotRemainDueToStorage(ShardRouting shard, RoutingAllocation allocation) {
             assert allocation.debugDecision() == false;
+            // enable debug decisions to see all decisions and preserve the allocation decision label
             allocation.debugDecision(true);
             try {
                 return isDiskOnlyNoDecision(

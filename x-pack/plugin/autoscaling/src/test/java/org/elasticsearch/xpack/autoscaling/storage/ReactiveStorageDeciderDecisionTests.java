@@ -153,7 +153,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             );
             verify(ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation, 0);
             if (numPrevents > 0) {
-                verifyScale(numPrevents, "not enough storage available, needs " + numPrevents, mockCanAllocateDiskDecider);
+                verifyScale(numPrevents, "not enough storage available, needs " + numPrevents + "b", mockCanAllocateDiskDecider);
             } else {
                 verifyScale(0, "storage ok", mockCanAllocateDiskDecider);
             }
@@ -232,7 +232,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         );
         verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0);
 
-        verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size(), mockCanAllocateDiskDecider);
+        verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size() + "b", mockCanAllocateDiskDecider);
         verifyScale(0, "storage ok", mockCanAllocateDiskDecider, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok");
         verifyScale(addDataNodes(DATA_HOT_NODE_ROLE, "additional", state, hotNodes), 0, "storage ok", mockCanAllocateDiskDecider);
@@ -278,7 +278,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             mockCanRemainDiskDecider
         );
 
-        verifyScale(nodes, "not enough storage available, needs " + nodes, mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);
+        verifyScale(nodes, "not enough storage available, needs " + nodes + "b", mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok", mockCanRemainDiskDecider, CAN_REMAIN_NO_DECIDER, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok");
     }

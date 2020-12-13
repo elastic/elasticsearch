@@ -42,7 +42,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 's3-fixture-other')
 }
 
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'test.s3.bucket', s3Bucket
   nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + BuildParams.testSeed : 'base_path'
 }

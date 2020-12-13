@@ -358,6 +358,14 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         }
     }
 
+    public void testMessage() {
+        assertThat(ReactiveStorageDeciderService.message(0, 0), equalTo("storage ok"));
+        assertThat(ReactiveStorageDeciderService.message(0, 1023), equalTo("not enough storage available, needs 1023b"));
+        assertThat(ReactiveStorageDeciderService.message(1024, 0), equalTo("not enough storage available, needs 1kb"));
+        assertThat(ReactiveStorageDeciderService.message(0, 1024), equalTo("not enough storage available, needs 1kb"));
+        assertThat(ReactiveStorageDeciderService.message(1023, 1), equalTo("not enough storage available, needs 1kb"));
+    }
+
     private String shardIdentifier(ShardRouting s) {
         return ClusterInfo.shardIdentifierFromRouting(s);
     }

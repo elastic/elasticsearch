@@ -14,6 +14,9 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import java.util.Set;
 
 public interface AutoscalingDeciderContext {
+    /**
+     * The cluster state to use when calculation a capacity.
+     */
     ClusterState state();
 
     /**
@@ -27,7 +30,14 @@ public interface AutoscalingDeciderContext {
      */
     Set<DiscoveryNode> nodes();
 
+    /**
+     * The cluster info to use when calculating a capacity. This represents the storage use on nodes including per shard usage.
+     */
     ClusterInfo info();
 
+    /**
+     * The snapshot shard size info to use when calculating decider capacity. This represents shard sizes of unallocated restores of
+     * shards
+     */
     SnapshotShardSizeInfo snapshotShardSizeInfo();
 }

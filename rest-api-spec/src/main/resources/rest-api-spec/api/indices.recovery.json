@@ -5,6 +5,9 @@
       "description":"Returns information about ongoing index shard recoveries."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

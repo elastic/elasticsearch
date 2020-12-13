@@ -528,6 +528,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         return factories;
     }
 
+    @Override
+    public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        final List<IndexFoldersDeletionListener> listeners = new ArrayList<>();
+        filterPlugins(IndexStorePlugin.class).forEach(p -> listeners.addAll(p.getIndexFoldersDeletionListeners()));
+        return Collections.unmodifiableList(listeners);
+    }
+
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());

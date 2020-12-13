@@ -5,6 +5,10 @@
       "description":"Updates the description of a filter, adds items, or removes items."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

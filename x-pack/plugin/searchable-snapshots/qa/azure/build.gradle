@@ -42,7 +42,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'azure-fixture-other')
 }
 
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'test.azure.container', azureContainer
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
 }

@@ -5,6 +5,9 @@
       "description":"Sets a cluster wide upgrade_mode setting that prepares machine learning indices for an upgrade."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -144,7 +144,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         final MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetchedCacheData, explain);
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
-        // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
+        // pre-check if it can be allocated to any node that currently exists, so we won't list the cache sizes for it for nothing
         Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(shardRouting, allocation);
         Decision allocateDecision = result.v1();
         if (allocateDecision.type() != Decision.Type.YES && (explain == false || asyncFetchStore.get(shardRouting.shardId()) == null)) {
@@ -234,15 +234,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         );
         final DiscoveryNodes nodes = allocation.nodes();
         final AsyncCacheStatusFetch asyncFetch = asyncFetchStore.computeIfAbsent(shardId, sid -> {
-            final AsyncCacheStatusFetch fetch = new AsyncCacheStatusFetch();
+            final DiscoveryNode[] dataNodes = nodes.getDataNodes().values().toArray(DiscoveryNode.class);
+            final AsyncCacheStatusFetch fetch = new AsyncCacheStatusFetch(dataNodes.length);
             client.execute(
                 TransportSearchableSnapshotCacheStoresAction.TYPE,
-                new TransportSearchableSnapshotCacheStoresAction.Request(
-                    snapshotId,
-                    indexId,
-                    shardId,
-                    nodes.getDataNodes().values().toArray(DiscoveryNode.class)
-                ),
+                new TransportSearchableSnapshotCacheStoresAction.Request(snapshotId, indexId, shardId, dataNodes),
                 ActionListener.runAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(NodesCacheFilesMetadata nodesCacheFilesMetadata) {
@@ -304,6 +300,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
      * node decided YES, THROTTLE if at least one node decided THROTTLE, and NO if none of the nodes decided
      * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element
      * in the returned tuple.
+     * TODO: dry this method up against ReplicaShardAllocator
      */
     private static Tuple<Decision, Map<String, NodeAllocationResult>> canBeAllocatedToAtLeastOneNode(
         ShardRouting shard,
@@ -317,8 +314,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             if (node == null) {
                 continue;
             }
-            // if we can't allocate it on a node, ignore it, for example, this handles
-            // cases for only allocating a replica after a primary
+            // if we can't allocate it on a node, ignore it
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
             if (decision.type() == Decision.Type.YES && madeDecision.type() != Decision.Type.YES) {
                 if (explain) {
@@ -342,8 +338,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> data,
         boolean explain
     ) {
-        Map<DiscoveryNode, Long> matchingNodes = new HashMap<>();
-        Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
+        final Map<DiscoveryNode, Long> matchingNodesCacheSizes = new HashMap<>();
+        final Map<String, NodeAllocationResult> nodeDecisionsDebug = explain ? new HashMap<>() : null;
         for (Map.Entry<DiscoveryNode, NodeCacheFilesMetadata> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
             NodeCacheFilesMetadata nodeCacheFilesMetadata = nodeStoreEntry.getValue();
@@ -363,7 +359,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             if (explain) {
                 matchingBytes = nodeCacheFilesMetadata.bytesCached();
                 NodeAllocationResult.ShardStoreInfo shardStoreInfo = new NodeAllocationResult.ShardStoreInfo(matchingBytes);
-                nodeDecisions.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStoreInfo, decision));
+                nodeDecisionsDebug.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStoreInfo, decision));
             }
 
             if (decision.type() == Decision.Type.NO) {
@@ -373,10 +369,10 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             if (matchingBytes == null) {
                 matchingBytes = nodeCacheFilesMetadata.bytesCached();
             }
-            matchingNodes.put(discoNode, matchingBytes);
+            matchingNodesCacheSizes.put(discoNode, matchingBytes);
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    "{}: node [{}] has [{}/{}] bytes of re-usable data",
+                    "{}: node [{}] has [{}/{}] bytes of re-usable cache data",
                     shard,
                     discoNode.getName(),
                     new ByteSizeValue(matchingBytes),
@@ -385,12 +381,18 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             }
         }
 
-        return new MatchingNodes(matchingNodes, nodeDecisions);
+        return new MatchingNodes(matchingNodesCacheSizes, nodeDecisionsDebug);
     }
 
     private static final class AsyncCacheStatusFetch {
 
+        private final int fetches;
+
         private volatile Map<DiscoveryNode, NodeCacheFilesMetadata> data;
+
+        AsyncCacheStatusFetch(int fetches) {
+            this.fetches = fetches;
+        }
 
         @Nullable
         Map<DiscoveryNode, NodeCacheFilesMetadata> data() {
@@ -398,12 +400,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
 
         int numberOfInFlightFetches() {
-            // TODO: give real number
-            return 0;
+            return data == null ? fetches : 0;
         }
     }
 
-    static class MatchingNodes {
+    private static final class MatchingNodes {
         private final DiscoveryNode nodeWithHighestMatch;
         @Nullable
         private final Map<String, NodeAllocationResult> nodeDecisions;

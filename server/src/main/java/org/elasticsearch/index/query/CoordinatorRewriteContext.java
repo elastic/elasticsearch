@@ -29,11 +29,18 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.function.LongSupplier;
 
+/**
+ * Context object used to rewrite {@link QueryBuilder} instances into simplified version in the coordinator.
+ * Instances of this object rely on information stored in the {@code IndexMetadata} for certain indices.
+ * Right now this context object is able to rewrite range queries that include a known timestamp field
+ * (i.e. the timestamp field for DataStreams) into a MatchNoneQueryBuilder and skip the shards that
+ * don't hold queried data. See IndexMetadata#getTimestampMillisRange() for more details
+ */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final Index index;
     private final long minTimestamp;
     private final long maxTimestamp;
-    private final DateFieldMapper.DateFieldType timestampFieldTyped;
+    private final DateFieldMapper.DateFieldType timestampFieldType;
 
     public CoordinatorRewriteContext(NamedXContentRegistry xContentRegistry,
                                      NamedWriteableRegistry writeableRegistry,
@@ -42,12 +49,12 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
                                      Index index,
                                      long minTimestamp,
                                      long maxTimestamp,
-                                     DateFieldMapper.DateFieldType timestampFieldTyped) {
+                                     DateFieldMapper.DateFieldType timestampFieldType) {
         super(xContentRegistry, writeableRegistry, client, nowInMillis);
         this.index = index;
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
-        this.timestampFieldTyped = timestampFieldTyped;
+        this.timestampFieldType = timestampFieldType;
     }
 
     long getMinTimestamp() {
@@ -60,11 +67,11 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     @Nullable
     public MappedFieldType getFieldType(String fieldName) {
-        if (fieldName.equals(timestampFieldTyped.name()) == false) {
+        if (fieldName.equals(timestampFieldType.name()) == false) {
             return null;
         }
 
-        return timestampFieldTyped;
+        return timestampFieldType;
     }
 
     @Override

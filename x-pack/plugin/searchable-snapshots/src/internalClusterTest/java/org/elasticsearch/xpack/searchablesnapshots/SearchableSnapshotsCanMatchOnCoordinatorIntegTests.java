@@ -96,7 +96,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         final int totalShards = indexOutsideSearchRangeShardCount + indexWithinSearchRangeShardCount;
 
         indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(0, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
-        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, between(0, 1000), "2020-11-28T%02d:%02d:%02d.%09dZ");
+        int numDocsWithinRange = between(0, 1000);
+        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, numDocsWithinRange, "2020-11-28T%02d:%02d:%02d.%09dZ");
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
@@ -189,6 +190,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
             assertThat(newSearchResponse.getFailedShards(), equalTo(0));
             assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
+            assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo((long) numDocsWithinRange));
         } else {
             if (indexOutsideSearchRangeShardCount == 1) {
                 expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());
@@ -214,7 +216,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
                         .startObject()
                         .startObject("properties")
                         .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
-                        .field("type", "date_nanos")
+                        .field("type", randomFrom("date", "date_nanos"))
                         .field("format", "strict_date_optional_time_nanos")
                         .endObject()
                         .endObject()

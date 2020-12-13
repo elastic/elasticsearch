@@ -306,7 +306,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                                 SearchShardTarget shard,
                                                 SearchActionListener<Result> listener);
 
-    private void fork(final Runnable runnable) {
+    protected void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {

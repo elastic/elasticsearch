@@ -5,6 +5,10 @@
       "description":"Creates and updates role mappings."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

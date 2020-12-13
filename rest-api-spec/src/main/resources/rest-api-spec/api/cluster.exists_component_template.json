@@ -5,6 +5,9 @@
       "description":"Returns information about whether a particular component template exist"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

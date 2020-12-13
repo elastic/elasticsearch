@@ -5,6 +5,10 @@
       "description":"Posts scheduled events in a calendar."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

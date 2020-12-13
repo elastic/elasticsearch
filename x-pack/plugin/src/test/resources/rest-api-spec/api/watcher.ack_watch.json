@@ -5,6 +5,9 @@
       "description":"Acknowledges a watch, manually throttling the execution of the watch's actions."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

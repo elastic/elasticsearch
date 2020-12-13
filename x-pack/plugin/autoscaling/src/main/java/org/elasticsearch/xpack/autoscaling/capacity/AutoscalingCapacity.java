@@ -140,13 +140,13 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
     public static final AutoscalingCapacity ZERO = new AutoscalingCapacity(AutoscalingResources.ZERO, AutoscalingResources.ZERO);
 
     public AutoscalingCapacity(AutoscalingResources total, AutoscalingResources node) {
-        assert total != null : "Cannot provide capacity without specifying tier level capacity";
+        assert total != null : "Cannot provide capacity without specifying total capacity";
         assert node == null || node.memory == null
         // implies
-            || total.memory != null : "Cannot provide node memory without tier memory";
+            || total.memory != null : "Cannot provide node memory without total memory";
         assert node == null || node.storage == null
         // implies
-            || total.storage != null : "Cannot provide node storage without tier memory";
+            || total.storage != null : "Cannot provide node storage without total memory";
 
         this.total = total;
         this.node = node;
@@ -157,7 +157,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         this.node = in.readOptionalWriteable(AutoscalingResources::new);
     }
 
-    public AutoscalingResources tier() {
+    public AutoscalingResources total() {
         return total;
     }
 
@@ -233,8 +233,8 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
             return total(new AutoscalingResources(storage, memory));
         }
 
-        public Builder total(AutoscalingResources tier) {
-            this.total = tier;
+        public Builder total(AutoscalingResources total) {
+            this.total = total;
             return this;
         }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -40,7 +39,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
@@ -255,21 +253,6 @@ public abstract class AggregationContext {
         private final int randomSeed;
         private final LongSupplier relativeTimeInMillis;
         private final Supplier<Boolean> isCancelled;
-
-        public ProductionAggregationContext(SearchContext context, MultiBucketConsumer multiBucketConsumer) {
-            this( // TODO we'd prefer to not use SearchContext everywhere but we have a bunch of tests that use this now
-                context.getQueryShardContext(),
-                context.query() == null ? new MatchAllDocsQuery() : context.query(),
-                context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
-                multiBucketConsumer,
-                () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
-                context::addReleasable,
-                context.bitsetFilterCache(),
-                context.indexShard().shardId().hashCode(),
-                context::getRelativeTimeInMillis,
-                context::isCancelled
-            );
-        }
 
         public ProductionAggregationContext(
             QueryShardContext context,

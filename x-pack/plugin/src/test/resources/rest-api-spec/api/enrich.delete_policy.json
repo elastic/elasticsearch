@@ -5,6 +5,9 @@
       "description": "Deletes an existing enrich policy and its enrich index."
     },
     "stability" : "stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url": {
       "paths": [
         {

@@ -5,6 +5,9 @@
       "description":"Deletes an index template."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

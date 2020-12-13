@@ -5,6 +5,9 @@
       "description":"Disables users in the native realm."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -19,7 +19,7 @@ restResources {
   }
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/system_key'
 }
 

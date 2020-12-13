@@ -27,12 +27,12 @@ subprojects {
       }
     }
 
-    testClusters.yamlRestTest {
+    testClusters.matching { it.name == "yamlRestTest" }.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
     }
 
-    yamlRestTest {
+    tasks.named("yamlRestTest").configure {
       def suites = [
         'async_search',
         'search',
@@ -44,7 +44,7 @@ subprojects {
       ]
       if (project.name.equals('core-with-mapped')) {
         //disabled until runtime fields can be created from a dynamic template
-        yamlRestTest.enabled = false
+        enabled = false
         suites += [
           // These two don't support runtime fields on the request. Should they?
           'field_caps',

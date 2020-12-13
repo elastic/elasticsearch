@@ -5,6 +5,10 @@
       "description":"Updates a document with a script or partial document."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

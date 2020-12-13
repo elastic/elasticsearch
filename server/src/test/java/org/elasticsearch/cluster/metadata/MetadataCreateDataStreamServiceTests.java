@@ -172,5 +172,4 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
         return s;
     }
-
 }

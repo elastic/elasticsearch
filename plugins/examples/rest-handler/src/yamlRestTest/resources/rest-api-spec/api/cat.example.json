@@ -5,6 +5,9 @@
       "description": "Example"
     },
     "stability" : "stable",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url": {
       "paths": [
         {

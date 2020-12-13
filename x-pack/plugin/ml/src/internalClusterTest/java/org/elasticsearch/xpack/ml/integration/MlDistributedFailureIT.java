@@ -64,6 +64,8 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -103,6 +105,26 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
             ensureStableCluster();
         });
+    }
+
+    @Before
+    public void setLogging() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE")
+                .build()).get();
+    }
+
+    @After
+    public void unsetLogging() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence")
+                .build()).get();
     }
 
     public void testLoseDedicatedMasterNode() throws Exception {
@@ -441,7 +463,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65710")
     public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");

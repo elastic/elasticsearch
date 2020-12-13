@@ -5,6 +5,9 @@
       "description":"Deletes an alias."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

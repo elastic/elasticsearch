@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -51,11 +50,11 @@ import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandl
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -92,12 +91,17 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     );
 
     private final boolean enabled;
-
     private final List<AutoscalingExtension> autoscalingExtensions;
+    private final AutoscalingLicenseChecker autoscalingLicenseChecker;
 
     public Autoscaling(final Settings settings) {
+        this(settings, new AutoscalingLicenseChecker());
+    }
+
+    Autoscaling(final Settings settings, final AutoscalingLicenseChecker autoscalingLicenseChecker) {
         this.enabled = AUTOSCALING_ENABLED_SETTING.get(settings);
         this.autoscalingExtensions = new ArrayList<>(List.of(this));
+        this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
     }
 
     /**
@@ -132,7 +136,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        return List.of(new AutoscalingCalculateCapacityService.Holder(this));
+        return List.of(new AutoscalingCalculateCapacityService.Holder(this), autoscalingLicenseChecker);
     }
 
     @Override
@@ -191,10 +195,6 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         );
     }
 
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
-    }
-
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         loader.loadExtensions(AutoscalingExtension.class).forEach(autoscalingExtensions::add);
@@ -208,4 +208,5 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     public Set<AutoscalingDeciderService> createDeciderServices() {
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
+
 }

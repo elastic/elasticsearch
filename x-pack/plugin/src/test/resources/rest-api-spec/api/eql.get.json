@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/eql-search-api.html",
       "description": "Returns async results from previously executed Event Query Language (EQL) search"
     },
-    "stability": "beta",
+    "stability": "stable",
     "headers":{
       "accept": [ "application/json"]
     },

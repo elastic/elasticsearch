@@ -233,9 +233,17 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public void onIndexModule(IndexModule indexModule) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
-            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener());
+            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener(settings, cacheService.get()));
             indexModule.addIndexEventListener(failShardsListener.get());
         }
+    }
+
+    @Override
+    public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        if (DiscoveryNode.isDataNode(settings)) {
+            return List.of(new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get));
+        }
+        return List.of();
     }
 
     @Override

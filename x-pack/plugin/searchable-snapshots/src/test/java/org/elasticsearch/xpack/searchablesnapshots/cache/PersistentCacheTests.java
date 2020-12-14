@@ -20,7 +20,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 
 import java.io.IOException;
@@ -200,18 +199,18 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
         final List<CacheFile> cacheFiles = new ArrayList<>();
         for (int snapshots = 0; snapshots < between(1, 2); snapshots++) {
-            SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
+            final String snapshotUUID = UUIDs.randomBase64UUID(random());
             for (int indices = 0; indices < between(1, 2); indices++) {
                 IndexId indexId = new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
                 for (int shards = 0; shards < between(1, 2); shards++) {
                     ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), shards);
 
                     final Path cacheDir = Files.createDirectories(
-                        CacheService.resolveSnapshotCache(randomShardPath(shardId)).resolve(snapshotId.getUUID())
+                        CacheService.resolveSnapshotCache(randomShardPath(shardId)).resolve(snapshotUUID)
                     );
 
                     for (int files = 0; files < between(1, 2); files++) {
-                        final CacheKey cacheKey = new CacheKey(snapshotId, indexId, shardId, "file_" + files);
+                        final CacheKey cacheKey = new CacheKey(snapshotUUID, indexId.getName(), shardId, "file_" + files);
                         final CacheFile cacheFile = cacheService.get(cacheKey, randomLongBetween(0L, buffer.length), cacheDir);
 
                         final CacheFile.EvictionListener listener = evictedCacheFile -> {};

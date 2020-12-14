@@ -53,11 +53,11 @@ public final class RestClientBuilder {
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
-    /** The version of the Rest client*/
-    private static final String VERSION;
+    static final String METADATA_HEADER = "X-Elastic-Client-Meta";
+    private static final String METADATA_HEADER_VALUE;
+    private static final String USER_AGENT_HEADER_VALUE;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
-    static final String METADATA_HEADER = "X-Elastic-Client-Meta";
 
     private final List<Node> nodes;
     private Header[] defaultHeaders = EMPTY_HEADERS;
@@ -87,7 +87,19 @@ public final class RestClientBuilder {
                 }
             }
         }
-        VERSION = version;
+
+        USER_AGENT_HEADER_VALUE = String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
+            version.isEmpty() ? "Unknown" : version, System.getProperty("java.version"));
+
+        VersionInfo httpClientVersion = VersionInfo.loadVersionInfo("org.apache.http.nio.client",
+            HttpAsyncClientBuilder.class.getClassLoader());
+
+        // service, language, transport, followed by additional information
+        METADATA_HEADER_VALUE = "es=" + version +
+            ",jv=" + System.getProperty("java.specification.version") +
+            ",t=" + version +
+            ",hc=" + (httpClientVersion == null ? "" : httpClientVersion.getRelease()) +
+            RuntimeInfo.getRuntimeMetadata();
     }
 
     /**
@@ -264,19 +276,16 @@ public final class RestClientBuilder {
                 //default settings for connection pooling may be too constraining
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
-                .setUserAgent(String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
-                    VERSION.isEmpty() ? "Unknown" : VERSION, System.getProperty("java.version"))
-                )
+                .setUserAgent(USER_AGENT_HEADER_VALUE)
                 .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
 
             // Always add metadata header last so that it's not overwritten
-            final String metadataHeaderValue = getMetadataHeaderValue();
             httpClientBuilder.addInterceptorLast((HttpRequest request, HttpContext context) -> {
-                if (metadataHeaderValue != null) {
-                    request.setHeader(METADATA_HEADER, metadataHeaderValue);
+                if (metadataHeaderEnabled) {
+                    request.setHeader(METADATA_HEADER, METADATA_HEADER_VALUE);
                 } else {
                     request.removeHeaders(METADATA_HEADER);
                 }
@@ -285,22 +294,6 @@ public final class RestClientBuilder {
             return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
-        }
-    }
-
-    private String getMetadataHeaderValue() {
-        if (metadataHeaderEnabled) {
-            VersionInfo hcVersion = VersionInfo.loadVersionInfo("org.apache.http.nio.client",
-                HttpAsyncClientBuilder.class.getClassLoader());
-
-            // service, language, transport, followed by additional information
-            return "es=" + VERSION +
-                ",jv=" + System.getProperty("java.specification.version") +
-                ",t=" + VERSION +
-                ",hc=" + (hcVersion == null ? "" : hcVersion.getRelease()) +
-                RuntimeInfo.getRuntimeMetadata();
-        } else {
-            return null;
         }
     }
 

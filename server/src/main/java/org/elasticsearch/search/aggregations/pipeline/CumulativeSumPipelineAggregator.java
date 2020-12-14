@@ -26,9 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
-import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.*;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.util.ArrayList;
@@ -113,9 +111,18 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
                 newBuckets.add(newBucket);
             }
             internalAggregation = factory.create(newBuckets);
+        } else if (parentAggregate instanceof UnmappedTerms) {
+            UnmappedTerms factory = (UnmappedTerms) parentAggregate;
+            List<UnmappedTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
+            //FIXME: is this necessary?
+            for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
+                UnmappedTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()),
+                    (UnmappedTerms.Bucket) buckets.get(entry.getKey()));
+                newBuckets.add(newBucket);
+            }
+            internalAggregation = factory.create(newBuckets);
         }
 
-        //FIXME: should we do a last ifblock to address null?
         return internalAggregation;
     }
 

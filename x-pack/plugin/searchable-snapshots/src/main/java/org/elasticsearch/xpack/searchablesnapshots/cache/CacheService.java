@@ -473,17 +473,23 @@ public class CacheService extends AbstractLifecycleComponent {
                             ranges.size()
                         );
                         final Path cacheDir = cacheFilePath.toAbsolutePath().getParent();
-                        if (cacheDirs.add(cacheDir)) {
+                        boolean shouldPersist = cacheDirs.contains(cacheDir);
+                        if (shouldPersist == false) {
                             try {
                                 IOUtils.fsync(cacheDir, true, false); // TODO evict cache file if fsync failed
                                 logger.trace("cache directory [{}] synchronized", cacheDir);
+                                cacheDirs.add(cacheDir);
+                                shouldPersist = true;
                             } catch (Exception e) {
                                 assert e instanceof IOException : e;
+                                shouldPersist = false;
                                 logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
                             }
                         }
-                        persistentCache.addCacheFile(cacheFile, ranges);
-                        count += 1L;
+                        if (shouldPersist) {
+                            persistentCache.addCacheFile(cacheFile, ranges);
+                            count += 1L;
+                        }
                     }
                 } catch (Exception e) {
                     assert e instanceof IOException : e;

@@ -5,6 +5,7 @@
       "description":"Deletes an existing model snapshot."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

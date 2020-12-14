@@ -5,6 +5,7 @@
       "description":"Returns the capabilities of any rollup jobs that have been configured for a specific index or index pattern."
     },
     "stability":"experimental",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

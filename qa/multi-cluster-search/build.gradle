@@ -27,23 +27,25 @@ dependencies {
   testImplementation project(":client:rest-high-level")
 }
 
-task 'remote-cluster'(type: RestIntegTestTask) {
+tasks.register('remote-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
-testClusters.'remote-cluster' {
-  numberOfNodes = 2
-  setting 'node.roles', '[data,ingest,master]'
+testClusters {
+    'remote-cluster' {
+        numberOfNodes = 2
+        setting 'node.roles', '[data,ingest,master]'
+    }
 }
 
-task mixedClusterTest(type: RestIntegTestTask) {
+tasks.register("mixedClusterTest", RestIntegTestTask) {
     useCluster testClusters.'remote-cluster'
     dependsOn 'remote-cluster'
     systemProperty 'tests.rest.suite', 'multi_cluster'
 }
 
-testClusters.mixedClusterTest {
+testClusters.matching { it.name == "mixedClusterTest"}.configureEach {
   setting 'cluster.remote.my_remote_cluster.seeds',
     { "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\"" }
   setting 'cluster.remote.connections_per_cluster', '1'

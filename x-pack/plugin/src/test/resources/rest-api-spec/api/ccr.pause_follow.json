@@ -5,6 +5,7 @@
       "description": "Pauses a follower index. The follower index will not fetch any additional operations from the leader index."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

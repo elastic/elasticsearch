@@ -150,7 +150,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
         AutoscalingDeciderResult autoscalingDeciderResult = autoscalingDeciderResults.results().get("ml");
         assertThat(autoscalingDeciderResult.reason().summary(), containsString(reason));
-        assertThat(autoscalingDeciderResult.requiredCapacity().tier().memory().getBytes(), equalTo(tierBytes));
+        assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(), equalTo(tierBytes));
         assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(), equalTo(nodeBytes));
     }
 

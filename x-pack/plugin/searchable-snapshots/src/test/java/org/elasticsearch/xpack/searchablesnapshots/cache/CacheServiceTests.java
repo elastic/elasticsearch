@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptySortedSet;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
@@ -207,5 +209,44 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 assertThat(exception.getMessage(), containsString(cacheFileUuid));
             }
         }
+    }
+
+    public void testRunIfShardMarkedAsEvictedInCache() throws Exception {
+        final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
+        final IndexId indexId = new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
+        final ShardId shardId = new ShardId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()), 0);
+
+        final CacheService cacheService = defaultCacheService();
+        cacheService.setCacheSyncInterval(TimeValue.ZERO);
+        cacheService.start();
+
+        cacheService.runIfShardMarkedAsEvictedInCache(
+            snapshotId,
+            indexId,
+            shardId,
+            () -> { assert false : "should not be called: shard is not marked as evicted yet"; }
+        );
+
+        // this future is used to block the cache file eviction submitted by markShardAsEvictedInCache
+        final PlainActionFuture<Void> waitForEviction = PlainActionFuture.newFuture();
+        final CacheFile.EvictionListener evictionListener = evicted -> waitForEviction.onResponse(null);
+
+        final CacheFile cacheFile = cacheService.get(new CacheKey(snapshotId, indexId, shardId, "_0.dvd"), 100, createTempDir());
+        cacheFile.acquire(evictionListener);
+
+        cacheService.markShardAsEvictedInCache(snapshotId, indexId, shardId);
+        if (randomBoolean()) {
+            cacheService.markShardAsEvictedInCache(snapshotId, indexId, shardId); // no effect
+        }
+        waitForEviction.get(30L, TimeUnit.SECONDS);
+        cacheFile.release(evictionListener);
+
+        cacheService.runIfShardMarkedAsEvictedInCache(
+            snapshotId,
+            indexId,
+            shardId,
+            () -> { assert false : "should not be called: shard eviction marker is removed"; }
+        );
+        cacheService.close();
     }
 }

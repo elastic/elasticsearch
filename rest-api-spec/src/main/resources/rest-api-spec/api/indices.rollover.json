@@ -5,6 +5,10 @@
       "description":"Updates an alias to point to a new index when the existing index\nis considered to be too large or too old."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

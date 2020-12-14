@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -64,7 +65,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchab
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.NodeEnvironmentCacheCleaner;
+import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
@@ -212,12 +213,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.threadPool.set(threadPool);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
         if (DiscoveryNode.isDataNode(settings)) {
-            final CacheService cacheService = new CacheService(
-                settings,
-                clusterService,
-                threadPool,
-                new NodeEnvironmentCacheCleaner(nodeEnvironment)
-            );
+            final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
             components.add(cacheService);
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
@@ -229,9 +225,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             this.blobStoreCacheService.set(blobStoreCacheService);
             components.add(blobStoreCacheService);
         } else {
-            components.add(new CacheService(settings, clusterService, threadPool, () -> {}));
+            PersistentCache.cleanUp(settings, nodeEnvironment);
         }
         this.client.set(client);
+        components.add(new CacheServiceSupplier(cacheService.get()));
         return Collections.unmodifiableList(components);
     }
 
@@ -360,5 +357,20 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 TimeValue.timeValueSeconds(30L),
                 CACHE_PREWARMING_THREAD_POOL_SETTING
             ) };
+    }
+
+    public static final class CacheServiceSupplier implements Supplier<CacheService> {
+
+        @Nullable
+        private final CacheService cacheService;
+
+        CacheServiceSupplier(@Nullable CacheService cacheService) {
+            this.cacheService = cacheService;
+        }
+
+        @Override
+        public CacheService get() {
+            return null;
+        }
     }
 }

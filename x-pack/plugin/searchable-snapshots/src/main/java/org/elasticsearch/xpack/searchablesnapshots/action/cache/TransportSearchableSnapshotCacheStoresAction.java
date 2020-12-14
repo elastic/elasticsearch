@@ -25,6 +25,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        CacheService cacheService,
+        SearchableSnapshots.CacheServiceSupplier cacheService,
         ActionFilters actionFilters
     ) {
         super(
@@ -62,7 +63,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             ThreadPool.Names.SAME,
             NodeCacheFilesMetadata.class
         );
-        this.cacheService = cacheService;
+        this.cacheService = cacheService.get();
     }
 
     @Override

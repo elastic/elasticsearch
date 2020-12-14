@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -115,11 +114,10 @@ public class CacheService extends AbstractLifecycleComponent {
     private final CacheSynchronizationTask cacheSyncTask;
     private final TimeValue cacheSyncStopTimeout;
     private final ReentrantLock cacheSyncLock;
+    private final PersistentCache persistentCache;
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
-    private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
-    private final Settings settings;
     private final KeyedLock<ShardEviction> shardsEvictionLock;
     private final Set<ShardEviction> evictedShards;
 
@@ -129,11 +127,10 @@ public class CacheService extends AbstractLifecycleComponent {
         final Settings settings,
         final ClusterService clusterService,
         final ThreadPool threadPool,
-        final Runnable cacheCleaner
+        final PersistentCache persistentCache
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        this.cacheCleaner = Objects.requireNonNull(cacheCleaner);
         this.rangeSize = SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
@@ -142,6 +139,7 @@ public class CacheService extends AbstractLifecycleComponent {
             // are done with reading/writing the cache file
             .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
             .build();
+        this.persistentCache = Objects.requireNonNull(persistentCache);
         this.shardsEvictionLock = new KeyedLock<>();
         this.evictedShards = ConcurrentCollections.newConcurrentSet();
         this.numberOfCacheFilesToSync = new AtomicLong();
@@ -153,30 +151,24 @@ public class CacheService extends AbstractLifecycleComponent {
         this.cacheSyncTask = new CacheSynchronizationTask(threadPool, SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
         this.cacheSyncStopTimeout = SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT.get(settings);
-        this.settings = settings;
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
         return resolveSnapshotCache(shardPath.getDataPath());
     }
 
-    static Path resolveSnapshotCache(Path path) {
+    public static Path resolveSnapshotCache(Path path) {
         return path.resolve("snapshot_cache");
     }
 
     @Override
     protected void doStart() {
-        if (DiscoveryNode.isDataNode(settings)) {
-            cacheSyncTask.rescheduleIfNecessary();
-            cacheCleaner.run();
-        }
+        persistentCache.repopulateCache(this);
+        cacheSyncTask.rescheduleIfNecessary();
     }
 
     @Override
     protected void doStop() {
-        if (DiscoveryNode.isDataNode(settings) == false) {
-            return;
-        }
         boolean acquired = false;
         try {
             try {
@@ -189,10 +181,15 @@ public class CacheService extends AbstractLifecycleComponent {
                 logger.warn("interrupted while waiting for cache sync lock", e);
             }
             cacheSyncTask.close();
-            cache.invalidateAll();
         } finally {
-            if (acquired) {
-                cacheSyncLock.unlock();
+            try {
+                persistentCache.close();
+            } catch (Exception e) {
+                logger.warn("failed to close persistent cache", e);
+            } finally {
+                if (acquired) {
+                    cacheSyncLock.unlock();
+                }
             }
         }
     }
@@ -418,17 +415,28 @@ public class CacheService extends AbstractLifecycleComponent {
     /**
      * This method is invoked after a {@link CacheFile} is evicted from the cache.
      * <p>
-     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted.
+     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted and removes it from the persistent cache.
      *
      * @param cacheFile the evicted instance
      */
     private void onCacheFileRemoval(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
+        try {
+            persistentCache.removeCacheFile(cacheFile);
+        } catch (Exception e) {
+            assert e instanceof IOException : e;
+            logger.warn("failed to remove cache file from persistent cache", e);
+        }
     }
 
     // used in tests
     boolean isCacheFileToSync(CacheFile cacheFile) {
         return cacheFilesToSync.contains(cacheFile);
+    }
+
+    // used in tests
+    PersistentCache getPersistentCache() {
+        return persistentCache;
     }
 
     /**
@@ -478,21 +486,34 @@ public class CacheService extends AbstractLifecycleComponent {
                             ranges.size()
                         );
                         final Path cacheDir = cacheFilePath.toAbsolutePath().getParent();
-                        if (cacheDirs.add(cacheDir)) {
+                        boolean shouldPersist = cacheDirs.contains(cacheDir);
+                        if (shouldPersist == false) {
                             try {
-                                IOUtils.fsync(cacheDir, true, false);
+                                IOUtils.fsync(cacheDir, true, false); // TODO evict cache file if fsync failed
                                 logger.trace("cache directory [{}] synchronized", cacheDir);
+                                cacheDirs.add(cacheDir);
+                                shouldPersist = true;
                             } catch (Exception e) {
                                 assert e instanceof IOException : e;
+                                shouldPersist = false;
                                 logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
                             }
                         }
-                        // TODO Index searchable snapshot shard information + cache file ranges in Lucene
-                        count += 1L;
+                        if (shouldPersist) {
+                            persistentCache.addCacheFile(cacheFile, ranges);
+                            count += 1L;
+                        }
                     }
                 } catch (Exception e) {
                     assert e instanceof IOException : e;
                     logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
+                }
+            }
+            if (count > 0 || persistentCache.hasDeletions()) {
+                try {
+                    persistentCache.commit();
+                } catch (IOException e) {
+                    logger.error("failed to commit persistent cache after synchronization", e);
                 }
             }
             if (logger.isDebugEnabled()) {

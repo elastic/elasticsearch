@@ -42,9 +42,7 @@ public class RollupStep extends AsyncActionStep {
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
         String originalIndex = indexMetadata.getIndex().getName();
         String rollupIndex = originalIndex + ROLLUP_INDEX_NAME_POSTFIX;
-        // TODO(talevy): change config to be immutable
-        config.setRollupIndex(rollupIndex);
-        RollupAction.Request request = new RollupAction.Request(originalIndex, config);
+        RollupAction.Request request = new RollupAction.Request(originalIndex, rollupIndex, config);
         if (rollupPolicy == null) {
             getClient().execute(RollupAction.INSTANCE, request,
                 ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

@@ -95,8 +95,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         switch (randomIntBetween(0, 2)) {
             case 0:
                 newConfig = new RollupActionConfig(rollupILMAction.config().getGroupConfig(),
-                    rollupILMAction.config().getMetricsConfig(), rollupILMAction.config().getTimeout(),
-                    rollupILMAction.config().getRollupIndex() + "not");
+                    rollupILMAction.config().getMetricsConfig(), rollupILMAction.config().getTimeout());
                 break;
             case 1:
                 newDeleteOriginalIndex = !newDeleteOriginalIndex;

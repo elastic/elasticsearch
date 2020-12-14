@@ -1484,8 +1484,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))),
-            null, randomAlphaOfLength(5));
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, false, null));
         updatePolicy(index, policy);
@@ -1502,8 +1501,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))),
-            null, randomAlphaOfLength(5));
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, true, null));
         updatePolicy(index, policy);
@@ -1520,8 +1518,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))),
-            null, randomAlphaOfLength(5));
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, false, policy));
         updatePolicy(index, policy);

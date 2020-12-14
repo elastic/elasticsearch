@@ -203,5 +203,9 @@ public class RemoteConnectionManager implements ConnectionManager {
         public Object getCacheKey() {
             return connection.getCacheKey();
         }
+
+        Transport.Connection getConnection() {
+            return connection;
+        }
     }
 }

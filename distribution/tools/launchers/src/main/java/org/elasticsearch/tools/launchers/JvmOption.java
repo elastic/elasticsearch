@@ -73,6 +73,11 @@ class JvmOption {
         return minHeapSize != null && minHeapSize.isCommandLineOrigin();
     }
 
+    public static boolean isInitialHeapSpecified(final Map<String, JvmOption> finalJvmOptions) {
+        JvmOption initialHeapSize = finalJvmOptions.get("InitialHeapSize");
+        return initialHeapSize != null && initialHeapSize.isCommandLineOrigin();
+    }
+
     public static long extractMaxDirectMemorySize(final Map<String, JvmOption> finalJvmOptions) {
         return Long.parseLong(finalJvmOptions.get("MaxDirectMemorySize").getMandatoryValue());
     }

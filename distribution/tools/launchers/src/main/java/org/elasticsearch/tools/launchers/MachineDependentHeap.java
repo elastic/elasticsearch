@@ -37,6 +37,9 @@ import java.util.function.Function;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static org.elasticsearch.tools.launchers.JvmOption.isInitialHeapSpecified;
+import static org.elasticsearch.tools.launchers.JvmOption.isMaxHeapSpecified;
+import static org.elasticsearch.tools.launchers.JvmOption.isMinHeapSpecified;
 
 /**
  * Determines optimal default heap settings based on available system memory and assigned node roles.
@@ -66,7 +69,7 @@ public final class MachineDependentHeap {
     public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions) throws IOException, InterruptedException {
         // TODO: this could be more efficient, to only parse final options once
         final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
-        if (JvmOption.isMaxHeapSpecified(finalJvmOptions) || JvmOption.isMinHeapSpecified(finalJvmOptions)) {
+        if (isMaxHeapSpecified(finalJvmOptions) || isMinHeapSpecified(finalJvmOptions) || isInitialHeapSpecified(finalJvmOptions)) {
             // User has explicitly set memory settings so we use those
             return Collections.emptyList();
         }

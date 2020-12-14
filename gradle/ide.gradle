@@ -28,16 +28,21 @@ tasks.register('configureIdeCheckstyle') {
   group = 'ide'
   description = 'Generated a suitable checkstyle config for IDEs'
 
+  String checkstyleConfig = 'buildSrc/src/main/resources/checkstyle.xml'
+  String checkstyleIdeConfig = "${buildDir}/checkstyle_ide.xml"
+
+  inputs.files(file(checkstyleConfig))
+  outputs.files(file(checkstyleIdeConfig))
+
   doLast {
     // Create an IDE-specific checkstyle config by first copying the standard config
     Files.copy(
-      Paths.get(project.file("buildSrc/src/main/resources/checkstyle.xml").getPath()),
-      Paths.get(project.file("buildSrc/src/main/resources/checkstyle_ide.xml").getPath()),
+      Paths.get(file(checkstyleConfig).getPath()),
+      Paths.get(file(checkstyleIdeConfig).getPath()),
       StandardCopyOption.REPLACE_EXISTING
     )
     // Edit the copy so that IntelliJ can copy with it
-    modifyXml("buildSrc/src/main/resources/checkstyle_ide.xml", { xml ->
-
+    modifyXml(checkstyleIdeConfig, { xml ->
       // This module since it is implemented with custom code
       xml.module.findAll { it.'@name' == 'org.elasticsearch.gradle.checkstyle.SnippetLengthCheck' }.each { it.parent().remove(it) }
 

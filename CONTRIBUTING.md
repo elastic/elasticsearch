@@ -168,25 +168,25 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 
 If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
 check the Elasticsearch code. However, the Checkstyle configuration file does
-not work by default with the IntelliJ plugin, so instead a IDE-specific config
+not work by default with the IntelliJ plugin, so instead an IDE-specific config
 file is generated automatically after IntelliJ finishes syncing.
 
-   - Open **Preferences > Tools > Checkstyle**
-   - Change the "Scan Scope" to "Only Java sources (including tests)"
-   - Check the "+" under "Configuration file"
-   - Set "Description" to "Elasticsearch" (or whatever you want)
-   - Select "Use a local Checkstyle file"
-   - For the "File", navigate to `buildSrc/src/main/resources/checkstyle_ide.xml`
-   - Tick "Store relative to project location"
-   - Click "Next"
-   - The Checkstyle config file contains the variable `config_loc`, and
-     IntelliJ will ask for a value. Fill in `buildSrc/src/main/resources`
-   - Click "Next", then "Finish".
-   - Click the box next to the new configuration to make it "Active". Without doing this,
-     you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
-     tool window and run the check manually. You can still do this with an active config,
-     of course.
-   - Click "OK" to apply the new preferences
+   1. Open **Preferences > Tools > Checkstyle**
+   2. Change the "Scan Scope" to "Only Java sources (including tests)"
+   3. Check the "+" under "Configuration file"
+   4. Set "Description" to "Elasticsearch" (or whatever you want)
+   5. Select "Use a local Checkstyle file"
+   6. For the "File", navigate to `build/checkstyle_ide.xml`
+   7. Tick "Store relative to project location"
+   8. Click "Next"
+   9. The Checkstyle config file contains the variable `config_loc`, and
+      IntelliJ will ask for a value. Fill in `buildSrc/src/main/resources`.
+      This allows the config file to reference the exclusions file in that directory.
+   10. Click "Next", then "Finish".
+   11. Click the box next to the new configuration to make it "Active". Without doing this,
+       you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
+       tool window and run the check manually. You can still do this with an active config.
+   12. Click "OK" to apply the new preferences
 
 #### Formatting
 
@@ -194,12 +194,12 @@ We are in the process of migrating towards automatic formatting Java file
 using [spotless], backed by the Eclipse formatter. If you have the [Eclipse
 Code Formatter] installed, you can apply formatting directly in IntelliJ.
 
-   - Open **Preferences > Other Settings > Checkstyle**
-   - Click "Use the Eclipse Code Formatter"
-   - Under "Eclipse formatter config", select "Eclipse workspace/project
-     folder or config file"
-   - Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
-   - Click "OK"
+   1. Open **Preferences > Other Settings > Eclipse Code Formatter**
+   2. Click "Use the Eclipse Code Formatter"
+   3. Under "Eclipse formatter config", select "Eclipse workspace/project
+      folder or config file"
+   4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
+   5. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**

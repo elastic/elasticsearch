@@ -333,7 +333,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId the {@link SnapshotId}
      */
     public void markShardAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        final ShardEviction shardEviction = new ShardEviction(snapshotId, indexId, shardId);
+        final ShardEviction shardEviction = new ShardEviction(snapshotId.getUUID(), indexId.getName(), shardId);
         if (evictedShards.add(shardEviction)) {
             threadPool.generic().submit(new AbstractRunnable() {
                 @Override
@@ -380,7 +380,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param runnable   a runnable to execute
      */
     public void runIfShardMarkedAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId, Runnable runnable) {
-        runIfShardMarkedAsEvictedInCache(new ShardEviction(snapshotId, indexId, shardId), runnable);
+        runIfShardMarkedAsEvictedInCache(new ShardEviction(snapshotId.getUUID(), indexId.getName(), shardId), runnable);
     }
 
     /**
@@ -488,7 +488,9 @@ public class CacheService extends AbstractLifecycleComponent {
                 assert value >= 0 : value;
 
                 final CacheKey cacheKey = cacheFile.getCacheKey();
-                if (evictedShards.contains(new ShardEviction(cacheKey.getSnapshotId(), cacheKey.getIndexId(), cacheKey.getShardId()))) {
+                if (evictedShards.contains(
+                    new ShardEviction(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId())
+                )) {
                     logger.debug("cache file belongs to a shard marked as evicted, skipping synchronization for [{}]", cacheKey);
                     continue;
                 }
@@ -579,13 +581,13 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     private static class ShardEviction {
 
-        private final SnapshotId snapshotId;
-        private final IndexId indexId;
+        private final String snapshotUUID;
+        private final String snapshotIndexName;
         private final ShardId shardId;
 
-        private ShardEviction(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-            this.snapshotId = snapshotId;
-            this.indexId = indexId;
+        private ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+            this.snapshotUUID = snapshotUUID;
+            this.snapshotIndexName = snapshotIndexName;
             this.shardId = shardId;
         }
 
@@ -594,24 +596,24 @@ public class CacheService extends AbstractLifecycleComponent {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ShardEviction that = (ShardEviction) o;
-            return Objects.equals(snapshotId, that.snapshotId)
-                && Objects.equals(indexId, that.indexId)
+            return Objects.equals(snapshotUUID, that.snapshotUUID)
+                && Objects.equals(snapshotIndexName, that.snapshotIndexName)
                 && Objects.equals(shardId, that.shardId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshotId, indexId, shardId);
+            return Objects.hash(snapshotUUID, snapshotIndexName, shardId);
         }
 
         @Override
         public String toString() {
-            return "[snapshotId=" + snapshotId + ", indexId=" + indexId + ", shardId=" + shardId + ']';
+            return "[snapshotUUID=" + snapshotUUID + ", snapshotIndexName=" + snapshotIndexName + ", shardId=" + shardId + ']';
         }
 
         boolean matches(CacheKey cacheKey) {
-            return Objects.equals(snapshotId, cacheKey.getSnapshotId())
-                && Objects.equals(indexId, cacheKey.getIndexId())
+            return Objects.equals(snapshotUUID, cacheKey.getSnapshotUUID())
+                && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
                 && Objects.equals(shardId, cacheKey.getShardId());
         }
     }

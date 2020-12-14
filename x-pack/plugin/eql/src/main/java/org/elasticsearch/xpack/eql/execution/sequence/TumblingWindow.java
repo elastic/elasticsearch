@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHi
  * Time-based window encapsulating query creation and advancement.
  * Since queries can return different number of results, to avoid creating incorrect sequences,
  * all searches are 'boxed' to a base query.
- * 
+ *
  * The window always moves ASC (sorted on timestamp/tiebreaker ordinal) since events in a sequence occur
  * one after the other. The window starts at the base (the first query) - when no results are found,
  * the next query gets promoted. This allows the window to find any follow-up results even if they are
@@ -59,7 +59,7 @@ public class TumblingWindow implements Executable {
      * Thus it has a small, upper limit so that it doesn't require any cleaning up.
      */
     // start with the default size and allow growth until the max size
-    private final Map<String, String> stringCache = new LinkedHashMap<>(16, 0.75f, true) {
+    private final Map<String, String> stringCache = new LinkedHashMap<String, String>(16, 0.75f, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
             return this.size() >= CACHE_MAX_SIZE;
@@ -574,7 +574,7 @@ public class TumblingWindow implements Executable {
             final Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending() ?
                     new ReversedIterator<>(sequences) :
                     sequences.iterator();
-            
+
             return new Iterator<List<HitReference>>() {
 
                 @Override

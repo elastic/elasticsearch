@@ -312,3 +312,35 @@
   - match: { field_selection.4.is_required: false }
   - match: { field_selection.4.feature_type: "categorical" }
   - is_false: field_selection.4.reason
+
+---
+"Test given no included field":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              x:
+                type: keyword
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { x: "hello!" }
+  - match: { result: "created" }
+
+  - do:
+      ml.explain_data_frame_analytics:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match:
+      memory_estimation.expected_memory_without_disk: "0"
+  - match:
+      memory_estimation.expected_memory_with_disk: "0"
+  - length: { field_selection: 1 }
+  - match: { field_selection.0.name: "x" }
+  - match: { field_selection.0.is_included: false }

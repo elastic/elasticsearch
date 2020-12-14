@@ -43,11 +43,17 @@ public class ClientYamlSuiteRestApi {
     private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
     private Stability stability;
+    private Visibility visibility;
+    private String featureFlag;
     private List<String> responseMimeTypes;
     private List<String> requestMimeTypes;
 
     public enum Stability {
         EXPERIMENTAL, BETA, STABLE
+    }
+
+    public enum Visibility {
+        PRIVATE, FEATURE_FLAG, PUBLIC
     }
 
     public enum Body {
@@ -123,6 +129,17 @@ public class ClientYamlSuiteRestApi {
 
     public Stability getStability() { return this.stability; }
 
+    public void setVisibility(String visibility) {
+        this.visibility = Visibility.valueOf(visibility.toUpperCase(Locale.ROOT));
+    }
+
+    public Visibility getVisibility() { return this.visibility; }
+
+    public void setFeatureFlag(String featureFlag) {
+        this.featureFlag = featureFlag;
+    }
+
+    public String getFeatureFlag() { return this.featureFlag; }
     public void setResponseMimeTypes(List<String> mimeTypes) {
         this.responseMimeTypes = mimeTypes;
     }

@@ -5,6 +5,7 @@
       "description":"Returns statistical information about nodes in the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

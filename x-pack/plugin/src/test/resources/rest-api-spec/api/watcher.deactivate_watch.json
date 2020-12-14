@@ -5,6 +5,7 @@
       "description":"Deactivates a currently active watch."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -5,6 +5,7 @@
       "description": "Retrieve various statistics about searchable snapshots."
     },
     "stability": "experimental",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -31,12 +31,17 @@ import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.VersionInfo;
 
 import javax.net.ssl.SSLContext;
+import java.net.URL;
 import java.security.AccessController;
+import java.security.CodeSource;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.jar.Attributes;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -48,6 +53,9 @@ public final class RestClientBuilder {
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
+
+    /** The version of the Rest client*/
+    private static final String VERSION;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
     static final String METADATA_HEADER = "X-Elastic-Client-Meta";
@@ -62,6 +70,26 @@ public final class RestClientBuilder {
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
     private boolean metadataHeaderEnabled = true;
+
+    static {
+        String version = ""; // unknown values are reported as empty strings in X-Elastic-Client-Meta
+        final CodeSource codeSource = RestClientBuilder.class.getProtectionDomain().getCodeSource();
+        if (codeSource != null) {
+            URL url = codeSource.getLocation();
+            if (url != null && url.getPath().endsWith(".jar")) {
+                try (JarInputStream jar = new JarInputStream(url.openStream())) {
+                    Manifest manifest = jar.getManifest();
+                    String esVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                    if (esVersion != null) {
+                        version = esVersion;
+                    }
+                } catch (Exception e) {
+                    // Keep version unknown
+                }
+            }
+        }
+        VERSION = version;
+    }
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -238,7 +266,7 @@ public final class RestClientBuilder {
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
                 .setUserAgent(String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
-                    RestClient.VERSION, System.getProperty("java.version"))
+                    VERSION.isEmpty() ? "Unknown" : VERSION, System.getProperty("java.version"))
                 )
                 .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
             if (httpClientConfigCallback != null) {
@@ -267,10 +295,10 @@ public final class RestClientBuilder {
                 HttpAsyncClientBuilder.class.getClassLoader());
 
             // service, language, transport, followed by additional information
-            return "es=" + RestClient.VERSION +
+            return "es=" + VERSION +
                 ",jv=" + System.getProperty("java.specification.version") +
-                ",t=" + RestClient.VERSION +
-                (hcVersion == null ? "" : ",hc=" + hcVersion.getRelease()) +
+                ",t=" + VERSION +
+                ",hc=" + (hcVersion == null ? "" : hcVersion.getRelease()) +
                 RuntimeInfo.getRuntimeMetadata();
         } else {
             return null;

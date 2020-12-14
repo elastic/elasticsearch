@@ -104,11 +104,6 @@ import static java.util.Collections.singletonList;
  */
 public class RestClient implements Closeable {
 
-    /** The version of the Rest client*/
-    // Must be kept in sync with org.elasticsearch.Version.CURRENT, but we can't call that class as the low level
-    // client should not depend on the server code. A test in `VersionTests` will fail if they're not equal.
-    public static final String VERSION = "7.11.0";
-
     private static final Log logger = LogFactory.getLog(RestClient.class);
 
     private final CloseableHttpAsyncClient client;

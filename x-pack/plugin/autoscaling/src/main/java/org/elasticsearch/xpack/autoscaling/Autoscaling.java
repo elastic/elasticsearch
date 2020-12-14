@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandl
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
@@ -71,6 +74,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     }
 
     private final List<AutoscalingExtension> autoscalingExtensions;
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private final SetOnce<AllocationDeciders> allocationDeciders = new SetOnce<>();
 
     public Autoscaling() {
         this.autoscalingExtensions = new ArrayList<>(List.of(this));
@@ -90,6 +95,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        this.clusterService.set(clusterService);
         return List.of(new AutoscalingCalculateCapacityService.Holder(this));
     }
 
@@ -130,6 +136,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 FixedAutoscalingDeciderService.NAME,
                 FixedAutoscalingDeciderService.FixedReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                ReactiveStorageDeciderService.NAME,
+                ReactiveStorageDeciderService.ReactiveReason::new
             )
         );
     }
@@ -152,10 +163,19 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
 
     @Override
     public Collection<AutoscalingDeciderService> deciders() {
-        return List.of(new FixedAutoscalingDeciderService());
+        assert allocationDeciders.get() != null;
+        return List.of(
+            new FixedAutoscalingDeciderService(),
+            new ReactiveStorageDeciderService(
+                clusterService.get().getSettings(),
+                clusterService.get().getClusterSettings(),
+                allocationDeciders.get()
+            )
+        );
     }
 
-    public Set<AutoscalingDeciderService> createDeciderServices() {
+    public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders allocationDeciders) {
+        this.allocationDeciders.set(allocationDeciders);
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
 }

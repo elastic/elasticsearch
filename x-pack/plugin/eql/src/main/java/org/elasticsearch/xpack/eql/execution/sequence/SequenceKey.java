@@ -21,7 +21,7 @@ public class SequenceKey {
     private final Object[] keys;
     private final int hashCode;
 
-    public SequenceKey(Object... keys) {
+    SequenceKey(Object... keys) {
         this.keys = keys;
         this.hashCode = Objects.hash(keys);
     }

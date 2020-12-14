@@ -84,10 +84,11 @@ tasks.named("processResources").configure {
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
   }
-  if (Files.exists(Paths.get(licenseKey)) == false) {
+  File licenseKeyFile = rootProject.file(licenseKey)
+  if (licenseKeyFile.exists() == false) {
     throw new IllegalArgumentException('license.key at specified path [' + licenseKey + '] does not exist')
   }
-  from(licenseKey) {
+  from(licenseKeyFile) {
     rename { String filename -> 'public.key' }
   }
 }

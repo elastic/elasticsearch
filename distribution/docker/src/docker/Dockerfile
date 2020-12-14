@@ -27,7 +27,7 @@
 FROM ${base_image} AS builder
 
 # Install required packages to extract the Elasticsearch distribution
-RUN <%= retry_loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
+RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -74,7 +74,7 @@ ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
 ENV TARBALL_PATH curl-\${VERSION}.tar.xz
 
 # Install dependencies
-RUN <%= retry_loop('apk', 'apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file') %>
+RUN <%= retry.loop('apk', 'apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file') %>
 
 RUN mkdir /work
 WORKDIR /work
@@ -83,7 +83,7 @@ WORKDIR /work
 RUN function retry_wget() { \\
       local URL="\$1" ; \\
       local DEST="\$2" ; \\
-      <%= retry_loop('wget', 'wget "\$URL\" -O "\$DEST"', 6, 'return') %> ; \\
+      <%= retry.loop('wget', 'wget "\$URL\" -O "\$DEST"', 6, 'return') %> ; \\
     } ; \\
     retry_wget "https://daniel.haxx.se/mykey.asc" "curl-gpg.pub" && \\
     retry_wget "\${TARBALL_URL}.asc" "\${TARBALL_PATH}.asc" && \\
@@ -223,21 +223,26 @@ ${source_elasticsearch}
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
 # The distribution includes a `config` directory, no need to create it
-COPY ${config_dir}/elasticsearch.yml ${config_dir}/log4j2.properties config/
+COPY ${config_dir}/elasticsearch.yml config/
+COPY ${bin_dir}/transform-log4j-config-${version}.jar /tmp/
 
 # 1. Configure the distribution for Docker
 # 2. Ensure directories are created. Most already are, but make sure
 # 3. Apply correct permissions
-# 4. Apply more correct permissions
-# 5. The JDK's directories' permissions don't allow `java` to be executed under a different
+# 4. Move the distribution's default logging config aside
+# 5. Generate a docker logging config, to be used by default
+# 6. Apply more correct permissions
+# 7. The JDK's directories' permissions don't allow `java` to be executed under a different
 #    group to the default. Fix this.
-# 6. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-# 7. Ensure all files are world-readable by default. It should be possible to
+# 8. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+# 9. Ensure all files are world-readable by default. It should be possible to
 #    examine the contents of the image under any UID:GID
-RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env && \\
+RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir -p config/jvm.options.d data logs plugins && \\
     chmod 0775 config config/jvm.options.d data logs plugins && \\
-    chmod 0660 config/elasticsearch.yml config/log4j2.properties && \\
+    mv config/log4j2.properties config/log4j2.file.properties && \\
+    jdk/bin/java -jar /tmp/transform-log4j-config-${version}.jar config/log4j2.file.properties > config/log4j2.properties && \\
+    chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\
     find ./jdk -type d -exec chmod 0755 {} + && \\
     find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
     find . -type f -exec chmod o+r {} +
@@ -255,7 +260,7 @@ FROM ${base_image}
 
 <% if (docker_base == "ubi") { %>
 
-RUN <%= retry_loop(
+RUN <%= retry.loop(
     package_manager,
       "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
       "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +

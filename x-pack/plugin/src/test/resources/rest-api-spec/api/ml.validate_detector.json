@@ -5,6 +5,7 @@
       "description":"Validates an anomaly detection detector."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

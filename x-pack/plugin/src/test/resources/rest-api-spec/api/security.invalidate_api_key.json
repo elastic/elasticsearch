@@ -5,6 +5,7 @@
       "description":"Invalidates one or more API keys."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

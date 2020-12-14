@@ -5,6 +5,7 @@
       "description":"Returns the source of a document."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

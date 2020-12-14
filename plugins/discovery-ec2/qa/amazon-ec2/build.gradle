@@ -50,9 +50,7 @@ tasks.named("processYamlRestTestResources").configure {
 }
 
 // disable default yamlRestTest task, use spezialized ones below
-tasks.named("yamlRestTest").configure {
-  enabled = false
-}
+tasks.named("yamlRestTest").configure { enabled = false }
 
 /*
  * Test using various credential providers (see also https://docs.aws.amazon.com/sdk-for-java/v2/developer-guide/credentials.html):

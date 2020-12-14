@@ -5,6 +5,7 @@
       "description":"Returns data streams."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -5,6 +5,7 @@
       "description":"Enables searching rolled-up data using the standard query DSL."
     },
     "stability":"experimental",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

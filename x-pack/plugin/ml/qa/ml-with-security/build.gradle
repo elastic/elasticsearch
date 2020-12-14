@@ -17,7 +17,7 @@ restResources {
   }
 }
 
-yamlRestTest {
+tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite

@@ -32,6 +32,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
 import org.gradle.api.services.BuildServiceRegistry;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
@@ -82,11 +83,7 @@ public abstract class GradleUtils {
         Class<? extends T> type,
         Action<? super T> config
     ) {
-        tasks.withType(type).configureEach(task -> {
-            if (task.getName().equals(name)) {
-                config.execute(task);
-            }
-        });
+        tasks.withType(type).matching((Spec<T>) t -> t.getName().equals(name)).configureEach(task -> { config.execute(task); });
     }
 
     public static TaskProvider<?> findByName(TaskContainer tasks, String name) {

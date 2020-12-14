@@ -5,6 +5,7 @@
       "description":"Open a point in time that can be used in subsequent searches"
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

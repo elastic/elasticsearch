@@ -146,6 +146,43 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("field.keyword"));
     }
 
+    public void testParseWithShadowedNestedField() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("runtime");
+            {
+                b.startObject("child.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+            b.startObject("properties");
+            {
+                b.startObject("child");
+                {
+                    b.field("type", "nested");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("name", "alice");
+            b.field("age", 42);
+            b.startArray("child");
+            {
+                b.startObject().field("name", "bob").field("age", 12).endObject();
+                b.startObject().field("name", "charlie").field("age", 10).endObject();
+            }
+            b.endArray();
+        }));
+        assertEquals(3, doc.docs().size());
+        assertEquals("alice", doc.rootDoc().getField("name").stringValue());
+        assertNull(doc.docs().get(0).getField("child.name"));   // shadowed by the runtime field
+        assertEquals(12L, doc.docs().get(0).getField("child.age").numericValue());
+        assertNull(doc.docs().get(1).getField("child.name"));
+        assertEquals(10L, doc.docs().get(1).getField("child.age").numericValue());
+    }
+
     public void testRuntimeFieldAndArrayChildren() throws IOException {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.field("dynamic", "true");

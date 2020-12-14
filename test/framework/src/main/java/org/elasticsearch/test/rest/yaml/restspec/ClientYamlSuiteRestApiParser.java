@@ -90,6 +90,12 @@ public class ClientYamlSuiteRestApiParser {
                 } else if ("stability".equals(parser.currentName())) {
                     parser.nextToken();
                     restApi.setStability(parser.textOrNull());
+                } else if ("visibility".equals(parser.currentName())) {
+                    parser.nextToken();
+                    restApi.setVisibility(parser.textOrNull());
+                } else if ("feature_flag".equals(parser.currentName())) {
+                    parser.nextToken();
+                    restApi.setFeatureFlag(parser.textOrNull());
                 } else if ("url".equals(parser.currentName())) {
                     String currentFieldName = null;
                     assert parser.nextToken() == XContentParser.Token.START_OBJECT;
@@ -216,6 +222,18 @@ public class ClientYamlSuiteRestApiParser {
         }
         if (restApi.getStability() == null) {
             throw new IllegalArgumentException(apiName + " API does not declare its stability in [" + location + "]");
+        }
+        if (restApi.getVisibility() == null) {
+            throw new IllegalArgumentException(apiName + " API does not declare its visibility explicitly in [" + location + "]");
+        }
+        if (restApi.getVisibility() == ClientYamlSuiteRestApi.Visibility.FEATURE_FLAG
+            && (restApi.getFeatureFlag() == null || restApi.getFeatureFlag().isEmpty())) {
+            throw new IllegalArgumentException(apiName
+                + " API has visibility `feature_flag` but does not document its feature flag in [" + location + "]");
+        }
+        if (restApi.getFeatureFlag() != null && restApi.getVisibility() != ClientYamlSuiteRestApi.Visibility.FEATURE_FLAG) {
+            throw new IllegalArgumentException(apiName
+                + " API does not have visibility `feature_flag` but documents a feature flag [" + location + "]");
         }
         return restApi;
     }

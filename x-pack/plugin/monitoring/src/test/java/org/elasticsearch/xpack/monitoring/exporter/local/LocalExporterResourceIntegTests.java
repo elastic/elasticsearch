@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -94,7 +95,25 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             assertPipelinesExist();
             assertNoWatchesExist();
         });
+    }
 
+    public void testResourcesBlockedDuringMigration() throws Exception {
+        putResources(newEnoughVersion());
+
+        assertResourcesExist();
+        waitNoPendingTasksOnAll();
+
+        Settings exporterSettings = Settings.builder().put(localExporterSettings())
+            .put("xpack.monitoring.migration.decommission_alerts", true).build();
+
+        MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
+        assertTrue(coordinator.tryBlockInstallationTasks());
+        assertFalse(coordinator.canInstall());
+
+        assertThat(clusterService().state().version(), not(ClusterState.UNKNOWN_VERSION));
+        try (LocalExporter exporter = createLocalExporter("decommission_local", exporterSettings, coordinator)) {
+            assertThat(exporter.isExporterReady(), is(false));
+        }
     }
 
     @Override

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * A shared coordination object for blocking execution of exporters when a migration that involves them is in progress
+ * A shared coordination object for pausing execution of exporter installation tasks when a migration that involves them is in progress
  */
 public class MonitoringMigrationCoordinator {
 

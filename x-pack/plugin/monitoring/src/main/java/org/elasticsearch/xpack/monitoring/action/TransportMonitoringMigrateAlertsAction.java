@@ -68,13 +68,13 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
     @Override
     protected void masterOperation(Task task, MonitoringMigrateAlertsRequest request, ClusterState state,
                                    ActionListener<MonitoringMigrateAlertsResponse> listener) throws Exception {
-        // First, enable the migration coordinator block
+        // First, set the migration coordinator as currently running
         if (migrationCoordinator.tryBlockInstallationTasks() == false) {
-            throw new EsRejectedExecutionException("Could not migrate cluster alerts. Timed out waiting to block resource operations.");
+            throw new EsRejectedExecutionException("Could not migrate cluster alerts. Migration already in progress.");
         }
-        // Wrap the listener to unblock resource installation before completing
-        listener = ActionListener.runBefore(listener, migrationCoordinator::unblockInstallationTasks);
         try {
+            // Wrap the listener to unblock resource installation before completing
+            listener = ActionListener.runBefore(listener, migrationCoordinator::unblockInstallationTasks);
             Settings.Builder decommissionAlertSetting = Settings.builder().put(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey(), true);
             client.admin().cluster().prepareUpdateSettings().setPersistentSettings(decommissionAlertSetting)
                 .execute(completeOnManagementThread(listener));

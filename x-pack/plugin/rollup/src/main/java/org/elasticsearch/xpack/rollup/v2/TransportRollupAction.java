@@ -71,7 +71,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    String rollupIndexName = rollupTask.config().getRollupIndex();
+                    String rollupIndexName = rollupTask.getRollupIndex();
                     IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                     Index rollupIndex = rollupIndexMetadata.getIndex();
                     // TODO(talevy): find better spot to get the original index name

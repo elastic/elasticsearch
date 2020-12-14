@@ -39,7 +39,6 @@ import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.jar.Attributes;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -76,7 +75,7 @@ public final class RestClientBuilder {
         final CodeSource codeSource = RestClientBuilder.class.getProtectionDomain().getCodeSource();
         if (codeSource != null) {
             URL url = codeSource.getLocation();
-            if (url != null && url.getPath().endsWith(".jar")) {
+            if (url != null && url.toString().endsWith(".jar")) {
                 try (JarInputStream jar = new JarInputStream(url.openStream())) {
                     Manifest manifest = jar.getManifest();
                     String esVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");

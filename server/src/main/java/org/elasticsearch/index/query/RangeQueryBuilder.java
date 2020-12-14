@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -440,12 +439,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 }
                 long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
                 long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
-                // IndexMetadata min/max timestamps are stored in milliseconds, we need
-                // to convert those into Nanoseconds if the field resolution is in nanos
-                if (dateFieldType.resolution() == DateFieldMapper.Resolution.NANOSECONDS) {
-                    minTimestamp = DateUtils.toNanoSeconds(minTimestamp);
-                    maxTimestamp = DateUtils.toNanoSeconds(maxTimestamp);
-                }
                 DateMathParser dateMathParser = getForceDateParser();
                 return dateFieldType.isFieldWithinQuery(minTimestamp, maxTimestamp, from, to, includeLower,
                     includeUpper, timeZone, dateMathParser, queryRewriteContext);

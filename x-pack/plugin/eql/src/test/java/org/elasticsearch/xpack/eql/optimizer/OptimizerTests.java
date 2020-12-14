@@ -666,9 +666,9 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(filter, filterCondition(child2.children().get(0)));
     }
 
-    // ((a + 1) / 2 - 3) * 4 >= 14 -> a > 12.
+    // ((a + 1) - 3) * 4 >= 16 -> a >= 6.
     public void testReduceBinaryComparisons() {
-        LogicalPlan plan = accept("foo where ((pid + 1) / 2 - 3) * 4 >= 14");
+        LogicalPlan plan = accept("foo where ((pid + 1) - 3) * 4 >= 16");
         assertNotNull(plan);
         List<LogicalPlan> filters = plan.collectFirstChildren(x -> x instanceof Filter);
         assertNotNull(filters);
@@ -685,7 +685,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals("pid", ((FieldAttribute) gte.left()).name());
 
         assertTrue(gte.right() instanceof Literal);
-        assertEquals(12d, ((Literal) gte.right()).value());
+        assertEquals(6, ((Literal) gte.right()).value());
     }
 
     private static Attribute timestamp() {

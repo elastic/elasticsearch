@@ -57,8 +57,8 @@ import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVE
 
 /**
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
- * es.enforce.bootstrap.checks} is set to {@true}. In this case we assume the node is running in production and all bootstrap checks must
- * pass.
+ * es.enforce.bootstrap.checks} is set to {@code true}. In this case we assume the node is running in production and all bootstrap checks
+ * must pass.
  */
 final class BootstrapChecks {
 
@@ -208,6 +208,9 @@ final class BootstrapChecks {
             checks.add(new MaxMapCountCheck());
         }
         checks.add(new ClientJvmCheck());
+        if (Boolean.parseBoolean(System.getProperty("forbid.assertions", "false"))) {
+            checks.add(new AssertionsEnabledCheck());
+        }
         checks.add(new UseSerialGCCheck());
         checks.add(new SystemCallFilterCheck());
         checks.add(new OnErrorCheck());
@@ -503,6 +506,20 @@ final class BootstrapChecks {
             return JvmInfo.jvmInfo().getVmName();
         }
 
+    }
+
+    static class AssertionsEnabledCheck implements BootstrapCheck {
+
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            try {
+                assert false;
+            } catch (AssertionError e) {
+                return BootstrapCheckResult.failure("Assertions should not be enabled for the best performance");
+            }
+
+            return BootstrapCheckResult.success();
+        }
     }
 
     /**

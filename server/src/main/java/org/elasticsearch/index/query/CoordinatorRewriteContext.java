@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 
 import java.util.function.LongSupplier;
 
@@ -38,8 +39,7 @@ import java.util.function.LongSupplier;
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final Index index;
-    private final long minTimestamp;
-    private final long maxTimestamp;
+    private IndexLongFieldRange indexLongFieldRange;
     private final DateFieldMapper.DateFieldType timestampFieldType;
 
     public CoordinatorRewriteContext(NamedXContentRegistry xContentRegistry,
@@ -47,22 +47,24 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
                                      Client client,
                                      LongSupplier nowInMillis,
                                      Index index,
-                                     long minTimestamp,
-                                     long maxTimestamp,
+                                     IndexLongFieldRange indexLongFieldRange,
                                      DateFieldMapper.DateFieldType timestampFieldType) {
         super(xContentRegistry, writeableRegistry, client, nowInMillis);
         this.index = index;
-        this.minTimestamp = minTimestamp;
-        this.maxTimestamp = maxTimestamp;
+        this.indexLongFieldRange = indexLongFieldRange;
         this.timestampFieldType = timestampFieldType;
     }
 
     long getMinTimestamp() {
-        return minTimestamp;
+        return indexLongFieldRange.getMin();
     }
 
     long getMaxTimestamp() {
-        return maxTimestamp;
+        return indexLongFieldRange.getMax();
+    }
+
+    boolean hasTimestampData() {
+        return indexLongFieldRange.isComplete() && indexLongFieldRange != IndexLongFieldRange.EMPTY;
     }
 
     @Nullable

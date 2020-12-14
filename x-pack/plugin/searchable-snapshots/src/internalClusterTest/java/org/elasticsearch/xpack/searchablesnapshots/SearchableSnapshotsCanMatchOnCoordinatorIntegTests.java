@@ -95,7 +95,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
 
         final int totalShards = indexOutsideSearchRangeShardCount + indexWithinSearchRangeShardCount;
 
-        indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(0, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
+        // Either add data outside of the range, or documents that don't have timestamp data
+        final boolean indexDataWithTimestamp = randomBoolean();
+        if (indexDataWithTimestamp) {
+            indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(0, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
+        } else {
+            indexRandomDocs(indexOutsideSearchRange, between(0, 1000));
+        }
+
         int numDocsWithinRange = between(0, 1000);
         indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, numDocsWithinRange, "2020-11-28T%02d:%02d:%02d.%09dZ");
 
@@ -172,9 +179,13 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
-        assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-        assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(Instant.parse("2020-11-26T00:00:00Z").getMillis()));
-        assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(Instant.parse("2020-11-27T00:00:00Z").getMillis()));
+        if (indexDataWithTimestamp) {
+            assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+            assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(Instant.parse("2020-11-26T00:00:00Z").getMillis()));
+            assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(Instant.parse("2020-11-27T00:00:00Z").getMillis()));
+        } else {
+            assertThat(updatedTimestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
+        }
         assertThat(indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex()), notNullValue());
 
         // Stop the node holding the searchable snapshots, and since we defined

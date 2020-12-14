@@ -435,6 +435,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
             if (fieldType instanceof DateFieldMapper.DateFieldType) {
                 final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) fieldType;
+                if (coordinatorRewriteContext.hasTimestampData() == false) {
+                    return MappedFieldType.Relation.DISJOINT;
+                }
                 long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
                 long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
                 // IndexMetadata min/max timestamps are stored in milliseconds, we need

@@ -76,8 +76,7 @@ public class CoordinatorRewriteContextProvider {
             client,
             nowInMillis,
             index,
-            timestampMillisRange.getMin(),
-            timestampMillisRange.getMax(),
+            timestampMillisRange,
             dateFieldType
         );
     }

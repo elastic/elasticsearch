@@ -40,7 +40,7 @@ public final class AnalyzerRules {
         }
 
         private Expression replaceRawBoolFieldWithEquals(Expression e) {
-            if (e instanceof FieldAttribute && e.dataType() == BOOLEAN) {
+            if (e instanceof FieldAttribute && e.resolved() && e.dataType() == BOOLEAN) {
                 e = new Equals(e.source(), e, Literal.of(e, Boolean.TRUE));
             }
             return e;

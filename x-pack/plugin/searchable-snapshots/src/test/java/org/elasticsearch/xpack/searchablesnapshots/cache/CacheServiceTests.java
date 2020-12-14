@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
@@ -36,12 +37,14 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptySortedSet;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.index.store.cache.TestUtils.randomRanges;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // we don't want extra empty dirs in snapshot cache root dirs
 public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
     private static FSyncTrackingFileSystemProvider fileSystemProvider;
@@ -67,11 +70,11 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         logger.debug("--> creating shard cache directories on disk");
         final Path[] shardsCacheDirs = new Path[numShards];
         for (int i = 0; i < numShards; i++) {
-            final Path shardDataPath = randomFrom(nodeEnvironment.availableShardPaths(new ShardId(index, i)));
+            final Path shardDataPath = randomShardPath(new ShardId(index, i));
             assertFalse(Files.exists(shardDataPath));
 
             logger.debug("--> creating directories [{}] for shard [{}]", shardDataPath.toAbsolutePath(), i);
-            shardsCacheDirs[i] = Files.createDirectories(CacheService.resolveSnapshotCache(shardDataPath).resolve(snapshotId.getUUID()));
+            shardsCacheDirs[i] = Files.createDirectories(resolveSnapshotCache(shardDataPath).resolve(snapshotId.getUUID()));
         }
 
         try (CacheService cacheService = defaultCacheService()) {
@@ -108,7 +111,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                     final ShardId shardId = new ShardId(index, randomIntBetween(0, numShards - 1));
                     final String fileName = String.format(Locale.ROOT, "file_%d_%d", iteration, i);
                     final CacheKey cacheKey = new CacheKey(snapshotId, indexId, shardId, fileName);
-                    final CacheFile cacheFile = cacheService.get(cacheKey, randomIntBetween(1, 10_000), shardsCacheDirs[shardId.id()]);
+                    final CacheFile cacheFile = cacheService.get(cacheKey, randomIntBetween(0, 10_000), shardsCacheDirs[shardId.id()]);
 
                     final CacheFile.EvictionListener listener = evictedCacheFile -> {};
                     cacheFile.acquire(listener);
@@ -172,7 +175,6 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
     }
 
     public void testPut() throws Exception {
-        final Path cacheDir = createTempDir();
         try (CacheService cacheService = defaultCacheService()) {
             final long fileLength = randomLongBetween(0L, 1000L);
             final CacheKey cacheKey = new CacheKey(
@@ -180,6 +182,10 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
                 new ShardId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()), randomInt(5)),
                 randomAlphaOfLength(105).toLowerCase(Locale.ROOT)
+            );
+
+            final Path cacheDir = Files.createDirectories(
+                resolveSnapshotCache(randomShardPath(cacheKey.getShardId())).resolve(cacheKey.getSnapshotId().getUUID())
             );
             final String cacheFileUuid = UUIDs.randomBase64UUID(random());
             final SortedSet<Tuple<Long, Long>> cacheFileRanges = randomBoolean() ? randomRanges(fileLength) : emptySortedSet();
@@ -205,6 +211,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                     FileNotFoundException.class,
                     () -> cacheService.put(cacheKey, fileLength, cacheDir, cacheFileUuid, cacheFileRanges)
                 );
+                cacheService.start();
                 assertThat(exception.getMessage(), containsString(cacheFileUuid));
             }
         }
@@ -214,6 +221,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
         final IndexId indexId = new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
         final ShardId shardId = new ShardId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()), 0);
+        final Path cacheDir = Files.createDirectories(resolveSnapshotCache(randomShardPath(shardId)).resolve(snapshotId.getUUID()));
 
         final CacheService cacheService = defaultCacheService();
         cacheService.setCacheSyncInterval(TimeValue.ZERO);
@@ -230,7 +238,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         final PlainActionFuture<Void> waitForEviction = PlainActionFuture.newFuture();
         final CacheFile.EvictionListener evictionListener = evicted -> waitForEviction.onResponse(null);
 
-        final CacheFile cacheFile = cacheService.get(new CacheKey(snapshotId, indexId, shardId, "_0.dvd"), 100, createTempDir());
+        final CacheFile cacheFile = cacheService.get(new CacheKey(snapshotId, indexId, shardId, "_0.dvd"), 100, cacheDir);
         cacheFile.acquire(evictionListener);
 
         cacheService.markShardAsEvictedInCache(snapshotId, indexId, shardId);

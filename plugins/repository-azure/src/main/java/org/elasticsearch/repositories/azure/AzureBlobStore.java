@@ -212,7 +212,7 @@ public class AzureBlobStore implements BlobStore {
             });
             return Boolean.TRUE.equals(blobExists);
         } catch (Exception e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blob, container, e.getMessage());
+            logger.trace("can not access [{}] in container {{}}: {}", blob, container, e.getMessage());
             throw new IOException("Unable to check if blob " + blob + " exists", e);
         }
     }

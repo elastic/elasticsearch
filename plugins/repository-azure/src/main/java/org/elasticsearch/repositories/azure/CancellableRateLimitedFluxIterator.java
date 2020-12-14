@@ -25,10 +25,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.util.ArrayDeque;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -77,7 +77,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
      */
     CancellableRateLimitedFluxIterator(int elementsPerBatch, Consumer<T> cleaner) {
         this.elementsPerBatch = elementsPerBatch;
-        this.queue = new ArrayDeque<>(elementsPerBatch);
+        this.queue = new ArrayBlockingQueue<>(elementsPerBatch);
         this.lock = new ReentrantLock();
         this.condition = lock.newCondition();
         this.cleaner = cleaner;
@@ -85,6 +85,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
     @Override
     public boolean hasNext() {
+        // This method acts as a barrier between producers and consumers
+        // and it's possible that the consumer thread is blocked
+        // waiting until the producer emits an element.
         for (; ; ) {
             boolean isDone = done;
             boolean isQueueEmpty = queue.isEmpty();
@@ -119,6 +122,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
     @Override
     public T next() {
+        // We block here until the producer has emitted an element.
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
@@ -154,18 +158,22 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     @Override
-    public void onNext(T refCounted) {
+    public void onNext(T element) {
         // It's possible that we receive more elements after cancelling the subscription
         // since it might have outstanding requests before the cancellation. In that case
         // we just clean the resources.
         if (done) {
-            cleanElement(refCounted);
+            cleanElement(element);
             return;
         }
 
-        boolean added = queue.offer(refCounted);
-        // This should not happen unless we use a bounded queue, but it doesn't hurt to check
-        assert added : "Queue is full: Reactive Streams source doesn't respect backpressure";
+        if (queue.offer(element) == false) {
+            // If the source doesn't respect backpressure, we might lose elements,
+            // in that case we cancel the subscription and mark this consumer as failed
+            // cleaning possibly non-consumed outstanding elements.
+            cancelSubscription();
+            onError(new RuntimeException("Queue is full: Reactive Streams source doesn't respect backpressure"));
+        }
         signalConsumer();
     }
 

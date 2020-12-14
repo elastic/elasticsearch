@@ -137,6 +137,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             "  \"count\": {\n" +
             "    \"documentation\": \"whatever\",\n" +
             "    \"stability\": \"stable\",\n" +
+            "    \"visibility\": \"public\",\n" +
             "    \"url\": {\n" +
             "      \"paths\": [ \n" +
             "        {\n" +
@@ -172,6 +173,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      \"description\":\"Returns number of documents matching a query.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
         "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
@@ -236,6 +238,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "    },\n" +
         "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
         "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
         "        {\n" +
@@ -268,6 +271,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      \"description\":\"Creates or updates a document in an index.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
         "    \"headers\": { " +
         "       \"accept\": [\"application/json\"],\n " +
         "       \"content_type\": [\"application/json\", \"a/mime-type\"]\n " +

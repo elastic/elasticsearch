@@ -93,6 +93,7 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.pdf'
   exclude '**/*.epub'
   exclude '**/*.vsdx'
+  exclude '**/text-cjk-*.txt'
 }
 
 tasks.named("thirdPartyAudit").configure {

@@ -5,6 +5,7 @@
       "description":"Returns a list of the built-in patterns."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

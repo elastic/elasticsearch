@@ -5,6 +5,7 @@
       "description":"Predicts the future behavior of a time series by using its historical behavior."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

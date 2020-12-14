@@ -5,6 +5,7 @@
       "description":"Previews a transform."
     },
     "stability":"beta",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

@@ -5,6 +5,7 @@
       "description":"Close a point in time"
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

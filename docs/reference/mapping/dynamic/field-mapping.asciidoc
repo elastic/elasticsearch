@@ -27,7 +27,7 @@ h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
  |`string` that passes <<date-detection,date detection>> 2*| `date`
  |`string` that passes <<numeric-detection,numeric detection>> | `double` or `long` | `double`
  |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
-3+| [[dynamic-object-footnote]]1. Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
+3+| [[dynamic-object-footnote]] ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
 |===
 
 Besides the following options, you can customize dynamic field mapping rules

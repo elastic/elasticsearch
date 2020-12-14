@@ -56,6 +56,18 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotAllocator.class);
 
+    private static final ActionListener<ClusterRerouteResponse> REROUTE_LISTENER = new ActionListener<>() {
+        @Override
+        public void onResponse(ClusterRerouteResponse clusterRerouteResponse) {
+            logger.trace("reroute succeeded after loading snapshot cache information");
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.warn("reroute failed", e);
+        }
+    };
+
     private final ConcurrentMap<ShardId, AsyncCacheStatusFetch> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     public static final String ALLOCATOR_NAME = "searchable_snapshot_allocator";
@@ -257,17 +269,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                         // TODO: I guess this is the best we can do?
                         fetch.data = Collections.emptyMap();
                     }
-                }, () -> client.admin().cluster().prepareReroute().execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(ClusterRerouteResponse clusterRerouteResponse) {
-                        logger.trace("reroute succeeded after loading snapshot cache information");
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("reroute failed", e);
-                    }
-                }))
+                }, () -> client.admin().cluster().prepareReroute().execute(REROUTE_LISTENER))
             );
             return fetch;
         });

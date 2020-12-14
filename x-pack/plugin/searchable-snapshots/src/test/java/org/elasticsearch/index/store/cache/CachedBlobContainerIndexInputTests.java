@@ -83,11 +83,12 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final BlobContainer singleBlobContainer = singleSplitBlobContainer(blobName, input, partSize);
                 final BlobContainer blobContainer;
                 if (input.length == partSize && input.length <= cacheService.getCacheSize() && prewarmEnabled == false) {
-                    blobContainer = new CountingBlobContainer(singleBlobContainer, cacheService.getRangeSize());
+                    blobContainer = new CountingBlobContainer(singleBlobContainer);
                 } else {
                     blobContainer = singleBlobContainer;
                 }
 
+                final boolean recoveryFinalizedDone = randomBoolean();
                 final Path shardDir;
                 try {
                     shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
@@ -116,7 +117,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                         threadPool
                     )
                 ) {
-                    RecoveryState recoveryState = createRecoveryState();
+                    RecoveryState recoveryState = createRecoveryState(recoveryFinalizedDone);
                     final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                     final boolean loaded = directory.loadSnapshot(recoveryState, future);
                     if (randomBoolean()) {
@@ -136,7 +137,10 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 }
 
                 if (blobContainer instanceof CountingBlobContainer) {
-                    long numberOfRanges = TestUtils.numberOfRanges(input.length, cacheService.getRangeSize());
+                    long numberOfRanges = TestUtils.numberOfRanges(
+                        input.length,
+                        recoveryFinalizedDone ? cacheService.getRangeSize() : cacheService.getRecoveryRangeSize()
+                    );
                     assertThat(
                         "Expected at most " + numberOfRanges + " ranges fetched from the source",
                         ((CountingBlobContainer) blobContainer).totalOpens.sum(),
@@ -211,7 +215,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     threadPool
                 )
             ) {
-                RecoveryState recoveryState = createRecoveryState();
+                RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
                 final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, f);
                 try {
@@ -262,11 +266,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
 
         private final AtomicInteger openStreams = new AtomicInteger(0);
 
-        private final int rangeSize;
-
-        CountingBlobContainer(BlobContainer in, int rangeSize) {
+        CountingBlobContainer(BlobContainer in) {
             super(in);
-            this.rangeSize = rangeSize;
         }
 
         @Override
@@ -276,7 +277,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
 
         @Override
         protected BlobContainer wrapChild(BlobContainer child) {
-            return new CountingBlobContainer(child, this.rangeSize);
+            return new CountingBlobContainer(child);
         }
 
         @Override

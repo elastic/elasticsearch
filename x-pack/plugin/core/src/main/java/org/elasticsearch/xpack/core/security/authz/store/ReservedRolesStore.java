@@ -149,10 +149,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("*")
                                     .privileges("view_index_metadata", "monitor").build(),
-                                // Endpoint diagnostic information. Using a non-dot-prefixed index is temporary, and
-                                // is not a precedent that should be followed
+                                // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("logs-endpoint.diagnostic.collection-*")
+                                    .indices(".logs-endpoint.diagnostic.collection-*")
                                     .privileges("read").build(),
                         },
                         null,

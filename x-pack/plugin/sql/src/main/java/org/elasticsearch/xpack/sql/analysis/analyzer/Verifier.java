@@ -209,7 +209,7 @@ public final class Verifier {
                     return;
                 }
 
-                checkBooleanFiltering(p, localFailures);
+                checkFilterConditionType(p, localFailures);
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures, attributeRefs);
                 checkFilterOnGrouping(p, localFailures, attributeRefs);
@@ -628,11 +628,11 @@ public final class Verifier {
         return false;
     }
 
-    private static void checkBooleanFiltering(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof Filter) {
             Expression condition = ((Filter) p).condition();
-            if (condition.resolved() && condition.dataType() != BOOLEAN) {
-                localFailures.add(fail(condition, "Cannot filter by non-boolean expression of type [{}]", condition.dataType()));
+            if (condition.dataType() != BOOLEAN) {
+                localFailures.add(fail(condition, "Condition expression needs to be boolean, found [{}]", condition.dataType()));
             }
         }
     }

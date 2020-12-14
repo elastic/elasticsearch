@@ -104,7 +104,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         testData.put("DATETIME", List.of("date", "date + INTERVAL 1 DAY", "NOW()"));
         for (String typeName : testData.keySet()) {
             for (String exp : testData.get(typeName)) {
-                assertEquals("1:26: Cannot filter by non-boolean expression of type [" + typeName + "]",
+                assertEquals("1:26: Condition expression needs to be boolean, found [" + typeName + "]",
                     error("SELECT * FROM test WHERE " + exp));
             }
         }

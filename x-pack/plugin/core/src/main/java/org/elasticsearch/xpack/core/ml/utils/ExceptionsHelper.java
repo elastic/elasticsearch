@@ -114,6 +114,13 @@ public class ExceptionsHelper {
     }
 
     /**
+     * @see org.elasticsearch.ExceptionsHelper#unwrapCause(Throwable)
+     */
+    public static Throwable unwrapCause(Throwable t) {
+        return org.elasticsearch.ExceptionsHelper.unwrapCause(t);
+    }
+
+    /**
      * Unwrap the exception stack and return the most likely cause.
      * This method has special handling for {@link SearchPhaseExecutionException}
      * where it returns the cause of the first shard failure.
@@ -121,19 +128,13 @@ public class ExceptionsHelper {
      * @param t raw Throwable
      * @return unwrapped throwable if possible
      */
-    public static Throwable unwrapCause(Throwable t) {
+    public static Throwable findSearchExceptionRootCause(Throwable t) {
         // circuit breaking exceptions are at the bottom
         Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(t);
 
         if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
             SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) unwrappedThrowable;
-            for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
-                Throwable unwrappedShardFailure = org.elasticsearch.ExceptionsHelper.unwrapCause(shardFailure.getCause());
-
-                if (unwrappedShardFailure instanceof ElasticsearchException) {
-                    return unwrappedShardFailure;
-                }
-            }
+            return searchPhaseException.getRootCause();
         }
 
         return unwrappedThrowable;

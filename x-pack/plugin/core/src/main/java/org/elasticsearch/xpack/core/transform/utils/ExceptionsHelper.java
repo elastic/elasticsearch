@@ -21,9 +21,9 @@ public class ExceptionsHelper {
     }
 
     /**
-     * @see org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper#unwrapCause(Throwable)
+     * @see org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper#findSearchExceptionRootCause(Throwable)
      */
-    public static Throwable unwrapCause(Throwable t) {
+    public static Throwable findSearchExceptionRootCause(Throwable t) {
         return org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause(t);
     }
 }

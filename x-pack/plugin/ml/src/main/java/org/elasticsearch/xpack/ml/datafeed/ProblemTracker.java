@@ -46,7 +46,7 @@ class ProblemTracker {
      * @param error the exception
      */
     public void reportAnalysisProblem(DatafeedJob.AnalysisProblemException error) {
-        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR, unwrapProblemMessage(error));
+        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR, ExceptionsHelper.unwrapCause(error).getMessage());
     }
 
     /**
@@ -55,11 +55,7 @@ class ProblemTracker {
      * @param error the exception
      */
     public void reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
-        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, unwrapProblemMessage(error));
-    }
-
-    private String unwrapProblemMessage(Throwable error) {
-        return ExceptionsHelper.unwrapCause(error).getMessage();
+        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, ExceptionsHelper.findSearchExceptionRootCause(error).getMessage());
     }
 
     /**

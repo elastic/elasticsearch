@@ -17,25 +17,26 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ExceptionsHelperTests extends ESTestCase {
 
-    public void testUnwrapCause_GivenWrappedSearchPhaseException() {
+    public void testFindSearchExceptionRootCause_GivenWrappedSearchPhaseException() {
         SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException("test-phase",
             "partial shards failure", new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) });
 
-        Throwable rootCauseException = ExceptionsHelper.unwrapCause(
+        Throwable rootCauseException = ExceptionsHelper.findSearchExceptionRootCause(
             new IndexCreationException("test-index", searchPhaseExecutionException));
 
         assertThat(rootCauseException.getMessage(), equalTo("for the cause!"));
     }
 
-    public void testUnwrapCause_GivenRuntimeException() {
+    public void testFindSearchExceptionRootCause_GivenRuntimeException() {
         RuntimeException runtimeException = new RuntimeException("nothing to unwrap here");
-        assertThat(ExceptionsHelper.unwrapCause(runtimeException), sameInstance(runtimeException));
+        assertThat(ExceptionsHelper.findSearchExceptionRootCause(runtimeException), sameInstance(runtimeException));
     }
 
-    public void testUnwrapCause_GivenWrapperException() {
+    public void testFindSearchExceptionRootCause_GivenWrapperException() {
         RuntimeException runtimeException = new RuntimeException("cause");
 
-        Throwable rootCauseException = ExceptionsHelper.unwrapCause(new IndexCreationException("test-index", runtimeException));
+        Throwable rootCauseException = ExceptionsHelper.findSearchExceptionRootCause(
+            new IndexCreationException("test-index", runtimeException));
 
         assertThat(rootCauseException.getMessage(), equalTo("cause"));
     }

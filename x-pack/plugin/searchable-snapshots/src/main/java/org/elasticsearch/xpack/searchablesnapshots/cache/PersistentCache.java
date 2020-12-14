@@ -23,6 +23,12 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -44,6 +50,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.Closeable;
@@ -63,6 +70,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.synchronizedMap;
 import static java.util.Collections.unmodifiableList;
@@ -125,6 +133,35 @@ public class PersistentCache implements Closeable {
     public void removeCacheFile(CacheFile cacheFile) throws IOException {
         ensureStarted();
         getWriter(cacheFile).deleteCacheFile(cacheFile);
+    }
+
+    public long getCacheSize(ShardId shardId, IndexId indexId, SnapshotId snapshotId) {
+        final AtomicLong aggregateSize = new AtomicLong(0L);
+        for (CacheIndexWriter writer : writers) {
+            try (IndexReader indexReader = DirectoryReader.open(writer.indexWriter)) {
+                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+                indexSearcher.search(new MatchAllDocsQuery(), new Collector() {
+                    @Override
+                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        return new FilterLeafCollector(LeafBucketCollector.NO_OP_COLLECTOR) {
+
+                            @Override
+                            public void collect(int doc) throws IOException {
+
+                            }
+                        };
+                    }
+
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+                });
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return aggregateSize.get();
     }
 
     /**
@@ -424,7 +461,7 @@ public class PersistentCache implements Closeable {
     static class CacheIndexWriter implements Closeable {
 
         private final NodeEnvironment.NodePath nodePath;
-        private final IndexWriter indexWriter;
+        final IndexWriter indexWriter;
         private final Directory directory;
 
         private CacheIndexWriter(NodeEnvironment.NodePath nodePath, Directory directory, IndexWriter indexWriter) {

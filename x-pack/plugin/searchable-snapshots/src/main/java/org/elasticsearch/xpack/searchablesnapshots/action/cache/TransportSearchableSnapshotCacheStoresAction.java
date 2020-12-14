@@ -59,7 +59,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.SAME,
+            ThreadPool.Names.MANAGEMENT,
             ThreadPool.Names.SAME,
             NodeCacheFilesMetadata.class
         );
@@ -87,6 +87,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
     @Override
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
+        assert cacheService != null;
         return new NodeCacheFilesMetadata(
             clusterService.localNode(),
             cacheService.getCachedSize(request.shardId, request.indexId, request.snapshotId)

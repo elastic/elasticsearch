@@ -262,8 +262,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @return number of bytes cached
      */
     public long getCachedSize(ShardId shardId, IndexId indexId, SnapshotId snapshotId) {
-        // TODO: implement
-        return 0L;
+        return persistentCache.getCacheSize(shardId, indexId, snapshotId);
     }
 
     /**
@@ -450,7 +449,8 @@ public class CacheService extends AbstractLifecycleComponent {
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
      * cache entry. Note that cache files might be evicted during the synchronization.
      */
-    protected void synchronizeCache() {
+    // public for tests only
+    public void synchronizeCache() {
         cacheSyncLock.lock();
         try {
             long count = 0L;

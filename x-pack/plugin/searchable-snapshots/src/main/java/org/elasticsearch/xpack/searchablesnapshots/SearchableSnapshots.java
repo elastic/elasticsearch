@@ -370,7 +370,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
         @Override
         public CacheService get() {
-            return null;
+            return cacheService;
         }
     }
 }

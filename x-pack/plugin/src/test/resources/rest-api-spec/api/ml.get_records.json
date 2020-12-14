@@ -5,6 +5,7 @@
       "description":"Retrieves anomaly records for an anomaly detection job."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

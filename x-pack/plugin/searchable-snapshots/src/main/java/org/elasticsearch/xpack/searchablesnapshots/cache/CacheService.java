@@ -73,9 +73,30 @@ public class CacheService extends AbstractLifecycleComponent {
 
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
     public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+
+    /**
+     * If a search needs data from the repository then we expand it to a larger contiguous range whose size is determined by this setting,
+     * in anticipation of needing nearby data in subsequent reads. Repository reads typically have quite high latency (think ~100ms) and
+     * the default of 32MB for this setting represents the approximate point at which size starts to matter. In other words, reads of
+     * ranges smaller than 32MB don't usually happen much quicker, so we may as well expand all the way to 32MB ranges.
+     */
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "range_size",
         new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Starting up a shard involves reading small parts of some files from the repository, independently of the pre-warming process. If we
+     * expand those ranges using {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING} then we end up reading quite a few 32MB ranges. If
+     * we read enough of these ranges for the restore throttling rate limiter to kick in then all the read threads will end up waiting on
+     * the throttle, blocking subsequent reads. By using a smaller read size during restore we avoid clogging up the rate limiter so much.
+     */
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "recovery_range_size",
+        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
         MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
         MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
@@ -118,6 +139,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
     private final ByteSizeValue rangeSize;
+    private final ByteSizeValue recoveryRangeSize;
     private final KeyedLock<ShardEviction> shardsEvictionLock;
     private final Set<ShardEviction> evictedShards;
 
@@ -132,6 +154,7 @@ public class CacheService extends AbstractLifecycleComponent {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
         this.rangeSize = SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings);
+        this.recoveryRangeSize = SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
             .weigher((key, entry) -> entry.getLength())
@@ -225,6 +248,13 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     public int getRangeSize() {
         return toIntBytes(rangeSize.getBytes());
+    }
+
+    /**
+     * @return the cache range size (in bytes) to use during recovery (until post_recovery)
+     */
+    public int getRecoveryRangeSize() {
+        return toIntBytes(recoveryRangeSize.getBytes());
     }
 
     /**

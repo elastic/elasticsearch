@@ -148,6 +148,13 @@ public final class TestUtils {
         });
     }
 
+    public static void assertCacheFileEquals(CacheFile expected, CacheFile actual) {
+        assertThat(actual.getLength(), equalTo(expected.getLength()));
+        assertThat(actual.getFile(), equalTo(expected.getFile()));
+        assertThat(actual.getCacheKey(), equalTo(expected.getCacheKey()));
+        assertThat(actual.getCompletedRanges(), equalTo(expected.getCompletedRanges()));
+    }
+
     public static void assertCounter(IndexInputStats.Counter counter, long total, long count, long min, long max) {
         assertThat(counter.total(), equalTo(total));
         assertThat(counter.count(), equalTo(count));

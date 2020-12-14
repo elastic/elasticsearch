@@ -5,6 +5,7 @@
       "description":"Returns a script."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

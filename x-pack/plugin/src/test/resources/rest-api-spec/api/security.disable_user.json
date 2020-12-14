@@ -5,6 +5,7 @@
       "description":"Disables users in the native realm."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

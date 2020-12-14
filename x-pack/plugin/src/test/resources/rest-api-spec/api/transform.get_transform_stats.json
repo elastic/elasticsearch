@@ -5,6 +5,7 @@
       "description":"Retrieves usage information for transforms."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

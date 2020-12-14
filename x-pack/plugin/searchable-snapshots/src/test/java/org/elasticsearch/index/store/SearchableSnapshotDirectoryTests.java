@@ -125,6 +125,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -460,7 +461,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
         final boolean prewarmCache,
         final CheckedBiConsumer<Directory, SearchableSnapshotDirectory, Exception> consumer
     ) throws Exception {
-        testDirectories(enableCache, prewarmCache, createRecoveryState(), Settings.EMPTY, consumer);
+        testDirectories(enableCache, prewarmCache, createRecoveryState(randomBoolean()), Settings.EMPTY, consumer);
     }
 
     private void testDirectories(
@@ -684,14 +685,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final IndexId indexId = new IndexId("_id", "_uuid");
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
-            final Path shardDir;
-            try {
-                shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-            final Path cacheDir = createTempDir();
+            final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             try (
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
@@ -714,7 +710,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     threadPool
                 )
             ) {
-                final RecoveryState recoveryState = createRecoveryState();
+                final RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
                 final boolean loaded = directory.loadSnapshot(recoveryState, f);
                 f.get();
@@ -783,7 +779,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
         PathUtilsForTesting.installMock(fileSystem);
 
         try {
-            SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+            SearchableSnapshotRecoveryState recoveryState = createRecoveryState(true);
             testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
                 boolean areAllFilesReused = snapshotDirectory.snapshot()
                     .indexFiles()
@@ -804,7 +800,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
     }
 
     public void testRecoveryStateIsEmptyWhenTheCacheIsNotPreWarmed() throws Exception {
-        SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+        SearchableSnapshotRecoveryState recoveryState = createRecoveryState(true);
         testDirectories(true, false, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
@@ -813,7 +809,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
     }
 
     public void testNonCachedFilesAreExcludedFromRecoveryState() throws Exception {
-        SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+        SearchableSnapshotRecoveryState recoveryState = createRecoveryState(true);
 
         List<String> allFileExtensions = List.of(
             "fdt",
@@ -849,7 +845,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
     }
 
     public void testFilesWithHashEqualsContentsAreMarkedAsReusedOnRecoveryState() throws Exception {
-        SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+        SearchableSnapshotRecoveryState recoveryState = createRecoveryState(true);
 
         testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
             assertBusy(() -> assertTrue(recoveryState.isPreWarmComplete()));

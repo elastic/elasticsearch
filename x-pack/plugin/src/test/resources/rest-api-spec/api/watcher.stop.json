@@ -5,6 +5,7 @@
       "description":"Stops Watcher if it is running."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

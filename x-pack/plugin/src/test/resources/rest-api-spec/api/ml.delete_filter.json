@@ -5,6 +5,7 @@
       "description":"Deletes a filter."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

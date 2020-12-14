@@ -36,8 +36,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
@@ -68,8 +70,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -637,6 +641,49 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat("Container logs should contain full class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
         assertThat("Container logs don't contain INFO level messages", containerLogs.stdout, containsString("INFO"));
+    }
+
+    /**
+     * Check that it is possible to write logs to disk
+     */
+    public void test121CanUseStackLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
+
+        waitForElasticsearch(installation);
+
+        final Result containerLogs = getContainerLogs();
+        final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
+
+        assertThat(
+            "Container logs should be formatted using the stack config",
+            stdout.get(stdout.size() - 1),
+            matchesPattern("^\\[\\d\\d\\d\\d-.*")
+        );
+        assertThat("[logs/docker-cluster.log] should exist but it doesn't", existsInContainer("logs/docker-cluster.log"), is(true));
+    }
+
+    /**
+     * Check that the default logging config can be explicitly selected.
+     */
+    public void test122CanUseDockerLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "console")));
+
+        waitForElasticsearch(installation);
+
+        final Result containerLogs = getContainerLogs();
+        final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
+
+        assertThat("Container logs should be formatted using the docker config", stdout.get(stdout.size() - 1), startsWith("{\""));
+        assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));
+    }
+
+    /**
+     * Check that an unknown logging config is rejected
+     */
+    public void test123CannotUseUnknownLoggingConfig() {
+        final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
+
+        assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
     }
 
     /**

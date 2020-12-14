@@ -5,6 +5,7 @@
       "description":"Returns high-level overview of cluster statistics."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

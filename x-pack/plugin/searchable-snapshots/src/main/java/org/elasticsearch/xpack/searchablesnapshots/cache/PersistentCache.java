@@ -158,7 +158,7 @@ public class PersistentCache implements Closeable {
 
                             if (Files.isDirectory(shardCachePath)) {
                                 logger.trace("found snapshot cache dir at [{}], loading cache files from disk and index", shardCachePath);
-                                Files.walkFileTree(shardCachePath, new SimpleFileVisitor<>() {
+                                Files.walkFileTree(shardCachePath, new SimpleFileVisitor<Path>() {
                                     @Override
                                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                                         try {

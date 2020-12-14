@@ -14,6 +14,7 @@ import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -62,6 +63,10 @@ public final class TestUtils {
     private TestUtils() {}
 
     public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(final CacheFile cacheFile) {
+        return randomPopulateAndReads(cacheFile, (fileChannel, aLong, aLong2) -> {});
+    }
+
+    public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
         final SortedSet<Tuple<Long, Long>> ranges = synchronizedNavigableSet(new TreeSet<>(Comparator.comparingLong(Tuple::v1)));
         final List<Future<Integer>> futures = new ArrayList<>();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
@@ -69,11 +74,12 @@ public final class TestUtils {
             random()
         );
         for (int i = 0; i < between(0, 10); i++) {
-            final long start = randomLongBetween(0L, cacheFile.getLength() - 1L);
-            final long end = randomLongBetween(start + 1L, cacheFile.getLength());
+            final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
+            final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
             final Tuple<Long, Long> range = Tuple.tuple(start, end);
             futures.add(
                 cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
+                    consumer.apply(channel, from, to);
                     ranges.add(Tuple.tuple(from, to));
                     progressUpdater.accept(to);
                 }, deterministicTaskQueue.getThreadPool().generic())
@@ -140,6 +146,13 @@ public final class TestUtils {
             }
             gaps1.addAll(gaps2);
         });
+    }
+
+    public static void assertCacheFileEquals(CacheFile expected, CacheFile actual) {
+        assertThat(actual.getLength(), equalTo(expected.getLength()));
+        assertThat(actual.getFile(), equalTo(expected.getFile()));
+        assertThat(actual.getCacheKey(), equalTo(expected.getCacheKey()));
+        assertThat(actual.getCompletedRanges(), equalTo(expected.getCompletedRanges()));
     }
 
     public static void assertCounter(IndexInputStats.Counter counter, long total, long count, long min, long max) {
@@ -342,7 +355,7 @@ public final class TestUtils {
         @Override
         public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
             final AtomicInteger counter = files.computeIfAbsent(path, p -> new AtomicInteger(0));
-            return new FilterFileChannel(delegate.newFileChannel(toDelegate(path), options, attrs)) {
+            return new FilterFileChannel(super.newFileChannel(path, options, attrs)) {
 
                 @Override
                 public void force(boolean metaData) throws IOException {

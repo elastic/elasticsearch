@@ -5,6 +5,7 @@
       "description":"Clears cluster voting config exclusions."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

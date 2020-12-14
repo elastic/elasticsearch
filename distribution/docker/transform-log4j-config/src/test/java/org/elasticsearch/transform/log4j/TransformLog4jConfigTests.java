@@ -127,6 +127,29 @@ public class TransformLog4jConfigTests extends TestCase {
         runTest(input, expected);
     }
 
+    /**
+     * Check that as well as skipping old appenders, logger references to them are also skipped.
+     */
+    public void testTransformSkipsOldAppenderRefs() {
+        List<String> input = List.of(
+            "logger.index_indexing_slowlog.appenderRef.index_indexing_slowlog_rolling_old.ref = index_indexing_slowlog_rolling_old"
+        );
+
+        runTest(input, List.of());
+    }
+
+    /**
+     * Check that multiple blank lines are reduced to a single line.
+     */
+    public void testMultipleBlanksReducedToOne() {
+        List<String> input = List.of("status = error", "", "", "rootLogger.level = info");
+
+        List<String> expected = List.of("status = error", "", "rootLogger.level = info");
+
+        final List<String> transformed = TransformLog4jConfig.skipBlanks(input);
+        assertThat(transformed, equalTo(expected));
+    }
+
     private void runTest(List<String> input, List<String> expected) {
         final List<String> transformed = TransformLog4jConfig.transformConfig(input);
 

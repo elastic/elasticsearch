@@ -5,6 +5,7 @@
       "description":"Retrieves overall bucket results that summarize the bucket results of multiple anomaly detection jobs."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

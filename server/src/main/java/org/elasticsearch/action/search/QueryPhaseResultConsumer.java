@@ -140,7 +140,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), aggsList,
             topDocsList, topDocsStats, pendingMerges.numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
-        if (hasAggs) {
+        if (hasAggs && reducePhase.aggregations != null) {
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
             long finalSize = reducePhase.aggregations.getSerializedSize() - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
@@ -290,9 +290,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (hasAggs == false) {
                 return 0;
             }
-            return result.aggregations()
-                .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
-                .ramBytesUsed();
+            if (result.aggregations().isSerialized()) {
+                return result.aggregations()
+                    .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
+                    .ramBytesUsed();
+            } else {
+                return result.aggregations().expand().getSerializedSize();
+            }
         }
 
         /**

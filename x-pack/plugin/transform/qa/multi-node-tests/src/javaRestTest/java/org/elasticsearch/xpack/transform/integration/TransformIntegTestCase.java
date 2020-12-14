@@ -342,6 +342,14 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                         .startObject("stars")
                         .field("type", "integer")
                         .endObject()
+                        .startObject("comment")
+                        .field("type", "text")
+                        .startObject("fields")
+                        .startObject("keyword")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
                         .endObject();
                 }
                 builder.endObject();
@@ -374,6 +382,8 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                     .append(business)
                     .append("\",\"stars\":")
                     .append(stars)
+                    .append(",\"comment\":")
+                    .append("\"Great stuff, deserves " + stars + " stars\"")
                     .append(",\"timestamp\":\"")
                     .append(dateString)
                     .append("\"}");

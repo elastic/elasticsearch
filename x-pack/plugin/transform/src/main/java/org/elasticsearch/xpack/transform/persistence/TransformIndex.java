@@ -134,10 +134,28 @@ public final class TransformIndex {
      * }
      * @param mappings A Map of the form {"fieldName": "fieldType"}
      */
-    private static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
+    static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
         Map<String, Object> fieldMappings = new HashMap<>();
-        mappings.forEach((k, v) -> fieldMappings.put(k, Map.of("type", v)));
-
+        for (Map.Entry<String, String> entry : mappings.entrySet()) {
+            String[] parts = entry.getKey().split("\\.");
+            Map<String, Object> current = fieldMappings;
+            current = diveInto(current, parts[0]);
+            for (int j = 1; j < parts.length; ++j) {
+                current = diveInto(current, "fields");
+                current = diveInto(current, parts[j]);
+            }
+            current.put("type", entry.getValue());
+        }
         return fieldMappings;
+    }
+
+    private static Map<String, Object> diveInto(Map<String, Object> map, String key) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> childMap = (Map<String, Object>) map.get(key);
+        if (childMap == null) {
+            childMap = new HashMap<>();
+            map.put(key, childMap);
+        }
+        return childMap;
     }
 }

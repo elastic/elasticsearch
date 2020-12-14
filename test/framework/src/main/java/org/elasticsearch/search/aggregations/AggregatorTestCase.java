@@ -56,7 +56,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -86,10 +85,10 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingLookupUtils;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -104,7 +103,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -137,19 +135,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -159,7 +153,6 @@ import static org.mockito.Mockito.when;
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
-    private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Aggregator> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
 
@@ -172,22 +165,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
-
-    /**
-     * Allows subclasses to provide alternate names for the provided field type, which
-     * can be useful when testing aggregations on field aliases.
-     */
-    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
-        return Collections.emptyMap();
-    }
-
-    private static void registerFieldTypes(MapperService.Snapshot mapperSnapshot, Map<String, MappedFieldType> fieldNameToType) {
-        for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
-            String fieldName = entry.getKey();
-            MappedFieldType fieldType = entry.getValue();
-            when(mapperSnapshot.fieldType(fieldName)).thenReturn(fieldType);
-        }
-    }
 
     @Before
     public void initValuesSourceRegistry() {
@@ -246,23 +223,19 @@ public abstract class AggregatorTestCase extends ESTestCase {
          */
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
 
-        MapperService.Snapshot mapperSnapshot = mapperSnapshotMock();
-        when(mapperSnapshot.hasNested()).thenReturn(false);
-        when(mapperSnapshot.getNestedDocuments(any())).thenReturn(new NestedDocuments(null, null));
-        when(mapperSnapshot.indexAnalyzer(anyString(), any())).thenReturn(Lucene.STANDARD_ANALYZER); // for significant text
-        Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
-        fieldNameToType.putAll(Arrays.stream(fieldTypes)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
-        fieldNameToType.putAll(getFieldAliases(fieldTypes));
-        registerFieldTypes(mapperSnapshot, fieldNameToType);
-        when(mapperSnapshot.getObjectMapper(anyString())).thenAnswer(invocation -> {
-            String fieldName = (String) invocation.getArguments()[0];
-            if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
-                return new ObjectMapper.Builder(fieldName, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
-            }
-            return null;
-        });
+        MappingLookup mappingLookup = new MappingLookup(
+            "_doc",
+            Arrays.stream(fieldTypes).map(MappingLookupUtils::mockFieldMapper).collect(toList()),
+            objectMappers(),
+            // Alias all fields to <name>-alias to test aliases
+            Arrays.stream(fieldTypes)
+                .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
+                .collect(toList()),
+            List.of(),
+            0,
+            souceToParse -> null,
+            w -> w.writeString("test")
+        );
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
             fieldType,
@@ -282,7 +255,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             bigArrays,
             bitsetFilterCache,
             fieldDataBuilder,
-            mapperSnapshot,
+            null,
+            mappingLookup,
             null,
             getMockScriptService(),
             xContentRegistry(),
@@ -303,7 +277,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             query,
             null,
             consumer,
-            () -> buildSubSearchContext(indexSettings, mapperSnapshot, queryShardContext, bitsetFilterCache),
+            () -> buildSubSearchContext(indexSettings, queryShardContext, bitsetFilterCache),
             releasables::add,
             bitsetFilterCache,
             randomInt(),
@@ -313,11 +287,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
+     * {@link ObjectMapper}s to add to the lookup. By default we don't need
+     * any {@link ObjectMapper}s but testing nested objects will require adding some.
+     */
+    protected List<ObjectMapper> objectMappers() {
+        return List.of();
+    }
+
+    /**
      * Build a {@link SubSearchContext}s to power {@code top_hits}.
      */
     private SubSearchContext buildSubSearchContext(
         IndexSettings indexSettings,
-        MapperService.Snapshot mapperSnapshot,
         QueryShardContext queryShardContext,
         BitsetFilterCache bitsetFilterCache
     ) {
@@ -364,13 +345,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         .build(),
                 Settings.EMPTY
         );
-    }
-
-    /**
-     * sub-tests that need a more complex mock can overwrite this
-     */
-    protected MapperService.Snapshot mapperSnapshotMock() {
-        return mock(MapperService.Snapshot.class);
     }
 
     /**

@@ -36,6 +36,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -396,10 +397,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     /**
      * Returns the cache key for this shard search request, based on its content
      */
-    public BytesReference cacheKey(long localMappingVersion) throws IOException {
+    public BytesReference cacheKey(Writeable mappingKey) throws IOException {
         BytesStreamOutput out = scratch.get();
         try {
-            out.writeLong(localMappingVersion);
+            mappingKey.writeTo(out);
             this.innerWriteTo(out, true);
             // copy it over since we don't want to share the thread-local bytes in #scratch
             return out.copyBytes();

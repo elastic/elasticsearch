@@ -36,17 +36,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -63,9 +58,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.join.aggregations.ChildrenToParentAggregatorTests.withJoinFields;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
@@ -159,8 +153,12 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                         expectedOddMin = Math.min(expectedOddMin, e.getValue().v2());
                     }
                 }
-                StringTerms result =
-                    searchAndReduce(indexSearcher, new MatchAllDocsQuery(), request, longField("number"), keywordField("kwd"));
+                StringTerms result = searchAndReduce(
+                    indexSearcher,
+                    new MatchAllDocsQuery(),
+                    request,
+                    withJoinFields(longField("number"), keywordField("kwd"))
+                );
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
@@ -221,25 +219,6 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
     }
 
-    @Override
-    protected MapperService.Snapshot mapperSnapshotMock() {
-        ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper();
-        MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
-        MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
-        when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
-        when(mapperSnapshot.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
-        when(mapperSnapshot.fieldType("join_field")).thenReturn(joinFieldMapper.fieldType());
-        when(mapperSnapshot.fieldType("join_field#" + PARENT_TYPE))
-            .thenReturn(new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false));
-        return mapperSnapshot;
-    }
-
-    private static ParentJoinFieldMapper createJoinFieldMapper() {
-        return new ParentJoinFieldMapper.Builder("join_field")
-                .addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
-                .build(new ContentPath(0));
-    }
-
     private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify)
             throws IOException {
 
@@ -247,7 +226,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalChildren result = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+        InternalChildren result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
         verify.accept(result);
     }
 

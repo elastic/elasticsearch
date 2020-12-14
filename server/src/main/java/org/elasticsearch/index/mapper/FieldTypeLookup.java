@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
-final class FieldTypeLookup {
+public final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
 
     /**
@@ -43,11 +43,16 @@ final class FieldTypeLookup {
      * For convenience, the set of copied fields includes the field itself.
      */
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+    private final String type;
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
-    FieldTypeLookup(Collection<FieldMapper> fieldMappers,
-                    Collection<FieldAliasMapper> fieldAliasMappers,
-                    Collection<RuntimeFieldType> runtimeFieldTypes) {
+    FieldTypeLookup(
+        String type,
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<RuntimeFieldType> runtimeFieldTypes
+    ) {
+        this.type = type;
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -88,7 +93,11 @@ final class FieldTypeLookup {
     /**
      * Returns the mapped field type for the given field name.
      */
-    MappedFieldType get(String field) {
+    public MappedFieldType get(String field) {
+        if (field.equals(TypeFieldType.NAME)) {
+            return new TypeFieldType(type);
+        }
+
         MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;
@@ -124,7 +133,10 @@ final class FieldTypeLookup {
      *              should be a concrete field and *not* an alias.
      * @return A set of paths in the _source that contain the field's values.
      */
-    Set<String> sourcePaths(String field) {
+    public Set<String> sourcePaths(String field) {
+        if (isEmpty()) {
+            return Set.of();
+        }
         String resolvedField = field;
         int lastDotIndex = field.lastIndexOf('.');
         if (lastDotIndex > 0) {
@@ -148,5 +160,9 @@ final class FieldTypeLookup {
     Iterable<MappedFieldType> filter(Predicate<MappedFieldType> predicate) {
         return () -> Stream.concat(fullNameToFieldType.values().stream(), dynamicKeyLookup.fieldTypes())
             .distinct().filter(predicate).iterator();
+    }
+
+    public boolean isEmpty() {
+        return fullNameToFieldType.isEmpty();
     }
 }

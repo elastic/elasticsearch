@@ -29,8 +29,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
-
 import static java.util.Collections.emptyMap;
 
 public class FieldNamesFieldTypeTests extends ESTestCase {
@@ -43,10 +41,10 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(
                 new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
-        MapperService.Snapshot mapperService = new StubSnapshot(Map.of("_field_names", fieldNamesFieldType, "field_name", fieldType));
+        MappingLookup mappingLookup = MappingLookupUtils.fromTypes(fieldNamesFieldType, fieldType);
 
         QueryShardContext queryShardContext = new QueryShardContext(0,
-                indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,
+                indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, mappingLookup,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
                 Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);

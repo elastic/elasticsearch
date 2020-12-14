@@ -20,15 +20,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -47,17 +44,16 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.NestedDocuments;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,10 +61,6 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
-import static java.util.Objects.requireNonNull;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -116,10 +108,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final MapperRegistry mapperRegistry;
     private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
 
-    /**
-     * The current mapping accessed through {@link #snapshot()} and {@link #indexAnalyzer(String, Function)}.
-     */
-    private volatile AbstractSnapshot snapshot = new EmptySnapshot(this);
+    private volatile DocumentMapper mapper;
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
@@ -141,21 +130,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             this::getMetadataMappers, parserContextSupplier, metadataMapperParsers);
     }
 
-    /**
-     * {@code volatile} read of an immutable snapshot of the current mapping.
-     */
-    public Snapshot snapshot() {
-        return snapshot;
-    }
-
-    /**
-     * Does this index contain nested documents?
-     * @deprecated Get a {@link #snapshot} and call {@link Snapshot#hasNested} on
-     *             it as many times as needed.
-     */
-    @Deprecated
     public boolean hasNested() {
-        return snapshot.hasNested();
+        return lookup().hasNested();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -175,7 +151,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
-        return snapshot.getMetadataMappers();
+        final DocumentMapper existingMapper = mapper;
+        final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
+            mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
+        if (existingMapper == null) {
+            for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
+                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
+            }
+
+        } else {
+            metadataMappers.putAll(existingMapper.mapping().metadataMappersMap);
+        }
+        return metadataMappers;
     }
 
     /**
@@ -196,48 +185,45 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             + " but was " + newIndexMetadata.getIndex();
 
         if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-            assertMappingVersion(currentIndexMetadata, newIndexMetadata, snapshot);
+            assertMappingVersion(currentIndexMetadata, newIndexMetadata, this.mapper);
             return false;
         }
 
-        final AbstractSnapshot updatedSnapshot;
+        final DocumentMapper updatedMapper;
         try {
-            updatedSnapshot = internalMerge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
+            updatedMapper = internalMerge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
             throw e;
         }
 
-        if (updatedSnapshot == null) {
+        if (updatedMapper == null) {
             return false;
         }
 
         boolean requireRefresh = false;
 
-        assertMappingVersion(currentIndexMetadata, newIndexMetadata, updatedSnapshot);
+        assertMappingVersion(currentIndexMetadata, newIndexMetadata, updatedMapper);
 
         MappingMetadata mappingMetadata = newIndexMetadata.mapping();
         CompressedXContent incomingMappingSource = mappingMetadata.source();
 
+        String op = mapper != null ? "updated" : "added";
         if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
-            logger.debug("[{}] {} mapping, source [{}]", index(), snapshot.updateOperationName(), incomingMappingSource.string());
+            logger.debug("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
         } else if (logger.isTraceEnabled()) {
-            logger.trace("[{}] {} mapping, source [{}]", index(), snapshot.updateOperationName(), incomingMappingSource.string());
+            logger.trace("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
         } else {
-            logger.debug(
-                "[{}] {} mapping (source suppressed due to length, use TRACE level if needed)",
-                index(),
-                snapshot.updateOperationName()
-            );
+            logger.debug("[{}] {} mapping (source suppressed due to length, use TRACE level if needed)",
+                index(), op);
         }
 
         // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
         // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
         // merge version of it, which it does when refreshing the mappings), and warn log it.
-        DocumentMapper documentMapper = snapshot.documentMapper();
-        if (documentMapper.mappingSource().equals(incomingMappingSource) == false) {
+        if (documentMapper().mappingSource().equals(incomingMappingSource) == false) {
             logger.debug("[{}] parsed mapping, and got different sources\noriginal:\n{}\nparsed:\n{}",
-                index(), incomingMappingSource, documentMapper.mappingSource());
+                index(), incomingMappingSource, documentMapper().mappingSource());
 
             requireRefresh = true;
         }
@@ -247,11 +233,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private void assertMappingVersion(
             final IndexMetadata currentIndexMetadata,
             final IndexMetadata newIndexMetadata,
-            final AbstractSnapshot updatedSnapshot) throws IOException {
+            final DocumentMapper updatedMapper) throws IOException {
         if (Assertions.ENABLED && currentIndexMetadata != null) {
             if (currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
-                assert updatedSnapshot == snapshot;
+                assert updatedMapper == mapper;
 
                 MappingMetadata mapping = newIndexMetadata.mapping();
                 if (mapping != null) {
@@ -260,7 +246,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     assert currentSource.equals(newSource) :
                         "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
                             + "to be the same as new mapping [" + newSource + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(snapshot.documentMapper()));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(mapper));
                     assert currentSource.equals(mapperSource) :
                         "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
                             + "to be the same as new mapping [" + mapperSource + "]";
@@ -273,11 +259,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 assert currentMappingVersion < newMappingVersion :
                     "expected current mapping version [" + currentMappingVersion + "] "
                         + "to be less than new mapping version [" + newMappingVersion + "]";
-                assert updatedSnapshot != null;
+                assert updatedMapper != null;
                 final MappingMetadata currentMapping = currentIndexMetadata.mapping();
                 if (currentMapping != null) {
                     final CompressedXContent currentSource = currentMapping.source();
-                    final CompressedXContent newSource = updatedSnapshot.documentMapper().mappingSource();
+                    final CompressedXContent newSource = updatedMapper.mappingSource();
                     assert currentSource.equals(newSource) == false :
                         "expected current mapping [" + currentSource + "] to be different than new mapping [" + newSource + "]";
                 }
@@ -295,11 +281,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        AbstractSnapshot updatedSnapshot = internalMerge(type, mappingSource, reason);
-        return updatedSnapshot == null ? null : updatedSnapshot.documentMapper(); // TODO return Snapshot here
+        return internalMerge(type, mappingSource, reason);
     }
 
-    private synchronized AbstractSnapshot internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
+    private synchronized DocumentMapper internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
@@ -308,7 +293,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return null;
     }
 
-    private synchronized AbstractSnapshot internalMerge(String type, CompressedXContent mappings, MergeReason reason) {
+    private synchronized DocumentMapper internalMerge(String type, CompressedXContent mappings, MergeReason reason) {
 
         DocumentMapper documentMapper;
 
@@ -321,30 +306,36 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return internalMerge(documentMapper, reason);
     }
 
-    private synchronized AbstractSnapshot internalMerge(DocumentMapper mapper, MergeReason reason) {
+    private synchronized DocumentMapper internalMerge(DocumentMapper mapper, MergeReason reason) {
 
         assert mapper != null;
 
         // compute the merged DocumentMapper
-        MappedSnapshot newSnapshot = this.snapshot.merge(mapper, reason);
-        newSnapshot.documentMapper().root().fixRedundantIncludes();
-        newSnapshot.documentMapper().validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
+        DocumentMapper oldMapper = this.mapper;
+        DocumentMapper newMapper;
+        if (oldMapper != null) {
+            newMapper = oldMapper.merge(mapper.mapping(), reason);
+        } else {
+            newMapper = mapper;
+        }
+        newMapper.root().fixRedundantIncludes();
+        newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
 
         if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            return newSnapshot;
+            return newMapper;
         }
 
         // commit the change
-        this.snapshot = newSnapshot;
-        assert assertSerialization(newSnapshot);
+        this.mapper = newMapper;
+        assert assertSerialization(newMapper);
 
-        return newSnapshot;
+        return newMapper;
     }
 
-    private boolean assertSerialization(MappedSnapshot snapshot) {
+    private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
-        final CompressedXContent mappingSource = snapshot.mapper.mappingSource();
-        DocumentMapper newMapper = parse(snapshot.mapper.type(), mappingSource);
+        final CompressedXContent mappingSource = mapper.mappingSource();
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource);
 
         if (newMapper.mappingSource().equals(mappingSource) == false) {
             throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
@@ -358,9 +349,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return documentMapperParser.parse(mappingType, mappingSource);
     }
 
-    @Deprecated
+    /**
+     * Return the document mapper, or {@code null} if no mapping has been put yet.
+     */
     public DocumentMapper documentMapper() {
-        return snapshot.documentMapper();
+        return mapper;
     }
 
     /**
@@ -381,9 +374,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     private String resolveDocumentType(String type) {
         if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
-            AbstractSnapshot currentSnapshot = snapshot;
-            if (currentSnapshot.documentMapper() != null) {
-                return currentSnapshot.documentMapper().type();
+            if (mapper != null) {
+                return mapper.type();
             }
         }
         return type;
@@ -392,65 +384,56 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns the document mapper for this MapperService.  If no mapper exists,
      * creates one and returns that.
-     * @deprecated Get a {@link #snapshot} and call {@link Snapshot#documentMapperWithAutoCreate} on
-     *             it as many times as needed.
      */
-    @Deprecated
     public DocumentMapperForType documentMapperWithAutoCreate() {
-        return snapshot.documentMapperWithAutoCreate();
+        DocumentMapper mapper = documentMapper();
+        if (mapper != null) {
+            return new DocumentMapperForType(mapper, null);
+        }
+        mapper = parse(SINGLE_MAPPING_NAME, null);
+        return new DocumentMapperForType(mapper, mapper.mapping());
     }
 
     /**
      * Given the full name of a field, returns its {@link MappedFieldType}.
-     * @deprecated Get a {@link #snapshot} and call {@link Snapshot#fieldType} on
-     *             it as many times as needed.
      */
-    @Deprecated
     public MappedFieldType fieldType(String fullName) {
-        return snapshot.fieldType(fullName);
+        return lookup().fieldTypes().get(fullName);
     }
 
     /**
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
-     * @deprecated Get a {@link #snapshot} and call {@link Snapshot#simpleMatchToFullName} on
-     *             it as many times as needed.
      */
-    @Deprecated
     public Set<String> simpleMatchToFullName(String pattern) {
-        return snapshot.simpleMatchToFullName(pattern);
+        return lookup().simpleMatchToFullName(pattern);
+    }
+
+    public MappingLookup lookup() {
+        DocumentMapper mapper = this.mapper;
+        return mapper == null ? MappingLookup.EMPTY : mapper.mappers();
     }
 
     /**
-     * All mapped field types with eager global ordinals.
-     * @deprecated Get a {@link #snapshot} and call {@link Snapshot#getEagerGlobalOrdinalsFields} on
-     *             it as many times as needed.
+     * Returns all mapped field types.
      */
-    @Deprecated
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
-        return snapshot.getEagerGlobalOrdinalsFields();
+        return this.mapper == null ? Collections.emptySet() :
+            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
     }
 
-    /**
-     * Get the named object mapper.
-     * @deprecated Get a {@link #snapshot} and call {@link Snapshot#getObjectMapper} on
-     *             it as many times as needed.
-     */
-    @Deprecated
     public ObjectMapper getObjectMapper(String name) {
-        return snapshot.getObjectMapper(name);
+        return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
     }
 
     /**
-     * An analyzer that performs a volatile read on the mapping find correct {@link NamedAnalyzer} for the field.
+     * Return the index-time analyzer associated with a particular field
      * @param field                     the field name
      * @param unindexedFieldAnalyzer    a function to return an Analyzer for a field with no
      *                                  directly associated index-time analyzer
-     * @deprecated Prefer {@link #snapshot()} and then {@link Snapshot#indexAnalyzer}.
      */
-    @Deprecated
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
-        return snapshot.indexAnalyzer(field, unindexedFieldAnalyzer);
+        return lookup().indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
     @Override
@@ -500,383 +483,5 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         return reloadedAnalyzers;
-    }
-
-    /**
-     * An immutable snapshot of the current mapping.
-     */
-    public interface Snapshot {
-        /**
-         * Given the full name of a field, returns its {@link MappedFieldType}.
-         */
-        MappedFieldType fieldType(String fullName);
-
-        boolean hasNested();
-
-        /**
-         * Get the named object mapper
-         */
-        ObjectMapper getObjectMapper(String name);
-
-        /**
-         * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
-         * then the fields will be returned with a type prefix.
-         */
-        Set<String> simpleMatchToFullName(String pattern);
-
-        /**
-         * Given a field name, returns its possible paths in the _source. For example,
-         * the 'source path' for a multi-field is the path to its parent field.
-         */
-        Set<String> sourcePath(String fullName);
-
-        /**
-         * The document mapper for this MapperService.  If no mapper exists,
-         * creates one and returns that.
-         */
-        DocumentMapperForType documentMapperWithAutoCreate();
-
-        /**
-         * All mapped field types with eager global ordinals.
-         */
-        Iterable<MappedFieldType> getEagerGlobalOrdinalsFields();
-
-        /**
-         * The index-time analyzer associated with a particular field.
-         * @param field                     the field name
-         * @param unindexedFieldAnalyzer    a function to return an Analyzer for a field with no
-         *                                  directly associated index-time analyzer
-         */
-        NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer);
-
-        /**
-         * Does the index analyzer for this field have token filters that may produce
-         * backwards offsets in term vectors
-         */
-        boolean containsBrokenAnalysis(String field);
-
-        /**
-         * Current version of the of the mapping. Increments if the mapping
-         * changes locally. Distinct from
-         * {@link IndexMetadata#getMappingVersion()} because it purely
-         * considers the local mapping changes.
-         */
-        long version();
-
-        ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException;
-
-        /**
-         * The context used to parse field.
-         */
-        ParserContext parserContext();
-
-        /**
-         * @return Whether a field is a metadata field.
-         * this method considers all mapper plugins
-         */
-        boolean isMetadataField(String field);
-
-        IndexAnalyzers getIndexAnalyzers();
-
-        /**
-         * Build a loader for nested documents.
-         */
-        NestedDocuments getNestedDocuments(Function<Query, BitSetProducer> filterProducer);
-
-        /**
-         * Are there mappings for this index?
-         */
-        boolean hasMappings();
-
-        /**
-         * Is source enabled on this index?
-         */
-        boolean sourceEnabled();
-    }
-
-    /**
-     * Superclass for {@link Snapshot} implementations hosted by {@link MapperService}.
-     * This contains a few package private methods which are important for how
-     * {@linkplain MapperService} handles snapshots but aren't exposed outside
-     * of it.
-     * <p>
-     * You may ask "Why have both the interface and the abstract class?" And that is
-     * a reasonable question. Mostly we have two things so there is an obvious
-     * separation of "internal" stuff and "external" stuff. Which makes testing
-     * a little simpler because most tests just rely on the {@linkplain Snapshot}
-     * interface.
-     */
-    private abstract static class AbstractSnapshot implements Snapshot {
-        protected final MapperService mapperService;
-
-        private AbstractSnapshot(MapperService mapperService) {
-            this.mapperService = requireNonNull(mapperService);
-        }
-
-        /**
-         * The context used to parse field.
-         */
-        public final ParserContext parserContext() {
-            // Safe to plumb through to the Snapshot because it is immutable
-            return mapperService.parserContext();
-        }
-
-        /**
-         * @return Whether a field is a metadata field.
-         * this method considers all mapper plugins
-         */
-        public final boolean isMetadataField(String field) {
-            // Safe to plumb through to the Snapshot because it is immutable
-            return mapperService.isMetadataField(field);
-        }
-
-        public final IndexAnalyzers getIndexAnalyzers() {
-            // Safe to plumb through to the Snapshot because it is immutable
-            return mapperService.getIndexAnalyzers();
-        }
-
-        abstract MappedSnapshot merge(DocumentMapper mapper, MergeReason reason);
-
-        abstract Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers();
-
-        abstract DocumentMapper documentMapper();
-
-        /**
-         * The name of the operation to log when merging new mappings. If the
-         * mapping is empty it'll be {@code add} and if it isn't then it'll be
-         * {@code update}.
-         */
-        abstract String updateOperationName();
-    }
-
-    /**
-     * {@link Snapshot} of an "empty" mapping.
-     */
-    private static class EmptySnapshot extends AbstractSnapshot {
-        EmptySnapshot(MapperService mapperService) {
-            super(mapperService);
-        }
-
-        @Override
-        public MappedFieldType fieldType(String fullName) {
-            if (fullName.equals(TypeFieldType.NAME)) {
-                return new TypeFieldType("_doc");
-            }
-            return null;
-        }
-
-        @Override
-        public boolean hasNested() {
-            return false;
-        }
-
-        @Override
-        public ObjectMapper getObjectMapper(String name) {
-            return null;
-        }
-
-        @Override
-        public Set<String> simpleMatchToFullName(String pattern) {
-            return Regex.isSimpleMatchPattern(pattern) ? emptySet() : singleton(pattern);
-        }
-
-        @Override
-        public Set<String> sourcePath(String fullName) {
-            return emptySet();
-        }
-
-        @Override
-        public DocumentMapperForType documentMapperWithAutoCreate() {
-            DocumentMapper auto = mapperService.parse(SINGLE_MAPPING_NAME, null);
-            return new DocumentMapperForType(auto, auto.mapping());
-        }
-
-        @Override
-        public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
-            return emptySet();
-        }
-
-        @Override
-        public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
-            return unindexedFieldAnalyzer.apply(field);
-        }
-
-        @Override
-        public boolean containsBrokenAnalysis(String field) {
-            return false;
-        }
-
-        @Override
-        public long version() {
-            return 0;
-        }
-
-        @Override
-        public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-            return null;
-        }
-
-        @Override
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
-            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers(
-                mapperService.indexSettings.getIndexVersionCreated()
-            );
-            Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-            for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
-                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
-                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
-            }
-            return metadataMappers;
-        }
-
-        @Override
-        MappedSnapshot merge(DocumentMapper mapper, MergeReason reason) {
-            return new MappedSnapshot(mapperService, mapper, 1);
-        }
-
-        @Override
-        protected String updateOperationName() {
-            return  "added";
-        }
-
-        @Override
-        public NestedDocuments getNestedDocuments(Function<Query, BitSetProducer> filterProducer) {
-            return null;
-        }
-
-        @Override
-        public boolean hasMappings() {
-            return false;
-        }
-
-        @Override
-        public boolean sourceEnabled() {
-            return false;
-        }
-
-        @Override
-        DocumentMapper documentMapper() {
-            return null;
-        }
-    }
-
-    /**
-     * Snapshot of a non-empty mapping.
-     */
-    private static class MappedSnapshot extends AbstractSnapshot {
-        private final DocumentMapper mapper;
-        /**
-         * Current version of the of the mapping. Increments if the mapping
-         * changes locally. Distinct from
-         * {@link IndexMetadata#getMappingVersion()} because it purely
-         * considers the local mapping changes.
-         */
-        private final long version;
-
-        MappedSnapshot(MapperService mapperService, DocumentMapper mapper, long version) {
-            super(mapperService);
-            this.mapper = requireNonNull(mapper);
-            this.version = version;
-        }
-
-        @Override
-        public MappedFieldType fieldType(String fullName) {
-            if (fullName.equals(TypeFieldType.NAME)) {
-                return new TypeFieldType(mapper.type());
-            }
-            return mapper.mappers().fieldTypes().get(fullName);
-        }
-
-        @Override
-        public boolean hasNested() {
-            return mapper.hasNestedObjects();
-        }
-
-        @Override
-        public ObjectMapper getObjectMapper(String name) {
-            return mapper.mappers().objectMappers().get(name);
-        }
-
-        @Override
-        public Set<String> simpleMatchToFullName(String pattern) {
-            return Regex.isSimpleMatchPattern(pattern) ? mapper.mappers().fieldTypes().simpleMatchToFullName(pattern) : singleton(pattern);
-        }
-
-        @Override
-        public Set<String> sourcePath(String fullName) {
-            return mapper.mappers().fieldTypes().sourcePaths(fullName);
-        }
-
-        @Override
-        public DocumentMapperForType documentMapperWithAutoCreate() {
-            return new DocumentMapperForType(mapper, null);
-        }
-
-        @Override
-        public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
-            return mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
-        }
-
-        @Override
-        public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
-            return this.mapper.mappers().indexAnalyzer(field, unindexedFieldAnalyzer);
-        }
-
-        @Override
-        public boolean containsBrokenAnalysis(String field) {
-            NamedAnalyzer analyzer = indexAnalyzer(field, u -> null);
-            if (analyzer == null) {
-                return false;
-            }
-            return analyzer.containsBrokenAnalysis();
-        }
-
-        @Override
-        public long version() {
-            return version;
-        }
-
-        @Override
-        public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-            return mapper.parse(source);
-        }
-
-        @Override
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
-            return new LinkedHashMap<>(mapper.mapping().metadataMappersMap);            
-        }
-
-        @Override
-        MappedSnapshot merge(DocumentMapper newMapper, MergeReason reason) {
-            DocumentMapper merged = mapper.merge(newMapper.mapping(), reason);
-            if (merged.mappingSource().equals(mapper.mappingSource())) {
-                return this;
-            }
-            return new MappedSnapshot(mapperService, merged, version + 1);
-        }
-
-        @Override
-        protected String updateOperationName() {
-            return  "updated";
-        }
-
-        @Override
-        public NestedDocuments getNestedDocuments(Function<Query, BitSetProducer> filterProducer) {
-            return new NestedDocuments(mapper, filterProducer);
-        }
-
-        @Override
-        public boolean hasMappings() {
-            return true;
-        }
-
-        @Override
-        public boolean sourceEnabled() {
-            return mapper.sourceMapper().enabled();
-        }
-
-        DocumentMapper documentMapper() {
-            return mapper;
-        }
     }
 }

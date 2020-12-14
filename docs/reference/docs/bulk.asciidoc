@@ -211,6 +211,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
+`require_alias`::
+(Optional, Boolean)
+If `true`, the request's actions must target an <<indices-aliases,index alias>>.
+Defaults to `false`.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
@@ -237,6 +242,8 @@ The following line must contain the source data to be indexed.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `delete`::
@@ -249,6 +256,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 `_id`::
 (Required, string) 
 The document ID.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `index`::
@@ -261,6 +270,8 @@ The following line must contain the source data to be indexed.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `update`::
@@ -272,6 +283,8 @@ The following line must contain the partial document and update options.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `doc`::

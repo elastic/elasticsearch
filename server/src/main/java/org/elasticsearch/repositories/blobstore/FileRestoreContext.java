@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
+import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -190,6 +191,10 @@ public abstract class FileRestoreContext {
                 try {
                     store.deleteQuiet("restore", storeFile);
                     store.directory().deleteFile(storeFile);
+                } catch (ImmutableDirectoryException e) {
+                    // snapshots of immutable directories only contain an empty `segments_N` file since the data lives elsewhere, and if we
+                    // restore such a snapshot then the real data is already present in the directory and cannot be removed.
+                    assert snapshotFiles.indexFiles().size() == 1 : snapshotFiles;
                 } catch (IOException e) {
                     logger.warn("[{}] [{}] failed to delete file [{}] during snapshot cleanup", shardId, snapshotId, storeFile);
                 }

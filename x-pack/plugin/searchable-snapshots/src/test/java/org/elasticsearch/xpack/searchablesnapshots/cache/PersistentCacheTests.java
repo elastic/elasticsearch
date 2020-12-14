@@ -132,16 +132,13 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         }
     }
 
-    private static final byte[] buffer;
-    static {
-        buffer = new byte[1024];
-        Arrays.fill(buffer, (byte) 0xff);
-    }
-
     public void testCleanUp() throws Exception {
         final List<Path> cacheFiles = new ArrayList<>();
         try (CacheService cacheService = defaultCacheService()) {
             cacheService.start();
+
+            final byte[] buffer = new byte[1024];
+            Arrays.fill(buffer, (byte) 0xff);
 
             for (int snapshots = 0; snapshots < between(1, 2); snapshots++) {
                 SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));

@@ -72,11 +72,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors(), 8) * 2;
     private static final int PENDING_CONNECTION_QUEUE_SIZE = -1; // see ConnectionProvider.ConnectionPoolSpec.pendingAcquireMaxCount
 
-    static final Setting<String> EVENT_LOOP_EXECUTOR = Setting.simpleString(
-        "repository.azure.http_client.event_loop_executor_name",
-        NETTY_EVENT_LOOP_THREAD_POOL_NAME,
-        Setting.Property.NodeScope);
-
     static final Setting<Integer> EVENT_LOOP_THREAD_COUNT = Setting.intSetting(
         "repository.azure.http_client.event_loop_executor_thread_count",
         DEFAULT_EVENT_LOOP_THREAD_COUNT,
@@ -97,11 +92,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     static final Setting<TimeValue> MAX_IDLE_TIME = Setting.timeSetting(
         "repository.azure.http_client.connection_max_idle_time",
         DEFAULT_MAX_CONNECTION_IDLE_TIME,
-        Setting.Property.NodeScope);
-
-    static final Setting<String> REACTOR_SCHEDULER_EXECUTOR_NAME = Setting.simpleString(
-        "repository.azure.http_client.reactor_executor_name",
-        REPOSITORY_THREAD_POOL_NAME,
         Setting.Property.NodeScope);
 
     private final ThreadPool threadPool;
@@ -129,17 +119,12 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     static AzureClientProvider create(ThreadPool threadPool, Settings settings) {
-        final ExecutorService executorService;
-        try {
-            executorService = threadPool.executor(EVENT_LOOP_EXECUTOR.get(settings));
-        } catch (IllegalArgumentException e) {
-            throw new SettingsException("Unable to find executor [" + EVENT_LOOP_EXECUTOR.get(settings) + "]");
-        }
+        final ExecutorService eventLoopExecutor = threadPool.executor(NETTY_EVENT_LOOP_THREAD_POOL_NAME);
         // Most of the code that needs special permissions (i.e. jackson serializers generation) is executed
         // in the event loop executor. That's the reason why we should provide an executor that allows the
         // execution of privileged code
         final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(eventLoopThreadsFromSettings(settings),
-            new PrivilegedExecutor(executorService));
+            new PrivilegedExecutor(eventLoopExecutor));
 
         final TimeValue openConnectionTimeout = OPEN_CONNECTION_TIMEOUT.get(settings);
         final TimeValue maxIdleTime = MAX_IDLE_TIME.get(settings);
@@ -154,9 +139,17 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         ByteBufAllocator pooledByteBufAllocator = createByteBufAllocator();
 
-        String reactorExecutorName = REACTOR_SCHEDULER_EXECUTOR_NAME.get(settings);
+        // Just to verify that this executor exists
+        threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
+        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, pooledByteBufAllocator);
+    }
 
-        return new AzureClientProvider(threadPool, reactorExecutorName, eventLoopGroup, provider, pooledByteBufAllocator);
+    private static ExecutorService getExecutorService(ThreadPool threadPool, String executorName) {
+        try {
+            return threadPool.executor(executorName);
+        } catch (IllegalArgumentException e) {
+            throw new SettingsException("Unable to find executor [" + executorName + "]");
+        }
     }
 
     private static ByteBufAllocator createByteBufAllocator() {

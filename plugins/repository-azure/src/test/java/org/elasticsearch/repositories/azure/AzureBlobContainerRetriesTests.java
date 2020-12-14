@@ -104,8 +104,10 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
     @Before
     public void setUp() throws Exception {
-        threadPool = new TestThreadPool(getTestClass().getName(), AzureRepositoryPlugin.executorBuilder(),
-            AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY));
+        threadPool = new TestThreadPool(getTestClass().getName(),
+            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
+        );
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         secondaryHttpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);

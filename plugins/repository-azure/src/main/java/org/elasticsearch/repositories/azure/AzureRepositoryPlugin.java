@@ -100,14 +100,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
                                                NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        AzureClientProvider azureClientProvider = createClientProvider(threadPool, settings);
+        AzureClientProvider azureClientProvider =
+            AzureClientProvider.create(threadPool, settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
         return List.of(azureClientProvider);
-    }
-
-    // Visible for testing
-    AzureClientProvider createClientProvider(ThreadPool threadPool, Settings settings) {
-        return AzureClientProvider.create(threadPool, settings);
     }
 
     AzureStorageService createAzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {

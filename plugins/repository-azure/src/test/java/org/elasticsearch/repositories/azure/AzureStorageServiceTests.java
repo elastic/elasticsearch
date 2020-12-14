@@ -53,7 +53,10 @@ public class AzureStorageServiceTests extends ESTestCase {
 
     @Before
     public void setUpThreadPool() {
-        threadPool = new TestThreadPool(AzureStorageServiceTests.class.getName());
+        threadPool = new TestThreadPool(AzureStorageServiceTests.class.getName(),
+            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
+        );
     }
 
     @After
@@ -74,17 +77,7 @@ public class AzureStorageServiceTests extends ESTestCase {
     }
 
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
-        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings) {
-            @Override
-            AzureClientProvider createClientProvider(ThreadPool threadPool, Settings settings) {
-                // Just use the Generic thread pool for testing.
-                Settings updatedSettings = Settings.builder()
-                    .put(AzureClientProvider.EVENT_LOOP_EXECUTOR.getKey(), ThreadPool.Names.GENERIC)
-                    .put(AzureClientProvider.REACTOR_SCHEDULER_EXECUTOR_NAME.getKey(), ThreadPool.Names.GENERIC)
-                    .build();
-                return super.createClientProvider(threadPool, updatedSettings);
-            }
-        };
+        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
         new SettingsModule(settings, plugin.getSettings(), Collections.emptyList(), Collections.emptySet());
         plugin.createComponents(null,
             null,

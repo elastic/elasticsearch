@@ -43,11 +43,11 @@ public class AzureClientProviderTests extends ESTestCase {
 
     @Before
     public void setUpThreadPool() {
-        threadPool = new TestThreadPool(getTestName());
-        Settings settings = Settings.builder()
-            .put(AzureClientProvider.EVENT_LOOP_EXECUTOR.getKey(), ThreadPool.Names.GENERIC)
-            .build();
-        azureClientProvider = AzureClientProvider.create(threadPool, settings);
+        threadPool = new TestThreadPool(getTestName(),
+            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
+        );
+        azureClientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
     }
 
     @After

@@ -986,7 +986,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedEnableUserAuditEventString = output.get(1);
         StringBuilder enableUserStringBuilder = new StringBuilder();
-        enableUserStringBuilder.append("\"enable\":{\"user\":{\"name\":\"").append(username).append("\"}}");
+        enableUserStringBuilder.append("\"change\":{\"enable\":{\"user\":{\"name\":\"").append(username).append("\"}}}");
         String expectedEnableUserAuditEventString = enableUserStringBuilder.toString();
         assertThat(generatedEnableUserAuditEventString, containsString(expectedEnableUserAuditEventString));
         generatedEnableUserAuditEventString = generatedEnableUserAuditEventString.replace(", " + expectedEnableUserAuditEventString, "");
@@ -995,7 +995,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit")
                 .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
-                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "enable_user")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "change_enable_user")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedEnableUserAuditEventString, checkedFields.immutableMap());
         // clear log
@@ -1011,7 +1011,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedDisableUserAuditEventString = output.get(1);
         StringBuilder disableUserStringBuilder = new StringBuilder();
-        disableUserStringBuilder.append("\"disable\":{\"user\":{\"name\":\"").append(username).append("\"}}");
+        disableUserStringBuilder.append("\"change\":{\"disable\":{\"user\":{\"name\":\"").append(username).append("\"}}}");
         String expectedDisableUserAuditEventString = disableUserStringBuilder.toString();
         assertThat(generatedDisableUserAuditEventString, containsString(expectedDisableUserAuditEventString));
         generatedDisableUserAuditEventString = generatedDisableUserAuditEventString.replace(", " + expectedDisableUserAuditEventString, "");
@@ -1020,7 +1020,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit")
                 .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
-                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "disable_user")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "change_disable_user")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedDisableUserAuditEventString, checkedFields.immutableMap());
         // clear log

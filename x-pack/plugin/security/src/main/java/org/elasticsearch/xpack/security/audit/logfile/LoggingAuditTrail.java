@@ -168,8 +168,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PUT_CONFIG_FIELD_NAME = "put";
     public static final String DELETE_CONFIG_FIELD_NAME = "delete";
     public static final String CHANGE_CONFIG_FIELD_NAME = "change";
-    public static final String ENABLE_CONFIG_FIELD_NAME = "enable";
-    public static final String DISABLE_CONFIG_FIELD_NAME = "disable";
     public static final String CREATE_CONFIG_FIELD_NAME = "create";
     public static final String INVALIDATE_API_KEYS_FIELD_NAME = "invalidate";
 
@@ -925,18 +923,27 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRequestBody(SetEnabledRequest setEnabledRequest) throws IOException {
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject()
-                    .startObject("user")
-                    .field("name", setEnabledRequest.username())
-                    .endObject() // user
-                    .endObject();
+            // setEnabledRequest#enabled cannot be `null`, but nevertheless we should not assume it at this layer
             if (setEnabledRequest.enabled() != null && setEnabledRequest.enabled()) {
-                logEntry.with(EVENT_ACTION_FIELD_NAME, "enable_user");
-                logEntry.with(ENABLE_CONFIG_FIELD_NAME, Strings.toString(builder));
+                builder.startObject()
+                        .startObject("enable")
+                        .startObject("user")
+                        .field("name", setEnabledRequest.username())
+                        .endObject() // user
+                        .endObject() // enable
+                        .endObject();
+                logEntry.with(EVENT_ACTION_FIELD_NAME, "change_enable_user");
             } else {
-                logEntry.with(EVENT_ACTION_FIELD_NAME, "disable_user");
-                logEntry.with(DISABLE_CONFIG_FIELD_NAME, Strings.toString(builder));
+                builder.startObject()
+                        .startObject("disable")
+                        .startObject("user")
+                        .field("name", setEnabledRequest.username())
+                        .endObject() // user
+                        .endObject() // disable
+                        .endObject();
+                logEntry.with(EVENT_ACTION_FIELD_NAME, "change_disable_user");
             }
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 

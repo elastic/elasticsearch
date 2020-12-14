@@ -1,8 +1,8 @@
 ---
 "Migrate to data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.10.99 after backport"
+      version: " - 7.10.99"
+      reason: "migrate API released in 7.11.0"
       features: allowed_warnings
 
   - do:

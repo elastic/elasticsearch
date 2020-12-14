@@ -132,10 +132,10 @@ public class TransportSearchIT extends ESIntegTestCase {
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        TaskId taskId = new TaskId("node", randomNonNegativeLong());
+        TaskId parentTaskId = new TaskId("node", randomNonNegativeLong());
 
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, new SearchRequest(), Strings.EMPTY_ARRAY,
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(), Strings.EMPTY_ARRAY,
                 "local", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -147,7 +147,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals("1", hit.getId());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, new SearchRequest(), Strings.EMPTY_ARRAY,
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(), Strings.EMPTY_ARRAY,
                 "", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -161,7 +161,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     public void testAbsoluteStartMillis() {
-        TaskId takeId = new TaskId("node", randomNonNegativeLong());
+        TaskId parentTaskId = new TaskId("node", randomNonNegativeLong());
         {
             IndexRequest indexRequest = new IndexRequest("test-1970.01.01");
             indexRequest.id("1");
@@ -190,13 +190,13 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals(0, searchResponse.getTotalShards());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(takeId, new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(takeId, new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             searchRequest.indices("<test-{now/d}>");
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
@@ -204,7 +204,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
         {
-            SearchRequest searchRequest = SearchRequest.subSearchRequest(takeId, new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(parentTaskId, new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("date");

@@ -41,7 +41,7 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testOnlyRuntimeField() {
         MappingLookup mappingLookup = new MappingLookup("_doc", Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
-            Collections.singletonList(new TestRuntimeField("test", "type")), 0, null, null);
+            Collections.singletonList(new TestRuntimeField("test", "type")), 0, null, null, false);
         assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
@@ -51,7 +51,7 @@ public class MappingLookupTests extends ESTestCase {
     public void testRuntimeFieldLeafOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("test");
         MappingLookup mappingLookup = new MappingLookup("_doc", Collections.singletonList(fieldMapper), Collections.emptyList(),
-            Collections.emptyList(), Collections.singletonList(new TestRuntimeField("test", "type")), 0, null, null);
+            Collections.emptyList(), Collections.singletonList(new TestRuntimeField("test", "type")), 0, null, null, false);
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
@@ -71,7 +71,8 @@ public class MappingLookupTests extends ESTestCase {
             Collections.singletonList(new TestRuntimeField("object.subfield", "type")),
             0,
             null,
-            null
+            null,
+            false
         );
         assertThat(mappingLookup.getMapper("object.subfield"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
@@ -96,7 +97,8 @@ public class MappingLookupTests extends ESTestCase {
             Collections.emptyList(),
             0,
             null,
-            null
+            null,
+            false
         );
 
         assertAnalyzes(mappingLookup.indexAnalyzer("field1", f -> null), "field1", "index1");

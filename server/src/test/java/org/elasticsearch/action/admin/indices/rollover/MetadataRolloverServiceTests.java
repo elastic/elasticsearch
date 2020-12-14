@@ -570,7 +570,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 List.of(),
                 0,
                 null,
-                null
+                null,
+                false
             );
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);

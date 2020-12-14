@@ -46,7 +46,8 @@ public final class MappingLookup {
         List.of(),
         0,
         souceToParse -> null,
-        writer -> writer.writeString("empty")
+        writer -> writer.writeString("empty"),
+        false
     );
 
     /** Full field name to mapper */
@@ -55,11 +56,16 @@ public final class MappingLookup {
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
     private final int metadataFieldCount;
-    private final Function<SourceToParse, ParsedDocument> documentParser;
     private final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
+    private final Function<SourceToParse, ParsedDocument> documentParser;
     private final Writeable cacheKey;
+    private final boolean sourceEnabled;
 
-    public static MappingLookup fromMapping(Mapping mapping, Function<SourceToParse, ParsedDocument> documentParser, Writeable cacheKey) {
+    public static MappingLookup fromMapping(
+        Mapping mapping,
+        Function<SourceToParse, ParsedDocument> documentParser,
+        Writeable cacheKey
+    ) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -79,7 +85,8 @@ public final class MappingLookup {
             mapping.root.runtimeFieldTypes(),
             mapping.metadataMappers.length,
             documentParser,
-            cacheKey
+            cacheKey,
+            mapping.metadataMapper(SourceFieldMapper.class).enabled()
         );
     }
 
@@ -108,9 +115,11 @@ public final class MappingLookup {
                          Collection<RuntimeFieldType> runtimeFieldTypes,
                          int metadataFieldCount,
                          Function<SourceToParse, ParsedDocument> documentParser,
-                         Writeable cacheKey) {
+                         Writeable cacheKey,
+                         boolean sourceEnabled) {
         this.documentParser = documentParser;
         this.cacheKey = cacheKey;
+        this.sourceEnabled = sourceEnabled;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
@@ -284,8 +293,7 @@ public final class MappingLookup {
     }
 
     public boolean isSourceEnabled() {
-        // NOCOMMIT implement me
-        return false;
+        return sourceEnabled;
     }
 
     /**

@@ -234,7 +234,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             List.of(),
             0,
             souceToParse -> null,
-            w -> w.writeString("test")
+            w -> w.writeString("test"),
+            true
         );
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (

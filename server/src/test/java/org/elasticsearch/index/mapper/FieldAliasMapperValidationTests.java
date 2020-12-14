@@ -46,7 +46,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null
+                null,
+                false
             )
         );
         assertEquals("Alias [some.path] is defined both as an object and an alias", e.getMessage());
@@ -67,7 +68,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null
+                null,
+                false
             )
         );
         assertEquals("Alias [invalid] is defined both as an alias and a concrete field", e.getMessage());
@@ -86,7 +88,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             emptyList(),
             0,
             null,
-            null
+            null,
+            false
         );
         alias.validate(mappers);
 
@@ -110,7 +113,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null
+                null,
+                false
             );
             invalidAlias.validate(mappers);
         });
@@ -131,7 +135,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null
+                null,
+                false
             );
             invalidAlias.validate(mappers);
         });
@@ -152,7 +157,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             emptyList(),
             0,
             null,
-            null
+            null,
+            false
         );
         aliasMapper.validate(mappers);
     }
@@ -169,7 +175,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             emptyList(),
             0,
             null,
-            null
+            null,
+            false
         );
         aliasMapper.validate(mappers);
     }
@@ -187,7 +194,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null
+                null,
+                false
             );
             aliasMapper.validate(mappers);
         });
@@ -210,7 +218,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null
+                null,
+                false
             );
             aliasMapper.validate(mappers);
         });

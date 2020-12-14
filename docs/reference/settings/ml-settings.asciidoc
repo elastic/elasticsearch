@@ -80,6 +80,11 @@ total memory of the machine, not current free memory. Jobs are not allocated to
 a node if doing so would cause the estimated memory use of {ml} jobs to exceed
 the limit.
 
+`xpack.ml.max_ml_node_size`::
+(<<static-cluster-setting,Static>>)
+The maximum node size for {ml} nodes. Defaults to `0b`, which means this value
+is ignored.
+
 `xpack.ml.max_model_memory_limit`::
 (<<cluster-update-settings,Dynamic>>) The maximum `model_memory_limit` property
 value that can be set for any job on this node. If you try to create a job with

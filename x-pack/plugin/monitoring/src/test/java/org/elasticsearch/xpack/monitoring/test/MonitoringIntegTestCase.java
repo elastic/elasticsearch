@@ -87,7 +87,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, MockPainlessScriptEngine.TestPlugin.class,
+        return Arrays.asList(XPackClientPlugin.class, MockClusterAlertScriptEngine.TestPlugin.class,
                 MockIngestPlugin.class, CommonAnalysisPlugin.class);
     }
 

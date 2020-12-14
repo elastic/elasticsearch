@@ -5,6 +5,7 @@
       "description":"Closes one or more anomaly detection jobs. A job can be opened and closed multiple times throughout its lifecycle."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

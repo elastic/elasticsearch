@@ -5,6 +5,7 @@
       "description": "Removes stale data from repository."
     },
     "stability": "stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

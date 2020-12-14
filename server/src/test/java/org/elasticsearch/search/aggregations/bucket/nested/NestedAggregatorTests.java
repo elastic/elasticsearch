@@ -894,7 +894,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         nestedObject("nested_field")
     );
 
-    private static ObjectMapper nestedObject(String path) {
+    public static ObjectMapper nestedObject(String path) {
         return new ObjectMapper.Builder(path, Version.CURRENT).nested(ObjectMapper.Nested.newNested()).build(new ContentPath());
     }
 }

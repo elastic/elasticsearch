@@ -182,7 +182,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }, agg -> {
             assertEquals(Double.NaN,  agg.getMedianAbsoluteDeviation(),0);
             assertFalse(AggregationInspectionHelper.hasValue(agg));
-        },  null);
+        });
     }
 
     public void testUnmappedMissing() throws IOException {
@@ -197,7 +197,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }, agg -> {
             assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(agg));
-        }, null);
+        });
     }
 
     public void testValueScript() throws IOException {
@@ -260,8 +260,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<InternalMedianAbsoluteDeviation> verify, MappedFieldType fieldType) throws IOException {
-        testCase(aggregationBuilder, query, indexer, verify, fieldType);
+                          Consumer<InternalMedianAbsoluteDeviation> verify, MappedFieldType... fieldTypes) throws IOException {
+        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
     }
 
     public static class IsCloseToRelative extends TypeSafeMatcher<Double> {

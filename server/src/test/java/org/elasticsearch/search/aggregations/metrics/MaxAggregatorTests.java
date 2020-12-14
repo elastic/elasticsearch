@@ -241,7 +241,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -253,7 +253,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(max.getValue(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testMissingFieldOptimization() throws IOException {
@@ -294,9 +294,13 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMax> verify,
-        MappedFieldType fieldType) throws IOException {
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalMax> verify,
+        MappedFieldType... fieldType
+    ) throws IOException {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 

@@ -55,7 +55,8 @@ public class MappingLookupUtils {
     public static FieldMapper mockFieldMapper(MappedFieldType type) {
         FieldMapper mapper = mock(FieldMapper.class);
         when(mapper.fieldType()).thenReturn(type);
-        when(mapper.name()).thenReturn(type.name());
+        String name = type.name();
+        when(mapper.name()).thenReturn(name);
         when(mapper.copyTo()).thenReturn(CopyTo.empty());
         Map<String, NamedAnalyzer> indexAnalyzers = Map.of();
         if (type.getTextSearchInfo() != TextSearchInfo.NONE) {

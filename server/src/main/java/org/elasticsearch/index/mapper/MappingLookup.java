@@ -34,7 +34,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-public final class MappingLookup {
+public class MappingLookup {
     /**
      * A lookup representing an empty mapping.
      */

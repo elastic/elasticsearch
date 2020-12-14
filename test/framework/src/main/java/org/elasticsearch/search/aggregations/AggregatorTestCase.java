@@ -236,7 +236,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
             souceToParse -> null,
             w -> w.writeString("test"),
             true
-        );
+        ) {
+            @Override
+            public boolean hasNested() {
+                /*
+                 * Disable fetching nested documents. Luckily if confusingly, this does
+                 * not disable nested aggregations which we need to test.
+                 */
+                return false;
+            }
+        };
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
             fieldType,

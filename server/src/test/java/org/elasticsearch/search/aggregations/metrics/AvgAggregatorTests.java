@@ -235,7 +235,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(avg));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -246,7 +246,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals(0.0, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, (MappedFieldType) null);
+        });
     }
 
     private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
@@ -570,7 +570,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalAvg> verify,
-        MappedFieldType fieldType)  throws IOException {
+        MappedFieldType... fieldType
+    ) throws IOException {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 

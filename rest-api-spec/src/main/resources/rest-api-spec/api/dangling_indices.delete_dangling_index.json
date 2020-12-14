@@ -5,6 +5,9 @@
       "description": "Deletes the specified dangling index"
     },
     "stability": "stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url": {
       "paths": [
         {

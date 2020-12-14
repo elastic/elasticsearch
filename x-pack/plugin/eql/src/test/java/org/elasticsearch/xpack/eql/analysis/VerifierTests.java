@@ -338,4 +338,24 @@ public class VerifierTests extends ESTestCase {
             error(idxr, "foo where pid : 123"));
     }
 
+    public void testKeysWithDifferentTypes() throws Exception {
+        assertEquals("1:62: Sequence key [md5] type [keyword] is incompatible with key [pid] type [long]",
+            error(index, "sequence " +
+                "[process where true] by pid " +
+                "[process where true] by md5"));
+    }
+
+    public void testKeysWithDifferentButCompatibleTypes() throws Exception {
+        accept(index, "sequence " +
+                "[process where true] by hostname " +
+                "[process where true] by user_domain");
+    }
+
+    public void testKeysWithSimilarYetDifferentTypes() throws Exception {
+        assertEquals("1:69: Sequence key [opcode] type [long] is incompatible with key [@timestamp] type [date]",
+            error(index, "sequence " +
+                "[process where true] by @timestamp " +
+                "[process where true] by opcode"));
+    }
+
 }

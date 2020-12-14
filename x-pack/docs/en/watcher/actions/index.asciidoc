@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions-index]]
-=== Index action
+=== {watcher} index action
+++++
+<titleabbrev>Index action</titleabbrev>
+++++
 
 Use the `index` action to index data into Elasticsearch.
 See <<index-action-attributes>> for the supported attributes.

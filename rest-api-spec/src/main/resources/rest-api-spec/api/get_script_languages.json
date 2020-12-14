@@ -5,6 +5,9 @@
       "description":"Returns available script types, languages and contexts"
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

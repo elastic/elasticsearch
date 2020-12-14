@@ -7,8 +7,6 @@
 <titleabbrev>Delete async EQL search</titleabbrev>
 ++++
 
-beta::[]
-
 Deletes an <<eql-search-async,async EQL search>> or a
 <<eql-search-store-sync-eql-search,stored synchronous EQL search>>. The API also
 deletes results for the search.

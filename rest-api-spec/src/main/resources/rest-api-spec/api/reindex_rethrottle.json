@@ -5,6 +5,9 @@
       "description":"Changes the number of requests per second for a particular Reindex operation."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -1079,9 +1079,8 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires the index commit that should be included in a snapshot.
      */
-    public IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
-        // by default we flush first so that the snapshot is as up-to-date as possible.
-        return acquireLastIndexCommit(true);
+    public final IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
+        return engineConfig.getSnapshotCommitSupplier().acquireIndexCommitForSnapshot(this);
     }
 
     /**

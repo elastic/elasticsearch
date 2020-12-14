@@ -834,8 +834,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, restoredIndexName, Settings.EMPTY);
         ensureGreen(restoredIndexName);
 
-        if (randomBoolean() && false) {
-            // NB skipped as it doesn't work today
+        if (randomBoolean()) {
             logger.info("--> closing index before snapshot");
             assertAcked(client().admin().indices().prepareClose(restoredIndexName));
         }

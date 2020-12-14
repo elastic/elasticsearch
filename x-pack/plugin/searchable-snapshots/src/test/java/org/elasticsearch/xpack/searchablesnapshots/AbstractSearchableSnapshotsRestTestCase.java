@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -29,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -205,15 +209,14 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testSnapshotOfSearchableSnapshot() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
 
-            if (randomBoolean() && false) {
-                // NB skipped as it doesn't work today
+            final boolean frozen = randomBoolean();
+            if (frozen) {
                 logger.info("--> freezing index [{}]", restoredIndexName);
                 final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
                 assertOK(client().performRequest(freezeRequest));
             }
 
-            if (randomBoolean() && false) {
-                // NB skipped as it doesn't work today
+            if (randomBoolean()) {
                 logger.info("--> closing index [{}]", restoredIndexName);
                 final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
                 assertOK(client().performRequest(closeRequest));
@@ -226,7 +229,16 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             // Remove the snapshots, if a previous test failed to delete them. This is
             // useful for third party tests that runs the test against a real external service.
             deleteSnapshot(snapshot2Name, true);
-            createSnapshot(REPOSITORY_NAME, snapshot2Name, true);
+
+            final Request snapshotRequest = new Request(HttpPut.METHOD_NAME, "_snapshot/" + REPOSITORY_NAME + '/' + snapshot2Name);
+            snapshotRequest.addParameter("wait_for_completion", "true");
+            try (XContentBuilder builder = jsonBuilder()) {
+                builder.startObject();
+                builder.field("indices", restoredIndexName);
+                builder.endObject();
+                snapshotRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+            }
+            assertOK(client().performRequest(snapshotRequest));
 
             final List<Map<String, Map<String, Object>>> snapshotShardsStats = extractValue(
                 responseAsMap(
@@ -250,7 +262,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             deleteSnapshot(snapshot2Name, false);
 
-            assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
+            assertSearchResults(restoredIndexName, numDocs, frozen ? Boolean.FALSE : randomFrom(Boolean.TRUE, Boolean.FALSE, null));
         });
     }
 

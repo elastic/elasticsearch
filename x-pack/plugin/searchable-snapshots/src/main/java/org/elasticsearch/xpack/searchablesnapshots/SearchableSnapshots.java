@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -31,10 +30,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
@@ -282,20 +282,19 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(
-                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false) {
-
-                    // present an empty IndexCommit to the snapshot mechanism so that we copy no shard data to the repository
-                    private final IndexCommit emptyIndexCommit = emptyIndexCommit(engineConfig.getStore().directory());
-
-                    @Override
-                    public IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
-                        store.incRef();
-                        return new IndexCommitRef(emptyIndexCommit, store::decRef);
-                    }
-                }
+                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false)
             );
         }
         return Optional.empty();
+    }
+
+    @Override
+    public Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
+        return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, e -> {
+            final Store store = e.config().getStore();
+            store.incRef();
+            return new Engine.IndexCommitRef(emptyIndexCommit(store.directory()), store::decRef);
+        });
     }
 
     @Override

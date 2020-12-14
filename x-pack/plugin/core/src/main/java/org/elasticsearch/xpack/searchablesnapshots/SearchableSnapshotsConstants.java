@@ -27,4 +27,3 @@ public class SearchableSnapshotsConstants {
     public static final String SNAPSHOT_BLOB_CACHE_INDEX = ".snapshot-blob-cache";
 
 }
-

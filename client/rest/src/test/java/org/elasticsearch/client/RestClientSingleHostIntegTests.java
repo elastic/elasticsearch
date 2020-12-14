@@ -172,7 +172,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             restClientBuilder.setPathPrefix(pathPrefix);
         }
 
-        restClientBuilder.setMetadataHeaderEnabled(enableMetaHeader);
+        restClientBuilder.setMetaHeaderEnabled(enableMetaHeader);
 
         if (useAuth) {
             restClientBuilder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
@@ -358,7 +358,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     public void testAgentAndMetaHeader() throws Exception {
         Request request = new Request("GET", "/200");
         Response esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-        String header = esResponse.getHeader(RestClientBuilder.METADATA_HEADER);
+        String header = esResponse.getHeader(RestClientBuilder.META_HEADER_NAME);
         assertTrue(header.matches("^es=[^,]*,jv=[^,]+,t=[^,]*,hc=.*"));
 
         // Also check user-agent
@@ -367,10 +367,10 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
         // Meta header should not be overriden, test custom UA
         request.setOptions(RequestOptions.DEFAULT.toBuilder()
-            .addHeader(RestClientBuilder.METADATA_HEADER, "foobar")
+            .addHeader(RestClientBuilder.META_HEADER_NAME, "foobar")
             .addHeader("User-Agent", "baz"));
         esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-        header = esResponse.getHeader(RestClientBuilder.METADATA_HEADER);
+        header = esResponse.getHeader(RestClientBuilder.META_HEADER_NAME);
         assertTrue(header.matches("^es=[^,]*,jv=[^,]+,t=[^,]*,hc=.*"));
         assertEquals("baz", esResponse.getHeader("User-Agent"));
 
@@ -378,12 +378,12 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         RestClient newClient = createRestClient(true, true, false);
         request = new Request("GET", "/200");
         esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(newClient, request);
-        assertNull(esResponse.getHeader(RestClientBuilder.METADATA_HEADER));
+        assertNull(esResponse.getHeader(RestClientBuilder.META_HEADER_NAME));
 
         // Should not be overriden
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(RestClientBuilder.METADATA_HEADER, "foobar"));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(RestClientBuilder.META_HEADER_NAME, "foobar"));
         esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(newClient, request);
-        assertNull(esResponse.getHeader(RestClientBuilder.METADATA_HEADER));
+        assertNull(esResponse.getHeader(RestClientBuilder.META_HEADER_NAME));
 
         newClient.close();
     }

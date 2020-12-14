@@ -53,8 +53,8 @@ public final class RestClientBuilder {
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
-    static final String METADATA_HEADER = "X-Elastic-Client-Meta";
-    private static final String METADATA_HEADER_VALUE;
+    static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
+    private static final String META_HEADER_VALUE;
     private static final String USER_AGENT_HEADER_VALUE;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
@@ -68,7 +68,7 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
-    private boolean metadataHeaderEnabled = true;
+    private boolean metaHeaderEnabled = true;
 
     static {
         String version = ""; // unknown values are reported as empty strings in X-Elastic-Client-Meta
@@ -95,7 +95,7 @@ public final class RestClientBuilder {
             HttpAsyncClientBuilder.class.getClassLoader());
 
         // service, language, transport, followed by additional information
-        METADATA_HEADER_VALUE = "es=" + version +
+        META_HEADER_VALUE = "es=" + version +
             ",jv=" + System.getProperty("java.specification.version") +
             ",t=" + version +
             ",hc=" + (httpClientVersion == null ? "" : httpClientVersion.getRelease()) +
@@ -242,8 +242,8 @@ public final class RestClientBuilder {
      * applications to use {@code User-Agent} for their own needs, e.g. to identify application version or other
      * environment information. Defaults to {@code true}.
      */
-    public RestClientBuilder setMetadataHeaderEnabled(boolean metadataEnabled) {
-        this.metadataHeaderEnabled = metadataEnabled;
+    public RestClientBuilder setMetaHeaderEnabled(boolean metadataEnabled) {
+        this.metaHeaderEnabled = metadataEnabled;
         return this;
     }
 
@@ -284,10 +284,10 @@ public final class RestClientBuilder {
 
             // Always add metadata header last so that it's not overwritten
             httpClientBuilder.addInterceptorLast((HttpRequest request, HttpContext context) -> {
-                if (metadataHeaderEnabled) {
-                    request.setHeader(METADATA_HEADER, METADATA_HEADER_VALUE);
+                if (metaHeaderEnabled) {
+                    request.setHeader(META_HEADER_NAME, META_HEADER_VALUE);
                 } else {
-                    request.removeHeaders(METADATA_HEADER);
+                    request.removeHeaders(META_HEADER_NAME);
                 }
             });
             final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;

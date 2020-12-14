@@ -60,7 +60,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -148,13 +147,35 @@ public class PersistentCache implements Closeable {
 
                         if (Files.isDirectory(shardCachePath)) {
                             logger.trace("found snapshot cache dir at [{}], loading cache files from disk and index", shardCachePath);
-                            Files.walkFileTree(shardCachePath, new CacheFileVisitor(cacheService, writer, documents));
+                            Files.walkFileTree(shardCachePath, new SimpleFileVisitor<>() {
+                                @Override
+                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                                    try {
+                                        final String id = buildId(file);
+                                        final Document cacheDocument = documents.get(id);
+                                        if (cacheDocument != null) {
+                                            logger.trace("indexing cache file with id [{}] in persistent cache index", id);
+                                            writer.updateCacheFile(id, cacheDocument);
+
+                                            final CacheKey cacheKey = buildCacheKey(cacheDocument);
+                                            final long fileLength = getFileLength(cacheDocument);
+                                            final SortedSet<Tuple<Long, Long>> ranges = buildCacheFileRanges(cacheDocument);
+
+                                            logger.trace("adding cache file with [id={}, cache key={}, ranges={}]", id, cacheKey, ranges);
+                                            cacheService.put(cacheKey, fileLength, file.getParent(), id, ranges);
+                                        } else {
+                                            logger.trace("deleting cache file [{}] (does not exist in persistent cache index)", file);
+                                            Files.delete(file);
+                                        }
+                                    } catch (Exception e) {
+                                        throw ExceptionsHelper.convertToRuntime(e);
+                                    }
+                                    return FileVisitResult.CONTINUE;
+                                }
+                            });
                         }
                     }
                 }
-            }
-            for (CacheIndexWriter writer : writers) {
-                writer.prepareCommit();
             }
             for (CacheIndexWriter writer : writers) {
                 writer.commit();
@@ -228,8 +249,11 @@ public class PersistentCache implements Closeable {
     @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
-            IOUtils.close(writers);
-            documents.clear();
+            try {
+                IOUtils.close(writers);
+            } finally {
+                documents.clear();
+            }
         }
     }
 
@@ -443,48 +467,6 @@ public class PersistentCache implements Closeable {
         @Override
         public String toString() {
             return "[persistent cache index][" + nodePath + ']';
-        }
-    }
-
-    /**
-     * {@link CacheFileVisitor} is used to visit cache files on disk and find information about them using the Lucene documents loaded
-     * at startup from the persistent cache index. If there are no corresponding document for a cache file, the cache file is deleted
-     * from disk. If a corresponding document is found, the cache file is added to the current persistent cache index and inserted in
-     * the searchable snapshots cache.
-     */
-    private static class CacheFileVisitor extends SimpleFileVisitor<Path> {
-
-        private final CacheService cacheService;
-        private final Map<String, Document> documents;
-        private final CacheIndexWriter writer;
-
-        private CacheFileVisitor(CacheService cacheService, CacheIndexWriter writer, Map<String, Document> documents) {
-            this.cacheService = Objects.requireNonNull(cacheService);
-            this.documents = Objects.requireNonNull(documents);
-            this.writer = Objects.requireNonNull(writer);
-        }
-
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-            try {
-                final String id = buildId(file);
-                final Document cacheDocument = documents.get(id);
-                if (cacheDocument != null) {
-                    logger.trace("indexing cache file with id [{}] in persistent cache index", id);
-                    writer.updateCacheFile(id, cacheDocument);
-
-                    final CacheKey cacheKey = buildCacheKey(cacheDocument);
-                    logger.trace("adding cache file with [id={}, cache key={}]", id, cacheKey);
-                    final long fileLength = getFileLength(cacheDocument);
-                    cacheService.put(cacheKey, fileLength, file.getParent(), id, buildCacheFileRanges(cacheDocument));
-                } else {
-                    logger.trace("deleting cache file [{}] (does not exist in persistent cache index)", file);
-                    Files.delete(file);
-                }
-            } catch (Exception e) {
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            return FileVisitResult.CONTINUE;
         }
     }
 

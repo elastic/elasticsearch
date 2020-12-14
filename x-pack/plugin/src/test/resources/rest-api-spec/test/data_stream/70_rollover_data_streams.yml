@@ -24,15 +24,21 @@
       indices.rollover:
         alias: "data-stream-for-rollover"
 
-  - match: { old_index: .ds-data-stream-for-rollover-000001 }
-  - match: { new_index: .ds-data-stream-for-rollover-000002 }
+  - match: { old_index: "/\\.ds-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.ds-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }
+
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: data-stream-for-rollover
+  - set: { data_streams.0.indices.0.index_name: idx0name }
 
   # ensure new index is created
   - do:
       indices.exists:
-        index: .ds-data-stream-for-rollover-000002
+        index: $idx0name
 
   - is_true: ''
 
@@ -43,8 +49,8 @@
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 2 }
   - length: { data_streams.0.indices: 2 }
-  - match: { data_streams.0.indices.0.index_name: '.ds-data-stream-for-rollover-000001' }
-  - match: { data_streams.0.indices.1.index_name: '.ds-data-stream-for-rollover-000002' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.indices.1.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
 
   - do:
       indices.delete_data_stream:

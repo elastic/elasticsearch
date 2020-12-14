@@ -30,31 +30,31 @@ class RuntimeInfo {
      */
     public static String getRuntimeMetadata() {
         StringBuilder s = new StringBuilder();
-        String v;
+        String version;
 
-        v = HlrcKind();
-        if (v != null) {
-            s.append(",hl=").append(v);
+        version = HlrcKind();
+        if (version != null) {
+            s.append(",hl=").append(version);
         }
 
-        v= kotlinVersion();
-        if (v != null) {
-            s.append(",kt=").append(v);
+        version= kotlinVersion();
+        if (version != null) {
+            s.append(",kt=").append(version);
         }
 
-        v = scalaVersion();
-        if (v != null) {
-            s.append(",sc=").append(v);
+        version = scalaVersion();
+        if (version != null) {
+            s.append(",sc=").append(version);
         }
 
-        v = groovyVersion();
-        if (v != null) {
-            s.append(",clj=").append(v);
+        version = groovyVersion();
+        if (version != null) {
+            s.append(",clj=").append(version);
         }
 
-        v = groovyVersion();
-        if (v != null) {
-            s.append(",gy=").append(v);
+        version = groovyVersion();
+        if (version != null) {
+            s.append(",gy=").append(version);
         }
 
         return s.toString();

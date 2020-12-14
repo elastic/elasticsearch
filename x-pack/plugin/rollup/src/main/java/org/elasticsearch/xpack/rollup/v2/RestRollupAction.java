@@ -22,13 +22,13 @@ public class RestRollupAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_rollup/{rollup_index}"));
+        return List.of(new Route(POST, "/{index}/_rollup/{rollup-index}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String index = restRequest.param("index");
-        String rollupIndex = restRequest.param("rollup_index");
+        String rollupIndex = restRequest.param("rollup-index");
         RollupActionConfig config = RollupActionConfig.fromXContent(restRequest.contentParser());
         RollupAction.Request request = new RollupAction.Request(index, rollupIndex, config);
         return channel -> client.execute(RollupAction.INSTANCE, request, new RestToXContentListener<>(channel));

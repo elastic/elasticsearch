@@ -23,6 +23,7 @@ public class Criterion<Q extends QueryRequest> {
     private final HitExtractor tiebreaker;
 
     private final boolean descending;
+    private final int keySize;
 
     public Criterion(int stage,
               Q queryRequest,
@@ -37,6 +38,8 @@ public class Criterion<Q extends QueryRequest> {
         this.tiebreaker = tiebreaker;
 
         this.descending = descending;
+
+        this.keySize = keys.size();
     }
 
     public int stage() {
@@ -53,9 +56,9 @@ public class Criterion<Q extends QueryRequest> {
 
     public Object[] key(SearchHit hit) {
         Object[] key = null;
-        if (keys.isEmpty() == false) {
-            Object[] docKeys = new Object[keys.size()];
-            for (int i = 0; i < docKeys.length; i++) {
+        if (keySize > 0) {
+            Object[] docKeys = new Object[keySize];
+            for (int i = 0; i < keySize; i++) {
                 docKeys[i] = keys.get(i).extract(hit);
             }
             key = docKeys;

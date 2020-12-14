@@ -49,13 +49,13 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHi
  */
 public class TumblingWindow implements Executable {
 
-    private static final int CACHE_MAX_SIZE = 63;
+    private static final int CACHE_MAX_SIZE = 64;
 
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
     /**
      * Simple cache for removing duplicate strings (such as index name or common keys).
-     * Designed to be low-effort and thus optimistic in nature.
+     * Designed to be low-effort, non-concurrent (not needed) and thus optimistic in nature.
      * Thus it has a small, upper limit so that it doesn't require any cleaning up.
      */
     // start with the default size and allow growth until the max size

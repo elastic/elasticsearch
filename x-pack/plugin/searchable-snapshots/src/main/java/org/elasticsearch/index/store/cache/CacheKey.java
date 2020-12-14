@@ -25,19 +25,19 @@ public class CacheKey {
         this.fileName = Objects.requireNonNull(fileName);
     }
 
-    SnapshotId getSnapshotId() {
+    public SnapshotId getSnapshotId() {
         return snapshotId;
     }
 
-    IndexId getIndexId() {
+    public IndexId getIndexId() {
         return indexId;
     }
 
-    ShardId getShardId() {
+    public ShardId getShardId() {
         return shardId;
     }
 
-    String getFileName() {
+    public String getFileName() {
         return fileName;
     }
 

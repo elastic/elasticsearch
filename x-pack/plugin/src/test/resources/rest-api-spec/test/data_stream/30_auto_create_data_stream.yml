@@ -31,7 +31,7 @@
         index: logs-foobar
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: .ds-logs-foobar-000001 }
+  - match: { hits.hits.0._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
@@ -40,7 +40,7 @@
   - match: { data_streams.0.name: logs-foobar }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '.ds-logs-foobar-000001' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
 
   - do:
       indices.delete_data_stream:

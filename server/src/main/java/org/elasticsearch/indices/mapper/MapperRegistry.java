@@ -88,13 +88,6 @@ public final class MapperRegistry {
     }
 
     /**
-     * Returns true if the provided field is a registered metadata field, false otherwise
-     */
-    public boolean isMetadataField(Version indexCreatedVersion, String field) {
-        return getMetadataMapperParsers(indexCreatedVersion).containsKey(field);
-    }
-
-    /**
      * Returns a function that given an index name, returns a predicate that fields must match in order to be returned by get mappings,
      * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return.
      * The predicate receives the field name as input arguments. In case multiple plugins register a field filter through

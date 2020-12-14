@@ -5,6 +5,7 @@
       "description":"Upgrades a given job snapshot to the current major version."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

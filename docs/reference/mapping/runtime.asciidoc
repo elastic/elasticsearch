@@ -1,0 +1,661 @@
+[[runtime]]
+== Runtime fields
+Typically, you index data into {es} to promote faster search. However, indexing
+can be slow and requires more disk space, and you have to reindex your data to
+add fields to existing documents. With _runtime fields_, you can add
+fields to documents already indexed to {es} without reindexing your data.
+
+You access runtime fields from the search API like any other field, and {es}
+sees runtime fields no differently.
+
+[discrete]
+[[runtime-benefits]]
+=== Benefits
+Because runtime fields aren't indexed, adding a runtime field doesn't increase
+the index size. You define runtime fields directly in the index mapping, saving
+storage costs and increasing ingestion speed. You can more quickly ingest
+data into the Elastic Stack and access it right away. When you define a runtime
+field, you can immediately use it in search requests, aggregations, filtering,
+and sorting.
+
+If you make a runtime field an indexed field, you don't need to modify any
+queries that refer to the runtime field. Better yet, you can refer to some
+indices where the field is a runtime field, and other indices where the field
+is an indexed field. You have the flexibility to choose which fields to index
+and which ones to keep as runtime fields.
+
+[discrete]
+[[runtime-use-cases]]
+=== Use cases
+Runtime fields are useful when working with log data
+(see <<runtime-examples,examples>>), especially when you're unsure about the
+data structure. Your search speed decreases, but your index size is much
+smaller and you can more quickly process logs without having to index them.
+
+Runtime fields are especially useful in the following contexts:
+
+* Adding fields to documents that are already indexed without having to reindex
+data
+* Immediately begin working on a new data stream without fully understanding
+the data it contains
+* Shadowing an indexed field with a runtime field to fix a mistake after
+indexing documents
+* Defining fields that are only relevant for a particular context (such as a
+visualization in {kib}) without influencing the underlying schema
+
+[discrete]
+[[runtime-compromises]]
+=== Compromises
+Runtime fields use less disk space and provide flexibility in how you access
+your data, but can impact search performance based on the computation defined in
+the runtime script.
+
+To balance search performance and flexibility, index fields that you'll
+commonly search for and filter on, such as a timestamp. {es} automatically uses
+these indexed fields first when running a query, resulting in a fast response
+time. You can then use runtime fields to limit the number of fields that {es}
+needs to calculate values for. Using indexed fields in tandem with runtime
+fields provides flexibility in the data that you index and how you define
+queries for other fields.
+
+Use the <<async-search,asynchronous search API>> to run searches that include
+runtime fields. This method of search helps to offset the performance impacts
+of computing values for runtime fields in each document containing that field.
+If the query can't return the result set synchronously, you'll get results
+asynchronously as they become available.
+
+IMPORTANT: Queries against runtime fields are considered expensive. If
+<<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>> is set
+to `false`, expensive queries are not allowed and {es} will reject any queries
+against runtime fields.
+
+[[runtime-mapping-fields]]
+=== Mapping a runtime field
+You map runtime fields by adding a `runtime` section under the mapping
+definition and defining
+<<modules-scripting-using,a Painless script>>. This script has access to the
+entire context of a document, including the original `_source` and any mapped
+fields plus their values. At search time, the script runs and generates values
+for each scripted field that is required for the query.
+
+NOTE: You can define a runtime field in the mapping definition without a
+script. If you define a runtime field without a script, {es} evaluates the
+field at search time, looks at each document containing that field, retrieves
+the `_source`, and returns a value if one exists.
+
+Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
+of the `_search` request, but also make the script results available anywhere
+in a search request.
+
+The script in the following request extracts the day of the week from the
+`@timestamp` field, which is defined as a `date` type:
+
+[source,console]
+----
+PUT /my-index
+{
+  "mappings": {
+    "runtime": { <1>
+      "day_of_week": {
+        "type": "keyword", <2>
+        "script": { <3>
+          "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+        }
+      }
+    },
+    "properties": {
+      "timestamp": {"type": "date"}
+    }
+  }
+}
+----
+
+<1> Runtime fields are defined in the `runtime` section of the mapping
+definition.
+<2> Each runtime field has its own field type, just like any other field.
+<3> The script defines the evaluation to calculate at search time.
+
+The `runtime` section supports `boolean`, `date`, `double`, `geo_point`, `ip`,
+`keyword`, and `long` data types. Runtime fields with a `type` of `date` can
+accept the <<mapping-date-format,`format`>> parameter exactly as the `date`
+field type.
+
+[[runtime-updating-scripts]]
+.Updating runtime scripts
+****
+
+Updating a script while a dependent query is running can return
+inconsistent results. Each shard might have access to different versions of the
+script, depending on when the mapping change takes effect.
+
+Existing queries or visualizations in {kib} that rely on runtime fields can
+fail if you change the field type. For example, a bar chart visualization
+that uses a runtime field of type `ip` will fail if the type is changed
+to `boolean`.
+
+****
+
+[[runtime-search-request]]
+=== Defining runtime fields in a search request
+You can specify a `runtime_mappings` section in a search request to create
+runtime fields that exist only as part of the query. You specify a script
+as part of the `runtime_mappings` section, just as you would if adding a
+runtime field to the mappings.
+
+Fields defined in the search request take precedence over fields defined with
+the same name in the index mappings. This flexibility allows you to shadow
+existing fields and calculate a different value in the search request, without
+modifying the field itself. If you made a mistake in your index mapping, you
+can use runtime fields to calculate values that override values in the mapping
+during the search request.
+
+In the following request, the values for the `day_of_week` field are calculated
+dynamically, and only within the context of this search request:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "runtime_mappings": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": {
+        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      }
+    }
+  },
+  "aggs": {
+    "day_of_week": {
+      "terms": {
+        "field": "day_of_week"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+Defining a runtime field in a search request uses the same format as defining
+a runtime field in the index mapping. That consistency means you can promote a
+runtime field from a search request to the index mapping by moving the field
+definition from `runtime_mappings` in the search request to the `runtime`
+section of the index mapping.
+
+[[runtime-shadowing-fields]]
+=== Shadowing fields
+If you create a runtime field with the same name as a field that
+already exists in the mapping, the runtime field shadows the mapped field. At
+search time, {es} evaluates the runtime field, calculates a value based on the
+script, and returns the value as part of the query. Because the runtime field
+shadows the mapped field, you can modify the value returned in search without
+modifying the mapped field.
+
+For example, let's say you indexed the following documents into `my-index`:
+
+[source,console]
+----
+POST my-index/_bulk?refresh=true
+{"index":{}}
+{"timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
+{"index":{}}
+{"timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":5.8}}
+{"index":{}}
+{"timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":5.1}}
+{"index":{}}
+{"timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":5.6}}
+{"index":{}}
+{"timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":4.2}}
+{"index":{}}
+{"timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
+----
+
+You later realize that the `HG537PU` sensors aren't reporting their true
+voltage. The indexed values are supposed to be 1.7 times higher than
+the reported values! Instead of reindexing your data, you can define a script in
+the `runtime_mappings` section of the `_search` request to shadow the `voltage`
+field and calculate a new value at search time.
+
+If you search for documents where the model number matches `HG537PU`:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "query": {
+    "match": {
+      "model_number": "HG537PU"
+    }
+  }
+}
+----
+//TEST[continued]
+
+The response includes indexed values for documents matching model number
+`HG537PU`:
+
+[source,console-result]
+----
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0296195,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "F1BeSXYBg_szTodcYCmk",
+        "_score" : 1.0296195,
+        "_source" : {
+          "timestamp" : 1516383694000,
+          "model_number" : "HG537PU",
+          "measures" : {
+            "voltage" : 4.2
+          }
+        }
+      },
+      {
+        "_index" : "my-index",
+        "_id" : "l02aSXYBkpNf6QRDO62Q",
+        "_score" : 1.0296195,
+        "_source" : {
+          "timestamp" : 1516297294000,
+          "model_number" : "HG537PU",
+          "measures" : {
+            "voltage" : 4.0
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_id" : "F1BeSXYBg_szTodcYCmk"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "l02aSXYBkpNf6QRDO62Q"/"_id": $body.hits.hits.1._id/]
+
+The following request defines a runtime field where the script evaluates the
+`model_number` field where the value is `HG537PU`. For each match, the script
+multiplies the value for the `voltage` field by `1.7`.
+
+Using the <<search-fields,`fields`>> parameter on the `_search` API, you can
+retrieve the value that the script calculates for the `measures.voltage` field
+for documents matching the search request:
+
+[source,console]
+----
+POST my-index/_search
+{
+  "runtime_mappings": {
+    "measures.voltage": {
+      "type": "double",
+      "script": {
+        "source":
+        """if (doc['model_number.keyword'].value.equals('HG537PU'))
+        {emit(1.7 * params._source['measures']['voltage']);}
+        else{emit(params._source['measures']['voltage']);}"""
+      }
+    }
+  },
+  "query": {
+    "match": {
+      "model_number": "HG537PU"
+    }
+  },
+  "fields": ["measures.voltage"]
+}
+----
+//TEST[continued]
+
+Looking at the response, the calculated values for `measures.voltage` on each
+result are `7.14` and `6.8`. That's more like it! The runtime field calculated
+this value as part of the search request without modifying the mapped value,
+which still returns in the response:
+
+[source,console-result]
+----
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0296195,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "F1BeSXYBg_szTodcYCmk",
+        "_score" : 1.0296195,
+        "_source" : {
+          "timestamp" : 1516383694000,
+          "model_number" : "HG537PU",
+          "measures" : {
+            "voltage" : 4.2
+          }
+        },
+        "fields" : {
+          "measures.voltage" : [
+            7.14
+          ]
+        }
+      },
+      {
+        "_index" : "my-index",
+        "_id" : "l02aSXYBkpNf6QRDO62Q",
+        "_score" : 1.0296195,
+        "_source" : {
+          "timestamp" : 1516297294000,
+          "model_number" : "HG537PU",
+          "measures" : {
+            "voltage" : 4.0
+          }
+        },
+        "fields" : {
+          "measures.voltage" : [
+            6.8
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_id" : "F1BeSXYBg_szTodcYCmk"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "l02aSXYBkpNf6QRDO62Q"/"_id": $body.hits.hits.1._id/]
+
+[[runtime-retrieving-fields]]
+=== Retrieving a runtime field
+Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
+the values of runtime fields. Runtime fields won't display in `_source`, but
+the `fields` API works for all fields, even those that were not sent as part of
+the original `_source`.
+
+The following request uses the search API to retrieve the `day_of_week` field
+that <<runtime-mapping-fields,this previous request>> defined as a runtime field
+in the mapping. The value for the `day_of_week` field is calculated dynamically
+at search time based on the evaluation of the defined script.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "fields": [
+    "@timestamp",
+    "day_of_week"
+  ],
+  "_source": false
+}
+----
+// TEST[continued]
+
+[[runtime-examples]]
+=== Runtime fields examples
+Consider a large set of log data that you want to extract fields from.
+Indexing the data is time consuming and uses a lot of disk space, and you just
+want to explore the data structure without committing to a schema up front.
+
+You know that your log data contains specific fields that you want to extract.
+By using runtime fields, you can define scripts to calculate values at search
+time for these fields.
+
+You can start with a simple example by adding the `@timestamp` and `message`
+fields to the `my-index` mapping. To remain flexible, use `wildcard` as the
+field type for `message`:
+
+[source,console]
+----
+PUT /my-index/
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "format": "strict_date_optional_time||epoch_second",
+        "type": "date"
+      },
+      "message": {
+        "type": "wildcard"
+      }
+    }
+  }
+}
+----
+
+After mapping the fields you want to retrieve, index a few records from
+your log data into {es}. The following request uses the <<docs-bulk,bulk API>>
+to index raw log data into `my-index`. Instead of indexing all of your log
+data, you can use a small sample to experiment with runtime fields.
+
+[source,console]
+----
+POST /my-index/_bulk?refresh
+{ "index": {}}
+{ "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [2020-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [2020-04-30T14:30:53-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [2020-04-30T14:31:12-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:19-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:19-05:00] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [2020-04-30T14:31:27-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_brdl.gif HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_arw.gif HTTP/1.0\" 304 0"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:32-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:32-05:00] \"GET /images/nav_bg_top.gif HTTP/1.0\" 200 929"}
+{ "index": {}}
+{ "@timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
+----
+// TEST[continued]
+
+At this point, you can view how {es} stores your raw data.
+
+[source,console]
+----
+GET /my-index
+----
+// TEST[continued]
+
+The mapping contains two fields: `@timestamp` and `message`.
+
+[source,console-result]
+----
+{
+  "my-index" : {
+    "aliases" : { },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date",
+          "format" : "strict_date_optional_time||epoch_second"
+        },
+        "message" : {
+          "type" : "wildcard"
+        }
+      }
+    },
+    ...
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"settings": $body.my-index.settings/]
+
+If you want to retrieve results that include `clientip`, you can add that field
+as a runtime field in the mapping. The runtime script operates on the `clientip`
+field at runtime to calculate values for that field.
+
+[source,console]
+----
+PUT /my-index/_mapping
+{
+  "runtime": {
+    "clientip": {
+      "type": "ip",
+      "script" : {
+      "source" : "String m = doc[\"message\"].value; int end = m.indexOf(\" \"); emit(m.substring(0, end));"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+Using the `clientip` runtime field, you can define a simple query to run a
+search for a specific IP address and return all related fields.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "size": 1,
+  "query": {
+    "match": {
+      "clientip": "211.11.9.0"
+    }
+  },
+  "fields" : ["*"]
+}
+----
+// TEST[continued]
+
+The API returns the following result. Without building your data structure in
+advance, you can search and explore your data in meaningful ways to experiment
+and determine which fields to index.
+
+[source,console-result]
+----
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "oWs5KXYB-XyJbifr9mrz",
+        "_score" : 1.0,
+        "_source" : {
+          "@timestamp" : "2020-06-21T15:00:01-05:00",
+          "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+        },
+        "fields" : {
+          "@timestamp" : [
+            "2020-06-21T20:00:01.000Z"
+          ],
+          "clientip" : [
+            "211.11.9.0"
+          ],
+          "message" : [
+            "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
+
+You can add the `day_of_week` field to the mapping using the request from
+<<runtime-mapping-fields,mapping a runtime field>>:
+
+[source,console]
+----
+PUT /my-index/_mapping
+{
+  "runtime": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": {
+        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      }
+    }
+  },
+  "properties": {
+    "timestamp": {
+      "type": "date"
+    }
+  }
+}
+----
+// TEST[continued]
+
+Then, you can re-run the previous search request and also retrieve the day of
+the week based on the `@timestamp` field:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "size": 1,
+  "query": {
+    "match": {
+      "clientip": "211.11.9.0"
+    }
+  },
+  "fields" : ["*"]
+}
+----
+// TEST[continued]
+
+The value for this field is calculated dynamically at runtime without
+reindexing the document or adding the `day_of_week` field. This flexibility
+allows you to modify the mapping without changing any field values.
+
+[source,console-result]
+----
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "oWs5KXYB-XyJbifr9mrz",
+        "_score" : 1.0,
+        "_source" : {
+          "@timestamp" : "2020-06-21T15:00:01-05:00",
+          "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+        },
+        "fields" : {
+          "@timestamp" : [
+            "2020-06-21T20:00:01.000Z"
+          ],
+          "clientip" : [
+            "211.11.9.0"
+          ],
+          "message" : [
+            "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+          ],
+          "day_of_week" : [
+            "Sunday" <1>
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
+
+<1> This value was calculated at search time using the runtime script defined
+in the mapping.

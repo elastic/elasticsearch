@@ -411,6 +411,7 @@ public class CacheService extends AbstractLifecycleComponent {
         try {
             persistentCache.removeCacheFile(cacheFile);
         } catch (Exception e) {
+            assert e instanceof IOException : e;
             logger.warn("failed to remove cache file from persistent cache", e);
         }
     }

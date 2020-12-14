@@ -54,7 +54,7 @@ setup:
   - do:
       rollup.rollup:
         index: docs
-        rollup-index: rollup_docs
+        rollup_index: rollup_docs
         body:  >
           {
             "groups" : {

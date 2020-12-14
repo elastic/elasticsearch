@@ -5,6 +5,7 @@
       "description":"Migrates an alias to a data stream"
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

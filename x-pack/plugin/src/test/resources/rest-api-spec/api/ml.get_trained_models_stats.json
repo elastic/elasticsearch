@@ -5,6 +5,7 @@
       "description":"Retrieves usage information for trained inference models."
     },
     "stability":"beta",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -5,6 +5,7 @@
       "description":"Retrieves information about model snapshots."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

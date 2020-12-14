@@ -359,7 +359,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         Request request = new Request("GET", "/200");
         Response esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
         String header = esResponse.getHeader(RestClientBuilder.METADATA_HEADER);
-        assertTrue(header.matches("^es=[^,]+,jv=[^,]+,t=[^,]+,hc=.*"));
+        assertTrue(header.matches("^es=[^,]*,jv=[^,]+,t=[^,]*,hc=.*"));
 
         // Also check user-agent
         header = esResponse.getHeader("User-Agent");
@@ -371,7 +371,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             .addHeader("User-Agent", "baz"));
         esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
         header = esResponse.getHeader(RestClientBuilder.METADATA_HEADER);
-        assertTrue(header.matches("^es=[^,]+,jv=[^,]+,t=[^,]+,hc=.*"));
+        assertTrue(header.matches("^es=[^,]*,jv=[^,]+,t=[^,]*,hc=.*"));
         assertEquals("baz", esResponse.getHeader("User-Agent"));
 
         // Create a new client and disable meta header

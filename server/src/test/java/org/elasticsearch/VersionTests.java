@@ -19,7 +19,6 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -45,11 +44,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
-
-    public void testIdenticalServerAndClientVersion() {
-        // See either of these constants for the rationale behind this test.
-        assertThat(RestClient.VERSION, equalTo(Version.CURRENT.toString()));
-    }
 
     public void testVersionComparison() throws Exception {
         Version V_7_2_0 = Version.fromString("7.2.0");

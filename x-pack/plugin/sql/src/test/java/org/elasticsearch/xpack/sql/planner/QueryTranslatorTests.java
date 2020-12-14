@@ -2074,15 +2074,15 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testZonedDateTimeInScripts() {
         PhysicalPlan p = optimizeAndPlan(
-                "SELECT date FROM test WHERE date + INTERVAL 1 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
+                "SELECT date FROM test WHERE date - INTERVAL 999999999 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
                 "\"script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter("
-                        + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
+                        + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),"
                         + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),InternalSqlScriptUtils.asDateTime(params.v3)))\","
                 + "\"lang\":\"painless\","
-                + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
+                + "\"params\":{\"v0\":\"date\",\"v1\":\"P999999999Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
     }
 
     public void testChronoFieldBasedDateTimeFunctionsWithMathIntervalAndGroupBy() {
@@ -2385,11 +2385,11 @@ public class QueryTranslatorTests extends ESTestCase {
                 "   PERCENTILE(int, 50), " +
                 // 4: this has a different method parameter
                 // just to make sure we don't fold everything to default
-                "   PERCENTILE(int, 50, 'tdigest', 22) " 
+                "   PERCENTILE(int, 50, 'tdigest', 22) "
                 + "FROM test").replaceAll("PERCENTILE", fnName);
-            
+
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
-            
+
             // 0-3
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(aggs.get(0), aggs.get(2));
@@ -2401,7 +2401,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(new PercentilesConfig.TDigest(22), aggs.get(4).percentilesConfig());
             assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(4)), 0);
         };
-        
+
         test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
         test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
     }
@@ -2414,17 +2414,17 @@ public class QueryTranslatorTests extends ESTestCase {
                 // 0-1: fold into the same aggregation
                 "   PERCENTILE(int, 50, 'tdigest'), " +
                 "   PERCENTILE(int, 60, 'tdigest'), " +
-                
+
                 // 2-3: fold into one aggregation
                 "   PERCENTILE(int, 50, 'hdr'), " +
                 "   PERCENTILE(int, 60, 'hdr', 3), " +
-                
+
                 // 4: folds into a separate aggregation
                 "   PERCENTILE(int, 60, 'hdr', 4)" +
                 "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
-            
+
             // 0-1
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
@@ -2434,7 +2434,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(aggs.get(2), aggs.get(3));
             assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
             assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(2)), 0);
-            
+
             // 4
             assertEquals(new PercentilesConfig.Hdr(4), aggs.get(4).percentilesConfig());
             assertArrayEquals(new double[]{60}, pctOrValFn.apply(aggs.get(4)), 0);

@@ -30,10 +30,4 @@ public class Mod extends ArithmeticOperation {
     protected Mod replaceChildren(Expression newLeft, Expression newRight) {
         return new Mod(source(), newLeft, newRight);
     }
-
-    @Override
-    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
-        // TODO: Modular Multiplicative Inverse, if ever needed?
-        throw new UnsupportedOperationException("inverting modulo operation is not supported");
-    }
 }

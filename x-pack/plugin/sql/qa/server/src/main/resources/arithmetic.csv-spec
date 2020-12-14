@@ -23,7 +23,41 @@ nullArithmetics
 schema::a:i|b:d|c:s|d:s|e:l|f:i|g:i|h:i|i:i|j:i|k:d
 SELECT null + 2 AS a, null * 1.5 AS b, null + null AS c, null - null AS d, null - 1234567890123 AS e, 123 - null AS f, null / 5 AS g, 5 / null AS h, null % 5 AS i, 5 % null AS j, null + 5.5 - (null * (null * 3)) AS k;
 
-       a       |       b       |       c       |       d       |       e       |       f       |       g       |       h       |       i       |       j       |       k       
+       a       |       b       |       c       |       d       |       e       |       f       |       g       |       h       |       i       |       j       |       k
 ---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
-null           |null           |null           |null           |null           |null           |null           |null           |null           |null           |null           
+null           |null           |null           |null           |null           |null           |null           |null           |null           |null           |null
+;
+
+optimizedIntervalFilterPlus
+SELECT emp_no x FROM test_emp WHERE hire_date + INTERVAL 20 YEAR > CAST('2010-01-01T00:00:00' AS TIMESTAMP) LIMIT 10;
+
+       x:i
+---------------
+10008
+10011
+10012
+10016
+10017
+10019
+10020
+10022
+10024
+10026
+;
+
+optimizedIntervalFilterMinus
+SELECT emp_no x FROM test_emp WHERE hire_date - INTERVAL 10 YEAR > CAST('1980-01-01T00:00:00' AS TIMESTAMP) LIMIT 10;
+
+       x:i
+---------------
+10008
+10011
+10012
+10016
+10017
+10019
+10020
+10022
+10024
+10026
 ;

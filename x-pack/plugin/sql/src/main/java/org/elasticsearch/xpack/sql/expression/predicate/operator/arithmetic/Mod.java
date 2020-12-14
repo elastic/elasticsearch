@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -30,11 +29,5 @@ public class Mod extends SqlArithmeticOperation {
     @Override
     protected Mod replaceChildren(Expression newLeft, Expression newRight) {
         return new Mod(source(), newLeft, newRight);
-    }
-
-    @Override
-    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
-        // TODO: Modular Multiplicative Inverse, if ever needed?
-        throw new UnsupportedOperationException("inverting modulo operation is not supported");
     }
 }

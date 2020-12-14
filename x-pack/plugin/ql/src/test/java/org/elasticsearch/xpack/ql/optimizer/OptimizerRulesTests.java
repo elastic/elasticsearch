@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
@@ -69,6 +72,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.rangeOf;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BubbleUpNegations;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
@@ -1536,5 +1540,25 @@ public class OptimizerRulesTests extends ESTestCase {
         In in = (In) or.right();
         assertEquals(fa, in.value());
         assertThat(in.list(), contains(one, three));
+    }
+
+    public void testBubbleUpNegation() {
+        for (Function<Expression, Expression> f : List.<Function<Expression, Expression>>of(x -> new Div(EMPTY, TWO, x),
+            x -> new Mul(EMPTY, TWO, x))) {
+            FieldAttribute fa = getFieldAttribute();
+            Neg neg = new Neg(fa.source(), fa);
+            Expression op = f.apply(neg);
+
+            Expression e = new BubbleUpNegations().rule(op);
+            assertEquals(Neg.class, e.getClass());
+            Neg upperNeg = (Neg) e;
+            assertEquals(1, upperNeg.children().size());
+            assertEquals(op.getClass(), upperNeg.children().get(0).getClass());
+            ArithmeticOperation newOp = (ArithmeticOperation) upperNeg.children().get(0);
+            assertEquals(TWO, newOp.left());
+            assertEquals(FieldAttribute.class, newOp.right().getClass());
+            FieldAttribute divFa = (FieldAttribute) newOp.right();
+            assertEquals(fa, divFa);
+        }
     }
 }

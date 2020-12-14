@@ -5,17 +5,24 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
@@ -27,7 +34,19 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
+import java.time.ZonedDateTime;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.EQ;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.GT;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.GTE;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.LT;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.LTE;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.NEQ;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.NULLEQ;
 
 public class OptimizerRunTests extends ESTestCase {
 
@@ -36,6 +55,18 @@ public class OptimizerRunTests extends ESTestCase {
     private final FunctionRegistry functionRegistry;
     private final Analyzer analyzer;
     private final Optimizer optimizer;
+    private static final Map<String, Class<? extends BinaryComparison>> COMPARISONS = new HashMap<>() {
+        {
+            put(EQ.symbol(), Equals.class);
+            put(NULLEQ.symbol(), NullEquals.class);
+            put(NEQ.symbol(), NotEquals.class);
+            put(GT.symbol(), GreaterThan.class);
+            put(GTE.symbol(), GreaterThanOrEqual.class);
+            put(LT.symbol(), LessThan.class);
+            put(LTE.symbol(), LessThanOrEqual.class);
+        }
+    };
+    private static final BooleanLiteralsOnTheRight LITERALS_ON_THE_RIGHT = new BooleanLiteralsOnTheRight();
 
     public OptimizerRunTests() {
         parser = new SqlParser();
@@ -58,56 +89,172 @@ public class OptimizerRunTests extends ESTestCase {
         assertNotNull(p);
     }
 
-    public void testReducedBinaryComparisonGreaterThenOrEqual() {
-        // i >= 12
-        doTestBinaryComparisonReduction("((int + 1) / 2 - 3) * 4 >= 14", GreaterThanOrEqual.class, 12d);
+    public void testSimplifyComparisonArithmeticCommutativeVsNonCommutativeOps() {
+        doTestSimplifyComparisonArithmetics("int + 2 > 3", "int", ">", 1);
+        doTestSimplifyComparisonArithmetics("2 + int > 3", "int", ">", 1);
+        doTestSimplifyComparisonArithmetics("int - 2 > 3", "int", ">", 5);
+        doTestSimplifyComparisonArithmetics("2 - int > 3", "int", "<", -1);
+        doTestSimplifyComparisonArithmetics("int * 2 > 4", "int", ">", 2);
+        doTestSimplifyComparisonArithmetics("2 * int > 4", "int", ">", 2);
+        doTestSimplifyComparisonArithmetics("float / 2 > 4", "float", ">", 8d);
+        doTestSimplifyComparisonArithmetics("2 / float < 4", "float", ">", .5);
     }
 
-    public void testReducedBinaryComYparisonLessThen() {
-        // i < -5/6
-        doTestBinaryComparisonReduction("12 * (-int / 5) > (8 + 12) / 10", LessThan.class, -5d / 6);
+    public void testSimplifyComparisonArithmeticWithMultipleOps() {
+        // i >= 3
+        doTestSimplifyComparisonArithmetics("((int + 1) * 2 - 4) * 4 >= 16", "int", ">=", 3);
     }
 
-    public void testReducedBinaryComYparisonNotEquals() {
-        // i != 7000
-        doTestBinaryComparisonReduction("-3600 != (int - 200) / 2", NotEquals.class, -7000);
+    public void testSimplifyComparisonArithmeticWithFieldNegation() {
+        doTestSimplifyComparisonArithmetics("12 * (-int - 5) >= -120", "int", "<=", 5);
     }
 
-    public void testReducedBinaryComparisonEquals() {
-        // i = -12
-        doTestBinaryComparisonReduction("2 * 3 / (4 / -int) = 18", Equals.class, -12d);
+    public void testSimplifyComparisonArithmeticWithFieldDoubleNegation() {
+        doTestSimplifyComparisonArithmetics("12 * -(-int - 5) <= 120", "int", "<=", 5);
     }
 
-    public void testReducedBinaryComparisonWithConjunction() {
-        doTestBinaryComparisonReduction("2 * 3 / (4 / -int) = 18 AND int >= -12", Equals.class, -12d);
+    public void testSimplifyComparisonArithmeticWithConjunction() {
+        doTestSimplifyComparisonArithmetics("12 * (-int - 5) = -120 AND int < 6 ", "int", "==", 5);
     }
 
-    public void testReducedBinaryComparisonWithDisjunction() {
-        doTestBinaryComparisonReduction("2 * 3 / (4 / -int) = 18 OR int > -12", GreaterThanOrEqual.class, -12d);
+    public void testSimplifyComparisonArithmeticWithDisjunction() {
+        doTestSimplifyComparisonArithmetics("12 * (-int - 5) >= -120 OR int < 5", "int", "<=", 5);
     }
 
-    private void doTestBinaryComparisonReduction(String expression, Class<? extends BinaryComparison> binaryComparisonClass,
-                                                 Number bound) {
-        LogicalPlan plan = plan("SELECT some.string FROM test WHERE " + expression);
+    public void testSimplifyComparisonArithmeticWithFloatsAndDirectionChange() {
+        doTestSimplifyComparisonArithmetics("float / -2 < 4", "float", ">", -8d);
+        doTestSimplifyComparisonArithmetics("float * -2 < 4", "float", ">", -2d);
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnIntegerArithmeticalOverflow() {
+        assertNotSimplified("int - 1 " + randomBinaryComparison() + " " + Long.MAX_VALUE);
+        assertNotSimplified("1 - int " + randomBinaryComparison() + " " + Long.MIN_VALUE);
+        assertNotSimplified("int - 1 " + randomBinaryComparison() + " " + Integer.MAX_VALUE);
+        assertNotSimplified("1 - int " + randomBinaryComparison() + " " + Integer.MIN_VALUE);
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnFloatingPointArithmeticalOverflow() {
+        assertNotSimplified("float / 10 " + randomBinaryComparison() + " " + Float.MAX_VALUE);
+        assertNotSimplified("float / " + Float.MAX_VALUE +" " + randomBinaryComparison() + " 10");
+        assertNotSimplified("float / 10 " + randomBinaryComparison() + " " + Double.MAX_VALUE);
+        assertNotSimplified("float / " + Double.MAX_VALUE + " " + randomBinaryComparison() + " 10");
+        // note: the "reversed" test (i.e.: MAX_VALUE / float < literal) would require a floating literal, which is skipped for other
+        // reason (see testSimplifyComparisonArithmeticSkippedOnFloats())
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnNegatingOverflow() {
+        assertNotSimplified("-int " + randomBinaryComparison() + " " + Long.MIN_VALUE);
+        assertNotSimplified("-int " + randomBinaryComparison() + " " + Integer.MIN_VALUE);
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnDateOverflow() {
+        assertNotSimplified("date - INTERVAL 999999999 YEAR > '2010-01-01T01:01:01'::DATETIME");
+        assertNotSimplified("date + INTERVAL -999999999 YEAR > '2010-01-01T01:01:01'::DATETIME");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnMulDivByZero() {
+        assertNotSimplified("float / 0 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("float * 0 " + randomBinaryComparison() + " 1");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnDiv() {
+        assertNotSimplified("int / 4 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("4 / int " + randomBinaryComparison() + " 1");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnResultingFloatLiteral() {
+        assertNotSimplified("int * 2 " + randomBinaryComparison() + " 3");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnFloatFieldWithPlusMinus() {
+        assertNotSimplified("float + 4 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("4 + float " + randomBinaryComparison() + " 1");
+        assertNotSimplified("float - 4 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("4 - float " + randomBinaryComparison() + " 1");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnFloats() {
+        for (String field : List.of("int", "float")) {
+            for (Tuple<? extends Number, ? extends Number> nr : List.of(new Tuple<>(.4, 1), new Tuple<>(1, .4))) {
+                assertNotSimplified(field + " + " + nr.v1() + " " + randomBinaryComparison() + " " + nr.v2());
+                assertNotSimplified(field + " - " + nr.v1() + " " + randomBinaryComparison() + " " + nr.v2());
+                assertNotSimplified(nr.v1()+ " + " + field  + " " + randomBinaryComparison() + " " + nr.v2());
+                assertNotSimplified(nr.v1()+ " - " + field  + " " + randomBinaryComparison() + " " + nr.v2());
+            }
+        }
+    }
+
+    public void testBubbleUpNegation() {
+        String provided = "(1 / -int) * (-float) * (-float / (2 / -int)) * -2 * (-float - int) * (-(-int)) * (-float / (-int + 1)) > 1";
+        String expected = "(1/int) * float * (float / (2 / int)) * -2 * (-float - int) * int * (float / (-int + 1)) < -1";
+        BinaryComparison bc = extractBinaryComparison(provided);
+        Expression exp = parser.createExpression(expected);
+        assertSemanticMatching(bc, exp);
+    }
+
+    public void testSimplifyComparisonArithmeticWithDateTime() {
+        doTestSimplifyComparisonArithmetics("date - INTERVAL 1 MONTH > '2010-01-01T01:01:01'::DATETIME", "date", ">",
+            ZonedDateTime.parse("2010-02-01T01:01:01Z"));
+    }
+
+    public void testSimplifyComparisonArithmeticWithDate() {
+        doTestSimplifyComparisonArithmetics("date + INTERVAL 1 YEAR <= '2011-01-01T00:00:00'::DATE", "date", "<=",
+            ZonedDateTime.parse("2010-01-01T00:00:00Z"));
+    }
+
+    public void testSimplifyComparisonArithmeticWithDateAndMultiplication() {
+        // the multiplication should be folded, but check
+        doTestSimplifyComparisonArithmetics("date + 2 * INTERVAL 1 YEAR <= '2012-01-01T00:00:00'::DATE", "date", "<=",
+            ZonedDateTime.parse("2010-01-01T00:00:00Z"));
+    }
+
+    private void doTestSimplifyComparisonArithmetics(String expression, String fieldName, String compSymbol, Object bound) {
+        BinaryComparison bc = extractBinaryComparison(expression);
+        assertTrue(COMPARISONS.get(compSymbol).isInstance(bc));
+
+        assertTrue(bc.left() instanceof FieldAttribute);
+        FieldAttribute attribute = (FieldAttribute) bc.left();
+        assertEquals(fieldName, attribute.name());
+
+        assertTrue(bc.right() instanceof Literal);
+        Literal literal = (Literal) bc.right();
+        assertEquals(bound, literal.value());
+    }
+
+    private void assertNotSimplified(String condition) {
+        assertSemanticMatching(extractBinaryComparison(condition), parser.createExpression(condition));
+    }
+
+    private BinaryComparison extractBinaryComparison(String expression) {
+        LogicalPlan plan = planWithArithmeticCondition(expression);
 
         assertTrue(plan instanceof UnaryPlan);
         UnaryPlan unaryPlan = (UnaryPlan) plan;
         assertTrue(unaryPlan.child() instanceof Filter);
         Filter filter = (Filter) unaryPlan.child();
-        assertEquals(binaryComparisonClass, filter.condition().getClass());
-        BinaryComparison bc = (BinaryComparison) filter.condition();
+        assertTrue(filter.condition() instanceof BinaryComparison);
+        return (BinaryComparison) filter.condition();
+    }
 
-        assertTrue(bc.left() instanceof FieldAttribute);
-        FieldAttribute attribute = (FieldAttribute) bc.left();
-        assertEquals("int", attribute.name());
+    private LogicalPlan planWithArithmeticCondition(String condition) {
+        return plan("SELECT some.string FROM test WHERE " + condition);
+    }
 
-        assertTrue(bc.right() instanceof Literal);
-        Literal literal = (Literal) bc.right();
-        if (bound instanceof Double) {
-            assertTrue(literal.value() instanceof Number);
-            assertEquals(bound.doubleValue(), ((Number) literal.value()).doubleValue(), 1E-15);
-        } else {
-            assertEquals(bound, literal.value());
+    private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
+        Expression unresolvedUpdated = unresolvedAttributeExp
+            .transformUp(LITERALS_ON_THE_RIGHT::rule)
+            .transformUp(x -> x.foldable() ? new Literal(x.source(), x.fold(), x.dataType()) : x);
+
+        List<Expression> resolvedFields = fieldAttributeExp.collectFirstChildren(x -> x instanceof FieldAttribute);
+        for (Expression field : resolvedFields) {
+            FieldAttribute fa = (FieldAttribute) field;
+            unresolvedUpdated = unresolvedUpdated.transformDown(x -> x.name().equals(fa.name()) ? fa : x, UnresolvedAttribute.class);
         }
+
+        assertTrue(unresolvedUpdated.semanticEquals(fieldAttributeExp));
+    }
+
+    private static String randomBinaryComparison() {
+        return randomFrom(COMPARISONS.keySet().stream().map(x -> EQ.symbol().equals(x) ? "=" : x).collect(Collectors.toSet()));
     }
 }

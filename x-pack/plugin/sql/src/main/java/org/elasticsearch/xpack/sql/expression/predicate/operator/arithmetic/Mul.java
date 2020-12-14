@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -60,7 +59,7 @@ public class Mul extends SqlArithmeticOperation {
     }
 
     @Override
-    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+    public Div inverse(Source source, Expression left, Expression right) {
         return new Div(source, left, right);
     }
 

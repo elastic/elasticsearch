@@ -29,7 +29,7 @@ public class Sub extends DateTimeArithmeticOperation {
     }
 
     @Override
-    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+    public Add inverse(Source source, Expression left, Expression right) {
         return new Add(source, left, right);
     }
 }

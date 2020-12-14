@@ -136,7 +136,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     public void testAddNumberToIntervalIllegal() {
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
         QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> add(r, L(1)));
-        assertEquals("Cannot compute [+] between [IntervalDayTime] [Integer]", expect.getMessage());
+        assertEquals("Cannot compute [+] between [IntervalDayTime] and [Integer]", expect.getMessage());
     }
 
     public void testSubYearMonthIntervals() {
@@ -210,7 +210,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     public void testSubNumberFromIntervalIllegal() {
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
         QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> sub(r, L(1)));
-        assertEquals("Cannot compute [-] between [IntervalDayTime] [Integer]", expect.getMessage());
+        assertEquals("Cannot compute [-] between [IntervalDayTime] and [Integer]", expect.getMessage());
     }
 
     public void testMulIntervalNumber() {
@@ -228,14 +228,14 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         Period p = interval.interval();
         assertEquals(Period.ofYears(2).negated(), p);
     }
-    
+
     public void testMulNullInterval() {
         Literal literal = interval(Period.ofMonths(1), INTERVAL_MONTH);
         Mul result = new Mul(EMPTY, L(null), literal);
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Mul(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());
@@ -248,7 +248,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Add(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());
@@ -261,7 +261,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Sub(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());

@@ -54,7 +54,7 @@ public class Mul extends ArithmeticOperation {
     }
 
     @Override
-    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+    public Div inverse(Source source, Expression left, Expression right) {
         return new Div(source, left, right);
     }
 }

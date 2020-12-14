@@ -35,13 +35,14 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BubbleUpNegations;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyArithmeticsInBinaryComparisons;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
@@ -81,13 +82,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
                 new BooleanFunctionEqualsElimination(),
-                new SimplifyArithmeticsInBinaryComparisons(),
                 // needs to occur before BinaryComparison combinations
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
+                new BubbleUpNegations(),
+                new SimplifyComparisonsArithmetics(DataTypes::areCompatible),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),

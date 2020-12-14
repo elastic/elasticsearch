@@ -36,7 +36,7 @@ public class Div extends ArithmeticOperation {
     }
 
     @Override
-    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+    public Mul inverse(Source source, Expression left, Expression right) {
         return new Mul(source, left, right);
     }
 }

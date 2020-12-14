@@ -34,9 +34,9 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyArithmeticsInBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BubbleUpNegations;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule;
@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -140,7 +142,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ConstantFolding(),
                 new SimplifyConditional(),
                 new SimplifyCase(),
-                new SimplifyArithmeticsInBinaryComparisons(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -149,6 +150,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
+                new BubbleUpNegations(),
+                new SimplifyComparisonsArithmetics(SqlDataTypes::areCompatible),
                 // prune/elimination
                 new PruneLiteralsInGroupBy(),
                 new PruneDuplicatesInGroupBy(),
@@ -159,7 +162,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneCast(),
                 // order by alignment of the aggs
                 new SortAggregateOnOrderBy()
-                );
+        );
 
         Batch aggregate = new Batch("Aggregation Rewrite",
                 new ReplaceMinMaxWithTopHits(),

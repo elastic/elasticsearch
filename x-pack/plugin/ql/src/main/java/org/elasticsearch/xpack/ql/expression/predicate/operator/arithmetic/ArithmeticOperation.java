@@ -46,5 +46,10 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
         return new BinaryArithmeticPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 
-    public abstract ArithmeticOperation inverse(Source source, Expression left, Expression right);
+    /**
+     * Returns the opposite of this operation.
+     */
+    public ArithmeticOperation inverse(Source source, Expression left, Expression right) {
+        return this;
+    }
 }

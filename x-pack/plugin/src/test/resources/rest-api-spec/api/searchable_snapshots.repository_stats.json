@@ -5,6 +5,7 @@
       "description": "DEPRECATED: This API is replaced by the Repositories Metering API."
     },
     "stability": "experimental",
+    "visibility": "public",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -130,11 +130,17 @@ public class ExceptionsHelper {
      */
     public static Throwable findSearchExceptionRootCause(Throwable t) {
         // circuit breaking exceptions are at the bottom
-        Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(t);
+        Throwable unwrappedThrowable = unwrapCause(t);
 
         if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
             SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) unwrappedThrowable;
-            return searchPhaseException.getRootCause();
+            for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
+                Throwable unwrappedShardFailure = unwrapCause(shardFailure.getCause());
+
+                if (unwrappedShardFailure instanceof ElasticsearchException) {
+                    return unwrappedShardFailure;
+                }
+            }
         }
 
         return unwrappedThrowable;

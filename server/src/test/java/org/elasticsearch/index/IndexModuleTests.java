@@ -180,7 +180,8 @@ public class IndexModuleTests extends ESTestCase {
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
                 threadPool, scriptService, clusterService, null, indicesQueryCache, mapperRegistry,
-                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false, null, indexDeletionListener);
+                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false, null, indexDeletionListener,
+                emptyMap());
     }
 
     public void testWrapperIsBound() throws IOException {

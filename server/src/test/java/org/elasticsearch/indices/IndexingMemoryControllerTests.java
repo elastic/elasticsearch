@@ -382,7 +382,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), internalRefreshListener, config.getIndexSort(),
             config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+            config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), config.getSnapshotCommitSupplier());
     }
 
     ThreadPoolStats.Stats getRefreshThreadPoolStats() {

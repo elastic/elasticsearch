@@ -206,6 +206,203 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         }
     }
 
+    public void testQueryPhaseIsExecutedInAnAvailableNodeWhenAllShardsCanBeSkipped() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
+        final String dataNodeHoldingSearchableSnapshot = internalCluster().startDataOnlyNode();
+        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNodeHoldingSearchableSnapshot);
+
+        final String indexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int indexOutsideSearchRangeShardCount = randomIntBetween(1, 3);
+        createIndexWithTimestamp(
+            indexOutsideSearchRange,
+            indexOutsideSearchRangeShardCount,
+            Settings.builder()
+                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
+                .build()
+        );
+
+        indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(0, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "mock");
+
+        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexOutsideSearchRange)).snapshotId();
+
+        final String searchableSnapshotIndexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        // Block the repository for the node holding the searchable snapshot shards
+        // to delay its restore
+        blockDataNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+
+        // Force the searchable snapshot to be allocated in a particular node
+        Settings restoredIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
+            .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingSearchableSnapshot)
+            .build();
+
+        final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            searchableSnapshotIndexOutsideSearchRange,
+            repositoryName,
+            snapshotId.getName(),
+            indexOutsideSearchRange,
+            restoredIndexSettings,
+            Strings.EMPTY_ARRAY,
+            false
+        );
+        client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
+        final int searchableSnapshotShardCount = indexOutsideSearchRangeShardCount;
+
+        final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
+        assertThat(indexMetadata.getTimestampMillisRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+
+        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
+        assertThat(timestampFieldType, nullValue());
+
+        SearchRequest request = new SearchRequest().indices(indexOutsideSearchRange, searchableSnapshotIndexOutsideSearchRange)
+            .source(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.rangeQuery(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                        .from("2020-11-28T00:00:00.000000000Z", true)
+                        .to("2020-11-29T00:00:00.000000000Z")
+                )
+            );
+
+        final int totalShards = indexOutsideSearchRangeShardCount + searchableSnapshotShardCount;
+        SearchResponse searchResponse = client().search(request).actionGet();
+
+        // All the regular index searches succeeded
+        assertThat(searchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount));
+        // All the searchable snapshots shard search failed
+        assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
+        assertThat(searchResponse.getSkippedShards(), equalTo(searchableSnapshotShardCount));
+        assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+
+        // Allow the searchable snapshots to be finally mounted
+        unblockNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+        waitUntilRecoveryIsDone(searchableSnapshotIndexOutsideSearchRange);
+        ensureGreen(searchableSnapshotIndexOutsideSearchRange);
+
+        final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
+        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
+        assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
+        assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(Instant.parse("2020-11-26T00:00:00Z").getMillis()));
+        assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(Instant.parse("2020-11-27T00:00:00Z").getMillis()));
+        assertThat(indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex()), notNullValue());
+
+        // Stop the node holding the searchable snapshots, and since we defined
+        // the index allocation criteria to require the searchable snapshot
+        // index to be allocated in that node, the shards should remain unassigned
+        internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
+        waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
+
+        SearchResponse newSearchResponse = client().search(request).actionGet();
+
+        // All the regular index searches succeeded
+        assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
+        // All the searchable snapshots shard search failed
+        assertThat(newSearchResponse.getFailedShards(), equalTo(0));
+        // We have to query at least one node to construct a valid response, and we pick
+        // a shard that's available in order to construct the search response
+        assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
+        assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
+        assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+    }
+
+    public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
+        final String dataNodeHoldingSearchableSnapshot = internalCluster().startDataOnlyNode();
+        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNodeHoldingSearchableSnapshot);
+
+        final String indexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int indexWithinSearchRangeShardCount = randomIntBetween(1, 3);
+        createIndexWithTimestamp(
+            indexWithinSearchRange,
+            indexWithinSearchRangeShardCount,
+            Settings.builder()
+                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
+                .build()
+        );
+
+        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, between(1, 1000), "2020-11-28T%02d:%02d:%02d.%09dZ");
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "mock");
+
+        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexWithinSearchRange)).snapshotId();
+        assertAcked(client().admin().indices().prepareDelete(indexWithinSearchRange));
+
+        final String searchableSnapshotIndexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        // Block the repository for the node holding the searchable snapshot shards
+        // to delay its restore
+        blockDataNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+
+        // Force the searchable snapshot to be allocated in a particular node
+        Settings restoredIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
+            .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingSearchableSnapshot)
+            .build();
+
+        final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            searchableSnapshotIndexWithinSearchRange,
+            repositoryName,
+            snapshotId.getName(),
+            indexWithinSearchRange,
+            restoredIndexSettings,
+            Strings.EMPTY_ARRAY,
+            false
+        );
+        client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
+
+        final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
+        assertThat(indexMetadata.getTimestampMillisRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+
+        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
+        assertThat(timestampFieldType, nullValue());
+
+        SearchRequest request = new SearchRequest().indices(searchableSnapshotIndexWithinSearchRange)
+            .source(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.rangeQuery(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                        .from("2020-11-28T00:00:00.000000000Z", true)
+                        .to("2020-11-29T00:00:00.000000000Z")
+                )
+            );
+
+        // All shards failed, since all shards are unassigned and the IndexMetadata min/max timestamp
+        // is not available yet
+        expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());
+
+        // Allow the searchable snapshots to be finally mounted
+        unblockNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+        waitUntilRecoveryIsDone(searchableSnapshotIndexWithinSearchRange);
+        ensureGreen(searchableSnapshotIndexWithinSearchRange);
+
+        final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
+        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
+        assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
+        assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(Instant.parse("2020-11-28T00:00:00Z").getMillis()));
+        assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(Instant.parse("2020-11-29T00:00:00Z").getMillis()));
+        assertThat(indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex()), notNullValue());
+
+        // Stop the node holding the searchable snapshots, and since we defined
+        // the index allocation criteria to require the searchable snapshot
+        // index to be allocated in that node, the shards should remain unassigned
+        internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
+        waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
+
+        // The range query matches but the shards are unavailable, in that case the search fails, as all shards that hold
+        // data are unavailable
+        expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());
+    }
+
     private void createIndexWithTimestamp(String indexName, int numShards, Settings extraSettings) throws IOException {
         assertAcked(
             client().admin()

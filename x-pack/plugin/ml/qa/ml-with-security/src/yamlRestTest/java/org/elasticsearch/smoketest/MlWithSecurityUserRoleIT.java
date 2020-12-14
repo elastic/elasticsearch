@@ -56,7 +56,8 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
             assertThat(ae.getMessage(),
                 either(containsString("action [cluster:monitor/xpack/ml"))
                     .or(containsString("action [cluster:admin/xpack/ml"))
-                    .or(containsString("action [cluster:admin/ingest")));
+                    .or(containsString("action [cluster:admin/ingest"))
+                    .or(containsString("action [cluster:monitor/ingest")));
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [ml_user]"));
         }

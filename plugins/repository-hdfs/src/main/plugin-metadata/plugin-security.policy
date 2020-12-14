@@ -74,7 +74,7 @@ grant {
   permission javax.security.auth.kerberos.ServicePermission "*", "initiate";
 
   // hdfs client opens socket connections for to access repository
-  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.SocketPermission "*", "connect";
 
   // client binds to the address returned from the host name of any principal set up as a service principal
   // org.apache.hadoop.ipc.Client.Connection.setupConnection

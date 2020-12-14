@@ -27,6 +27,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
 
     public static final String NAME = "trained_model_metadata";
     public static final ParseField TOTAL_FEATURE_IMPORTANCE = new ParseField("total_feature_importance");
+    public static final ParseField HYPERPARAMETER_IMPORTANCE = new ParseField("hyperparameter_importance");
     public static final ParseField FEATURE_IMPORTANCE_BASELINE = new ParseField("feature_importance_baseline");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
@@ -34,6 +35,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<TrainedModelMetadata, Void> LENIENT_PARSER = createParser(true);
     public static final ConstructingObjectParser<TrainedModelMetadata, Void> STRICT_PARSER = createParser(false);
 
+    // TODO Valeriy Continue here********** 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<TrainedModelMetadata, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<TrainedModelMetadata, Void> parser = new ConstructingObjectParser<>(NAME,

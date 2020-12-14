@@ -631,7 +631,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     synchronized void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
-        Throwable unwrappedException = ExceptionRootCauseFinder.getRootCauseException(e);
+        Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
 
         if (unwrappedException instanceof CircuitBreakingException) {
             handleCircuitBreakingException((CircuitBreakingException) unwrappedException);

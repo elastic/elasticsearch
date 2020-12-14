@@ -5,6 +5,7 @@
       "description":"Removes roles in the native realm."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

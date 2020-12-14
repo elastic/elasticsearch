@@ -5,6 +5,8 @@
       "description": "Returns results matching a query expressed in Event Query Language (EQL)"
     },
     "stability": "stable",
+    "visibility":"feature_flag",
+    "feature_flag":"es.eql_feature_flag_registered",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

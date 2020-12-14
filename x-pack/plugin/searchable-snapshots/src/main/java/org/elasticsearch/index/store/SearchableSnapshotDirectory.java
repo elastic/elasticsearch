@@ -374,7 +374,14 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
         if (useCache && isExcludedFromCache(name) == false) {
-            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats, cacheService.getRangeSize());
+            return new CachedBlobContainerIndexInput(
+                this,
+                fileInfo,
+                context,
+                inputStats,
+                cacheService.getRangeSize(),
+                cacheService.getRecoveryRangeSize()
+            );
         } else {
             return new DirectBlobContainerIndexInput(
                 blobContainer(),
@@ -398,6 +405,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private boolean isExcludedFromCache(String name) {
         final String ext = IndexFileNames.getExtension(name);
         return ext != null && excludedFileTypes.contains(ext);
+    }
+
+    public boolean isRecoveryFinalized() {
+        SearchableSnapshotRecoveryState recoveryState = this.recoveryState;
+        if (recoveryState == null) return false;
+        RecoveryState.Stage stage = recoveryState.getStage();
+        return stage == RecoveryState.Stage.DONE || stage == RecoveryState.Stage.FINALIZE;
     }
 
     @Override

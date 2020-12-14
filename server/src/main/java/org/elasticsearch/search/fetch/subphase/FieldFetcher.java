@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,9 +48,10 @@ public class FieldFetcher {
                                       SearchLookup searchLookup,
                                       Collection<FieldAndFormat> fieldAndFormats) {
 
-        Map<String, FieldContext> fieldContexts = new HashMap<>();
+        // Using a LinkedHashMap so fields are returned in the order requested.
+        // We won't formally guarantee this but but its good for readability of the response
+        Map<String, FieldContext> fieldContexts = new LinkedHashMap<>();
         List<String> unmappedFetchPattern = new ArrayList<>();
-        Set<String> mappedToExclude = new HashSet<>();
         boolean includeUnmapped = false;
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
@@ -68,7 +69,6 @@ public class FieldFetcher {
                     continue;
                 }
                 ValueFetcher valueFetcher = ft.valueFetcher(context, format);
-                mappedToExclude.add(field);
                 fieldContexts.put(field, new FieldContext(field, valueFetcher));
             }
         }
@@ -78,23 +78,20 @@ public class FieldFetcher {
                 Regex.simpleMatchToAutomaton(unmappedFetchPattern.toArray(new String[unmappedFetchPattern.size()]))
             );
         }
-        return new FieldFetcher(fieldContexts, unmappedFetchAutomaton, mappedToExclude, includeUnmapped);
+        return new FieldFetcher(fieldContexts, unmappedFetchAutomaton, includeUnmapped);
     }
 
     private final Map<String, FieldContext> fieldContexts;
     private final CharacterRunAutomaton unmappedFetchAutomaton;
-    private final Set<String> mappedToExclude;
     private final boolean includeUnmapped;
 
     private FieldFetcher(
         Map<String, FieldContext> fieldContexts,
         CharacterRunAutomaton unmappedFetchAutomaton,
-        Set<String> mappedToExclude,
         boolean includeUnmapped
     ) {
         this.fieldContexts = fieldContexts;
         this.unmappedFetchAutomaton = unmappedFetchAutomaton;
-        this.mappedToExclude = mappedToExclude;
         this.includeUnmapped = includeUnmapped;
     }
 
@@ -141,7 +138,7 @@ public class FieldFetcher {
                 collectUnmappedList(documentFields, (List<?>) value, currentPath, currentState);
             } else {
                 // we have a leaf value
-                if (this.unmappedFetchAutomaton.isAccept(currentState) && this.mappedToExclude.contains(currentPath) == false) {
+                if (this.unmappedFetchAutomaton.isAccept(currentState) && this.fieldContexts.containsKey(currentPath) == false) {
                     if (value != null) {
                         DocumentField currentEntry = documentFields.get(currentPath);
                         if (currentEntry == null) {
@@ -170,7 +167,7 @@ public class FieldFetcher {
             } else if (value instanceof List) {
                 // weird case, but can happen for objects with "enabled" : "false"
                 collectUnmappedList(documentFields, (List<?>) value, parentPath, lastState);
-            } else if (this.unmappedFetchAutomaton.isAccept(lastState) && this.mappedToExclude.contains(parentPath) == false) {
+            } else if (this.unmappedFetchAutomaton.isAccept(lastState) && this.fieldContexts.containsKey(parentPath) == false) {
                 list.add(value);
             }
         }

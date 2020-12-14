@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.bootstrap.BootstrapChecks.AssertionsEnabledCheck;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
@@ -395,6 +396,35 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                         "but should be using a server VM for the best performance"));
 
         vmName.set("Java HotSpot(TM) 32-Bit Server VM");
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
+    }
+
+    /**
+     * Check that assertions cannot be enabled in the JVM.
+     */
+    public void testAssertionsEnabled() {
+        final AssertionsEnabledCheck check = new AssertionsEnabledCheck();
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check)));
+        assertThat(
+            e.getMessage(),
+            containsString("Assertions should not be enabled for the best performance"));
+    }
+
+    /**
+     * Check that assertions can be allowed when the escape hatch is activated.
+     */
+    public void testAssertionsCanBeAllowed() throws NodeValidationException {
+        // We can't set a system property in the tests, so we override the getter instead.
+        final AssertionsEnabledCheck check = new AssertionsEnabledCheck() {
+            @Override
+            boolean isOverrideEnabled() {
+                return true;
+            }
+        };
+
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
     }
 

@@ -208,9 +208,7 @@ final class BootstrapChecks {
             checks.add(new MaxMapCountCheck());
         }
         checks.add(new ClientJvmCheck());
-        if (Boolean.parseBoolean(System.getProperty("forbid.assertions", "false"))) {
-            checks.add(new AssertionsEnabledCheck());
-        }
+        checks.add(new AssertionsEnabledCheck());
         checks.add(new UseSerialGCCheck());
         checks.add(new SystemCallFilterCheck());
         checks.add(new OnErrorCheck());
@@ -508,12 +506,22 @@ final class BootstrapChecks {
 
     }
 
+    /**
+     * Checks whether assertions are enabled in the JVM. This incurs a performance penalty and should not
+     * be enabled under normal circumstances. The system property {@code es.assertions.allowed} offers
+     * an escape hatch in the event there are edge cases where enabling assertions in a production (or
+     * production-like) setting would be useful.
+     */
     static class AssertionsEnabledCheck implements BootstrapCheck {
+
+        boolean isOverrideEnabled() {
+            return Boolean.parseBoolean(System.getProperty("es.assertions.allowed", "false"));
+        }
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             try {
-                assert false;
+                assert isOverrideEnabled();
             } catch (AssertionError e) {
                 return BootstrapCheckResult.failure("Assertions should not be enabled for the best performance");
             }

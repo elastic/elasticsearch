@@ -1,8 +1,7 @@
 [[dynamic]]
 === `dynamic`
 
-When you index a document containing a new field, {es} adds the
-field  _dynamically_ to a document or to inner objects within a document. The
+When you index a document containing a new field, {es} <<dynamic-mapping,adds the field dynamically>> to a document or to inner objects within a document. The
 following document adds the string field `username`, the object field
 `name`, and two string fields under the `name` object:
 
@@ -94,6 +93,3 @@ accepts the following parameters:
             to the mapping, and new fields must be added explicitly.
 `strict`::  If new fields are detected, an exception is thrown and the document
             is rejected. New fields  must be explicitly added to the mapping.
-
-See <<dynamic-mapping>> for details of how new fields are detected and added to
-the mapping.

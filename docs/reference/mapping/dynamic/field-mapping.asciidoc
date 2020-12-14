@@ -6,28 +6,29 @@ the type mapping. The <<dynamic,`dynamic`>> parameter controls this behavior.
 
 You can disable dynamic mapping, both at the document and at the
 <<object,`object`>> level. Setting the `dynamic` parameter to
-`false` ignores new fields, and `strict` throws an exception if {es} encounters
-an unknown field.
+`false` ignores new fields, and `strict` rejects the document if {es}
+encounters an unknown field.
 
 When dynamic field mapping is enabled, {es} uses the following rules to
 determine how to map data types for each field.
 
-[horizontal]
-*JSON data type*::                  *Elasticsearch data type*
-
-`null`::                            No field is added.
-`true` or `false`::                 <<boolean,`boolean`>> field
-floating{nbsp}point{nbsp}number::   <<number,`float`>> indexed field or <<number,`double`>> runtime field
-integer::                           <<number,`long`>> field
-object::                            <<object,`object`>> field
-+
-NOTE: Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`.
-
-array::                             Depends on the first non-`null` value in the array.
-string::                            Either a <<date,`date`>> field (if the value passes <<date-detection,date detection>>), a <<number,`double`>> or <<number,`long`>> field (if the value passes <<numeric-detection,numeric detection>>), or a <<text,`text`>> field with a <<keyword,`keyword`>> sub-field.
-
 NOTE: These are the only <<mapping-types,field data types>> that {es} detects
 dynamically. All other data types must be mapped explicitly.
+
+[cols="3"]
+|===
+h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
+ |`null` 2*| No field added
+ |`true` or `false` 2*| `boolean`
+ |floating point number | `float` | `double`
+ |`integer` 2*| `long`
+ |`object`<<dynamic-object-footnote,^1^>>  2*| `object`
+ |`array` 2*|  Depends on the first non-`null` value in the array
+ |`string` that passes <<date-detection,date detection>> 2*| `date`
+ |`string` that passes <<numeric-detection,numeric detection>> | `double` or `long` | `double`
+ |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
+3+| [[dynamic-object-footnote]]1. Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
+|===
 
 Besides the following options, you can customize dynamic field mapping rules
 with <<dynamic-templates,`dynamic_templates`>>.

@@ -47,7 +47,7 @@ class RuntimeInfo {
             s.append(",sc=").append(version);
         }
 
-        version = groovyVersion();
+        version = clojureVersion();
         if (version != null) {
             s.append(",clj=").append(version);
         }

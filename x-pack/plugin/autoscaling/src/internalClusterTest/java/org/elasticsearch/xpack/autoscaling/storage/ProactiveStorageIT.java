@@ -79,7 +79,6 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats(dsName).clear().setStore(true).get();
         long used = stats.getTotal().getStore().getSizeInBytes();
-        long minShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).min().orElseThrow();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
         long enoughSpace = used + WATERMARK_BYTES + 1;
 

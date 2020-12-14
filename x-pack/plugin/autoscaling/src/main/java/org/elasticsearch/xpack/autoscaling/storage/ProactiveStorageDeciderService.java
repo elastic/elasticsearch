@@ -69,20 +69,20 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
         TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
         allocationState = allocationState.forecast(forecastWindow.millis(), System.currentTimeMillis());
 
-        long unassigned = allocationState.storagePreventsAllocation();
-        long assigned = allocationState.storagePreventsRemainOrMove();
-        long maxShard = allocationState.maxShardSize();
-        assert assigned >= 0;
-        assert unassigned >= unassignedBeforeForecast;
-        assert maxShard >= 0;
-        String message = unassigned > 0 || assigned > 0 ? "not enough storage available, needs " + (unassigned + assigned) : "storage ok";
+        long unassignedBytes = allocationState.storagePreventsAllocation();
+        long assignedBytes = allocationState.storagePreventsRemainOrMove();
+        long maxShardSize = allocationState.maxShardSize();
+        assert assignedBytes >= 0;
+        assert unassignedBytes >= unassignedBeforeForecast;
+        assert maxShardSize >= 0;
+        String message = ReactiveStorageDeciderService.message(unassignedBytes, assignedBytes);
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassigned + assigned, null)
-            .node(maxShard, null)
+            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null)
+            .node(maxShardSize, null)
             .build();
         return new AutoscalingDeciderResult(
             requiredCapacity,
-            new ProactiveReason(message, unassigned, assigned, unassigned - unassignedBeforeForecast, forecastWindow)
+            new ProactiveReason(message, unassignedBytes, assignedBytes, unassignedBytes - unassignedBeforeForecast, forecastWindow)
         );
     }
 

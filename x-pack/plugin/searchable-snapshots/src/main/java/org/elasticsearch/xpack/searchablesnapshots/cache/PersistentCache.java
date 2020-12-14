@@ -78,18 +78,26 @@ public class PersistentCache implements Closeable {
     private final NodeEnvironment nodeEnvironment;
     private final Map<String, Document> documents;
     private final List<CacheIndexWriter> writers;
+    private final AtomicBoolean started;
     private final AtomicBoolean closed;
 
     public PersistentCache(NodeEnvironment nodeEnvironment) {
         this.documents = synchronizedMap(loadDocuments(nodeEnvironment));
         this.writers = createWriters(nodeEnvironment);
         this.nodeEnvironment = nodeEnvironment;
+        this.started = new AtomicBoolean();
         this.closed = new AtomicBoolean();
     }
 
     private void ensureOpen() {
         if (closed.get()) {
             throw new AlreadyClosedException("Persistent cache is already closed");
+        }
+    }
+
+    private void ensureStarted() {
+        if (started.get() == false) {
+            throw new IllegalStateException("Persistent cache is not started");
         }
     }
 
@@ -110,10 +118,12 @@ public class PersistentCache implements Closeable {
     }
 
     public void addCacheFile(CacheFile cacheFile, SortedSet<Tuple<Long, Long>> ranges) throws IOException {
+        ensureStarted();
         getWriter(cacheFile).updateCacheFile(cacheFile, ranges);
     }
 
     public void removeCacheFile(CacheFile cacheFile) throws IOException {
+        ensureStarted();
         getWriter(cacheFile).deleteCacheFile(cacheFile);
     }
 
@@ -135,63 +145,67 @@ public class PersistentCache implements Closeable {
      */
     void repopulateCache(CacheService cacheService) {
         ensureOpen();
-        try {
-            for (CacheIndexWriter writer : writers) {
-                final NodeEnvironment.NodePath nodePath = writer.nodePath();
-                logger.debug("loading persistent cache on data path [{}]", nodePath);
+        if (started.compareAndSet(false, true)) {
+            try {
+                for (CacheIndexWriter writer : writers) {
+                    final NodeEnvironment.NodePath nodePath = writer.nodePath();
+                    logger.debug("loading persistent cache on data path [{}]", nodePath);
 
-                for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(nodePath)) {
-                    for (ShardId shardId : nodeEnvironment.findAllShardIds(new Index("_unknown_", indexUUID))) {
-                        final Path shardDataPath = writer.nodePath().resolve(shardId);
-                        final Path shardCachePath = getShardCachePath(new ShardPath(false, shardDataPath, shardDataPath, shardId));
+                    for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(nodePath)) {
+                        for (ShardId shardId : nodeEnvironment.findAllShardIds(new Index("_unknown_", indexUUID))) {
+                            final Path shardDataPath = writer.nodePath().resolve(shardId);
+                            final Path shardCachePath = getShardCachePath(new ShardPath(false, shardDataPath, shardDataPath, shardId));
 
-                        if (Files.isDirectory(shardCachePath)) {
-                            logger.trace("found snapshot cache dir at [{}], loading cache files from disk and index", shardCachePath);
-                            Files.walkFileTree(shardCachePath, new SimpleFileVisitor<>() {
-                                @Override
-                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                                    try {
-                                        final String id = buildId(file);
-                                        final Document cacheDocument = documents.get(id);
-                                        if (cacheDocument != null) {
-                                            logger.trace("indexing cache file with id [{}] in persistent cache index", id);
-                                            writer.updateCacheFile(id, cacheDocument);
+                            if (Files.isDirectory(shardCachePath)) {
+                                logger.trace("found snapshot cache dir at [{}], loading cache files from disk and index", shardCachePath);
+                                Files.walkFileTree(shardCachePath, new SimpleFileVisitor<>() {
+                                    @Override
+                                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                                        try {
+                                            final String id = buildId(file);
+                                            final Document cacheDocument = documents.get(id);
+                                            if (cacheDocument != null) {
+                                                logger.trace("indexing cache file with id [{}] in persistent cache index", id);
+                                                writer.updateCacheFile(id, cacheDocument);
 
-                                            final CacheKey cacheKey = buildCacheKey(cacheDocument);
-                                            final long fileLength = getFileLength(cacheDocument);
-                                            final SortedSet<Tuple<Long, Long>> ranges = buildCacheFileRanges(cacheDocument);
+                                                final CacheKey cacheKey = buildCacheKey(cacheDocument);
+                                                final long fileLength = getFileLength(cacheDocument);
+                                                final SortedSet<Tuple<Long, Long>> ranges = buildCacheFileRanges(cacheDocument);
 
-                                            logger.trace("adding cache file with [id={}, cache key={}, ranges={}]", id, cacheKey, ranges);
-                                            cacheService.put(cacheKey, fileLength, file.getParent(), id, ranges);
-                                        } else {
-                                            logger.trace("deleting cache file [{}] (does not exist in persistent cache index)", file);
-                                            Files.delete(file);
+                                                logger.trace("adding cache file with [id={}, key={}, ranges={}]", id, cacheKey, ranges);
+                                                cacheService.put(cacheKey, fileLength, file.getParent(), id, ranges);
+                                            } else {
+                                                logger.trace("deleting cache file [{}] (does not exist in persistent cache index)", file);
+                                                Files.delete(file);
+                                            }
+                                        } catch (Exception e) {
+                                            throw ExceptionsHelper.convertToRuntime(e);
                                         }
-                                    } catch (Exception e) {
-                                        throw ExceptionsHelper.convertToRuntime(e);
+                                        return FileVisitResult.CONTINUE;
                                     }
-                                    return FileVisitResult.CONTINUE;
-                                }
-                            });
+                                });
+                            }
                         }
                     }
                 }
+                for (CacheIndexWriter writer : writers) {
+                    writer.commit();
+                }
+                logger.info("persistent cache index loaded");
+                documents.clear();
+            } catch (IOException e) {
+                try {
+                    close();
+                } catch (Exception e2) {
+                    logger.warn("failed to close persistent cache index", e2);
+                    e.addSuppressed(e2);
+                }
+                throw new UncheckedIOException("Failed to load persistent cache", e);
+            } finally {
+                closeIfAnyIndexWriterHasTragedyOrIsClosed();
             }
-            for (CacheIndexWriter writer : writers) {
-                writer.commit();
-            }
-            logger.info("persistent cache index loaded");
-            documents.clear();
-        } catch (IOException e) {
-            try {
-                close();
-            } catch (Exception e2) {
-                logger.warn("failed to close persistent cache index", e2);
-                e.addSuppressed(e2);
-            }
-            throw new UncheckedIOException("Failed to load persistent cache", e);
-        } finally {
-            closeIfAnyIndexWriterHasTragedyOrIsClosed();
+        } else {
+            assert false : "persistent cache is already loaded";
         }
     }
 

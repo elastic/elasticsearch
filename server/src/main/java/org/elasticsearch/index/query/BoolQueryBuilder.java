@@ -314,6 +314,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return doToQuery(context, 0);
     }
 
+    @Override
     protected Query doToQuery(QueryShardContext context, int nestedDepth) throws IOException {
         nestedDepth = nestedDepth + 1;
         if (nestedDepth > maxNestedCount) {

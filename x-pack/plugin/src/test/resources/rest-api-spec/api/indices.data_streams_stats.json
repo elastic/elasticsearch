@@ -5,6 +5,7 @@
       "description":"Provides statistics on operations happening in a data stream."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

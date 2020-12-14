@@ -5,6 +5,7 @@
       "description":"Returns a document."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

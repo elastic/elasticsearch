@@ -5,6 +5,7 @@
       "description":"Starts an indefinite basic license."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

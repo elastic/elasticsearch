@@ -5,6 +5,7 @@
       "description":"Deletes forecasts from a machine learning job."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

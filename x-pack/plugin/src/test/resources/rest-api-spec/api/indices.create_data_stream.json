@@ -5,6 +5,7 @@
       "description":"Creates a data stream"
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

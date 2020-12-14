@@ -5,6 +5,7 @@
       "description": "Gets configuration and usage information about anomaly detection jobs."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "text/plain", "application/json"]
     },

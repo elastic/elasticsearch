@@ -13,7 +13,7 @@ public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin {
 
     public LocalStateAutoscaling(final Settings settings) {
         super(settings, null);
-        plugins.add(new Autoscaling(settings, new AutoscalingLicenseChecker(() -> true)));
+        plugins.add(new Autoscaling(new AutoscalingLicenseChecker(() -> true)));
     }
 
 }

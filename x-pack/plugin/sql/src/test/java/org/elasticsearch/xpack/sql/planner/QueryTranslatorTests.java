@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -95,6 +96,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -2458,5 +2460,34 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) physicalPlan;
             assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("{\"stats\":{\"field\":\"int\"}}"));
         }
+    }
+
+    public void testAddMissingEqualsToBoolField() {
+        LogicalPlan p = plan("SELECT bool FROM test WHERE bool");
+        assertTrue(p instanceof Project);
+
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+
+        Expression condition = ((Filter) p).condition();
+        assertTrue(condition instanceof Equals);
+        Equals eq = (Equals) condition;
+
+        assertTrue(eq.left() instanceof FieldAttribute);
+        assertEquals("bool", ((FieldAttribute) eq.left()).name());
+
+        assertTrue(eq.right() instanceof Literal);
+        assertEquals(TRUE, eq.right());
+    }
+
+    public void testNotAddMissingEqualsToNonBoolField() {
+        LogicalPlan p = plan("SELECT bool FROM test WHERE " + randomFrom("int", "text", "keyword", "date"));
+        assertTrue(p instanceof Project);
+
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+
+        Expression condition = ((Filter) p).condition();
+        assertTrue(condition instanceof FieldAttribute);
     }
 }

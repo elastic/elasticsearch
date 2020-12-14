@@ -321,7 +321,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
 
         // All the regular index searches succeeded
         assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
-        // All the searchable snapshots shard search failed
         assertThat(newSearchResponse.getFailedShards(), equalTo(0));
         // We have to query at least one node to construct a valid response, and we pick
         // a shard that's available in order to construct the search response
@@ -418,7 +417,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
         waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
 
-        // The range query matches but the shards are unavailable, in that case the search fails, as all shards that hold
+        // The range query matches but the shards that are unavailable, in that case the search fails, as all shards that hold
         // data are unavailable
         expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());
     }

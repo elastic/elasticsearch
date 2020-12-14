@@ -45,7 +45,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
         };
         plugin.setCircuitBreaker(new NoopCircuitBreaker(TRAINED_MODEL_CIRCUIT_BREAKER_NAME));
-        plugins.add(new Autoscaling(settings) {
+        plugins.add(new Autoscaling() {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();

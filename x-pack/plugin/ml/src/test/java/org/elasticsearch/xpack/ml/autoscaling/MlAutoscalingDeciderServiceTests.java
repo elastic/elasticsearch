@@ -67,7 +67,9 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         timeSupplier = System::currentTimeMillis;
         ClusterSettings cSettings = new ClusterSettings(
             Settings.EMPTY,
-            Sets.newHashSet(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, MachineLearning.MAX_OPEN_JOBS_PER_NODE));
+            Sets.newHashSet(MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT));
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
     }
 

@@ -1032,9 +1032,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.array("privileges", indicesPrivileges.getPrivileges());
             if (indicesPrivileges.isUsingFieldLevelSecurity()) {
                 builder.startObject(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
-                if (indicesPrivileges.hasGrantedFields()) {
-                    builder.array(RoleDescriptor.Fields.GRANT_FIELDS.getPreferredName(), indicesPrivileges.getGrantedFields());
-                }
+                // always print the "grant" fields (even if the placeholder for all) because it looks better when avoiding the sole
+                // "except" field
+                builder.array(RoleDescriptor.Fields.GRANT_FIELDS.getPreferredName(), indicesPrivileges.getGrantedFields());
                 if (indicesPrivileges.hasDeniedFields()) {
                     builder.array(RoleDescriptor.Fields.EXCEPT_FIELDS.getPreferredName(), indicesPrivileges.getDeniedFields());
                 }

@@ -62,6 +62,8 @@ import static org.hamcrest.Matchers.is;
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
+    // min version in upgraded 7.series is 7.11.0
+    private static final Version CPP_COMPATIBILTIY_VERSION = Version.V_7_11_0;
 
     private static class HLRC extends RestHighLevelClient {
         HLRC(RestClient restClient) {
@@ -136,8 +138,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         assertThat(snapshots, hasSize(1));
         snapshot = snapshots.get(0);
         assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
-        // min version in upgraded 7.series is 7.11.0
-        assertThat(snapshot.getMinVersion(), equalTo(Version.V_7_11_0));
+        assertThat(snapshot.getMinVersion(), equalTo(CPP_COMPATIBILTIY_VERSION));
 
         // Does the snapshot still work?
         assertThat(hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)

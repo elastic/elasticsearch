@@ -32,7 +32,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
     }
 
     @AfterClass
-    public static void cleanUpStatic() throws Exception {
+    public static void cleanUpStatic() {
         if (THREADPOOL != null) {
             terminate(THREADPOOL);
         }
@@ -58,6 +58,15 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
     }
 
     /**
+     * Create a new {@link LocalExporter} with the default exporter settings and name.
+     *
+     * @return Never {@code null}.
+     */
+    protected LocalExporter createLocalExporter() {
+        return createLocalExporter(exporterName, null);
+    }
+
+    /**
      * Create a new {@link LocalExporter}. Expected usage:
      * <pre><code>
      * final Settings settings = Settings.builder().put("xpack.monitoring.exporters._local.type", "local").build();
@@ -68,12 +77,11 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
      *
      * @return Never {@code null}.
      */
-    protected LocalExporter createLocalExporter() {
-        final Settings settings = localExporterSettings();
+    protected LocalExporter createLocalExporter(String exporterName, Settings exporterSettings) {
         final XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        final Exporter.Config config = new Exporter.Config(exporterName, "local", settings, clusterService(), licenseState);
+        final Exporter.Config config = new Exporter.Config(exporterName, "local", exporterSettings, clusterService(), licenseState);
         final CleanerService cleanerService =
-                new CleanerService(settings, clusterService().getClusterSettings(), THREADPOOL, licenseState);
+            new CleanerService(exporterSettings, clusterService().getClusterSettings(), THREADPOOL, licenseState);
 
         return new LocalExporter(config, client(), cleanerService);
     }

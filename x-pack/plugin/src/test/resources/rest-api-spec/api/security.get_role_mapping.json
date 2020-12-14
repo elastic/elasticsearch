@@ -5,6 +5,7 @@
       "description":"Retrieves role mappings."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

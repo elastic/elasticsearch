@@ -46,10 +46,15 @@ public class TermsOnDateGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-terms-on-date-pivot-test";
     private static final String MISSING_BUCKET_KEY = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
         .format(Instant.ofEpochMilli(1262304000000L)); // 01/01/2010 should end up last when sorting
+
     private final boolean missing;
+    private final String metricField;
+    private final String timestampField;
 
     public TermsOnDateGroupByIT() {
         missing = randomBoolean();
+        metricField = randomFrom(METRIC_FIELDS);
+        timestampField = randomFrom(OTHER_TIMESTAMP_FIELDS);
     }
 
     @Override
@@ -64,13 +69,13 @@ public class TermsOnDateGroupByIT extends ContinuousTestCase {
         pivotConfigBuilder.setGroups(
             new GroupConfig.Builder().groupBy(
                 "some-timestamp",
-                new TermsGroupSource.Builder().setField("some-timestamp").setMissingBucket(missing).build()
+                new TermsGroupSource.Builder().setField(timestampField).setMissingBucket(missing).build()
             ).build()
         );
 
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
         addCommonAggregations(aggregations);
-        aggregations.addAggregator(AggregationBuilders.avg("metric.avg").field("metric"));
+        aggregations.addAggregator(AggregationBuilders.avg("metric.avg").field(metricField));
 
         pivotConfigBuilder.setAggregations(aggregations);
         transformConfigBuilder.setPivotConfig(pivotConfigBuilder.build());
@@ -89,14 +94,14 @@ public class TermsOnDateGroupByIT extends ContinuousTestCase {
 
         SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
         TermsAggregationBuilder terms = new TermsAggregationBuilder("some-timestamp").size(1000)
-            .field("some-timestamp")
+            .field(timestampField)
             .order(BucketOrder.key(true));
         if (missing) {
             // missing_bucket produces `null`, we can't use `null` in aggs, so we have to use a magic value, see gh#60043
             terms.missing(MISSING_BUCKET_KEY);
         }
 
-        terms.subAggregation(AggregationBuilders.avg("metric.avg").field("metric"));
+        terms.subAggregation(AggregationBuilders.avg("metric.avg").field(metricField));
         sourceBuilderSource.aggregation(terms);
         searchRequestSource.source(sourceBuilderSource);
         SearchResponse responseSource = search(searchRequestSource);

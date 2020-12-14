@@ -454,7 +454,8 @@ public class RestoreService implements ClusterStateApplier {
                             if (metadata.customs() != null) {
                                 for (ObjectObjectCursor<String, Metadata.Custom> cursor : metadata.customs()) {
                                     if (RepositoriesMetadata.TYPE.equals(cursor.key) == false
-                                            && DataStreamMetadata.TYPE.equals(cursor.key) == false) {
+                                            && DataStreamMetadata.TYPE.equals(cursor.key) == false
+                                            && cursor.value instanceof Metadata.NonRestorableCustom == false) {
                                         // Don't restore repositories while we are working with them
                                         // TODO: Should we restore them at the end?
                                         // Also, don't restore data streams here, we already added them to the metadata builder above

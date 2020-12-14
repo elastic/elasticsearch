@@ -5,6 +5,7 @@
       "description":"Removes the assigned lifecycle policy and stops managing the specified index"
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

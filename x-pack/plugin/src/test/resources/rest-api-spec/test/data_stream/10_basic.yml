@@ -68,15 +68,15 @@ setup:
 
   - do:
       indices.get_mapping:
-        index: .ds-simple-data-stream1-*000001
+        index: $idx0name
         expand_wildcards: hidden
-  - match: { $idx0name.mappings.properties.@timestamp.type: 'date' }
+  - match: { .$idx0name.mappings.properties.@timestamp.type: 'date' }
 
   - do:
       indices.get_mapping:
-        index: .ds-simple-data-stream2-*000001
+        index: $idx1name
         expand_wildcards: hidden
-  - match: { $idx1name.mappings.properties.@timestamp.type: 'date_nanos' }
+  - match: { .$idx1name.mappings.properties.@timestamp.type: 'date_nanos' }
 
   - do:
       index:
@@ -338,7 +338,7 @@ setup:
         index: ['.ds-simple-data-stream1-*000001', 'test_index']
 
   - is_true: test_index.settings
-  - is_true: ${idx0name}.settings
+  - is_true: .$idx0name.settings
 
   - do:
       indices.get_data_stream: {}

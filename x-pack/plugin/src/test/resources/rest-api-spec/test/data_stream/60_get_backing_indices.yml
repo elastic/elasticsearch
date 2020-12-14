@@ -37,8 +37,8 @@
       indices.get:
         index: ['.ds-data-stream1-*000001', 'test_index']
 
-  - is_true: ${idx0name}.settings
-  - is_true: ${idx0name}.data_stream
+  - is_true: .$idx0name.settings
+  - is_true: .$idx0name.data_stream
   - match: { .$idx0name.data_stream: data-stream1 }
   - is_true: test_index.settings
   - is_false: test_index.data_stream

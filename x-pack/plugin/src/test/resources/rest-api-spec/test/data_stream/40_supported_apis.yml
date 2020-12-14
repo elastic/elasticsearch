@@ -36,7 +36,7 @@ teardown:
   - do:
       indices.get:
         index: logs-foobar
-  - is_true: ${idx0name}
+  - is_true: .$idx0name
   - is_false: logs-foobar
 
 ---
@@ -54,7 +54,7 @@ teardown:
   - do:
       indices.get_mapping:
         index: logs-foobar
-  - is_true: ${idx0name}.mappings
+  - is_true: .$idx0name.mappings
   - is_false: logs-foobar.mappings
 
 ---
@@ -180,7 +180,7 @@ teardown:
         index: simple-data-stream1
         fields: foo
 
-  - is_true: ${idx0name}
+  - is_true: .$idx0name
 
   - do:
       indices.delete_data_stream:
@@ -250,8 +250,8 @@ teardown:
       indices.get:
         index: ".ds-simple-data-stream1-*"
 
-  - is_true: ${idx0name}.settings
-  - is_true: ${idx1name}.settings
+  - is_true: .$idx0name.settings
+  - is_true: .$idx1name.settings
 
   - do:
       indices.delete_data_stream:

@@ -114,7 +114,7 @@
       ilm.explain_lifecycle:
         index: logs-foobar
   - is_false: indices.logs-foobar.managed
-  - is_true: indices.${idx0name}.managed
+  - is_true: indices.$idx0name.managed
 
   - do:
       indices.delete_data_stream:
@@ -243,8 +243,8 @@
       indices.get_settings:
         index: ".ds-simple-data-stream1-*"
 
-  - is_false: ${idx0name}.settings.index.lifecycle
-  - is_false: ${idx1name}.settings.index.lifecycle
+  - is_false: .$idx0name.settings.index.lifecycle
+  - is_false: .$idx1name.settings.index.lifecycle
 
   - do:
       indices.delete_data_stream:

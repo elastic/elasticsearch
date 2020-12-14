@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.SizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetSocketAddress;
@@ -42,10 +43,29 @@ import static java.util.Collections.emptyMap;
 
 public class AzureStorageService {
     public static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+
+    /**
+     * The maximum size of a BlockBlob block.
+     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
+     */
+    public static ByteSizeValue MAX_BLOCK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+
+    /**
+     * The maximum number of blocks.
+     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
+     */
+    public static final long MAX_BLOCK_NUMBER = 50000;
+
+    /**
+     * The maximum size of a Block Blob.
+     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
+     */
+    public static final long MAX_BLOB_SIZE = MAX_BLOCK_NUMBER * MAX_BLOCK_SIZE.getBytes();
+
     /**
      * Maximum allowed blob size in Azure blob store.
      */
-    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
+    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(MAX_BLOB_SIZE , ByteSizeUnit.BYTES);
 
     // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
     private static final long DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB).getBytes();

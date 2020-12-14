@@ -5,6 +5,9 @@
       "description": "Pauses an auto-follow pattern"
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

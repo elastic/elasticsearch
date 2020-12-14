@@ -65,6 +65,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -134,6 +135,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
+import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
@@ -207,9 +209,13 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
+import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
+import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -247,6 +253,8 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
+import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -311,6 +319,7 @@ import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestDeleteModelSnapshotAct
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestUpdateModelSnapshotAction;
+import org.elasticsearch.xpack.ml.rest.modelsnapshots.RestUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
@@ -408,7 +417,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
     // can handle.
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
-            Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
+           Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
     /**
      * This boolean value indicates if `max_machine_memory_percent` should be ignored and a automatic calculation is used instead.
      *
@@ -424,9 +433,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
         "xpack.ml.use_auto_machine_memory_percent",
         false,
+        Property.Dynamic,
         Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
-            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, Property.Dynamic, Property.NodeScope);
 
     // Before 8.0.0 this needs to match the max allowed value for xpack.ml.max_open_jobs,
     // as the current node could be running in a cluster where some nodes are still using
@@ -464,6 +474,18 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             Property.NodeScope
         );
 
+    /**
+     * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
+     * on the cluster.
+     *
+     * If the value is the default special case of `0b`, that means the value is ignored when assigning jobs.
+     */
+    public static final Setting<ByteSizeValue> MAX_ML_NODE_SIZE = Setting.byteSizeSetting(
+        "xpack.ml.max_ml_node_size",
+        ByteSizeValue.ZERO,
+        Property.Dynamic,
+        Property.NodeScope);
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
@@ -471,6 +493,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final boolean transportClientMode;
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
+    private final SetOnce<DatafeedConfigProvider> datafeedConfigProvider = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
@@ -478,6 +501,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
+    private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
@@ -515,7 +539,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
-                USE_AUTO_MACHINE_MEMORY_PERCENT));
+                USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MAX_ML_NODE_SIZE));
     }
 
     public Settings additionalSettings() {
@@ -542,7 +567,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(mlEnabledNodeAttrName);
         } else {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
+            disallowMlNodeAttributes(mlEnabledNodeAttrName,
+                maxOpenJobsPerNodeNodeAttrName,
+                machineMemoryAttrName,
+                jvmSizeAttrName
+            );
         }
         return additionalSettings.build();
     }
@@ -598,9 +627,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService);
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
-        AnnotationPersister anomalyDetectionAnnotationPersister =
-            new AnnotationPersister(resultsPersisterService, anomalyDetectionAuditor);
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
+            threadPool,
+            originSettingClient,
+            clusterService,
+            settings
+        );
+        AnnotationPersister anomalyDetectionAnnotationPersister = new AnnotationPersister(resultsPersisterService);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings, indexNameExpressionResolver);
         JobResultsPersister jobResultsPersister =
             new JobResultsPersister(originSettingClient, resultsPersisterService, anomalyDetectionAuditor);
@@ -609,6 +642,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             anomalyDetectionAuditor);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(environment,
             settings,
@@ -626,10 +660,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
         NativeStorageProvider nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
 
-        AutodetectProcessFactory autodetectProcessFactory;
-        NormalizerProcessFactory normalizerProcessFactory;
-        AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory;
-        AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
+        final AutodetectProcessFactory autodetectProcessFactory;
+        final NormalizerProcessFactory normalizerProcessFactory;
+        final AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory;
+        final AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
             try {
                 NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
@@ -665,7 +699,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     + XPackSettings.MACHINE_LEARNING_ENABLED.getKey() + ": false].");
             }
         } else {
-            autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
+            autodetectProcessFactory = (pipelineId, job, autodetectParams, executorService, onProcessCrash) ->
                     new BlackHoleAutodetectProcess(job.getId(), onProcessCrash);
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
@@ -675,9 +709,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, client, threadPool,
-                xContentRegistry, anomalyDetectionAuditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister,
-                jobDataCountsPersister, anomalyDetectionAnnotationPersister, autodetectProcessFactory, normalizerFactory,
-                nativeStorageProvider, indexNameExpressionResolver);
+            xContentRegistry, anomalyDetectionAuditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister,
+            jobDataCountsPersister, anomalyDetectionAnnotationPersister, autodetectProcessFactory,
+            normalizerFactory, nativeStorageProvider, indexNameExpressionResolver);
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder =
             new DatafeedJobBuilder(
@@ -686,14 +720,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 anomalyDetectionAuditor,
                 anomalyDetectionAnnotationPersister,
                 System::currentTimeMillis,
-                jobConfigProvider,
-                jobResultsProvider,
-                datafeedConfigProvider,
                 jobResultsPersister,
                 settings,
                 clusterService.getNodeName());
+        DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(jobConfigProvider, datafeedConfigProvider,
+            jobResultsProvider);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
-                System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager);
+                System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager, datafeedContextProvider);
         this.datafeedManager.set(datafeedManager);
 
         // Inference components
@@ -752,6 +785,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         // Perform node startup operations
         nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
 
+        mlAutoscalingDeciderService.set(new MlAutoscalingDeciderService(memoryTracker, settings, clusterService));
+
         return Arrays.asList(
                 mlLifeCycleService,
                 jobResultsProvider,
@@ -789,12 +824,28 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
         return Arrays.asList(
-                new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
-                    memoryTracker.get(), client, expressionResolver),
+                new OpenJobPersistentTasksExecutor(settings,
+                    clusterService,
+                    autodetectProcessManager.get(),
+                    datafeedConfigProvider.get(),
+                    memoryTracker.get(),
+                    client,
+                    expressionResolver),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get(), expressionResolver),
-                new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings, client, clusterService, dataFrameAnalyticsManager.get(),
-                    dataFrameAnalyticsAuditor.get(), memoryTracker.get(), expressionResolver,
-                    MlIndexTemplateRegistry.INFERENCE_TEMPLATE)
+                new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings,
+                    client,
+                    clusterService,
+                    dataFrameAnalyticsManager.get(),
+                    dataFrameAnalyticsAuditor.get(),
+                    memoryTracker.get(),
+                    expressionResolver,
+                    MlIndexTemplateRegistry.INFERENCE_TEMPLATE),
+                new SnapshotUpgradeTaskExecutor(settings,
+                    clusterService,
+                    autodetectProcessManager.get(),
+                    memoryTracker.get(),
+                    expressionResolver,
+                    client)
         );
     }
 
@@ -881,6 +932,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestDeleteTrainedModelAction(),
             new RestGetTrainedModelsStatsAction(),
             new RestPutTrainedModelAction(),
+            new RestUpgradeJobModelSnapshotAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -959,7 +1011,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class),
                 new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
                 new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
-                new ActionHandler<>(PutTrainedModelAction.INSTANCE, TransportPutTrainedModelAction.class)
+                new ActionHandler<>(PutTrainedModelAction.INSTANCE, TransportPutTrainedModelAction.class),
+                new ActionHandler<>(UpgradeJobModelSnapshotAction.INSTANCE, TransportUpgradeJobModelSnapshotAction.class)
             );
     }
 
@@ -1060,6 +1113,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return MlAutoscalingNamedWritableProvider.getNamedWriteables();
+    }
+
+    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
@@ -1095,5 +1153,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
         assert circuitBreaker.getName().equals(TRAINED_MODEL_CIRCUIT_BREAKER_NAME);
         this.inferenceModelBreaker.set(circuitBreaker);
+    }
+
+    public Collection<AutoscalingDeciderService> deciders() {
+        if (enabled) {
+            assert mlAutoscalingDeciderService.get() != null;
+            return Collections.singletonList(mlAutoscalingDeciderService.get());
+        } else {
+            return Collections.emptyList();
+        }
     }
 }

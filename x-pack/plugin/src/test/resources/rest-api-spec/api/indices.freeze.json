@@ -5,6 +5,9 @@
       "description":"Freezes an index. A frozen index has almost no overhead on the cluster (except for maintaining its metadata in memory) and is read-only."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

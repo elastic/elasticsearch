@@ -49,6 +49,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private int size = RequestDefaults.SIZE;
     private int fetchSize = RequestDefaults.FETCH_SIZE;
     private String query;
+    private String resultPosition = "head";
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -65,6 +66,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
+    static final String KEY_RESULT_POSITION = "result_position";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -76,6 +78,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField(KEY_WAIT_FOR_COMPLETION_TIMEOUT);
     static final ParseField KEEP_ALIVE = new ParseField(KEY_KEEP_ALIVE);
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEY_KEEP_ON_COMPLETION);
+    static final ParseField RESULT_POSITION = new ParseField(KEY_RESULT_POSITION);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -171,6 +174,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             builder.field(KEY_KEEP_ALIVE, keepAlive);
         }
         builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
+        builder.field(KEY_RESULT_POSITION, resultPosition);
 
         return builder;
     }
@@ -195,6 +199,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareField(EqlSearchRequest::keepAlive,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
+        parser.declareString(EqlSearchRequest::resultPosition, RESULT_POSITION);
         return parser;
     }
 
@@ -284,6 +289,19 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public String resultPosition() {
+        return resultPosition;
+    }
+
+    public EqlSearchRequest resultPosition(String position) {
+        if ("head".equals(position) || "tail".equals(position)) {
+            resultPosition = position;
+        } else {
+            throw new IllegalArgumentException("result position needs to be 'head' or 'tail', received '" + position + "'");
+        }
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -327,7 +345,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(query, that.query) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
-                Objects.equals(keepAlive, that.keepAlive);
+                Objects.equals(keepAlive, that.keepAlive) &&
+                Objects.equals(resultPosition, that.resultPosition);
     }
 
 
@@ -344,7 +363,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             eventCategoryField,
             query,
             waitForCompletionTimeout,
-            keepAlive);
+            keepAlive,
+            resultPosition);
     }
 
     @Override

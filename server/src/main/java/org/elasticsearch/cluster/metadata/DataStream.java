@@ -44,20 +44,33 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
 
+    /**
+     * The version when data stream metadata, hidden data streams and replicated data streams was introduced.
+     */
+    public static final Version NEW_FEATURES_VERSION = Version.V_7_11_0;
+
     private final String name;
     private final TimestampField timeStampField;
     private final List<Index> indices;
     private final long generation;
     private final Map<String, Object> metadata;
+    private final boolean hidden;
+    private final boolean replicated;
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
+        this(name, timeStampField, indices, generation, metadata, false, false);
+    }
+
+    public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata,
+                      boolean hidden, boolean replicated) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
         this.metadata = metadata;
+        this.hidden = hidden;
+        this.replicated = replicated;
         assert indices.size() > 0;
-        assert indices.get(indices.size() - 1).getName().equals(getDefaultBackingIndexName(name, generation));
     }
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices) {
@@ -80,9 +93,27 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return generation;
     }
 
+    public Index getWriteIndex() {
+        return indices.get(indices.size() - 1);
+    }
+
     @Nullable
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public boolean isHidden() {
+        return hidden;
+    }
+
+    /**
+     * Determines whether this data stream is replicated from elsewhere,
+     * for example a remote cluster.
+     *
+     * @return Whether this data stream is replicated.
+     */
+    public boolean isReplicated() {
+        return replicated;
     }
 
     /**
@@ -95,9 +126,14 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      */
     public DataStream rollover(Index newWriteIndex) {
         assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1));
+        if (replicated) {
+            throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
+                "because it is a replicated data stream");
+        }
+
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(newWriteIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata);
+        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated);
     }
 
     /**
@@ -111,7 +147,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata);
+        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated);
     }
 
     /**
@@ -136,7 +172,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 "it is the write index", existingBackingIndex.getName(), name));
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata);
+        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated);
+    }
+
+    public DataStream promoteDataStream() {
+        return new DataStream(name, timeStampField, indices, getGeneration(), metadata, hidden, false);
     }
 
     /**
@@ -153,7 +193,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(StreamInput in) throws IOException {
         this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
-            in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readMap(): null);
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) ? in.readMap(): null,
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) && in.readBoolean(),
+            in.getVersion().onOrAfter(NEW_FEATURES_VERSION) && in.readBoolean());
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -166,8 +208,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getVersion().onOrAfter(NEW_FEATURES_VERSION)) {
             out.writeMap(metadata);
+            out.writeBoolean(hidden);
+            out.writeBoolean(replicated);
         }
     }
 
@@ -176,11 +220,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField GENERATION_FIELD = new ParseField("generation");
     public static final ParseField METADATA_FIELD = new ParseField("_meta");
+    public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
+    public static final ParseField REPLICATED_FIELD = new ParseField("replicated");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
         args -> new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3],
-            (Map<String, Object>) args[4]));
+            (Map<String, Object>) args[4], args[5] != null && (boolean) args[5], args[6] != null && (boolean) args[6]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -188,6 +234,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REPLICATED_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -204,6 +252,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         if (metadata != null) {
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
         }
+        builder.field(HIDDEN_FIELD.getPreferredName(), hidden);
+        builder.field(REPLICATED_FIELD.getPreferredName(), replicated);
         builder.endObject();
         return builder;
     }
@@ -217,12 +267,14 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             timeStampField.equals(that.timeStampField) &&
             indices.equals(that.indices) &&
             generation == that.generation &&
-            Objects.equals(metadata, that.metadata);
+            Objects.equals(metadata, that.metadata) &&
+            hidden == that.hidden &&
+            replicated == that.replicated;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, metadata);
+        return Objects.hash(name, timeStampField, indices, generation, metadata, hidden, replicated);
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

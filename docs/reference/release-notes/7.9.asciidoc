@@ -3,6 +3,19 @@
 
 Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 
+[[known-issues-7.9.3]]
+[discrete]
+=== Known issues
+
+* SQL: If a `WHERE` clause contains at least two relational operators joined by
+`AND`, of which one is a comparison (`<=`, `<`, `>=`, `>`) and another one is
+an inequality (`!=`, `<>`), both against literals or foldable expressions, the
+inequality will be ignored. The workaround is to substitute the inequality
+with a `NOT IN` operator.
++
+We have fixed this issue in {es} 7.10.1 and later versions. For more details,
+see {es-issue}65488[#65488].
+
 [[bug-7.9.3]]
 [float]
 === Bug fixes
@@ -67,6 +80,19 @@ Infra/Packaging::
 == {es} version 7.9.2
 
 Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[[known-issues-7.9.2]]
+[discrete]
+=== Known issues
+
+* SQL: If a `WHERE` clause contains at least two relational operators joined by
+`AND`, of which one is a comparison (`<=`, `<`, `>=`, `>`) and another one is
+an inequality (`!=`, `<>`), both against literals or foldable expressions, the
+inequality will be ignored. The workaround is to substitute the inequality
+with a `NOT IN` operator.
++
+We have fixed this issue in {es} 7.10.1 and later versions. For more details,
+see {es-issue}65488[#65488].
 
 [[deprecation-7.9.2]]
 [float]
@@ -163,6 +189,19 @@ Infra/Packaging::
 == {es} version 7.9.1
 
 Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[[known-issues-7.9.1]]
+[discrete]
+=== Known issues
+
+* SQL: If a `WHERE` clause contains at least two relational operators joined by
+`AND`, of which one is a comparison (`<=`, `<`, `>=`, `>`) and another one is
+an inequality (`!=`, `<>`), both against literals or foldable expressions, the
+inequality will be ignored. The workaround is to substitute the inequality
+with a `NOT IN` operator.
++
+We have fixed this issue in {es} 7.10.1 and later versions. For more details,
+see {es-issue}65488[#65488].
 
 [[feature-7.9.1]]
 [float]
@@ -311,6 +350,15 @@ Full details of the mitigations are in
   symptoms.  We are actively working with the Lucene community to release a
   https://github.com/apache/lucene-solr/pull/1779[fix] in Lucene 8.6.2 to
   deliver in Elasticsearch 7.9.1 that will address this memory leak.
+
+* SQL: If a `WHERE` clause contains at least two relational operators joined by
+`AND`, of which one is a comparison (`<=`, `<`, `>=`, `>`) and another one is
+an inequality (`!=`, `<>`), both against literals or foldable expressions, the
+inequality will be ignored. The workaround is to substitute the inequality
+with a `NOT IN` operator.
++
+We have fixed this issue in {es} 7.10.1 and later versions. For more details,
+see {es-issue}65488[#65488].
 
 [[breaking-7.9.0]]
 [discrete]

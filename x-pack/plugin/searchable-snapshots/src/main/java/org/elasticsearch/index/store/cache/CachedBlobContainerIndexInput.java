@@ -62,6 +62,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
     private final int defaultRangeSize;
+    private final int recoveryRangeSize;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
     private long lastReadPosition;
@@ -73,7 +74,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
-        int rangeSize
+        int rangeSize,
+        int recoveryRangeSize
     ) {
         this(
             "CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
@@ -84,7 +86,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             0L,
             fileInfo.length(),
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
-            rangeSize
+            rangeSize,
+            recoveryRangeSize
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -99,7 +102,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long offset,
         long length,
         CacheFileReference cacheFileReference,
-        int rangeSize
+        int rangeSize,
+        int recoveryRangeSize
     ) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
@@ -107,6 +111,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
         this.defaultRangeSize = rangeSize;
+        this.recoveryRangeSize = recoveryRangeSize;
     }
 
     @Override
@@ -124,7 +129,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     private long getDefaultRangeSize() {
-        return (context != CACHE_WARMING_CONTEXT) ? defaultRangeSize : fileInfo.partSize().getBytes();
+        return (context != CACHE_WARMING_CONTEXT)
+            ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
+            : fileInfo.partSize().getBytes();
     }
 
     private Tuple<Long, Long> computeRange(long position) {
@@ -729,7 +736,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             this.offset + offset,
             length,
             cacheFileReference,
-            defaultRangeSize
+            defaultRangeSize,
+            recoveryRangeSize
         );
         slice.isClone = true;
         return slice;

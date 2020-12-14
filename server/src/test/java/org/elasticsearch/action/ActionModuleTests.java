@@ -45,6 +45,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
@@ -55,6 +56,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
@@ -82,7 +84,7 @@ public class ActionModuleTests extends ESTestCase {
         }
         class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
             protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-                super(actionName, actionFilters, taskManager);
+                super(actionName, actionFilters, mock(Transport.Connection.class), taskManager);
             }
 
             @Override

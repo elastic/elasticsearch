@@ -222,8 +222,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                             nextSearch();
                         } else {
                             onFinish(ActionListener.wrap(
-                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
                         }
                     },
                     this::finishWithFailure));
@@ -380,6 +380,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onFinish(ActionListener<Void> listener);
 
     /**
+     * Called after onFinish or after onFailure and all the following steps - in particular state persistence - are completed.
+     */
+    protected void afterFinishOrFailure() {
+    }
+
+    /**
      * Called when the indexer is stopped. This is only called when the indexer is stopped
      * via {@link #stop()} as opposed to {@link #onFinish(ActionListener)} which is called
      * when the indexer's work is done.
@@ -396,18 +402,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private void finishWithSearchFailure(Exception exc) {
         stats.incrementSearchFailures();
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), () -> {});
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private void finishWithIndexingFailure(Exception exc) {
         stats.incrementIndexingFailures();
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), () -> {});
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
         finishAndSetState();
+        afterFinishOrFailure();
     }
 
     private IndexerState finishAndSetState() {
@@ -478,8 +485,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 stats.markEndProcessing();
                 // execute finishing tasks
                 onFinish(ActionListener.wrap(
-                        r -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                        e -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+                        r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
                 return;
             }
 
@@ -610,7 +617,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         case STOPPING:
             logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), () -> {});
+            doSaveState(finishAndSetState(), getPosition(), this::afterFinishOrFailure);
             return false;
 
         case STOPPED:

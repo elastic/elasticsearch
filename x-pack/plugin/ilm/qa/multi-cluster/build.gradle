@@ -12,7 +12,7 @@ dependencies {
 File repoDir = file("$buildDir/testclusters/repo")
 
 task 'leader-cluster'(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+  mustRunAfter("precommit")
     systemProperty 'tests.target_cluster', 'leader'
     /* To support taking index snapshots, we have to set path.repo setting */
     systemProperty 'tests.path.repo', repoDir.absolutePath

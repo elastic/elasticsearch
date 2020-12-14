@@ -79,11 +79,9 @@ public class TestClustersPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(JdkDownloadPlugin.class);
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        if (BuildParams.isInternal()) {
-            project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
-        } else {
-            project.getPlugins().apply(DistributionDownloadPlugin.class);
-        }
+        BuildParams.withInternalBuild(() -> project.getPlugins().apply(InternalDistributionDownloadPlugin.class))
+            .orElse(() -> project.getPlugins().apply(DistributionDownloadPlugin.class));
+
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
         ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);

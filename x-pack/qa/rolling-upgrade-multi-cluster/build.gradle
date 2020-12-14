@@ -74,7 +74,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       ext.kindExt = kind
     }
 
-    tasks.create("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
+    tasks.register("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"

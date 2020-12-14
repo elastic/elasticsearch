@@ -15,7 +15,6 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -39,6 +38,8 @@ import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -116,6 +118,7 @@ public class AuthorizationService {
     private final AuthorizationEngine authorizationEngine;
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
+    private final OperatorPrivilegesService operatorPrivilegesService;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -123,7 +126,7 @@ public class AuthorizationService {
                                 AuditTrailService auditTrailService, AuthenticationFailureHandler authcFailureHandler,
                                 ThreadPool threadPool, AnonymousUser anonymousUser, @Nullable AuthorizationEngine authorizationEngine,
                                 Set<RequestInterceptor> requestInterceptors, XPackLicenseState licenseState,
-                                IndexNameExpressionResolver resolver) {
+                                IndexNameExpressionResolver resolver, OperatorPrivilegesService operatorPrivilegesService) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
@@ -137,6 +140,7 @@ public class AuthorizationService {
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
         this.licenseState = licenseState;
+        this.operatorPrivilegesService = operatorPrivilegesService;
     }
 
     public void checkPrivileges(Authentication authentication, HasPrivilegesRequest request,
@@ -200,6 +204,16 @@ public class AuthorizationService {
             // sometimes a request might be wrapped within another, which is the case for proxied
             // requests and concrete shard requests
             final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
+
+            // Check operator privileges
+            // TODO: audit?
+            final ElasticsearchSecurityException operatorException =
+                operatorPrivilegesService.check(action, originalRequest, threadContext);
+            if (operatorException != null) {
+                listener.onFailure(denialException(authentication, action, operatorException));
+                return;
+            }
+
             if (SystemUser.is(authentication.getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
@@ -307,8 +321,10 @@ public class AuthorizationService {
         }
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-            assert (request instanceof CreateIndexRequest) || (request instanceof CreateDataStreamAction.Request);
-            if (request instanceof CreateDataStreamAction.Request || ((CreateIndexRequest) request).aliases().isEmpty()) {
+            assert (request instanceof CreateIndexRequest) || (request instanceof MigrateToDataStreamAction.Request) ||
+                (request instanceof CreateDataStreamAction.Request);
+            if (request instanceof CreateDataStreamAction.Request || (request instanceof MigrateToDataStreamAction.Request) ||
+                ((CreateIndexRequest) request).aliases().isEmpty()) {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {
                 Set<Alias> aliases = ((CreateIndexRequest) request).aliases();

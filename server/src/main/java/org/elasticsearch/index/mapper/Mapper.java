@@ -37,29 +37,6 @@ import java.util.function.Supplier;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
-    public static class BuilderContext {
-        private final Settings indexSettings;
-        private final ContentPath contentPath;
-
-        public BuilderContext(Settings indexSettings, ContentPath contentPath) {
-            Objects.requireNonNull(indexSettings, "indexSettings is required");
-            this.contentPath = contentPath;
-            this.indexSettings = indexSettings;
-        }
-
-        public ContentPath path() {
-            return this.contentPath;
-        }
-
-        public Settings indexSettings() {
-            return this.indexSettings;
-        }
-
-        public Version indexCreatedVersion() {
-            return Version.indexCreated(indexSettings);
-        }
-    }
-
     public abstract static class Builder {
 
         public String name;
@@ -73,7 +50,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         /** Returns a newly built mapper. */
-        public abstract Mapper build(BuilderContext context);
+        public abstract Mapper build(ContentPath contentPath);
     }
 
     public interface TypeParser {
@@ -82,6 +59,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final Function<String, SimilarityProvider> similarityLookupService;
             private final Function<String, TypeParser> typeParsers;
+            private final Function<String, RuntimeFieldType.Parser> runtimeTypeParsers;
+            private final boolean supportsDynamicRuntimeMappings;
             private final Version indexVersionCreated;
             private final Supplier<QueryShardContext> queryShardContextSupplier;
             private final DateFormatter dateFormatter;
@@ -92,15 +71,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
                                  Function<String, TypeParser> typeParsers,
+                                 Function<String, RuntimeFieldType.Parser> runtimeTypeParsers,
                                  Version indexVersionCreated,
                                  Supplier<QueryShardContext> queryShardContextSupplier,
                                  DateFormatter dateFormatter,
                                  ScriptService scriptService,
                                  IndexAnalyzers indexAnalyzers,
                                  IndexSettings indexSettings,
-                                 BooleanSupplier idFieldDataEnabled) {
+                                 BooleanSupplier idFieldDataEnabled,
+                                 boolean supportsDynamicRuntimeMappings) {
                 this.similarityLookupService = similarityLookupService;
                 this.typeParsers = typeParsers;
+                this.runtimeTypeParsers = runtimeTypeParsers;
                 this.indexVersionCreated = indexVersionCreated;
                 this.queryShardContextSupplier = queryShardContextSupplier;
                 this.dateFormatter = dateFormatter;
@@ -108,6 +90,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 this.indexAnalyzers = indexAnalyzers;
                 this.indexSettings = indexSettings;
                 this.idFieldDataEnabled = idFieldDataEnabled;
+                this.supportsDynamicRuntimeMappings = supportsDynamicRuntimeMappings;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
@@ -134,6 +117,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return typeParsers.apply(type);
             }
 
+            public RuntimeFieldType.Parser runtimeFieldTypeParser(String type) {
+                return runtimeTypeParsers.apply(type);
+            }
+
+            public boolean supportsDynamicRuntimeMappings() {
+                return supportsDynamicRuntimeMappings;
+            }
+
             public Version indexVersionCreated() {
                 return indexVersionCreated;
             }
@@ -153,8 +144,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             public boolean isWithinMultiField() { return false; }
 
-            protected Function<String, TypeParser> typeParsers() { return typeParsers; }
-
             protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
 
             /**
@@ -170,8 +159,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.similarityLookupService, in.typeParsers, in.indexVersionCreated, in.queryShardContextSupplier,
-                        in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings, in.idFieldDataEnabled);
+                    super(in.similarityLookupService, in.typeParsers, in.runtimeTypeParsers, in.indexVersionCreated,
+                        in.queryShardContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
+                        in.idFieldDataEnabled, in.supportsDynamicRuntimeMappings);
                 }
 
                 @Override

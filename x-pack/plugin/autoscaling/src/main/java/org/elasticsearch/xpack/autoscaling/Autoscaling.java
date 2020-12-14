@@ -6,8 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -45,16 +45,15 @@ import org.elasticsearch.xpack.autoscaling.action.TransportDeleteAutoscalingPoli
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportPutAutoscalingPolicyAction;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
-import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
+import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
@@ -68,7 +67,7 @@ import java.util.stream.Collectors;
  * Container class for autoscaling functionality.
  */
 public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugin, AutoscalingExtension {
-    private static final Logger logger = LogManager.getLogger(AutoscalingExtension.class);
+
     private static final Boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
 
     static {
@@ -91,13 +90,15 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
 
     public static final Setting<Boolean> AUTOSCALING_ENABLED_SETTING = Setting.boolSetting(
         "xpack.autoscaling.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
     private final boolean enabled;
 
     private final List<AutoscalingExtension> autoscalingExtensions;
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private final SetOnce<AllocationDeciders> allocationDeciders = new SetOnce<>();
 
     public Autoscaling(final Settings settings) {
         this.enabled = AUTOSCALING_ENABLED_SETTING.get(settings);
@@ -136,6 +137,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        this.clusterService.set(clusterService);
         return org.elasticsearch.common.collect.List.of(new AutoscalingCalculateCapacityService.Holder(this));
     }
 
@@ -181,14 +183,14 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
             new NamedWriteableRegistry.Entry(
-                AutoscalingDeciderConfiguration.class,
-                FixedAutoscalingDeciderConfiguration.NAME,
-                FixedAutoscalingDeciderConfiguration::new
+                AutoscalingDeciderResult.Reason.class,
+                FixedAutoscalingDeciderService.NAME,
+                FixedAutoscalingDeciderService.FixedReason::new
             ),
             new NamedWriteableRegistry.Entry(
                 AutoscalingDeciderResult.Reason.class,
-                FixedAutoscalingDeciderConfiguration.NAME,
-                FixedAutoscalingDeciderService.FixedReason::new
+                ReactiveStorageDeciderService.NAME,
+                ReactiveStorageDeciderService.ReactiveReason::new
             )
         );
     }
@@ -196,12 +198,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return org.elasticsearch.common.collect.List.of(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse),
-            new NamedXContentRegistry.Entry(
-                AutoscalingDeciderConfiguration.class,
-                new ParseField(FixedAutoscalingDeciderConfiguration.NAME),
-                FixedAutoscalingDeciderConfiguration::parse
-            )
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse)
         );
     }
 
@@ -215,11 +212,20 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     }
 
     @Override
-    public Collection<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> deciders() {
-        return org.elasticsearch.common.collect.List.of(new FixedAutoscalingDeciderService());
+    public Collection<AutoscalingDeciderService> deciders() {
+        assert allocationDeciders.get() != null;
+        return org.elasticsearch.common.collect.List.of(
+            new FixedAutoscalingDeciderService(),
+            new ReactiveStorageDeciderService(
+                clusterService.get().getSettings(),
+                clusterService.get().getClusterSettings(),
+                allocationDeciders.get()
+            )
+        );
     }
 
-    public Set<AutoscalingDeciderService<? extends AutoscalingDeciderConfiguration>> createDeciderServices() {
+    public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders allocationDeciders) {
+        this.allocationDeciders.set(allocationDeciders);
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
 }

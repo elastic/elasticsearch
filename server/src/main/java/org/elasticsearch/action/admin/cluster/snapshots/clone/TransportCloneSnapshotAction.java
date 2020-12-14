@@ -51,7 +51,7 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
 
     @Override
     protected void masterOperation(CloneSnapshotRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        snapshotsService.cloneSnapshot(request, ActionListener.map(listener, v -> AcknowledgedResponse.TRUE));
+        snapshotsService.cloneSnapshot(request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 
     @Override

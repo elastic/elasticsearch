@@ -38,7 +38,6 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 import org.locationtech.jts.geom.Coordinate;
@@ -303,9 +302,8 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).build(mockBuilderContext);
+            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).build(new ContentPath());
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());

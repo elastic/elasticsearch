@@ -55,8 +55,8 @@ import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Arrays;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -69,7 +69,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
 /** A {@link FieldMapper} for dates. */
-public final class DateFieldMapper extends ParametrizedFieldMapper {
+public final class DateFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
 
@@ -100,6 +100,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public long roundDownToMillis(long value) {
+                return value;
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                return value;
+            }
+
+            @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
@@ -122,7 +132,22 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public long parsePointAsMillis(byte[] value) {
-                return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
+                return roundDownToMillis(LongPoint.decodeDimension(value, 0));
+            }
+
+            @Override
+            public long roundDownToMillis(long value) {
+                return DateUtils.toMilliSeconds(value);
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                if (value <= 0L) {
+                    // if negative then throws an IAE; if zero then return zero
+                    return DateUtils.toMilliSeconds(value);
+                } else {
+                    return DateUtils.toMilliSeconds(value - 1L) + 1L;
+                }
             }
 
             @Override
@@ -168,6 +193,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
          */
         public abstract long parsePointAsMillis(byte[] value);
 
+        /**
+         * Round the given raw value down to a number of milliseconds since the epoch.
+         */
+        public abstract long roundDownToMillis(long value);
+
+        /**
+         * Round the given raw value up to a number of milliseconds since the epoch.
+         */
+        public abstract long roundUpToMillis(long value);
+
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
                 if (ord == resolution.ordinal()) {
@@ -184,7 +219,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -249,12 +284,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public DateFieldMapper build(BuilderContext context) {
-            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), store.getValue(), docValues.getValue(),
+        public DateFieldMapper build(ContentPath contentPath) {
+            DateFieldType ft = new DateFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, nullValue.getValue(), meta.getValue());
             ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft);
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
+            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(), nullTimestamp, resolution, this);
         }
     }
@@ -324,13 +359,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 public String parseSourceValue(Object value) {
                     String date = value.toString();
@@ -570,7 +605,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), resolution, null, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
@@ -582,11 +617,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return fieldType().resolution.type();
-    }
-
-    @Override
-    protected DateFieldMapper clone() {
-        return (DateFieldMapper) super.clone();
     }
 
     @Override

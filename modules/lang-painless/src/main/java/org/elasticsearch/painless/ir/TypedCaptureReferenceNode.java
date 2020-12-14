@@ -22,25 +22,13 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
-public class TypedCaptureReferenceNode extends ReferenceNode {
+public class TypedCaptureReferenceNode extends ExpressionNode {
 
-    /* ---- begin node data ---- */
-
-    private String methodName;
-
-    public void setMethodName(String methodName) {
-        this.methodName = methodName;
-    }
-
-    public String getMethodName() {
-        return methodName;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        irTreeVisitor.visitTypeCaptureReference(this, scope);
+        irTreeVisitor.visitTypedCaptureReference(this, scope);
     }
 
     @Override

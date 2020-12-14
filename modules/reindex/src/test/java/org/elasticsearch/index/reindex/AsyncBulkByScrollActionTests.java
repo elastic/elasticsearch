@@ -81,6 +81,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -123,6 +124,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
@@ -761,7 +763,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
 
         protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-            super(actionName, actionFilters, taskManager);
+            super(actionName, actionFilters, mock(Transport.Connection.class), taskManager);
         }
 
         @Override

@@ -56,6 +56,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
+
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -363,7 +364,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     @Override
-    protected String runtimeType() {
+    protected String typeName() {
         return "keyword";
     }
 
@@ -404,7 +405,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                                 return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(foo.toString());
                                         }
                                     }
@@ -413,7 +414,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                                 return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(foo.toString() + getParams().get("param").toString());
                                         }
                                     }
@@ -437,7 +438,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             StringFieldScript.Factory factory = scriptService.compile(script, StringFieldScript.CONTEXT);
-            return new KeywordScriptFieldType("test", script, factory, emptyMap());
+            return new KeywordScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
         }
     }
 }

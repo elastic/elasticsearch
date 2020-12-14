@@ -78,15 +78,22 @@ public class ReproduceInfoPrinter extends RunListener {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
+        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
 
         // append Gradle test runner test filter string
         b.append("'" + task + "'");
-        b.append(" --tests \"");
+        if (isBwcTest) {
+            // Use "legacy" method for bwc tests so that it applies globally to all upstream bwc test tasks
+            b.append(" -Dtests.class=\"");
+        } else {
+            b.append(" --tests \"");
+        }
         b.append(failure.getDescription().getClassName());
+
         final String methodName = failure.getDescription().getMethodName();
         if (methodName != null) {
             // fallback to system property filter when tests contain "."
-            if (methodName.contains(".")) {
+            if (methodName.contains(".") || isBwcTest) {
                 b.append("\" -Dtests.method=\"");
                 b.append(methodName);
             } else {

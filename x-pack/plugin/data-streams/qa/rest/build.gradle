@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 restResources {
   restApi {

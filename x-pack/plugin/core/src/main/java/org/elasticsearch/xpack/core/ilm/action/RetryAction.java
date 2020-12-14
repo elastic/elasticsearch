@@ -15,29 +15,17 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class RetryAction extends ActionType<RetryAction.Response> {
+public class RetryAction extends ActionType<AcknowledgedResponse> {
     public static final RetryAction INSTANCE = new RetryAction();
     public static final String NAME = "indices:admin/ilm/retry";
 
     protected RetryAction() {
-        super(NAME, RetryAction.Response::new);
-    }
-
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {

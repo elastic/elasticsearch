@@ -35,7 +35,7 @@ specify a role descriptor with no privileges:
 [source,js]
 ----
 ...
-"role_descriptors": { 
+"role_descriptors": {
     "no-privilege": {
     }
 }
@@ -48,6 +48,14 @@ specify a role descriptor with no privileges:
 [discrete]
 [[breaking_76_search_changes]]
 === Search changes
+
+[discrete]
+==== Aggregating and sorting on `_id` is deprecated
+It's possible to aggregate and sort on the built-in `_id` field by loading an
+expensive data structure called fielddata. This was deprecated in 7.6 and will
+be disallowed by default in 8.0. As an alternative, the `_id` field's contents
+can be duplicated into another field with docvalues enabled (note that this
+does not apply to auto-generated IDs).
 
 [discrete]
 ==== Deprecation of sparse vector fields

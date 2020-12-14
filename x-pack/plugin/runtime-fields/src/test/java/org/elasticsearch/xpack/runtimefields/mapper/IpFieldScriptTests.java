@@ -48,7 +48,7 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                 IpFieldScript script = new IpFieldScript(
                     "test",
                     org.elasticsearch.common.collect.Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null, null),
+                    new SearchLookup(field -> null, (ft, lookup) -> null),
                     reader.leaves().get(0)
                 ) {
                     @Override

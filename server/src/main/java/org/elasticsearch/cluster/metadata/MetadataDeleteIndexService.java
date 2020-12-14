@@ -23,10 +23,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -66,25 +66,18 @@ public class MetadataDeleteIndexService {
         this.allocationService = allocationService;
     }
 
-    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request,
-            final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
 
         clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()),
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
-
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(final ClusterState currentState) {
-                return deleteIndices(currentState, Sets.newHashSet(request.indices()));
-            }
-        });
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+                @Override
+                public ClusterState execute(final ClusterState currentState) {
+                    return deleteIndices(currentState, Sets.newHashSet(request.indices()));
+                }
+            });
     }
 
     /**

@@ -17,6 +17,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -65,9 +66,9 @@ import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
-import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -108,7 +109,6 @@ import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncAddRetentionLease;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncRenewRetentionLease;
-
 
 /**
  * This repository relies on a remote cluster for Ccr restores. It is read-only so it can only be used to
@@ -395,7 +395,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private void createEmptyStore(Store store) {
         store.incRef();
         try {
-            store.createEmpty(store.indexSettings().getIndexVersionCreated().luceneVersion);
+            store.createEmpty();
         } catch (final EngineException | IOException e) {
             throw new IndexShardRecoveryException(store.shardId(), "failed to create empty store", e);
         } finally {
@@ -617,7 +617,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         @Override
         public void close() {
             ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node);
-            ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
+            ActionResponse.Empty response =
                 remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
         }
 

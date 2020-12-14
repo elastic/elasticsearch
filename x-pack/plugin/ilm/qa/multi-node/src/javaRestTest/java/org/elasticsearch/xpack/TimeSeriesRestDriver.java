@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -182,6 +183,34 @@ public final class TimeSeriesRestDriver {
         phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
         // PUT policy
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request request = new Request("PUT", "_ilm/policy/" + policyName);
+        request.setEntity(entity);
+        client.performRequest(request);
+    }
+
+    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase, @Nullable Phase warmPhase,
+                                    @Nullable Phase coldPhase, @Nullable Phase deletePhase) throws IOException {
+        if (hotPhase == null && warmPhase == null && coldPhase == null && deletePhase == null) {
+            throw new IllegalArgumentException("specify at least one phase");
+        }
+        Map<String, Phase> phases = new HashMap<>();
+        if (hotPhase != null) {
+            phases.put("hot", hotPhase);
+        }
+        if (warmPhase != null) {
+            phases.put("warm", warmPhase);
+        }
+        if (coldPhase != null) {
+            phases.put("cold", coldPhase);
+        }
+        if (deletePhase != null) {
+            phases.put("delete", deletePhase);
+        }
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(

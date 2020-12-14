@@ -50,7 +50,6 @@ public class LeafDocLookupTests extends ESTestCase {
         docLookup = new LeafDocLookup(
             field -> field.equals("field") || field.equals("alias") || field.equals("_type") ? fieldType : null,
             ignored -> fieldData,
-            new String[]{"type"},
             null);
     }
 

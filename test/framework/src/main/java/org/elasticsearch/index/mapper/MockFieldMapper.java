@@ -19,19 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.Collections;
 import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
-public class MockFieldMapper extends ParametrizedFieldMapper {
-    static Settings DEFAULT_SETTINGS = Settings.builder()
-        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
-        .build();
+public class MockFieldMapper extends FieldMapper {
 
     public MockFieldMapper(String fullName) {
         this(new FakeFieldType(fullName));
@@ -50,7 +44,7 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName());
     }
 
@@ -70,7 +64,7 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException();
         }
     }
@@ -84,7 +78,7 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
     protected void parseCreateField(ParseContext context) {
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
         private final MappedFieldType fieldType;
 
         protected Builder(String name) {
@@ -108,8 +102,8 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public MockFieldMapper build(BuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+        public MockFieldMapper build(ContentPath contentPath) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
             return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
         }
     }

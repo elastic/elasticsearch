@@ -36,6 +36,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -43,7 +44,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.lookup.LeafFieldsLookup;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -75,10 +76,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(ScriptedBlockPlugin.class);
-        plugins.addAll(super.nodePlugins());
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), ScriptedBlockPlugin.class);
     }
 
     public void testAutomaticCancellationDuringQueryPhase() throws Exception {
@@ -271,7 +269,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap(SCRIPT_NAME, params -> {
-                LeafFieldsLookup fieldsLookup = (LeafFieldsLookup) params.get("_fields");
+                LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
                 LogManager.getLogger(SearchRestCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {

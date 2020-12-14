@@ -5,6 +5,9 @@
       "description": "Gets the current autoscaling capacity based on the configured autoscaling policy."
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

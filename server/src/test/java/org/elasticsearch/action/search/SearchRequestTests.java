@@ -86,6 +86,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
+        if (version.before(Version.V_7_11_0) && searchRequest.source() != null) {
+            // Versions before 7.11.0 don't support runtime mappings
+            searchRequest.source().runtimeMappings(emptyMap());
+        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         if (version.before(Version.V_7_0_0)) {
             assertTrue(deserializedRequest.isCcsMinimizeRoundtrips());

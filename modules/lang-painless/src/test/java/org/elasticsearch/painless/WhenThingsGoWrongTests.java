@@ -840,4 +840,10 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("while (java.util.List) {java.util.List x = 1;}"));
         assertEquals(iae.getMessage(), "value required: instead found unexpected type [java.util.List]");
     }
+
+    public void testInvalidNullSafeBehavior() {
+        expectScriptThrows(ClassCastException.class, () ->
+                exec("def test = ['hostname': 'somehostname']; test?.hostname && params.host.hostname != ''"));
+        expectScriptThrows(NullPointerException.class, () -> exec("params?.host?.hostname && params.host?.hostname != ''"));
+    }
 }

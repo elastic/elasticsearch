@@ -65,9 +65,6 @@ Defaults to `9300-9400`.
 
 The following special values may be passed to `network.host`:
 
-`_[networkInterface]_`::
-  Addresses of a network interface, for example `_en0_`.
-
 `_local_`::
   Any loopback addresses on the system, for example `127.0.0.1`.
 
@@ -76,6 +73,11 @@ The following special values may be passed to `network.host`:
 
 `_global_`::
   Any globally-scoped addresses on the system, for example `8.8.8.8`.
+
+`_[networkInterface]_`::
+  Use the addresses of the network interface called `[networkInterface]`. For
+  example if you wish to use the addresses of an interface called `en0` then
+  set `network.host: _en0_`.
 
 [[network-interface-values-ipv4-vs-ipv6]]
 ===== IPv4 vs IPv6

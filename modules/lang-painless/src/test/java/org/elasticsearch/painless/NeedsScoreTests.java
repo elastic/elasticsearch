@@ -32,6 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * Test that needsScores() is reported correctly depending on whether _score is used
  */
@@ -45,7 +47,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         contexts.put(NumberSortScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
-        QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);
+        QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null, emptyMap());
 
         NumberSortScript.Factory factory = service.compile(null, "1.2", NumberSortScript.CONTEXT, Collections.emptyMap());
         NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());

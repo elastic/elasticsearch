@@ -89,7 +89,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger numWithTopDocs = new AtomicInteger();
         AtomicInteger successfulOps = new AtomicInteger();
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
                                          SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
@@ -157,7 +157,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), controller, executor,
+            Collections.emptyMap(), controller, executor,
             resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override

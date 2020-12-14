@@ -47,15 +47,9 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         clusterService.submitStateUpdateTask("activate-auto-follow-pattern-" + request.getName(),
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
-                protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(final ClusterState currentState) throws Exception {
+                public ClusterState execute(final ClusterState currentState) {
                     return innerActivate(request, currentState);
                 }
             });

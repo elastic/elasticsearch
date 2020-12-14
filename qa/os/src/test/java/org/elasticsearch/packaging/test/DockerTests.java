@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -648,6 +649,49 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that it is possible to write logs to disk
+     */
+    public void test121CanUseStackLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(singletonMap("ES_LOG_STYLE", "file")));
+
+        waitForElasticsearch(installation);
+
+        final Result containerLogs = getContainerLogs();
+        final String[] stdout = containerLogs.stdout.split("\n");
+
+        assertThat(
+            "Container logs should be formatted using the stack config",
+            stdout[stdout.length - 1],
+            matchesPattern("^\\[\\d\\d\\d\\d-.*")
+        );
+        assertThat("[logs/docker-cluster.log] should exist but it doesn't", existsInContainer("logs/docker-cluster.log"), is(true));
+    }
+
+    /**
+     * Check that the default logging config can be explicitly selected.
+     */
+    public void test122CanUseDockerLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(singletonMap("ES_LOG_STYLE", "console")));
+
+        waitForElasticsearch(installation);
+
+        final Result containerLogs = getContainerLogs();
+        final String[] stdout = containerLogs.stdout.split("\n");
+
+        assertThat("Container logs should be formatted using the docker config", stdout[stdout.length - 1], startsWith("{\""));
+        assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));
+    }
+
+    /**
+     * Check that an unknown logging config is rejected
+     */
+    public void test123CannotUseUnknownLoggingConfig() {
+        final Result result = runContainerExpectingFailure(distribution(), builder().envVars(singletonMap("ES_LOG_STYLE", "unknown")));
+
+        assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
+    }
+
+    /**
      * Check that the Java process running inside the container has the expected UID, GID and username.
      */
     public void test130JavaHasCorrectOwnership() {
@@ -682,7 +726,7 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Incorrect PID", fields[0], equalTo("1"));
         assertThat("Incorrect UID", fields[1], equalTo("0"));
         assertThat("Incorrect GID", fields[2], equalTo("0"));
-        assertThat("Incorrect init command", fields[3], startsWith("/tini"));
+        assertThat("Incorrect init command", fields[3], startsWith("/bin/tini"));
     }
 
     /**

@@ -299,7 +299,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
             assertThat(forecastRequestStats.getStatus(), in(status));
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 
     protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws IOException {

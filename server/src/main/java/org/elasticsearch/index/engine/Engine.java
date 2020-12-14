@@ -64,6 +64,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -71,6 +72,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -99,7 +101,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -578,9 +579,7 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory,
-                                                SearcherScope scope) throws EngineException {
-        final Engine.Searcher searcher = searcherFactory.apply("get", scope);
+    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher) throws EngineException {
         final DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
@@ -615,7 +614,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException;
+    public abstract GetResult get(Get get, DocumentMapper mapper, Function<Engine.Searcher, Engine.Searcher> searcherWrapper);
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
@@ -1243,6 +1242,15 @@ public abstract class Engine implements Closeable {
         protected abstract void doClose();
 
         protected abstract Searcher acquireSearcherInternal(String source);
+
+        /**
+         * Returns a commit id associated with this searcher if it's opened from an index commit; otherwise, return null. Two searchers
+         * with the same commit id must have identical Lucene level indices (i.e., identical segments with same docs using same doc-ids).
+         */
+        @Nullable
+        public String getCommitId() {
+            return null;
+        }
     }
 
     public static final class Searcher extends IndexSearcher implements Releasable {
@@ -1676,6 +1684,7 @@ public abstract class Engine implements Closeable {
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
             this.fromTranslog = fromTranslog;
+            assert fromTranslog == false || searcher.getIndexReader() instanceof TranslogLeafReader;
         }
 
         public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
@@ -1690,6 +1699,10 @@ public abstract class Engine implements Closeable {
             return this.version;
         }
 
+        /**
+         * Returns {@code true} iff the get was performed from a translog operation. Notes that this returns {@code false}
+         * if the get was performed on an in-memory Lucene segment created from the corresponding translog operation.
+         */
         public boolean isFromTranslog() {
             return fromTranslog;
         }
@@ -1977,4 +1990,12 @@ public abstract class Engine implements Closeable {
     public enum HistorySource {
         TRANSLOG, INDEX
     }
+
+    /**
+     * @return a {@link ShardLongFieldRange} containing the min and max raw values of the given field for this shard if the engine
+     * guarantees these values never to change, or {@link ShardLongFieldRange#EMPTY} if this field is empty, or
+     * {@link ShardLongFieldRange#UNKNOWN} if this field's value range may change in future.
+     */
+    public abstract ShardLongFieldRange getRawFieldRange(String field) throws IOException;
+
 }

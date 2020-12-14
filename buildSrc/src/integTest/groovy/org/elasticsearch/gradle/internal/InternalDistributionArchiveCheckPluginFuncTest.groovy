@@ -95,7 +95,7 @@ unknown license content line 2
         def result = gradleRunner(":darwin-tar:check").buildAndFail()
         then:
         result.task(":darwin-tar:checkLicense").outcome == TaskOutcome.FAILED
-        normalizedOutput(result.output).contains("> expected line [2] in " +
+        normalized(result.output).contains("> expected line [2] in " +
                 "[./darwin-tar/build/tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/LICENSE.txt] " +
                 "to be [elastic license coorp stuff line 2] but was [unknown license content line 2]")
     }
@@ -121,7 +121,7 @@ Copyright 2009-2018 Acme Coorp"""
         def result = gradleRunner(":darwin-tar:checkNotice").buildAndFail()
         then:
         result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.FAILED
-        normalizedOutput(result.output).contains("> expected line [2] in " +
+        normalized(result.output).contains("> expected line [2] in " +
                 "[./darwin-tar/build/tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/NOTICE.txt] " +
                 "to be [Copyright 2009-2018 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
     }
@@ -157,7 +157,7 @@ Copyright 2009-2018 Elasticsearch"""
         def result = gradleRunner(":darwin-tar:check").buildAndFail()
         then:
         result.task(":darwin-tar:checkMlCppNotice").outcome == TaskOutcome.FAILED
-        normalizedOutput(result.output)
+        normalized(result.output)
                 .contains("> expected [./darwin-tar/build/tar-extracted/elasticsearch-" +
                         "${VersionProperties.getElasticsearch()}/modules/x-pack-ml/NOTICE.txt " +
                         "to contain [foo license] but it did not")

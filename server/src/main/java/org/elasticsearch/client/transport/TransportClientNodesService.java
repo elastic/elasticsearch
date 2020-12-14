@@ -76,7 +76,7 @@ final class TransportClientNodesService implements Closeable {
 
     private final TimeValue nodesSamplerInterval;
 
-    private final long pingTimeout;
+    private final TimeValue pingTimeout;
 
     private final ClusterName clusterName;
 
@@ -132,7 +132,7 @@ final class TransportClientNodesService implements Closeable {
         this.minCompatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
 
         this.nodesSamplerInterval = TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(settings);
-        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(settings).millis();
+        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(settings);
         this.ignoreClusterName = TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(settings);
 
         if (logger.isDebugEnabled()) {
@@ -417,7 +417,7 @@ final class TransportClientNodesService implements Closeable {
                             }
                         });
                     transportService.sendRequest(connection, TransportLivenessAction.NAME, new LivenessRequest(),
-                        TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
+                        TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
                         handler);
                     final LivenessResponse livenessResponse = handler.txGet();
                     if (!ignoreClusterName && !clusterName.equals(livenessResponse.getClusterName())) {
@@ -507,8 +507,7 @@ final class TransportClientNodesService implements Closeable {
                             }
                             transportService.sendRequest(pingConnection, ClusterStateAction.NAME,
                                 Requests.clusterStateRequest().clear().nodes(true).local(true),
-                                TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE)
-                                    .withTimeout(pingTimeout).build(),
+                                TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
                                 new TransportResponseHandler<ClusterStateResponse>() {
 
                                     @Override

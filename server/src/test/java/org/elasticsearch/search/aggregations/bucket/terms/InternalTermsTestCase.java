@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class InternalTermsTestCase extends InternalMultiBucketAggregationTestCase<InternalTerms<?, ?>> {
 
-    private boolean showDocCount;
-    private long docCountError;
+    protected boolean showDocCount;
+    protected long docCountError;
 
     @Before
     public void init() {

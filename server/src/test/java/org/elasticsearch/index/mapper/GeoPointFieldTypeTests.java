@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,10 +28,7 @@ import java.util.Map;
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", false).build(context).fieldType();
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
 
         Map<String, Object> jsonPoint = new HashMap<>();
         jsonPoint.put("type", "Point");

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -100,6 +101,40 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
             }
             assertThat(metadata.policies(), hasKey(entry.getKey()));
             assertThat(metadata.policies().get(entry.getKey()).policy(), equalTo(entry.getValue().policy()));
+        }
+    }
+
+    public void testDeletePolicyByWildcard() {
+        final ClusterState currentState;
+        {
+            final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
+            builder.metadata(
+                Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
+            );
+            currentState = builder.build();
+        }
+        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
+        final String policyName = randomFrom(currentMetadata.policies().keySet());
+        final String deleteName = randomFrom(policyName.substring(0, between(0, policyName.length()))) + "*";
+        final Logger mockLogger = mock(Logger.class);
+        final ClusterState state = TransportDeleteAutoscalingPolicyAction.deleteAutoscalingPolicy(currentState, deleteName, mockLogger);
+
+        // ensure the policy is deleted from the cluster state
+        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
+        assertNotNull(metadata);
+        assertThat(metadata.policies(), not(hasKey(policyName)));
+
+        verify(mockLogger).info("deleting [{}] autoscaling policies", currentMetadata.policies().size() - metadata.policies().size());
+        verifyNoMoreInteractions(mockLogger);
+
+        // ensure that the right policies were preserved
+        for (final Map.Entry<String, AutoscalingPolicyMetadata> entry : currentMetadata.policies().entrySet()) {
+            if (Regex.simpleMatch(deleteName, entry.getKey())) {
+                assertFalse(metadata.policies().containsKey(entry.getKey()));
+            } else {
+                assertThat(metadata.policies(), hasKey(entry.getKey()));
+                assertThat(metadata.policies().get(entry.getKey()).policy(), equalTo(entry.getValue().policy()));
+            }
         }
     }
 

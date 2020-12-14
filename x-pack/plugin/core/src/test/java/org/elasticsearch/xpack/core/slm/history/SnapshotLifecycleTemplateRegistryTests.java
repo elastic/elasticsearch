@@ -146,7 +146,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
                 final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo(SLM_POLICY_NAME));
                 assertNotNull(listener);
-                return new PutLifecycleAction.Response(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return new TestPutIndexTemplateResponse(true);
@@ -259,7 +259,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
                 return null;
             } else if (action instanceof PutLifecycleAction) {
                 // Ignore this, it's verified in another test
-                return new PutLifecycleAction.Response(true);
+                return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request:" + request.toString());
                 return null;
@@ -350,7 +350,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             return new TestPutIndexTemplateResponse(true);
         } else if (action instanceof PutLifecycleAction) {
             // Ignore this, it's verified in another test
-            return new PutLifecycleAction.Response(true);
+            return AcknowledgedResponse.TRUE;
         } else {
             fail("client called with unexpected request:" + request.toString());
             return null;

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -37,8 +38,8 @@ import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -68,9 +69,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(LocalStateCompositeXPackPlugin.class);
-        return plugins;
+        return Collections.singleton(LocalStateCompositeXPackPlugin.class);
     }
 
     @Override
@@ -81,9 +80,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.transportClientPlugins());
-        plugins.add(XPackClientPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.transportClientPlugins(), XPackClientPlugin.class);
     }
 
     public void testBasic() {

@@ -89,6 +89,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
@@ -155,6 +156,7 @@ public class ClusterStateChanges {
             = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, () -> Priority.NORMAL, logger);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        SystemIndices systemIndices = new SystemIndices(emptyMap());
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
         Transport transport = mock(Transport.class); // it's not used
@@ -230,11 +232,12 @@ public class ClusterStateChanges {
         transportDeleteIndexAction = new TransportDeleteIndexAction(transportService,
             clusterService, threadPool, deleteIndexService, actionFilters, indexNameExpressionResolver, destructiveOperations);
         transportUpdateSettingsAction = new TransportUpdateSettingsAction(
-            transportService, clusterService, threadPool, metadataUpdateSettingsService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, metadataUpdateSettingsService, actionFilters, indexNameExpressionResolver,
+            systemIndices);
         transportClusterRerouteAction = new TransportClusterRerouteAction(
             transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
         transportCreateIndexAction = new TransportCreateIndexAction(
-            transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver, systemIndices);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {});
@@ -311,7 +314,12 @@ public class ClusterStateChanges {
 
     public ClusterState applyStartedShards(ClusterState clusterState, Map<ShardRouting, Long> startedShards) {
         return runTasks(shardStartedClusterStateTaskExecutor, clusterState, startedShards.entrySet().stream()
-            .map(e -> new StartedShardEntry(e.getKey().shardId(), e.getKey().allocationId().getId(), e.getValue(), "shard started"))
+            .map(e -> new StartedShardEntry(
+                    e.getKey().shardId(),
+                    e.getKey().allocationId().getId(),
+                    e.getValue(),
+                    "shard started",
+                    ShardLongFieldRange.UNKNOWN))
             .collect(Collectors.toList()));
     }
 

@@ -150,11 +150,11 @@ plugins:
 +
 --
 (Required, object)
-Contains settings for the repository. Valid properties for the `settings` object
-depend on the repository type, set using the
-<<put-snapshot-repo-api-request-type,`type`>> parameter.
+Contains settings for the repository.
 
-.Valid `settings` properties for `fs` repositories
+The following `settings` properties are valid for all repository types:
+
+.Properties of `settings`
 [%collapsible%open]
 ====
 `chunk_size`::
@@ -168,11 +168,13 @@ file size).
 If `true`, metadata files, such as index mappings and settings, are compressed
 in snapshots. Data files are not compressed. Defaults to `true`.
 
-`location`::
-(Required, string)
-Location of the shared filesystem used to store and retrieve snapshots. This
-location must be registered in the `path.repo` setting on all master and data
-nodes in the cluster.
+`max_number_of_snapshots`::
+(Optional, integer)
+Maximum number of snapshots the repository can contain. Defaults to `500`.
++
+WARNING: We do not recommend increasing `max_number_of_snapshots`. Larger
+snapshot repositories may degrade master node performance and cause stability
+issues. Instead, delete older snapshots or use multiple repositories.
 
 `max_restore_bytes_per_sec`::
 (Optional, <<byte-units,byte value>>)
@@ -204,6 +206,19 @@ other clusters connected to the repository should have the `readonly` parameter
 set to `true`. This means those clusters can retrieve or restore snapshots from
 the repository but not create snapshots in it.
 =====
+====
+
+Other accepted `settings` properties depend on the repository type, set using the
+<<put-snapshot-repo-api-request-type,`type`>> parameter.
+
+.Valid `settings` properties for `fs` repositories
+[%collapsible%open]
+====
+`location`::
+(Required, string)
+Location of the shared filesystem used to store and retrieve snapshots. This
+location must be registered in the `path.repo` setting on all master and data
+nodes in the cluster.
 ====
 
 .Valid `settings` properties for `source` repositories

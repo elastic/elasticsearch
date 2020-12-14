@@ -223,14 +223,36 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullValue() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("null_value", "1,2")));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point"))
+        );
         Mapper fieldMapper = mapper.mappers().getMapper("field");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        assertThat(doc.rootDoc().getField("field"), nullValue());
+        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
+
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point").field("doc_values", false))
+        );
+        fieldMapper = mapper.mappers().getMapper("field");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+
+        doc = mapper.parse(source(b -> b.nullField("field")));
+        assertThat(doc.rootDoc().getField("field"), nullValue());
+        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
+
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point").field("null_value", "1,2"))
+        );
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
         AbstractPointGeometryFieldMapper.ParsedPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
         assertThat(nullValue, equalTo(new GeoPoint(1, 2)));
 
-        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        doc = mapper.parse(source(b -> b.nullField("field")));
         assertThat(doc.rootDoc().getField("field"), notNullValue());
         BytesRef defaultValue = doc.rootDoc().getBinaryValue("field");
 

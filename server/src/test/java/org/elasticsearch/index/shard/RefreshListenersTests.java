@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -121,7 +120,7 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        store.createEmpty(Version.CURRENT.luceneVersion);
+        store.createEmpty();
         final long primaryTerm = randomNonNegativeLong();
         final String translogUUID =
             Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
@@ -343,7 +342,8 @@ public class RefreshListenersTests extends ESTestCase {
                         listener.assertNoError();
 
                         Engine.Get get = new Engine.Get(false, false, "test", threadId, new Term(IdFieldMapper.NAME, threadId));
-                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
+                        try (Engine.GetResult getResult =
+                                 engine.get(get, EngineTestCase.docMapper(get.type()), EngineTestCase.randomSearcherWrapper())) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             org.apache.lucene.document.Document document =

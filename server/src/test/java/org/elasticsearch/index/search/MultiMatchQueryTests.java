@@ -58,6 +58,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -99,7 +100,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
     public void testCrossFieldMultiMatchQuery() throws IOException {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
-                randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
+                randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null, emptyMap());
         queryShardContext.setAllowUnmappedFields(true);
         for (float tieBreaker : new float[] {0.0f, 0.5f}) {
             Query parsedQuery = multiMatchQuery("banon")
@@ -126,8 +127,13 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         float[] boosts = new float[] {2, 3};
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
         Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), null, 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+            indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null, emptyMap()),
+            new BytesRef("baz"),
+            null,
+            1f,
+            false,
+            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+        );
         assertEquals(expected, actual);
     }
 
@@ -140,8 +146,13 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         float[] boosts = new float[] {200, 30};
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
         Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), null, 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+            indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null, emptyMap()),
+            new BytesRef("baz"),
+            null,
+            1f,
+            false,
+            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+        );
         assertEquals(expected, actual);
     }
 
@@ -160,8 +171,13 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f)
         ), 1f);
         Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), null, 1f, true, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+            indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null, emptyMap()),
+            new BytesRef("baz"),
+            null,
+            1f,
+            true,
+            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+        );
         assertEquals(expected, actual);
     }
 
@@ -173,7 +189,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class, () -> MultiMatchQuery.blendTerm(
-            indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
+            indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null, emptyMap()),
             new BytesRef("baz"), null, 1f, false, Arrays.asList(new FieldAndBoost(ft, 1))));
     }
 
@@ -195,14 +211,19 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 expectedDisjunct1
             ), 1.0f);
         Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), null, 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+            indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null, emptyMap()),
+            new BytesRef("baz"),
+            null,
+            1f,
+            false,
+            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+        );
         assertEquals(expected, actual);
     }
 
     public void testMultiMatchCrossFieldsWithSynonyms() throws IOException {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
-            randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
+            randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null, emptyMap());
 
         MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
         parser.setAnalyzer(new MockSynonymAnalyzer());
@@ -234,7 +255,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
     public void testMultiMatchCrossFieldsWithSynonymsPhrase() throws IOException {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
-            randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
+            randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null, emptyMap());
         MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
         parser.setAnalyzer(new MockSynonymAnalyzer());
         Map<String, Float> fieldNames = new HashMap<>();
@@ -303,7 +324,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> {
                 throw new UnsupportedOperationException();
-            }, null);
+            }, null, emptyMap());
         MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
         Map<String, Float> fieldNames = new HashMap<>();
         fieldNames.put("field", 1.0f);

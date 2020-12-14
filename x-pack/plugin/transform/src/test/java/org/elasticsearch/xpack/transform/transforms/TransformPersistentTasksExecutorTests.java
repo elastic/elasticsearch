@@ -277,8 +277,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     Version.CURRENT
                 )
             );
-        csBuilder.nodes(nodes);
-        cs = csBuilder.build();
+        cs = ClusterState.builder(cs).nodes(nodes).build();
 
         assertThat(
             executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_2_0, null, false), cs).getExecutorNode(),
@@ -320,6 +319,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             );
         }
 
+        csBuilder = ClusterState.builder(cs);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
         List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(

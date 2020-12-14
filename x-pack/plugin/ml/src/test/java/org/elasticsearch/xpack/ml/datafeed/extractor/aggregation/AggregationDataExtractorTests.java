@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -61,6 +62,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     private QueryBuilder query;
     private AggregatorFactories.Builder aggs;
     private DatafeedTimingStatsReporter timingStatsReporter;
+    private Map<String, Object> runtimeMappings;
 
     private class TestDataExtractor extends AggregationDataExtractor {
 
@@ -103,6 +105,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
                 .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
                         AggregationBuilders.terms("airline").field("airline").subAggregation(
                                 AggregationBuilders.avg("responsetime").field("responsetime"))));
+        runtimeMappings = Collections.emptyMap();
         timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
@@ -265,7 +268,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
 
     private AggregationDataExtractorContext createContext(long start, long end) {
         return new AggregationDataExtractorContext(jobId, timeField, fields, indices, query, aggs, start, end, true,
-            Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS);
+            Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS, runtimeMappings);
     }
 
     @SuppressWarnings("unchecked")

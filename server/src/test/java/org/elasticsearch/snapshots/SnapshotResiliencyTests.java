@@ -65,8 +65,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -83,7 +81,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -145,8 +142,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -189,10 +186,6 @@ import org.elasticsearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -219,6 +212,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
@@ -1375,6 +1369,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final RecoverySettings recoverySettings;
 
+            private final PeerRecoverySourceService peerRecoverySourceService;
+
             private final NodeConnectionsService nodeConnectionsService;
 
             private final RepositoriesService repositoriesService;
@@ -1458,33 +1454,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         return namedWriteableRegistry;
                     }
                 };
-                transportService = mockTransport.createTransportService(
-                    settings, threadPool,
-                    new TransportInterceptor() {
-                        @Override
-                        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                            boolean forceExecution, TransportRequestHandler<T> actualHandler) {
-                            // TODO: Remove this hack once recoveries are async and can be used in these tests
-                            if (action.startsWith("internal:index/shard/recovery")) {
-                                return (request, channel, task) -> scheduleSoon(
-                                    new AbstractRunnable() {
-                                        @Override
-                                        protected void doRun() throws Exception {
-                                            channel.sendResponse(new TransportException(new IOException("failed to recover shard")));
-                                        }
-
-                                        @Override
-                                        public void onFailure(final Exception e) {
-                                            throw new AssertionError(e);
-                                        }
-                                    });
-                            } else {
-                                return actualHandler;
-                            }
-                        }
-                    },
-                    a -> node, null, emptySet()
-                );
+                transportService = mockTransport.createTransportService(settings, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                        a -> node, null, emptySet());
                 final IndexNameExpressionResolver indexNameExpressionResolver =
                     new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
                 repositoriesService = new RepositoriesService(
@@ -1529,7 +1500,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     Collections.emptyList(),
                     emptyMap(),
                     null,
-                    emptyMap()
+                    emptyMap(),
+                    emptyList()
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService =
@@ -1539,6 +1511,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 nodeConnectionsService =
                     new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
+                peerRecoverySourceService = new PeerRecoverySourceService(transportService, indicesService, recoverySettings);
+
+                final SystemIndices systemIndices = new SystemIndices(emptyMap());
+
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
@@ -1550,7 +1526,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     repositoriesService,
                     mock(SearchService.class),
                     new SyncedFlushService(indicesService, clusterService, transportService, indexNameExpressionResolver),
-                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
+                    peerRecoverySourceService,
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(
                         transportService,
@@ -1563,7 +1539,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             shardStateAction,
                             actionFilters,
                             new IndexingPressure(settings),
-                            new SystemIndices(emptyMap()))),
+                            systemIndices)),
                     new GlobalCheckpointSyncAction(
                         settings,
                         transportService,
@@ -1573,23 +1549,23 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         shardStateAction,
                         actionFilters),
                     RetentionLeaseSyncer.EMPTY);
-            Map<ActionType, TransportAction> actions = new HashMap<>();
+                Map<ActionType, TransportAction> actions = new HashMap<>();
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
                     indicesService,
                     allocationService, new AliasValidator(), shardLimitValidator, environment, indexScopedSettings,
-                    threadPool, namedXContentRegistry, new SystemIndices(emptyMap()), false);
+                    threadPool, namedXContentRegistry, systemIndices, false);
                 actions.put(CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
                         transportService, clusterService, threadPool,
                         metadataCreateIndexService,
-                        actionFilters, indexNameExpressionResolver
+                        actionFilters, indexNameExpressionResolver, systemIndices
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings, clusterService);
                 mappingUpdatedAction.setClient(client);
-            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
-                clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
+                final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
+                    clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
+                    actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(
@@ -1597,9 +1573,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(), client),
                         transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
-                        new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
                         new IndexingPressure(settings),
-                        new SystemIndices(emptyMap())
+                        systemIndices
                     ));
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
@@ -1608,26 +1583,27 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         settings, namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
-                        new SystemIndices(emptyMap()),
+                        systemIndices,
                         null),
                     clusterSettings,
                         shardLimitValidator
                 );
                 actions.put(PutMappingAction.INSTANCE,
                     new TransportPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
-                        actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList())));
+                        actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList()),
+                        systemIndices));
                 actions.put(AutoPutMappingAction.INSTANCE,
                     new TransportAutoPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
                         actionFilters, indexNameExpressionResolver));
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-                final SearchTransportService searchTransportService = new SearchTransportService(transportService,
+                final SearchTransportService searchTransportService = new SearchTransportService(transportService, client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
                 final SearchService searchService = new SearchService(clusterService, indicesService, threadPool, scriptService,
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService());
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
-                    new TransportSearchAction(client, threadPool, new NoneCircuitBreakerService(), transportService, searchService,
+                    new TransportSearchAction(threadPool, new NoneCircuitBreakerService(), transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,
                         actionFilters, indexNameExpressionResolver, namedWriteableRegistry));
                 actions.put(RestoreSnapshotAction.INSTANCE,
@@ -1711,6 +1687,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 clusterService.close();
                 nodeConnectionsService.stop();
                 indicesClusterStateService.close();
+                peerRecoverySourceService.stop();
                 if (coordinator != null) {
                     coordinator.close();
                 }
@@ -1741,6 +1718,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 indicesService.start();
                 indicesClusterStateService.start();
                 coordinator.startInitialJoin();
+                peerRecoverySourceService.start();
             }
         }
     }

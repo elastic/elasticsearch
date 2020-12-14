@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJobAction.JobTask, CloseJobAction.Request,
+public class TransportCloseJobAction extends TransportTasksAction<JobTask, CloseJobAction.Request,
         CloseJobAction.Response, CloseJobAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportCloseJobAction.class);
@@ -284,8 +285,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
 
 
     @Override
-    protected void taskOperation(CloseJobAction.Request request, TransportOpenJobAction.JobTask jobTask,
-                                 ActionListener<CloseJobAction.Response> listener) {
+    protected void taskOperation(CloseJobAction.Request request, JobTask jobTask, ActionListener<CloseJobAction.Response> listener) {
         JobTaskState taskState = new JobTaskState(JobState.CLOSING, jobTask.getAllocationId(), "close job (api)");
         jobTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
             // we need to fork because we are now on a network threadpool and closeJob method may take a while to complete:

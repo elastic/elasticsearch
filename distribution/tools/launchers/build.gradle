@@ -33,7 +33,7 @@ tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-testingConventions {
+tasks.named("testingConventions").configure {
   naming.clear()
   naming {
     Tests {
@@ -42,6 +42,6 @@ testingConventions {
   }
 }
 
-javadoc.enabled = false
-loggerUsageCheck.enabled = false
-jarHell.enabled = false
+["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
+  tasks.named(tsk).configure { enabled = false }
+}

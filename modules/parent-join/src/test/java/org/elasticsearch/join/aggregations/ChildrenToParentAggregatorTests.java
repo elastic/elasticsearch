@@ -41,7 +41,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -290,7 +289,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         return new ParentJoinFieldMapper.Builder("join_field")
                 .addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
-                .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+                .build(new ContentPath(0));
     }
 
     private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify)

@@ -5,6 +5,9 @@
       "description": "Creates the enrich index for an existing enrich policy."
     },
     "stability" : "stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url": {
       "paths": [
         {

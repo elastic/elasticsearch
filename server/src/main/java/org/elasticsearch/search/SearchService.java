@@ -23,6 +23,7 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -104,6 +105,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
@@ -585,7 +587,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
+                searchContext.docIdsToLoad(request.docIds(), request.docIdsSize());
                 try (SearchOperationListenerExecutor executor =
                          new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())) {
                     fetchPhase.execute(searchContext);
@@ -765,7 +767,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try {
             SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
                 reader.indexShard().shardId(), request.getClusterAlias(), OriginalIndices.NONE);
-            searchContext = new DefaultSearchContext(reader, request, shardTarget, clusterService, bigArrays,
+            searchContext = new DefaultSearchContext(reader, request, shardTarget,
                 threadPool::relativeTimeInMillis, timeout, fetchPhase, lowLevelCancellation,
                 clusterService.state().nodes().getMinNodeVersion());
             // we clone the query shard context here just for rewriting otherwise we
@@ -934,12 +936,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
             AggregationContext aggContext = new ProductionAggregationContext(
-                queryShardContext,
-                context.parsedQuery() == null ? null : context.parsedQuery().query()
+                context.getQueryShardContext(),
+                context.query() == null ? new MatchAllDocsQuery() : context.query(),
+                context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
+                multiBucketConsumerService.create(),
+                () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
+                context::addReleasable,
+                context.bitsetFilterCache(),
+                context.indexShard().shardId().hashCode(),
+                context::getRelativeTimeInMillis,
+                context::isCancelled
             );
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
-                context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
+                context.aggregations(new SearchContextAggregations(factories));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
             }
@@ -1101,7 +1111,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 docIdsToLoad[docsOffset++] = option.getDoc().doc;
             }
         }
-        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+        context.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
     }
 
     private void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
@@ -1176,7 +1186,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             try (Releasable ignored2 = canMatchSearcher) {
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias());
+                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
                 final boolean aliasFilterCanMatch = request.getAliasFilter()
                     .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;

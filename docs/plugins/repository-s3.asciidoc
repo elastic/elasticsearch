@@ -270,7 +270,7 @@ The following settings are supported:
 
     Big files can be broken down into chunks during snapshotting if needed.
     Specify the chunk size as a value and unit, for example:
-    `1GB`, `10MB`, `5KB`, `500B`. Defaults to `1GB`.
+    `1TB`, `1GB`, `10MB`. Defaults to the maximum size of a blob in the S3 which is `5TB`.
 
 `compress`::
 

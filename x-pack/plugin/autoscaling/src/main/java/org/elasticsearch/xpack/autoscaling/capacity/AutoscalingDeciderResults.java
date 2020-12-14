@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -13,11 +14,15 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Represents a collection of individual autoscaling decider results that can be aggregated into a single autoscaling capacity for a
@@ -25,7 +30,10 @@ import java.util.TreeMap;
  */
 public class AutoscalingDeciderResults implements ToXContent, Writeable {
 
+    public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
+        .thenComparing(DiscoveryNode::getId);
     private final AutoscalingCapacity currentCapacity;
+    private final SortedSet<DiscoveryNode> currentNodes;
     private final SortedMap<String, AutoscalingDeciderResult> results;
 
     /**
@@ -35,9 +43,14 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
         return results;
     }
 
-    public AutoscalingDeciderResults(final AutoscalingCapacity currentCapacity, final SortedMap<String, AutoscalingDeciderResult> results) {
+    public AutoscalingDeciderResults(
+        final AutoscalingCapacity currentCapacity,
+        final SortedSet<DiscoveryNode> currentNodes,
+        final SortedMap<String, AutoscalingDeciderResult> results
+    ) {
         Objects.requireNonNull(currentCapacity);
         this.currentCapacity = currentCapacity;
+        this.currentNodes = Objects.requireNonNull(currentNodes);
         Objects.requireNonNull(results);
         if (results.isEmpty()) {
             throw new IllegalArgumentException("results can not be empty");
@@ -47,13 +60,22 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
 
     public AutoscalingDeciderResults(final StreamInput in) throws IOException {
         this.currentCapacity = new AutoscalingCapacity(in);
+        this.currentNodes = in.readSet(DiscoveryNode::new)
+            .stream()
+            .collect(Collectors.toCollection(() -> new TreeSet<>(DISCOVERY_NODE_COMPARATOR)));
         this.results = new TreeMap<>(in.readMap(StreamInput::readString, AutoscalingDeciderResult::new));
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         currentCapacity.writeTo(out);
+        out.writeCollection(currentNodes);
         out.writeMap(results, StreamOutput::writeString, (output, result) -> result.writeTo(output));
+    }
+
+    @Override
+    public boolean isFragment() {
+        return false;
     }
 
     @Override
@@ -64,6 +86,15 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
             builder.field("required_capacity", requiredCapacity);
         }
         builder.field("current_capacity", currentCapacity);
+        builder.startArray("current_nodes");
+        {
+            for (DiscoveryNode node : currentNodes) {
+                builder.startObject();
+                builder.field("name", node.getName());
+                builder.endObject();
+            }
+        }
+        builder.endArray();
         builder.startObject("deciders");
         for (Map.Entry<String, AutoscalingDeciderResult> entry : results.entrySet()) {
             builder.startObject(entry.getKey());
@@ -90,6 +121,10 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
 
     public AutoscalingCapacity currentCapacity() {
         return currentCapacity;
+    }
+
+    public SortedSet<DiscoveryNode> currentNodes() {
+        return currentNodes;
     }
 
     @Override

@@ -14,8 +14,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ public class HistogramRateAggregator extends AbstractRateAggregator {
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
         RateMode rateMode,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {

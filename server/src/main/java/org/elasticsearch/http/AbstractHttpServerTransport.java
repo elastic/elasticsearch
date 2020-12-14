@@ -43,8 +43,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -90,6 +92,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private final HttpTracer tracer;
 
+    private volatile long slowLogThresholdMs;
+
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
         this.settings = settings;
@@ -114,6 +118,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = new HttpTracer(settings, clusterSettings);
+        clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
+                slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis());
+        slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
     }
 
     @Override
@@ -306,7 +313,17 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+        final long startTime = threadPool.relativeTimeInMillis();
+        try {
+            handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+        } finally {
+            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long logThreshold = slowLogThresholdMs;
+            if (logThreshold > 0 && took > logThreshold) {
+                logger.warn("handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        httpRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel, took, logThreshold);
+            }
+        }
     }
 
     // Visible for testing

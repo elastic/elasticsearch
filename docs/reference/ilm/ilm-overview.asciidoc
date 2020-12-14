@@ -39,7 +39,8 @@ replicas can be reduced.
 For example, if you are indexing metrics data from a fleet of ATMs into
 Elasticsearch, you might define a policy that says:
 
-. When the index reaches 50GB, roll over to a new index.
+. When the total size of the index's primary shards reaches 50GB, roll over to a new
+index.
 . Move the old index into the warm phase, mark it read only, and shrink it down
 to a single shard.
 . After 7 days, move the index into the cold phase and move it to less expensive

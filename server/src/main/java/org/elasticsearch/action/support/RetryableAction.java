@@ -114,6 +114,14 @@ public abstract class RetryableAction<Response> {
 
     public abstract boolean shouldRetry(Exception e);
 
+    protected long calculateDelay(long previousDelay) {
+        return Math.min(previousDelay * 2, Integer.MAX_VALUE);
+    }
+
+    protected long minimumDelayMillis() {
+        return 1L;
+    }
+
     public void onFinished() {
     }
 
@@ -148,10 +156,10 @@ public abstract class RetryableAction<Response> {
                 } else {
                     addException(e);
 
-                    final long nextDelayMillisBound = Math.min(delayMillisBound * 2, Integer.MAX_VALUE);
+                    final long nextDelayMillisBound = calculateDelay(delayMillisBound);
                     final RetryingListener retryingListener = new RetryingListener(nextDelayMillisBound, caughtExceptions);
                     final Runnable runnable = createRunnable(retryingListener);
-                    final long delayMillis = Randomness.get().nextInt(Math.toIntExact(delayMillisBound)) + 1;
+                    final long delayMillis = Randomness.get().nextInt(Math.toIntExact(delayMillisBound)) + minimumDelayMillis();
                     if (isDone.get() == false) {
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
                         logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);

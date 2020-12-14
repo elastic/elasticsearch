@@ -122,31 +122,40 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
         currentState.version(2);
         newState.version(1);
+        ClusterState currentCs = currentState.build();
+        ClusterState newCs = newState.build();
         assertTrue("should ignore, because new state's version is lower to current state's version",
-            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
-        currentState.version(1);
-        newState.version(1);
+            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs));
+
+        currentState = ClusterState.builder(currentCs).version(1);
+        newState = ClusterState.builder(newCs).version(1);
+        currentCs = currentState.build();
+        newCs = newState.build();
         assertTrue("should ignore, because new state's version is equal to current state's version",
-            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
-        currentState.version(1);
-        newState.version(2);
+            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs));
+        currentState = ClusterState.builder(currentCs).version(1);
+        newState = ClusterState.builder(newCs).version(2);
+        currentCs = currentState.build();
+        newCs = newState.build();
         assertFalse("should not ignore, because new state's version is higher to current state's version",
-            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs));
 
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId("b").add(new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
 
         // version isn't taken into account, so randomize it to ensure this.
         if (randomBoolean()) {
-            currentState.version(2);
-            newState.version(1);
+            currentState = ClusterState.builder(currentCs).version(2);
+            newState = ClusterState.builder(newCs).version(1);
         } else {
-            currentState.version(1);
-            newState.version(2);
+            currentState = ClusterState.builder(currentCs).version(1);
+            newState = ClusterState.builder(newCs).version(2);
         }
         currentState.nodes(currentNodes);
+        currentCs = currentState.build();
+        newCs = newState.build();
         try {
-            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build());
+            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs);
             fail("should ignore, because current state's master is not equal to new state's master");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("cluster state from a different master than the current one, rejecting"));
@@ -154,14 +163,14 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId(null);
-        currentState.nodes(currentNodes);
+        currentState = ClusterState.builder(currentCs).nodes(currentNodes);
         // version isn't taken into account, so randomize it to ensure this.
         if (randomBoolean()) {
             currentState.version(2);
-            newState.version(1);
+            newState = ClusterState.builder(newCs).version(1);
         } else {
             currentState.version(1);
-            newState.version(2);
+            newState = ClusterState.builder(newCs).version(2);
         }
         assertFalse("should not ignore, because current state doesn't have a master",
             shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));

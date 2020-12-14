@@ -136,6 +136,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1717,6 +1718,20 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Stops a specific node in the cluster. Returns true if the node was found to stop, false otherwise.
+     */
+    public synchronized boolean stopNode(String nodeName) throws IOException {
+        ensureOpen();
+        Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(nodeName)).findFirst();
+        if (nodeToStop.isPresent()) {
+            logger.info("Closing node [{}]", nodeToStop.get().name);
+            stopNodesAndClient(nodeToStop.get());
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Stops a random node in the cluster that applies to the given filter. Does nothing if none of the nodes match the
      * filter.
      */
@@ -2565,7 +2580,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void assertRequestsFinished() {
+    public void assertRequestsFinished() {
         assert Thread.holdsLock(this);
         if (size() > 0) {
             for (NodeAndClient nodeAndClient : nodes.values()) {

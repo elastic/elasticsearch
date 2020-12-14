@@ -45,8 +45,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
-
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request blocks until the operation is complete.
+Defaults to `false`.
     
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}

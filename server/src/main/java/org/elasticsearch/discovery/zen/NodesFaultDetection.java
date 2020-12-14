@@ -226,8 +226,7 @@ public class NodesFaultDetection extends FaultDetection {
             if (!running()) {
                 return;
             }
-            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
-                .withTimeout(pingRetryTimeout).build();
+            final TransportRequestOptions options = TransportRequestOptions.of(pingRetryTimeout, TransportRequestOptions.Type.PING);
             transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, new TransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse read(StreamInput in) throws IOException {

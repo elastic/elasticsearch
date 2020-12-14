@@ -52,7 +52,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
                                      TransportService transportService, ActionFilters actionFilters,
                                      Writeable.Reader<Request> requestReader, String executor) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader,
             new TransportHandler());
     }

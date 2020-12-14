@@ -224,8 +224,7 @@ public class MasterFaultDetection extends FaultDetection {
 
             final MasterPingRequest request = new MasterPingRequest(
                 clusterStateSupplier.get().nodes().getLocalNode(), masterToPing, clusterName);
-            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
-                .withTimeout(pingRetryTimeout).build();
+            final TransportRequestOptions options = TransportRequestOptions.of(pingRetryTimeout, TransportRequestOptions.Type.PING);
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options,
                 new TransportResponseHandler<MasterPingResponseResponse>() {
                         @Override

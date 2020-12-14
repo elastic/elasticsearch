@@ -283,7 +283,7 @@ public class DiscoveryUpgradeService {
                                 new UnicastPingRequest(0, TimeValue.ZERO,
                                     new PingResponse(createDiscoveryNodeWithImpossiblyHighId(transportService.getLocalNode()),
                                         null, clusterName, UNKNOWN_VERSION)),
-                                TransportRequestOptions.builder().withTimeout(bwcPingTimeout).build(),
+                                TransportRequestOptions.timeout(bwcPingTimeout),
                                 new TransportResponseHandler<UnicastPingResponse>() {
                                     @Override
                                     public void handleResponse(UnicastPingResponse response) {

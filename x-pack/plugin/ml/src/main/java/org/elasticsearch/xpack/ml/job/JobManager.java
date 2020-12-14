@@ -428,7 +428,7 @@ public class JobManager {
     }
 
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
-        if (modelSnapshotId != null) {
+        if (modelSnapshotId != null && ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) == false) {
             voidChainTaskExecutor.add(listener -> {
                 jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
                     if (newModelSnapshot == null) {
@@ -599,6 +599,11 @@ public class JobManager {
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
         CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
+            // In case we are reverting to the empty snapshot the quantiles will be null
+            if (modelSnapshot.getQuantiles() == null) {
+                actionListener.onResponse(new RevertModelSnapshotAction.Response(modelSnapshot));
+                return;
+            }
             jobResultsPersister.persistQuantiles(modelSnapshot.getQuantiles(), WriteRequest.RefreshPolicy.IMMEDIATE,
                     ActionListener.wrap(quantilesResponse -> {
                         // The quantiles can be large, and totally dominate the output -

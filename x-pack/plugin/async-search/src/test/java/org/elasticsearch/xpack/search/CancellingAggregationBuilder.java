@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -79,18 +78,17 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
         final AggregatorFactory factory = filterAgg.build(context, parent);
         return new AggregatorFactory(name, context, parent, subfactoriesBuilder, metadata) {
             @Override
-            protected Aggregator createInternal(SearchContext searchContext,
-                                                Aggregator parent,
+            protected Aggregator createInternal(Aggregator parent,
                                                 CardinalityUpperBound cardinality,
                                                 Map<String, Object> metadata) throws IOException {
-                while (searchContext.isCancelled() == false) {
+                while (context.isCancelled() == false) {
                     try {
                         Thread.sleep(SLEEP_TIME);
                     } catch (InterruptedException e) {
                         throw new IOException(e);
                     }
                 }
-                return factory.create(searchContext, parent, cardinality);
+                return factory.create(parent, cardinality);
             }
         };
     }

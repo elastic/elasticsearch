@@ -10,8 +10,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AbstractPercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
@@ -20,6 +24,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
@@ -68,6 +73,7 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
@@ -84,6 +90,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -101,6 +111,8 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -134,7 +146,11 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private PhysicalPlan optimizeAndPlan(String sql) {
-        return  planner.plan(optimizer.optimize(plan(sql)), true);
+        return optimizeAndPlan(plan(sql));
+    }
+
+    private PhysicalPlan optimizeAndPlan(LogicalPlan plan) {
+        return planner.plan(optimizer.optimize(plan),true);
     }
 
     private QueryTranslation translate(Expression condition) {
@@ -143,6 +159,10 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private QueryTranslation translateWithAggs(Expression condition) {
         return QueryTranslator.toQuery(condition, true);
+    }
+
+    private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
+        return analyzer.analyze(parser.createStatement(sql, Arrays.asList(params), org.elasticsearch.xpack.ql.type.DateUtils.UTC), true);
     }
 
     public void testTermEqualityAnalyzer() {
@@ -1763,9 +1783,9 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))\","
+                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\","
                         +
-                "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3.141592653589793}},\"missing_bucket\":true," +
                 "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
         );
     }
@@ -1781,9 +1801,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))"
+                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)"
                             +
-                    "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                    "\",\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3.141592653589793}},\"missing_bucket\":true," +
                     "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
         }
@@ -1816,9 +1836,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))"
+                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)"
                             +
-                    "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                    "\",\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3.141592653589793}},\"missing_bucket\":true," +
                     "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
         }
@@ -1831,8 +1851,8 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                    endsWith("{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))\"," +
-                    "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}}," +
+                    endsWith("{\"source\":\"InternalSqlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3.141592653589793}}," +
                     "\"missing_bucket\":true,\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
         }
@@ -2240,5 +2260,165 @@ public class QueryTranslatorTests extends ESTestCase {
             + "{\"a0\":\"" + aggName + ".min\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt("
             + "InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\","
             + "\"params\":{\"v0\":\"2020-05-03T00:00:00.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
+    }
+
+    public void testFoldingWithParamsWithoutIndex() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("integer", 200)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(2).toString(), startsWith("?{r}#"));
+        assertNotEquals(p.output().get(1).id(), p.output().get(2).id());
+    }
+
+    public void testSameAliasForParamAndField() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, int as \"?\" FROM test",
+            new SqlTypedParamValue("integer", 100)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+        assertNotEquals(p.output().get(0).id(), p.output().get(1).id());
+    }
+
+    public void testSameAliasOnSameField() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT int as \"int\", int as \"int\" FROM test"));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("int{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("int{r}#"));
+    }
+
+    public void testFoldingWithMixedParamsWithoutAlias() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("text", "200")));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+    }
+
+    public void testSameExpressionWithoutAlias() {
+        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT 100, 100 FROM test");
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+        assertEquals(2, eqe.output().size());
+        assertThat(eqe.output().get(0).toString(), startsWith("100{r}#"));
+        assertThat(eqe.output().get(1).toString(), startsWith("100{r}#"));
+        // these two should be semantically different reference attributes
+        assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
+    }
+
+    public void testEqualsAndInOnTheSameField() {
+        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT int FROM test WHERE int in (1, 2) OR int = 3 OR int = 2");
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+        assertEquals(1, eqe.output().size());
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("\"terms\":{\"int\":[1,2,3],"));
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    private static List<AbstractPercentilesAggregationBuilder> percentilesAggsByField(PhysicalPlan p, int fieldCount) {
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        AggregationBuilder aggregationBuilder = ee.queryContainer().aggs().asAggBuilder();
+        assertEquals(fieldCount, ee.output().size());
+        assertEquals(ReferenceAttribute.class, ee.output().get(0).getClass());
+        assertEquals(fieldCount, ee.queryContainer().fields().size());
+        assertThat(fieldCount, greaterThanOrEqualTo(ee.queryContainer().aggs().asAggBuilder().getSubAggregations().size()));
+        Map<String, AggregationBuilder> aggsByName =
+            aggregationBuilder.getSubAggregations().stream().collect(Collectors.toMap(AggregationBuilder::getName, ab -> ab));
+        return IntStream.range(0, fieldCount).mapToObj(i -> {
+            String percentileAggName = ((MetricAggRef) ee.queryContainer().fields().get(i).v1()).name();
+            return (AbstractPercentilesAggregationBuilder) aggsByName.get(percentileAggName);
+        }).collect(Collectors.toList());
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    public void testPercentileMethodParametersSameAsDefault() {
+        BiConsumer<String, Function<AbstractPercentilesAggregationBuilder, double[]>> test = (fnName, pctOrValFn) -> {
+            final int fieldCount = 5;
+            final String sql = ("SELECT " +
+                // 0-3: these all should fold into the same aggregation
+                "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), " +
+                "   PERCENTILE(int, 40 + 10, 'tdigest', null), " +
+                "   PERCENTILE(int, 50, 'tdigest'), " +
+                "   PERCENTILE(int, 50), " +
+                // 4: this has a different method parameter
+                // just to make sure we don't fold everything to default
+                "   PERCENTILE(int, 50, 'tdigest', 22) " 
+                + "FROM test").replaceAll("PERCENTILE", fnName);
+            
+            List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
+            
+            // 0-3
+            assertEquals(aggs.get(0), aggs.get(1));
+            assertEquals(aggs.get(0), aggs.get(2));
+            assertEquals(aggs.get(0), aggs.get(3));
+            assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+            assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(0)), 0);
+
+            // 4
+            assertEquals(new PercentilesConfig.TDigest(22), aggs.get(4).percentilesConfig());
+            assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(4)), 0);
+        };
+        
+        test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
+        test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    public void testPercentileOptimization() {
+        BiConsumer<String, Function<AbstractPercentilesAggregationBuilder, double[]>> test = (fnName, pctOrValFn) -> {
+            final int fieldCount = 5;
+            final String sql = ("SELECT " +
+                // 0-1: fold into the same aggregation
+                "   PERCENTILE(int, 50, 'tdigest'), " +
+                "   PERCENTILE(int, 60, 'tdigest'), " +
+                
+                // 2-3: fold into one aggregation
+                "   PERCENTILE(int, 50, 'hdr'), " +
+                "   PERCENTILE(int, 60, 'hdr', 3), " +
+                
+                // 4: folds into a separate aggregation
+                "   PERCENTILE(int, 60, 'hdr', 4)" +
+                "FROM test").replaceAll("PERCENTILE", fnName);
+
+            List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
+            
+            // 0-1
+            assertEquals(aggs.get(0), aggs.get(1));
+            assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+            assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(0)), 0);
+
+            // 2-3
+            assertEquals(aggs.get(2), aggs.get(3));
+            assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
+            assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(2)), 0);
+            
+            // 4
+            assertEquals(new PercentilesConfig.Hdr(4), aggs.get(4).percentilesConfig());
+            assertArrayEquals(new double[]{60}, pctOrValFn.apply(aggs.get(4)), 0);
+        };
+
+        test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
+        test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
+    }
+
+    // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // and SUM(all nulls)
+    public void testReplaceSumWithStats() {
+        List<String> testCases = Arrays.asList(
+            "SELECT keyword, SUM(int) FROM test GROUP BY keyword",
+            "SELECT SUM(int) FROM test",
+            "SELECT * FROM (SELECT some.string, keyword, int FROM test) PIVOT (SUM(int) FOR keyword IN ('a', 'b'))");
+        for (String testCase : testCases) {
+            PhysicalPlan physicalPlan = optimizeAndPlan(testCase);
+            assertEquals(EsQueryExec.class, physicalPlan.getClass());
+            EsQueryExec eqe = (EsQueryExec) physicalPlan;
+            assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("{\"stats\":{\"field\":\"int\"}}"));
+        }
     }
 }

@@ -35,18 +35,12 @@ public class TransportStopSLMAction extends AcknowledgedTransportMasterNodeActio
     @Override
     protected void masterOperation(StopSLMAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("slm_operation_mode_update",
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return (OperationModeUpdateTask.slmMode(OperationMode.STOPPING)).execute(currentState);
-                }
-
-                @Override
-                protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-            });
+        clusterService.submitStateUpdateTask("slm_operation_mode_update", new AckedClusterStateUpdateTask(request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return (OperationModeUpdateTask.slmMode(OperationMode.STOPPING)).execute(currentState);
+            }
+        });
     }
 
     @Override

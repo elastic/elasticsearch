@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -253,6 +254,20 @@ class NodeDeprecationChecks {
         final String details =
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+    }
+
+    static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        final JavaVersion javaVersion = JavaVersion.current();
+
+        if (javaVersion.compareTo(JavaVersion.parse("11")) < 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Java 11 is required",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
+                "Java 11 will be required for future versions of Elasticsearch, this node is running version ["
+                    + javaVersion.toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
+                    + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.");
+        }
+        return null;
     }
 
 }

@@ -101,6 +101,10 @@ deletion.
 Maximum number of snapshots to retain, even if the snapshots have not yet
 expired. If the number of snapshots in the repository exceeds this limit, the 
 policy retains the most recent snapshots and deletes older snapshots.
++
+NOTE: The maximum number of snapshots in a repository should not exceed `200`. This ensures that the snapshot repository metadata does not
+grow to a size which might destabilize the master node. If the `max_count` setting is not set, this limit should be enforced by configuring
+other retention rules such that the repository size does not exceed `200` snapshots.
 
 `min_count`::
 (Optional, integer)

@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
@@ -56,7 +55,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -1270,23 +1268,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             client().admin().cluster().prepareSnapshotStatus(otherBlockedRepoName).get();
         final List<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
         assertThat(snapshotStatuses, hasSize(count));
-    }
-
-    private List<String> createNSnapshots(String repoName, int count) throws Exception {
-        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
-        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
-        final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
-        for (int i = 0; i < count; i++) {
-            final String snapshot = prefix + i;
-            snapshotNames.add(snapshot);
-            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute(snapshotsListener);
-        }
-        for (CreateSnapshotResponse snapshotResponse : allSnapshotsDone.get()) {
-            assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
-        }
-        logger.info("--> created {} in [{}]", snapshotNames, repoName);
-        return snapshotNames;
     }
 
     private ActionFuture<AcknowledgedResponse> startDeleteFromNonMasterClient(String repoName, String snapshotName) {

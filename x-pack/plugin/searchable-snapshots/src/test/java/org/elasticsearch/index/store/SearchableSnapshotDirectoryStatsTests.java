@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -38,8 +37,8 @@ import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTe
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,6 +50,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -603,14 +603,9 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
-        final Path shardDir;
-        try {
-            shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        final Path shardDir = randomShardPath(shardId);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-        final Path cacheDir = createTempDir();
+        final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
 
         try (
             CacheService ignored = cacheService;

@@ -5,6 +5,7 @@
       "description":"Retrieves information about the status of the basic license."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

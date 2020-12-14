@@ -63,7 +63,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.TransportClearSearchab
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.NodeEnvironmentCacheCleaner;
+import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
@@ -210,12 +210,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.threadPool.set(threadPool);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
         if (DiscoveryNode.isDataNode(settings)) {
-            final CacheService cacheService = new CacheService(
-                settings,
-                clusterService,
-                threadPool,
-                new NodeEnvironmentCacheCleaner(nodeEnvironment)
-            );
+            final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
             components.add(cacheService);
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
@@ -226,6 +221,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             );
             this.blobStoreCacheService.set(blobStoreCacheService);
             components.add(blobStoreCacheService);
+        } else {
+            PersistentCache.cleanUp(settings, nodeEnvironment);
         }
         return Collections.unmodifiableList(components);
     }
@@ -233,9 +230,17 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public void onIndexModule(IndexModule indexModule) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
-            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener());
+            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener(settings, cacheService.get()));
             indexModule.addIndexEventListener(failShardsListener.get());
         }
+    }
+
+    @Override
+    public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        if (DiscoveryNode.isDataNode(settings)) {
+            return List.of(new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get));
+        }
+        return List.of();
     }
 
     @Override

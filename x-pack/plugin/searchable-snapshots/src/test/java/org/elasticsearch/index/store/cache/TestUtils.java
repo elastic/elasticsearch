@@ -287,7 +287,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, null, mock(Client.class), null);
+            super(null, mock(Client.class), null);
         }
 
         @Override

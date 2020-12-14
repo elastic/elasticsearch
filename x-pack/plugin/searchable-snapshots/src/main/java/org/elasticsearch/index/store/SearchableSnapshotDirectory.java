@@ -344,7 +344,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public CacheKey createCacheKey(String fileName) {
-        return new CacheKey(snapshotId, indexId, shardId, fileName);
+        return new CacheKey(snapshotId.getUUID(), indexId.getName(), shardId, fileName);
     }
 
     public CacheFile getCacheFile(CacheKey cacheKey, long fileLength) throws Exception {

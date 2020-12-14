@@ -5,6 +5,7 @@
       "description":"Opens one or more anomaly detection jobs."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

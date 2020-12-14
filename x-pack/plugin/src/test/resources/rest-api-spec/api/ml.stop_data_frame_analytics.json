@@ -5,6 +5,7 @@
       "description":"Stops one or more data frame analytics jobs."
     },
     "stability":"beta",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

@@ -5,6 +5,7 @@
       "description":"Deletes a script."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

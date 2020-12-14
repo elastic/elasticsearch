@@ -5,6 +5,8 @@
       "description": "Retrieves an autoscaling policy."
     },
     "stability":"experimental",
+    "visibility":"feature_flag",
+    "feature_flag":"es.autoscaling_feature_flag_registered",
     "headers":{
       "accept": [ "application/json"]
     },

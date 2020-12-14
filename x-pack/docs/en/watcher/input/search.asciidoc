@@ -1,6 +1,9 @@
 [role="xpack"]
 [[input-search]]
-=== Search input
+=== {watcher} search input
+++++
+<titleabbrev>Search input</titleabbrev>
+++++
 
 Use the `search` input to load the results of an Elasticsearch search request
 into the execution context when the watch is triggered. See

@@ -26,7 +26,9 @@ import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
@@ -47,7 +49,22 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHi
  */
 public class TumblingWindow implements Executable {
 
+    private static final int CACHE_MAX_SIZE = 64;
+
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
+
+    /**
+     * Simple cache for removing duplicate strings (such as index name or common keys).
+     * Designed to be low-effort, non-concurrent (not needed) and thus optimistic in nature.
+     * Thus it has a small, upper limit so that it doesn't require any cleaning up.
+     */
+    // start with the default size and allow growth until the max size
+    private final Map<String, String> stringCache = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return this.size() >= CACHE_MAX_SIZE;
+        }
+    };
 
     private final QueryClient client;
     private final List<Criterion<BoxedQueryRequest>> criteria;
@@ -522,6 +539,28 @@ public class TumblingWindow implements Executable {
         return new TimeValue(System.currentTimeMillis() - startTime);
     }
 
+    private String cache(String string) {
+        String value = stringCache.putIfAbsent(string, string);
+        return value == null ? string : value;
+    }
+
+    private SequenceKey key(Object[] keys) {
+        SequenceKey key;
+        if (keys == null) {
+            key = SequenceKey.NONE;
+        } else {
+            for (int i = 0; i < keys.length; i++) {
+                Object o = keys[i];
+                if (o instanceof String) {
+                    keys[i] = cache((String) o);
+                }
+            }
+            key = new SequenceKey(keys);
+        }
+
+        return key;
+    }
+
     private static Ordinal headOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
         return criterion.ordinal(hits.get(0));
     }
@@ -565,9 +604,9 @@ public class TumblingWindow implements Executable {
                 @Override
                 public Tuple<KeyAndOrdinal, HitReference> next() {
                     SearchHit hit = delegate.next();
-                    SequenceKey k = criterion.key(hit);
+                    SequenceKey k = key(criterion.key(hit));
                     Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(hit));
+                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(hit.getIndex()), hit.getId()));
                 }
             };
         };

@@ -22,10 +22,13 @@ package org.elasticsearch.gradle.doc
 import groovy.transform.PackageScope
 import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.model.ObjectFactory
 
+import javax.inject.Inject;
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -54,19 +57,16 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
 
     /**
      * Root directory of the tests being generated. To make rest tests happy
-     * we generate them in a testRoot() which is contained in this directory.
+     * we generate them in a testRoot which is contained in this directory.
      */
-    @OutputDirectory
-    File testRoot = project.file('build/rest')
+    private DirectoryProperty testRoot
 
     @Internal
     Set<String> names = new HashSet<>()
 
-    RestTestsFromSnippetsTask() {
-        project.afterEvaluate {
-            // Wait to set this so testRoot can be customized
-            project.sourceSets.test.output.dir(testRoot, builtBy: this)
-        }
+    @Inject
+    RestTestsFromSnippetsTask(ObjectFactory objectFactory) {
+        testRoot = objectFactory.directoryProperty()
         TestBuilder builder = new TestBuilder()
         doFirst { outputRoot().delete() }
         perSnippet builder.&handleSnippet
@@ -79,10 +79,14 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
      * contained within testRoot.
      */
     File outputRoot() {
-        return new File(testRoot, '/rest-api-spec/test')
+        return new File(testRoot.get().asFile, '/rest-api-spec/test')
     }
 
-    /**
+    @OutputDirectory
+    DirectoryProperty getTestRoot() {
+        return testRoot
+    }
+/**
      * Is this snippet a candidate for conversion to `// CONSOLE`?
      */
     static isConsoleCandidate(Snippet snippet) {

@@ -157,7 +157,7 @@ public class CacheService extends AbstractLifecycleComponent {
         return resolveSnapshotCache(shardPath.getDataPath());
     }
 
-    static Path resolveSnapshotCache(Path path) {
+    public static Path resolveSnapshotCache(Path path) {
         return path.resolve("snapshot_cache");
     }
 

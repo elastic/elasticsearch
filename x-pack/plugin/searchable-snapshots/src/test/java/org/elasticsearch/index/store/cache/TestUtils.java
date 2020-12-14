@@ -348,7 +348,7 @@ public final class TestUtils {
         @Override
         public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
             final AtomicInteger counter = files.computeIfAbsent(path, p -> new AtomicInteger(0));
-            return new FilterFileChannel(delegate.newFileChannel(toDelegate(path), options, attrs)) {
+            return new FilterFileChannel(super.newFileChannel(path, options, attrs)) {
 
                 @Override
                 public void force(boolean metaData) throws IOException {

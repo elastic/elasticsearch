@@ -418,14 +418,14 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             this.nodeDecisions = nodeDecisions;
             this.nodeWithHighestMatch = matchingNodes.entrySet()
                 .stream()
+                .filter(entry -> entry.getValue() > 0L)
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
                 .orElse(null);
         }
 
         /**
-         * Returns the node with the highest "non zero byte" match compared to
-         * the primary.
+         * Returns the node with the highest number of bytes cached for the shard or {@code null} if no node with any bytes matched exists.
          */
         @Nullable
         public DiscoveryNode getNodeWithHighestMatch() {

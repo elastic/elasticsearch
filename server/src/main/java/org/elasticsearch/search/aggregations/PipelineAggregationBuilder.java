@@ -184,7 +184,8 @@ public abstract class PipelineAggregationBuilder
                     //TODO: what should be checked?
                 } else {
                     addValidationError(
-                            type + " aggregation [" + name + "] must have a histogram, date_histogram, auto_date_histogram or terms as parent");
+                            type + " aggregation [" + name + "] must have a histogram, date_histogram, auto_date_histogram or terms "
+                                 + "as parent");
                 }
             }
         }

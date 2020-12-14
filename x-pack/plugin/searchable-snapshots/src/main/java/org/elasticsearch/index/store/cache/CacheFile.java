@@ -65,7 +65,7 @@ public class CacheFile {
     };
 
     private final SparseFileTracker tracker;
-    private final String description;
+    private final CacheKey cacheKey;
     private final Path file;
 
     private final Set<EvictionListener> listeners = new HashSet<>();
@@ -123,12 +123,24 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
-    public CacheFile(String description, long length, Path file, Runnable onNeedFSync) {
-        this.tracker = new SparseFileTracker(file.toString(), length);
-        this.description = Objects.requireNonNull(description);
+    public CacheFile(CacheKey cacheKey, long length, Path file, Runnable onNeedFSync) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length), file, onNeedFSync);
+    }
+
+    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<Tuple<Long, Long>> ranges, Runnable onNeedFSync) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, onNeedFSync);
+    }
+
+    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, Runnable onNeedFSync) {
+        this.cacheKey = Objects.requireNonNull(cacheKey);
+        this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
         this.needsFsyncRunnable = Objects.requireNonNull(onNeedFSync);
         assert invariant();
+    }
+
+    public CacheKey getCacheKey() {
+        return cacheKey;
     }
 
     public long getLength() {
@@ -247,8 +259,8 @@ public class CacheFile {
     public String toString() {
         synchronized (listeners) {
             return "CacheFile{"
-                + "desc='"
-                + description
+                + "key='"
+                + cacheKey
                 + "', file="
                 + file
                 + ", length="

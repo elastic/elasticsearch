@@ -62,7 +62,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected ThreadPool threadPool;
     protected ClusterService clusterService;
     protected NodeEnvironment nodeEnvironment;
-    protected PersistentCache persistentCache;
 
     @Before
     public void setUpTest() throws Exception {
@@ -80,7 +79,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     @After
     public void tearDownTest() throws Exception {
-        IOUtils.close(persistentCache, nodeEnvironment, clusterService);
+        IOUtils.close(nodeEnvironment, clusterService);
         assertTrue(ThreadPool.terminate(threadPool, 30L, TimeUnit.SECONDS));
     }
 

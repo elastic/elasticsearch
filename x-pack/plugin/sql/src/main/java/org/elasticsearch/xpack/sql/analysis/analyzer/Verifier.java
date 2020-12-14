@@ -631,7 +631,7 @@ public final class Verifier {
     private static void checkBooleanFiltering(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof Filter) {
             Expression condition = ((Filter) p).condition();
-            if (condition.dataType() != BOOLEAN) {
+            if (condition.resolved() && condition.dataType() != BOOLEAN) {
                 localFailures.add(fail(condition, "Cannot filter by non-boolean expression of type [{}]", condition.dataType()));
             }
         }

@@ -93,6 +93,7 @@ public class MlDeprecationIT extends ESRestTestCase {
             response.getMlSettingsIssues().get(0).getMessage(),
             containsString("model snapshot [1] for job [deprecation_check_job] needs to be deleted or upgraded")
         );
+        hlrc.close();
     }
 
 }

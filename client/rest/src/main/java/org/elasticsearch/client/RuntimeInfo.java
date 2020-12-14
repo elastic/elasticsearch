@@ -63,7 +63,7 @@ class RuntimeInfo {
     public static String HlrcKind() {
         try {
             Class.forName("org.elasticsearch.client.RestHighLevelClient");
-        } catch (Throwable t) {
+        } catch (Exception t) {
             return null;
         }
         // 1 is the HLRC based on ES server request/response classes
@@ -79,7 +79,7 @@ class RuntimeInfo {
             String version = field.get(null).toString();
             return stripPatchRevision(version);
 
-        } catch (Throwable t) {
+        } catch (Exception t) {
             // ignore
         }
         return null;
@@ -93,7 +93,7 @@ class RuntimeInfo {
             String version = (String) m.invoke(null);
             return stripPatchRevision(version);
 
-        } catch (Throwable t) {
+        } catch (Exception t) {
             // ignore
         }
         return null;
@@ -108,7 +108,7 @@ class RuntimeInfo {
             String version = (String) m.invoke(null);
             return stripPatchRevision(version);
 
-        } catch (Throwable t) {
+        } catch (Exception t) {
             // ignore
         }
         return null;
@@ -123,13 +123,13 @@ class RuntimeInfo {
             String version = (String) m.invoke(null);
             return stripPatchRevision(version);
 
-        } catch (Throwable t) {
+        } catch (Exception t) {
             // ignore
         }
         return null;
     }
 
-    private static String stripPatchRevision(String version) {
+    static String stripPatchRevision(String version) {
         if (version == null) {
             return null;
         }

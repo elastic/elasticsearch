@@ -133,7 +133,7 @@ public class PersistentCache implements Closeable {
      *
      * @param cacheService the {@link CacheService} to use when repopulating {@link CacheFile}.
      */
-    void loadCacheFiles(CacheService cacheService) {
+    void repopulateCache(CacheService cacheService) {
         ensureOpen();
         try {
             for (CacheIndexWriter writer : writers) {

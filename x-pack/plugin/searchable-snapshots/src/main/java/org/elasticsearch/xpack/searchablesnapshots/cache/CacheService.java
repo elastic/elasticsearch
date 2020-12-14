@@ -163,7 +163,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        persistentCache.loadCacheFiles(this);
+        persistentCache.repopulateCache(this);
         cacheSyncTask.rescheduleIfNecessary();
     }
 

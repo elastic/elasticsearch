@@ -82,7 +82,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         ensureEmptyWriteBuffers();
     }
 
-    public void testWriteLimitsIncremented() throws Exception {
+    public void testIndexingMetricsIncremented() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
@@ -120,12 +120,13 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
             client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
-            IndexingPressure memoryLimits = getInstanceFromNode(IndexingPressure.class);
+            IndexingPressure indexingPressure = getInstanceFromNode(IndexingPressure.class);
             final long finalSourceSize = sourceSize;
             assertBusy(() -> {
                 // The actual write bytes will be greater due to other request fields. However, this test is
                 // just spot checking that the bytes are incremented at all.
-                assertTrue(memoryLimits.getCurrentCombinedCoordinatingAndPrimaryBytes() > finalSourceSize);
+                assertTrue(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes() > finalSourceSize);
+                assertEquals(firstBatchNumDocs, indexingPressure.stats().getCurrentPrimaryOps());
             });
             blocker.countDown();
             assertBusy(() -> {

@@ -1171,22 +1171,22 @@ public final class InternalTestCluster extends TestCluster {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndexingPressure indexingPressure = getInstance(IndexingPressure.class, nodeAndClient.name);
-                final long combinedBytes = indexingPressure.getCurrentCombinedCoordinatingAndPrimaryBytes();
+                final long combinedBytes = indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes();
                 if (combinedBytes > 0) {
                     throw new AssertionError("pending combined bytes [" + combinedBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long coordinatingBytes = indexingPressure.getCurrentCoordinatingBytes();
+                final long coordinatingBytes = indexingPressure.stats().getCurrentCoordinatingBytes();
                 if (coordinatingBytes > 0) {
                     throw new AssertionError("pending coordinating bytes [" + coordinatingBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long primaryBytes = indexingPressure.getCurrentPrimaryBytes();
+                final long primaryBytes = indexingPressure.stats().getCurrentPrimaryBytes();
                 if (primaryBytes > 0) {
                     throw new AssertionError("pending primary bytes [" + primaryBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long replicaWriteBytes = indexingPressure.getCurrentReplicaBytes();
+                final long replicaWriteBytes = indexingPressure.stats().getCurrentReplicaBytes();
                 if (replicaWriteBytes > 0) {
                     throw new AssertionError("pending replica write bytes [" + combinedBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");

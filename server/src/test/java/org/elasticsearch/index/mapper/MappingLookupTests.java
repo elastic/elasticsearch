@@ -31,7 +31,7 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testOnlyRuntimeField() {
         MappingLookup mappingLookup = new MappingLookup(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
-            Collections.singletonList(new TestRuntimeField("test")), 0);
+            Collections.singletonList(new TestRuntimeField("test", "type")), 0);
         assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
@@ -41,7 +41,7 @@ public class MappingLookupTests extends ESTestCase {
     public void testRuntimeFieldLeafOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("test");
         MappingLookup mappingLookup = new MappingLookup(Collections.singletonList(fieldMapper), Collections.emptyList(),
-            Collections.emptyList(), Collections.singletonList(new TestRuntimeField("test")), 0);
+            Collections.emptyList(), Collections.singletonList(new TestRuntimeField("test", "type")), 0);
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
@@ -54,7 +54,7 @@ public class MappingLookupTests extends ESTestCase {
         ObjectMapper objectMapper = new ObjectMapper("object", "object", new Explicit<>(true, true), ObjectMapper.Nested.NO,
             ObjectMapper.Dynamic.TRUE, Collections.singletonMap("object.subfield", fieldMapper), Version.CURRENT);
         MappingLookup mappingLookup = new MappingLookup(Collections.singletonList(fieldMapper), Collections.singletonList(objectMapper),
-            Collections.emptyList(), Collections.singletonList(new TestRuntimeField("object.subfield")), 0);
+            Collections.emptyList(), Collections.singletonList(new TestRuntimeField("object.subfield", "type")), 0);
         assertThat(mappingLookup.getMapper("object.subfield"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(1, mappingLookup.objectMappers().size());

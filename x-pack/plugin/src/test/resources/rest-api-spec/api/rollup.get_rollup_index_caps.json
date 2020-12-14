@@ -5,6 +5,10 @@
       "description":"Returns the rollup capabilities of all jobs inside of a rollup index (e.g. the index where rollup data is stored)."
     },
     "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

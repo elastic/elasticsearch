@@ -438,9 +438,7 @@ public class PersistentCache implements Closeable {
         }
 
         void updateCacheFile(CacheFile cacheFile, SortedSet<Tuple<Long, Long>> cacheRanges) throws IOException {
-            final Term term = buildTerm(cacheFile);
-            logger.debug("updating document with term [{}]", term);
-            indexWriter.updateDocument(term, buildDocument(nodePath, cacheFile, cacheRanges));
+            updateCacheFile(buildId(cacheFile), buildDocument(nodePath, cacheFile, cacheRanges));
         }
 
         void updateCacheFile(String cacheFileId, Document cacheFileDocument) throws IOException {

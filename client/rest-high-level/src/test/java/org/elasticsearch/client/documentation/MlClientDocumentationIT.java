@@ -33,7 +33,6 @@ import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.MlTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -251,6 +250,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
 
     @After
     public void cleanUp() throws IOException {
@@ -1384,10 +1387,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
         // Post data is deprecated, so expect a deprecation warning
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
-                "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
-        client.machineLearning().postData(postDataRequest, requestOptions);
+        client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         ForecastJobResponse forecastJobResponse = client.machineLearning().
@@ -1525,10 +1525,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
         // Post data is deprecated, so expect a deprecation warning
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
-                "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
-        client.machineLearning().postData(postDataRequest, requestOptions);
+        client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         {
@@ -1797,12 +1794,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             postDataRequest.setResetEnd(null);
             postDataRequest.setResetStart(null);
 
+            // Post data is deprecated, so expect a deprecation warning
+            PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
+            // The end user can use the default options without it being a fatal error (this is only in the test framework)
+            /*
             // tag::post-data-execute
-            RequestOptions ignoreDeprecationsWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(WarningsHandler.PERMISSIVE).build();
-            PostDataResponse postDataResponse =
-                client.machineLearning().postData(postDataRequest, ignoreDeprecationsWarningsOptions);
+            PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
             // end::post-data-execute
+            */
 
             // tag::post-data-response
             DataCounts dataCounts = postDataResponse.getDataCounts(); // <1>
@@ -1834,11 +1833,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
+            // Post data is deprecated, so expect a deprecation warning
+            client.machineLearning().postDataAsync(postDataRequest, POST_DATA_OPTIONS, listener);
+            // The end user can use the default options without it being a fatal error (this is only in the test framework)
+            /*
             // tag::post-data-execute-async
-            RequestOptions ignoreDeprecationsWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(WarningsHandler.PERMISSIVE).build();
-            client.machineLearning().postDataAsync(postDataRequest, ignoreDeprecationsWarningsOptions, listener); // <1>
+            client.machineLearning().postDataAsync(postDataRequest, RequestOptions.DEFAULT, listener); // <1>
             // end::post-data-execute-async
+            */
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

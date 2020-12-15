@@ -63,7 +63,7 @@ public enum GlobalOrdinalsBuilder {
         Map<IndexReader.CacheKey, Integer> coreKeyToOrd = new HashMap<>();
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
             LeafReaderContext context = indexReader.leaves().get(i);
-            coreKeyToOrd.put(context.reader().getReaderCacheHelper().getKey(), i);
+            coreKeyToOrd.put(context.reader().getCoreCacheHelper().getKey(), i);
             atomicFD[i] = indexFieldData.load(context);
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
@@ -91,7 +91,7 @@ public enum GlobalOrdinalsBuilder {
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];
         final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
-            IndexReader.CacheKey cacheKey = indexReader.leaves().get(i).reader().getReaderCacheHelper().getKey();
+            IndexReader.CacheKey cacheKey = indexReader.leaves().get(i).reader().getCoreCacheHelper().getKey();
             coreKeyToOrd.put(cacheKey, i);
             atomicFD[i] = new AbstractLeafOrdinalsFieldData(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION) {
                 @Override

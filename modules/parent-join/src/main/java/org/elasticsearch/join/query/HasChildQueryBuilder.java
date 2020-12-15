@@ -378,33 +378,25 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             if (rewritten != this) {
                 return rewritten;
             }
-            if (reader instanceof DirectoryReader) {
-                IndexSearcher indexSearcher = new IndexSearcher(reader);
-                indexSearcher.setQueryCache(null);
-                indexSearcher.setSimilarity(similarity);
-                IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal(reader);
-                //TODO: This is incorrect. Instead of passing ordinalMap to JoinUtil.createJoinQuery,
-                // we should pass IndexOrdinalsFieldData#getGlobalOrdinals
-                // as ordinalMap may have incorrect mapping order of segments
-                OrdinalMap ordinalMap = null;
-                if (indexParentChildFieldData instanceof GlobalOrdinalsIndexFieldData) {
-                    ordinalMap = ((GlobalOrdinalsIndexFieldData) indexParentChildFieldData).getOrdinalMap();
-                } else if (indexParentChildFieldData instanceof GlobalOrdinalsIndexFieldData.Consumer) {
-                    ordinalMap = ((GlobalOrdinalsIndexFieldData.Consumer) indexParentChildFieldData).getOrdinalMap();
-                }
-                return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
-                    ordinalMap, minChildren, maxChildren);
-            } else {
-                if (reader.leaves().isEmpty() && reader.numDocs() == 0) {
-                    // asserting reader passes down a MultiReader during rewrite which makes this
-                    // blow up since for this query to work we have to have a DirectoryReader otherwise
-                    // we can't load global ordinals - for this to work we simply check if the reader has no leaves
-                    // and rewrite to match nothing
-                    return new MatchNoDocsQuery();
-                }
-                throw new IllegalStateException("can't load global ordinals for reader of type: " +
-                    reader.getClass() + " must be a DirectoryReader");
+            if (reader.leaves().isEmpty() && reader.numDocs() == 0) {
+                return new MatchNoDocsQuery();
             }
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            indexSearcher.setQueryCache(null);
+            indexSearcher.setSimilarity(similarity);
+            IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal(reader);
+            //TODO: Instead of passing ordinalMap to Lucene JoinUtil.createJoinQuery,
+            // we should pass IndexOrdinalsFieldData#getGlobalOrdinals,
+            // as ordinalMap may have incorrect mapping for segments.
+            OrdinalMap ordinalMap = null;
+            if (indexParentChildFieldData instanceof GlobalOrdinalsIndexFieldData) {
+                ordinalMap = ((GlobalOrdinalsIndexFieldData) indexParentChildFieldData).getOrdinalMap();
+            } else if (indexParentChildFieldData instanceof GlobalOrdinalsIndexFieldData.Consumer) {
+                ordinalMap = ((GlobalOrdinalsIndexFieldData.Consumer) indexParentChildFieldData).getOrdinalMap();
+            }
+            return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
+                ordinalMap, minChildren, maxChildren);
+
         }
 
         @Override

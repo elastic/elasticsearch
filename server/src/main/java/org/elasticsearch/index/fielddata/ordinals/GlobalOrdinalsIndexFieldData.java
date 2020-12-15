@@ -82,7 +82,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         this.segmentAfd = segmentAfd;
         this.scriptFunction = scriptFunction;
         this.segmentOrdToGlobalOrd = (context) -> {
-            IndexReader.CacheKey cacheKey = context.reader().getReaderCacheHelper().getKey();
+            IndexReader.CacheKey cacheKey = context.reader().getCoreCacheHelper().getKey();
             int ord = coreKeyToSegmentOrd.applyAsInt(cacheKey);
             return ordinalMap.getGlobalOrds(ord)::get;
         };
@@ -236,7 +236,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             assert source.getReaderCacheHelper().getKey() == context.parent.reader().getReaderCacheHelper().getKey();
-            final IndexReader.CacheKey cacheKey = context.reader().getReaderCacheHelper().getKey();
+            final IndexReader.CacheKey cacheKey = context.reader().getCoreCacheHelper().getKey();
             int segmentOrd = coreKeyToSegmentOrd.applyAsInt(cacheKey);
             return new AbstractLeafOrdinalsFieldData(scriptFunction) {
                 @Override

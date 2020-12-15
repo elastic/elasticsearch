@@ -50,7 +50,7 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
         return ordinalMap.getValueCount();
     }
 
-    public long getGlobalOrd(long segmentOrd) {
+    private long getGlobalOrd(long segmentOrd) {
         return mapping.get(segmentOrd);
     }
 

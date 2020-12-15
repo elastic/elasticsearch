@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingTran
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -28,10 +27,7 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
 
     public static LatestConfig randomLatestConfig() {
         return new LatestConfig(
-            new ArrayList<>(
-                new HashSet<>(randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10))
-                )
-            ),
+            new ArrayList<>(randomUnique(() -> randomAlphaOfLengthBetween(1, 10), randomIntBetween(1, 10))),
             randomAlphaOfLengthBetween(1, 10)
         );
     }

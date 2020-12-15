@@ -26,6 +26,7 @@ is a positive `long` number.
 [source,console]
 ----
 PUT my-index
+{
   "mappings": {
     "properties": {
       "my-agg-metric-field": {

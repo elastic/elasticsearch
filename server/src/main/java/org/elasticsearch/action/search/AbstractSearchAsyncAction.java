@@ -310,7 +310,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                assert false : "Unexpected failure";
+                assert false : new AssertionError(e);
             }
 
             @Override

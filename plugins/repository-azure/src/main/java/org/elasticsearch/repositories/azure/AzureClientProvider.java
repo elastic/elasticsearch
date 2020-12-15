@@ -44,7 +44,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;

@@ -32,7 +32,7 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
 
         public NonCompliantLicenseLocalStateAutoscaling(final Settings settings, final Path configPath) {
             super(settings, configPath);
-            plugins.add(new Autoscaling(settings, new AutoscalingLicenseChecker(() -> false)));
+            plugins.add(new Autoscaling(new AutoscalingLicenseChecker(() -> false)));
         }
 
     }

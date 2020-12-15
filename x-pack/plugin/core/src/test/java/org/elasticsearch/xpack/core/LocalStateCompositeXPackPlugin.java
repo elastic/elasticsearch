@@ -535,6 +535,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         return Collections.unmodifiableList(listeners);
     }
 
+    @Override
+    public Map<String, IndexStorePlugin.SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
+        final Map<String, IndexStorePlugin.SnapshotCommitSupplier> suppliers = new HashMap<>();
+        filterPlugins(IndexStorePlugin.class).forEach(p -> suppliers.putAll(p.getSnapshotCommitSuppliers()));
+        return suppliers;
+    }
+
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());

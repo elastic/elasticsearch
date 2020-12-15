@@ -145,6 +145,7 @@ public class TaskCancellationService {
         GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(listener.map(r -> null), childConnections.size());
         final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(taskId, reason, waitForCompletion);
         for (Transport.Connection connection : childConnections) {
+            assert TransportService.unwrapConnection(connection) == connection : "Child connection must be unwrapped";
             transportService.sendRequest(connection, BAN_PARENT_ACTION_NAME, banRequest, TransportRequestOptions.EMPTY,
                 new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
@@ -167,6 +168,7 @@ public class TaskCancellationService {
         final BanParentTaskRequest request =
             BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(localNodeId(), task.getId()));
         for (Transport.Connection connection : childConnections) {
+            assert TransportService.unwrapConnection(connection) == connection : "Child connection must be unwrapped";
             logger.trace("Sending remove ban for tasks with the parent [{}] for connection [{}]", request.parentTaskId, connection);
             transportService.sendRequest(connection, BAN_PARENT_ACTION_NAME, request, TransportRequestOptions.EMPTY,
                 new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {

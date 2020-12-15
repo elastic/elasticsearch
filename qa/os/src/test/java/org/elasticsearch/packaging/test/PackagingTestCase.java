@@ -467,7 +467,8 @@ public abstract class PackagingTestCase extends Assert {
         if (heapSize == null) {
             FileUtils.rm(heapOptions);
         } else {
-            Files.writeString(heapOptions, "-Xmx" + heapSize + "\n-Xms" + heapSize, StandardOpenOption.CREATE);
+            Files.createDirectory(config.resolve("jvm.options.d"));
+            Files.writeString(heapOptions, String.format("-Xmx%1$s%n-Xms%1$s", heapSize), StandardOpenOption.CREATE);
         }
     }
 }

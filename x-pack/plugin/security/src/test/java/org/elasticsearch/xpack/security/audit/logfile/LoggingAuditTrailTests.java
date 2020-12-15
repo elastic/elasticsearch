@@ -139,7 +139,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -253,7 +252,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), includeRequestBody)
                 .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), reservedRealmEnabled)
                 .put(AnonymousUser.USERNAME_SETTING.getKey(), customAnonymousUsername)
-                .putList(AnonymousUser.ROLES_SETTING.getKey(), randomFrom(List.of(), List.of("smth")))
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), (List<String>) randomFrom(Collections.singleton(
+                        "smth"), Collections.<String>emptyList()))
                 .build();
         localNode = mock(DiscoveryNode.class);
         when(localNode.getAddress()).thenReturn(buildNewFakeTransportAddress());
@@ -267,12 +267,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
         final ClusterSettings clusterSettings = new ClusterSettings(settings,
-                Set.of(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.EMIT_HOST_NAME_SETTING,
+                new HashSet<>(Arrays.asList(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.EMIT_HOST_NAME_SETTING,
                         LoggingAuditTrail.EMIT_NODE_NAME_SETTING, LoggingAuditTrail.EMIT_NODE_ID_SETTING,
                         LoggingAuditTrail.INCLUDE_EVENT_SETTINGS, LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
                         LoggingAuditTrail.INCLUDE_REQUEST_BODY, LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                         LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS, LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
-                        LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, Loggers.LOG_LEVEL_SETTING));
+                        LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, Loggers.LOG_LEVEL_SETTING)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
@@ -355,13 +355,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
             }
         }
 
+        Map<String, Object> transientMetaMap = new HashMap<>();
+        transientMetaMap.put("transient", "meta");
+        transientMetaMap.put("is", "ignored");
         RoleDescriptor nullRoleDescriptor = new RoleDescriptor("null_role", randomFrom((String[]) null, new String[0]),
                 randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
                 randomFrom((RoleDescriptor.ApplicationResourcePrivileges[])null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
                 randomFrom((ConfigurableClusterPrivilege[])null, new ConfigurableClusterPrivilege[0]),
                 randomFrom((String[])null, new String[0]),
-                randomFrom((Map<String, Object>)null, Map.of()),
-                Map.of("transient", "meta", "is", "ignored"));
+                randomFrom((Map<String, Object>)null, Collections.emptyMap()),
+                transientMetaMap);
         RoleDescriptor roleDescriptor1 = new RoleDescriptor("role_descriptor1", new String[]{"monitor"},
                 new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder()
                         .indices("test*")
@@ -373,8 +376,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
                 randomFrom((ConfigurableClusterPrivilege[]) null, new ConfigurableClusterPrivilege[0]),
                 randomFrom((String[]) null, new String[0]),
-                randomFrom((Map<String, Object>) null, Map.of()),
-                Map.of()
+                randomFrom((Map<String, Object>) null, Collections.emptyMap()),
+                Collections.emptyMap()
         );
         RoleDescriptor roleDescriptor2 = new RoleDescriptor("role_descriptor2", randomFrom((String[]) null, new String[0]),
                 new RoleDescriptor.IndicesPrivileges[]{
@@ -396,8 +399,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                                 .build()},
                 randomFrom((ConfigurableClusterPrivilege[]) null, new ConfigurableClusterPrivilege[0]),
                 new String[] {"impersonated???"},
-                randomFrom((Map<String, Object>) null, Map.of()),
-                Map.of()
+                randomFrom((Map<String, Object>) null, Collections.emptyMap()),
+                Collections.emptyMap()
         );
         RoleDescriptor roleDescriptor3 = new RoleDescriptor("role_descriptor3", randomFrom((String[]) null, new String[0]),
                 randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
@@ -414,12 +417,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
                                 .build()},
                 randomFrom((ConfigurableClusterPrivilege[]) null, new ConfigurableClusterPrivilege[0]),
                 new String[] {"jack", "nich*", "//\""},
-                Map.of("some meta", 42),
-                Map.of()
+                Collections.singletonMap("some meta", 42),
+                Collections.emptyMap()
         );
         Map<String, Object> metaMap = new TreeMap<>();
-        metaMap.put("?list", List.of("e1", "e2", "*"));
-        metaMap.put("some other meta", Map.of("r", "t"));
+        metaMap.put("?list", Arrays.asList("e1", "e2", "*"));
+        Map<String, Object> innerMapMeta = new HashMap<>();
+        innerMapMeta.put("r", "t");
+        metaMap.put("some other meta", innerMapMeta);
         RoleDescriptor roleDescriptor4 = new RoleDescriptor("role_descriptor4", new String[] {"manage_ml", "grant_api_key",
                 "manage_rollup"},
                 new RoleDescriptor.IndicesPrivileges[]{
@@ -431,15 +436,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
                                 .build()},
                 randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
                 new ConfigurableClusterPrivilege[] {
-                        new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("a+b+|b+a+"))
+                        new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("a+b+|b+a+"))
                 },
                 new String[] {"//+a+\"[a]/"},
                 metaMap,
-                Map.of("ignored", 2)
+                Collections.singletonMap("ignored", 2)
         );
         String keyName = randomAlphaOfLength(4);
         TimeValue expiration = randomFrom(new TimeValue(randomNonNegativeLong(), randomFrom(TimeUnit.values())), null);
-        List<RoleDescriptor> allTestRoleDescriptors = List.of(nullRoleDescriptor, roleDescriptor1, roleDescriptor2, roleDescriptor3,
+        List<RoleDescriptor> allTestRoleDescriptors = Arrays.asList(nullRoleDescriptor, roleDescriptor1, roleDescriptor2, roleDescriptor3,
                 roleDescriptor4);
         List<RoleDescriptor> keyRoleDescriptors = randomSubsetOf(allTestRoleDescriptors);
         StringBuilder roleDescriptorsStringBuilder = new StringBuilder();
@@ -666,8 +671,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             metadata.put("ans", 42);
             serializedMetadata = ",\"metadata\":{\"ans\":42,\"test\":true}";
         } else {
-            metadata.put("ans", List.of(42, true));
-            metadata.put("other", Map.of("42", true));
+            metadata.put("ans", Arrays.asList(42, true));
+            metadata.put("other", Collections.singletonMap("42", true));
             serializedMetadata = ",\"metadata\":{\"ans\":[42,true],\"other\":{\"42\":true}}";
         }
 
@@ -810,7 +815,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         boolean hasMetadata = randomBoolean();
         if (hasMetadata) {
             Map<String, Object> metadata = new TreeMap<>();
-            metadata.put("list", List.of("42", 13));
+            metadata.put("list", Arrays.asList("42", 13));
             metadata.put("smth", 42);
             putRoleMappingRequest.setMetadata(metadata);
         }
@@ -922,7 +927,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (hasMetadata) {
             Map<String, Object> metadata = new TreeMap<>();
             metadata.put("smth", 42);
-            metadata.put("list", List.of("42", 13));
+            metadata.put("list", Arrays.asList("42", 13));
             putUserRequest.metadata(metadata);
         }
 

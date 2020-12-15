@@ -61,13 +61,16 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testEqualsOnEmptyRoles() {
+        Map<String, Object> transientMetadata = new HashMap<>();
+        transientMetadata.put("transient", "meta");
+        transientMetadata.put("is", "ignored");
         RoleDescriptor nullRoleDescriptor = new RoleDescriptor("null_role", randomFrom((String[]) null, new String[0]),
                 randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
                 randomFrom((RoleDescriptor.ApplicationResourcePrivileges[])null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
                 randomFrom((ConfigurableClusterPrivilege[])null, new ConfigurableClusterPrivilege[0]),
                 randomFrom((String[])null, new String[0]),
-                randomFrom((Map<String, Object>)null, Map.of()),
-                Map.of("transient", "meta", "is", "ignored"));
+                randomFrom((Map<String, Object>)null, new HashMap<>()),
+                transientMetadata);
         assertTrue(nullRoleDescriptor.equals(new RoleDescriptor("null_role", null, null, null, null, null, null, null)));
     }
 

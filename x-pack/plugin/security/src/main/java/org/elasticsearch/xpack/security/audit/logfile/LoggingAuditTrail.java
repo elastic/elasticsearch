@@ -191,13 +191,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
             false, Property.NodeScope, Property.Dynamic);
     // actions (and their requests) that are audited as "security change" events
-    public static final Set<String> SECURITY_CHANGE_ACTIONS = new HashSet<>();
-    static {
-        SECURITY_CHANGE_ACTIONS.addAll(Arrays.asList(PutUserAction.NAME, PutRoleAction.NAME, PutRoleMappingAction.NAME,
-                SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
-                DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
-                DeletePrivilegesAction.NAME));
-    }
+    public static final Set<String> SECURITY_CHANGE_ACTIONS = new HashSet<>(Arrays.asList(PutUserAction.NAME,
+            PutRoleAction.NAME, PutRoleMappingAction.NAME,
+            SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
+            DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
+            DeletePrivilegesAction.NAME));
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that

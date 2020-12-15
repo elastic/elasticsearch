@@ -46,6 +46,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
@@ -204,12 +205,20 @@ class RollupShardIndexer {
     }
 
     private Rounding createRounding(DateHistogramGroupConfig config) {
-        // TODO: Handle calendar interval, currently we consider all interval as fixed.
         DateHistogramInterval interval = config.getInterval();
         ZoneId zoneId = config.getTimeZone() != null ? ZoneId.of(config.getTimeZone()) : null;
-        return Rounding.builder(TimeValue.timeValueMillis(interval.estimateMillis()))
-            .timeZone(zoneId)
-            .build();
+        Rounding.Builder tzRoundingBuilder;
+        if (config instanceof DateHistogramGroupConfig.FixedInterval) {
+            TimeValue timeValue = TimeValue.parseTimeValue(interval.toString(), null, getClass().getSimpleName() + ".interval");
+            tzRoundingBuilder = Rounding.builder(timeValue);
+        } else if (config instanceof DateHistogramGroupConfig.CalendarInterval) {
+            Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
+            tzRoundingBuilder = Rounding.builder(dateTimeUnit);
+        } else {
+            // TODO(talevy): remove support for legacy interval in RollupAction
+            throw new IllegalStateException("unsupported interval type");
+        }
+        return tzRoundingBuilder.timeZone(zoneId).build();
     }
 
     private void indexBucket(BucketKey key,

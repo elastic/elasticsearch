@@ -197,19 +197,13 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private DateHistogramGroupConfig randomDateHistogramGroupConfig() {
         final String timezone = randomBoolean() ? randomDateTimeZone().toString() : null;
-        int i = randomIntBetween(0,1); // TODO(talevy): move to 0-2 once calendar interval is supported
         final DateHistogramInterval interval;
-        switch (i) {
-            case 0:
-                interval = new DateHistogramInterval(randomTimeValue(2, 1000, new String[]{"d", "h", "ms", "s", "m"}));
-                return new DateHistogramGroupConfig.FixedInterval("date_1", interval, null, timezone);
-            // TODO(talevy): uncomment once calendar intervals are supported
-            //     case 1:
-            //         interval = new DateHistogramInterval(randomTimeValue(1,1, "m", "h", "d", "w"));
-            //         return new DateHistogramGroupConfig.CalendarInterval("date_1", interval, null, timezone);
-            default:
-                interval = new DateHistogramInterval(randomTimeValue(2, 1000, new String[]{"d", "h", "ms", "s", "m"}));
-                return new DateHistogramGroupConfig("date_1", interval, null, timezone);
+        if (randomBoolean()) {
+            interval = new DateHistogramInterval(randomTimeValue(2, 1000, new String[]{"d", "h", "ms", "s", "m"}));
+            return new DateHistogramGroupConfig.FixedInterval("date_1", interval, null, timezone);
+        } else {
+            interval = new DateHistogramInterval(randomTimeValue(1,1, "m", "h", "d", "w"));
+            return new DateHistogramGroupConfig.CalendarInterval("date_1", interval, null, timezone);
         }
     }
 

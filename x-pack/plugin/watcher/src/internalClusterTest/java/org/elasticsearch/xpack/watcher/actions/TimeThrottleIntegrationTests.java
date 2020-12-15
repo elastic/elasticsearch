@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.is;
 
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65176")
     public void testTimeThrottle() throws Exception {
         String id = randomAlphaOfLength(20);
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())

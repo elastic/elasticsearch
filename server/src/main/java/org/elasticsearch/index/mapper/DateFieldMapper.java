@@ -73,6 +73,7 @@ public final class DateFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
@@ -94,6 +95,16 @@ public final class DateFieldMapper extends FieldMapper {
             @Override
             public long parsePointAsMillis(byte[] value) {
                 return LongPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public long roundDownToMillis(long value) {
+                return value;
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                return value;
             }
 
             @Override
@@ -119,7 +130,22 @@ public final class DateFieldMapper extends FieldMapper {
 
             @Override
             public long parsePointAsMillis(byte[] value) {
-                return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
+                return roundDownToMillis(LongPoint.decodeDimension(value, 0));
+            }
+
+            @Override
+            public long roundDownToMillis(long value) {
+                return DateUtils.toMilliSeconds(value);
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                if (value <= 0L) {
+                    // if negative then throws an IAE; if zero then return zero
+                    return DateUtils.toMilliSeconds(value);
+                } else {
+                    return DateUtils.toMilliSeconds(value - 1L) + 1L;
+                }
             }
 
             @Override
@@ -164,6 +190,16 @@ public final class DateFieldMapper extends FieldMapper {
          * Decode the points representation of this field as milliseconds.
          */
         public abstract long parsePointAsMillis(byte[] value);
+
+        /**
+         * Round the given raw value down to a number of milliseconds since the epoch.
+         */
+        public abstract long roundDownToMillis(long value);
+
+        /**
+         * Round the given raw value up to a number of milliseconds since the epoch.
+         */
+        public abstract long roundUpToMillis(long value);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -319,7 +355,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
@@ -349,9 +385,17 @@ public final class DateFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] does not support DISJOINT ranges");
             }
-            DateMathParser parser = forcedDateParser == null
-                    ? dateMathParser
-                    : forcedDateParser;
+            DateMathParser parser;
+            if (forcedDateParser == null) {
+                if (lowerTerm instanceof Number || upperTerm instanceof Number) {
+                    // force epoch_millis
+                    parser = EPOCH_MILLIS_PARSER;
+                } else {
+                    parser = dateMathParser;
+                }
+            } else {
+                parser = forcedDateParser;
+            }
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
                 Query query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
@@ -444,7 +488,12 @@ public final class DateFieldMapper extends FieldMapper {
                                            Object from, Object to, boolean includeLower, boolean includeUpper,
                                            ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
-                dateParser = this.dateMathParser;
+                if (from instanceof Number || to instanceof Number) {
+                    // force epoch_millis
+                    dateParser = EPOCH_MILLIS_PARSER;
+                } else {
+                    dateParser = this.dateMathParser;
+                }
             }
 
             long fromInclusive = Long.MIN_VALUE;

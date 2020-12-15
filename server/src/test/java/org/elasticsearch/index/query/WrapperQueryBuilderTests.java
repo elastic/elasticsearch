@@ -48,6 +48,11 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     @Override
+    protected boolean builderGeneratesCacheableQueries() {
+        return false;
+    }
+
+    @Override
     protected WrapperQueryBuilder doCreateTestQueryBuilder() {
         QueryBuilder wrappedQuery = RandomQueryBuilder.createQuery(random());
         BytesReference bytes;

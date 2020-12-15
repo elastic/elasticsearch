@@ -22,6 +22,42 @@ F                    |10099.7608
 M                    |10096.2232
 ;
 
+singlePercentileWithCommaTDigestSpecified
+SELECT gender, PERCENTILE(emp_no, 97.76, 'tdigest') p1 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d
+null                 |10019.0
+F                    |10099.7608
+M                    |10096.2232
+;
+
+singlePercentileWithCommaTDigestWithCompressionSpecified
+SELECT gender, PERCENTILE(emp_no, 97.76, 'tdigest', 50 + 0.2) p1 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d
+null                 |10019.0
+F                    |10099.7608
+M                    |10096.2232
+;
+
+singlePercentileWithCommaHDRSpecified
+SELECT gender, PERCENTILE(emp_no, 97.76, 'hdr') p1 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d
+null                 |10016.0
+F                    |10096.0
+M                    |10096.0
+;
+
+singlePercentileWithCommaHDRWithDigitsSpecified
+SELECT gender, PERCENTILE(emp_no, 97.76, 'hdr', 1+1) p1 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d
+null                 |9984.0
+F                    |10048.0
+M                    |10048.0
+;
+
 multiplePercentilesOneWithCommaOneWithout
 SELECT gender, PERCENTILE(emp_no, 92.45) p1, PERCENTILE(emp_no, 91) p2 FROM test_emp GROUP BY gender;
 
@@ -56,6 +92,24 @@ gender:s             | rank:d
 null                 |100.0             
 F                    |17.424242424242426
 M                    |15.350877192982457
+;
+
+singlePercentileRankWithHDRSpecified
+SELECT gender, PERCENTILE_RANK(emp_no, 10000 + 25, 'hdr') p1 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d
+null                 |100.0
+F                    |21.21212121212121
+M                    |24.56140350877193
+;
+
+singlePercentileRankHDRWithDigitsSpecified
+SELECT gender, PERCENTILE_RANK(emp_no, 10000 + 25, 'hdr', 4+1) p1 FROM test_emp GROUP BY gender;
+
+gender:s             | p1:d
+null                 |100.0
+F                    |18.181818181818183
+M                    |15.789473684210526
 ;
 
 multiplePercentileRanks

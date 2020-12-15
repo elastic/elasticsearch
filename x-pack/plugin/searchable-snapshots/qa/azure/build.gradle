@@ -47,7 +47,7 @@ integTest {
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 

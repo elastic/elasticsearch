@@ -19,9 +19,7 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
@@ -147,21 +145,6 @@ public class VersionTests extends ESTestCase {
     public void testWrongVersionFromString() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("WRONG.VERSION"));
         assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
-    }
-
-    public void testVersionNoPresentInSettings() {
-        Exception e = expectThrows(IllegalStateException.class, () -> Version.indexCreated(Settings.builder().build()));
-        assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
-    }
-
-    public void testIndexCreatedVersion() {
-        // an actual index has a IndexMetadata.SETTING_INDEX_UUID
-        final Version version = VersionUtils.randomVersion(random());
-        assertEquals(version, Version.indexCreated(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_UUID, "foo")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build()));
     }
 
     public void testMinCompatVersion() {

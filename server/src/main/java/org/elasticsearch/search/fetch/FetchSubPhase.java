@@ -36,18 +36,13 @@ public interface FetchSubPhase {
         private final SearchHit hit;
         private final LeafReaderContext readerContext;
         private final int docId;
-        private final SourceLookup sourceLookup;
+        private SourceLookup sourceLookup;
 
-        public HitContext(
-            SearchHit hit,
-            LeafReaderContext context,
-            int docId,
-            SourceLookup sourceLookup
-        ) {
+        public HitContext(SearchHit hit, LeafReaderContext context, int docId) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
-            this.sourceLookup = sourceLookup;
+            this.sourceLookup = new SourceLookup();
             sourceLookup.setSegmentAndDocument(context, docId);
         }
 
@@ -79,6 +74,10 @@ public interface FetchSubPhase {
          */
         public SourceLookup sourceLookup() {
             return sourceLookup;
+        }
+
+        public void setSourceLookup(SourceLookup sourceLookup) {
+            this.sourceLookup = sourceLookup;
         }
 
         public IndexReader topLevelReader() {

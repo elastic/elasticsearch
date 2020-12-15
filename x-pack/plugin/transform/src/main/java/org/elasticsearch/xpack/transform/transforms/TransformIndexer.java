@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -609,10 +609,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 return Collections.singletonList(shouldStopAtCheckpointListener);
             }
-
-            List<ActionListener<Void>> newListeners = new ArrayList<>(currentListeners);
-            newListeners.add(shouldStopAtCheckpointListener);
-            return newListeners;
+            return CollectionUtils.appendToCopy(currentListeners, shouldStopAtCheckpointListener);
         }) == null) {
             return false;
         }

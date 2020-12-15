@@ -94,8 +94,10 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean authcAuthzAvailable = randomBoolean();
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false && randomBoolean();
+        final boolean operatorPrivilegesAvailable = randomBoolean();
         when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(authcAuthzAvailable);
         when(licenseState.isSecurityEnabled()).thenReturn(enabled);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(operatorPrivilegesAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
@@ -159,6 +161,10 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean fips140Enabled = randomBoolean();
         if (fips140Enabled) {
             settings.put("xpack.security.fips_mode.enabled", true);
+        }
+        final boolean operatorPrivilegesEnabled = randomBoolean();
+        if (operatorPrivilegesEnabled) {
+            settings.put("xpack.security.operator_privileges.enabled", true);
         }
 
         var usageAction = newUsageAction(settings.build());
@@ -229,6 +235,10 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
                 // FIPS 140
                 assertThat(source.getValue("fips_140.enabled"), is(fips140Enabled));
+
+                // operator privileges
+                assertThat(source.getValue("operator_privileges.available"), is(operatorPrivilegesAvailable));
+                assertThat(source.getValue("operator_privileges.enabled"), is(operatorPrivilegesEnabled));
             } else {
                 if (explicitlyDisabled) {
                     assertThat(source.getValue("ssl"), is(nullValue()));
@@ -243,6 +253,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 assertThat(source.getValue("anonymous"), is(nullValue()));
                 assertThat(source.getValue("ipfilter"), is(nullValue()));
                 assertThat(source.getValue("roles"), is(nullValue()));
+                assertThat(source.getValue("operator_privileges"), is(nullValue()));
             }
         }
     }
@@ -296,6 +307,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("anonymous"), is(nullValue()));
             assertThat(source.getValue("ipfilter"), is(nullValue()));
             assertThat(source.getValue("roles"), is(nullValue()));
+            assertThat(source.getValue("operator_privileges"), is(nullValue()));
         }
     }
 

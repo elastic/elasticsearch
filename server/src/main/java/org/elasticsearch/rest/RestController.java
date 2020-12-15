@@ -91,7 +91,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private CompatibleVersion compatibleVersion;
+    private final CompatibleVersion compatibleVersion;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
                           NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,

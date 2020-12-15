@@ -50,10 +50,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    /** This will be removed once LICENSED_PLUGINS_SUPPORT is backported */
-    @Deprecated(forRemoval = true)
-    private static final Version QUOTA_FS_PLUGIN_SUPPORT = Version.V_7_11_0;
-    private static final Version LICENSED_PLUGINS_SUPPORT = Version.CURRENT;
+    private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
 
     private final String name;
     private final String description;
@@ -114,15 +111,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
 
-        if (in.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+        if (in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             type = PluginType.valueOf(in.readString());
             javaOpts = in.readOptionalString();
+            isLicensed = in.readBoolean();
         } else {
             type = PluginType.ISOLATED;
             javaOpts = null;
+            isLicensed = false;
         }
-
-        this.isLicensed = in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT) ? in.readBoolean() : false;
     }
 
     @Override
@@ -136,12 +133,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
 
-        if (out.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             out.writeString(type.name());
             out.writeOptionalString(javaOpts);
-        }
-        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            out.writeBoolean(this.isLicensed);
+            out.writeBoolean(isLicensed);
         }
     }
 
@@ -215,10 +210,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             );
         }
 
-        boolean isLicensed = false;
-        if (esVersion.onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
-            isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
-        }
+        boolean isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());

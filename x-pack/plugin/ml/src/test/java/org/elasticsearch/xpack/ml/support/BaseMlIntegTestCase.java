@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.plugins.Plugin;
@@ -111,6 +112,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         return Arrays.asList(
             LocalStateMachineLearning.class,
             CommonAnalysisPlugin.class,
+            IngestCommonPlugin.class,
             ReindexPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,

@@ -117,7 +117,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt) {
+    public ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         Assert.fail("should not be called");
         return null;
     }

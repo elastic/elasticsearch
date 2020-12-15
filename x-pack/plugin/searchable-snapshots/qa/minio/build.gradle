@@ -32,7 +32,7 @@ integTest {
   systemProperty 'test.minio.base_path', 'searchable_snapshots_tests'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 

@@ -447,6 +447,17 @@ See the {ref}/indices-rollover-index.html[rollover index API].
 // end::rollover-def[]
 --
 
+ifdef::permanently-unreleased-branch[]
+
+[[glossary-rollup]] rollup ::
+// tag::rollup-def[]
+Aggregates an index's time series data and stores the results in another index.
+For example, you can roll up hourly data into daily or weekly summaries.
+// end::rollup-def[]
+
+endif::[]
+ifndef::permanently-unreleased-branch[]
+
 [[glossary-rollup]] rollup ::
 // tag::rollup-def[]
 Summarize high-granularity data into a more compressed format to
@@ -465,6 +476,8 @@ A background task that runs continuously to summarize documents in an index and
 index the summaries into a separate rollup index.
 The job configuration controls what information is rolled up and how often.
 // end::rollup-job-def[]
+
+endif::[]
 
 [[glossary-routing]] routing ::
 +

@@ -13,36 +13,38 @@ import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 
 import java.util.Objects;
 
-class DatafeedContext {
+public class DatafeedContext {
 
     private final DatafeedConfig datafeedConfig;
     private final Job job;
     private final RestartTimeInfo restartTimeInfo;
     private final DatafeedTimingStats timingStats;
 
-    DatafeedContext(DatafeedConfig datafeedConfig, Job job, RestartTimeInfo restartTimeInfo,
-                           DatafeedTimingStats timingStats) {
+    private DatafeedContext(DatafeedConfig datafeedConfig, Job job, RestartTimeInfo restartTimeInfo, DatafeedTimingStats timingStats) {
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
         this.restartTimeInfo = Objects.requireNonNull(restartTimeInfo);
         this.timingStats = Objects.requireNonNull(timingStats);
     }
 
-
-    DatafeedConfig getDatafeedConfig() {
+    public DatafeedConfig getDatafeedConfig() {
         return datafeedConfig;
     }
 
-    Job getJob() {
+    public Job getJob() {
         return job;
     }
 
-    RestartTimeInfo getRestartTimeInfo() {
+    public RestartTimeInfo getRestartTimeInfo() {
         return restartTimeInfo;
     }
 
-    DatafeedTimingStats getTimingStats() {
+    public DatafeedTimingStats getTimingStats() {
         return timingStats;
+    }
+
+    static Builder builder() {
+        return new Builder();
     }
 
     static class Builder {

@@ -33,13 +33,15 @@ import java.util.regex.Pattern;
  * @see MediaTypeRegistry
  */
 public class ParsedMediaType {
+    private final String originalHeaderValue;
     private final String type;
     private final String subType;
     private final Map<String, String> parameters;
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
-    private ParsedMediaType(String type, String subType, Map<String, String> parameters) {
+    private ParsedMediaType(String originalHeaderValue, String type, String subType, Map<String, String> parameters) {
+        this.originalHeaderValue = originalHeaderValue;
         this.type = type;
         this.subType = subType;
         this.parameters = Collections.unmodifiableMap(parameters);
@@ -79,7 +81,7 @@ public class ParsedMediaType {
                 throw new IllegalArgumentException("invalid media-type [" + headerValue + "]");
             }
             if (elements.length == 1) {
-                return new ParsedMediaType(splitMediaType[0].trim(), splitMediaType[1].trim(), Collections.emptyMap());
+                return new ParsedMediaType(headerValue, splitMediaType[0].trim(), splitMediaType[1].trim(), Collections.emptyMap());
             } else {
                 Map<String, String> parameters = new HashMap<>();
                 for (int i = 1; i < elements.length; i++) {
@@ -96,7 +98,7 @@ public class ParsedMediaType {
                     String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
                     parameters.put(parameterName, parameterValue);
                 }
-                return new ParsedMediaType(splitMediaType[0].trim().toLowerCase(Locale.ROOT),
+                return new ParsedMediaType(headerValue, splitMediaType[0].trim().toLowerCase(Locale.ROOT),
                     splitMediaType[1].trim().toLowerCase(Locale.ROOT), parameters);
             }
         }
@@ -143,5 +145,10 @@ public class ParsedMediaType {
         }
         //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return originalHeaderValue;
     }
 }

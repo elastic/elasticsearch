@@ -32,9 +32,13 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+
+import static org.mockito.Mockito.mock;
 
 public class BucketsAggregatorTests extends AggregatorTestCase{
 
@@ -54,8 +58,9 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
                     null,
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );
+                ProductionAggregationContext context = new ProductionAggregationContext(searchContext, mock(MultiBucketConsumer.class));
 
-                return new BucketsAggregator("test", AggregatorFactories.EMPTY, searchContext, null, null, null) {
+                return new BucketsAggregator("test", AggregatorFactories.EMPTY, context, null, null, null) {
                     @Override
                     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
                         return null;

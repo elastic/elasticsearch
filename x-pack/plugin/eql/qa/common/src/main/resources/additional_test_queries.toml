@@ -288,6 +288,11 @@ query = 'process where string(serial_event_id) : ("1*")'
 expected_event_ids  = [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
 
 [[queries]]
+name = "seqSingleArgPatternQuestionMark"
+query = 'process where string(serial_event_id) : ("1?")'
+expected_event_ids  = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+[[queries]]
 name = "seqMultipleArgs"
 query = '''
 file where file_name : ("wininit.exe", "lsass.exe") and opcode == 2
@@ -298,5 +303,26 @@ expected_event_ids  = [65, 86]
 name = "seqMultipleArgsWildcardPattern"
 query = '''
 file where file_name : ("winini*.exe", "lsass.*") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "seqMultipleArgsWildcardPatternQuestionMark"
+query = '''
+file where file_name : ("winini?.exe", "lsass.e?e") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "wildcardFunctionWildcardPattern"
+query = '''
+file where wildcard(file_name, "winini*.exe", "lsass.*") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "wildcardFunctionQuestionMarkPattern"
+query = '''
+file where wildcard(file_name, "winini?.exe", "lsass.e?e") and opcode == 2
 '''
 expected_event_ids  = [65, 86]

@@ -222,6 +222,8 @@ public final class Messages {
             "This job would cause a mapping clash with existing field [{0}] - avoid the clash by assigning a dedicated results index";
     public static final String JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG =
             "data_description.time_field may not be used in the analysis_config";
+    public static final String JOB_CONFIG_TIME_FIELD_CANNOT_BE_RUNTIME =
+        "data_description.time_field [{0}] cannot be a runtime field";
     public static final String JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT =
             "The value of '" + Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS + "' [{0}] cannot be greater than '" +
                 Job.MODEL_SNAPSHOT_RETENTION_DAYS + "' [{1}]";

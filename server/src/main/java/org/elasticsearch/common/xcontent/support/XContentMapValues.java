@@ -60,24 +60,25 @@ public class XContentMapValues {
         }
 
         String key = pathElements[index];
-        Object currentValue = part.get(key);
+        Object currentValue;
         int nextIndex = index + 1;
-        while (currentValue == null && nextIndex != pathElements.length) {
-            key += "." + pathElements[nextIndex];
+
+        while (true) {
             currentValue = part.get(key);
+            if (currentValue != null) {
+                if (currentValue instanceof Map) {
+                    extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
+                } else if (currentValue instanceof List) {
+                    extractRawValues(values, (List) currentValue, pathElements, nextIndex);
+                } else {
+                    values.add(currentValue);
+                }
+            }
+            if (nextIndex == pathElements.length) {
+                return;
+            }
+            key += "." + pathElements[nextIndex];
             nextIndex++;
-        }
-
-        if (currentValue == null) {
-            return;
-        }
-
-        if (currentValue instanceof Map) {
-            extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
-        } else if (currentValue instanceof List) {
-            extractRawValues(values, (List) currentValue, pathElements, nextIndex);
-        } else {
-            values.add(currentValue);
         }
     }
 
@@ -163,19 +164,24 @@ public class XContentMapValues {
         if (currentValue instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) currentValue;
             String key = pathElements[index];
-            Object mapValue = map.get(key);
             int nextIndex = index + 1;
-            while (mapValue == null && nextIndex != pathElements.length) {
+            while (true) {
+                if (map.containsKey(key)) {
+                    Object mapValue = map.get(key);
+                    if (mapValue == null) {
+                        return nullValue;
+                    }
+                    Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
+                    if (val != null) {
+                        return val;
+                    }
+                }
+                if (nextIndex == pathElements.length) {
+                    return null;
+                }
                 key += "." + pathElements[nextIndex];
-                mapValue = map.get(key);
                 nextIndex++;
             }
-
-            if (map.containsKey(key) == false) {
-                return null;
-            }
-
-            return extractValue(pathElements, nextIndex, mapValue, nullValue);
         }
         return null;
     }

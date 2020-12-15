@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
@@ -33,9 +34,7 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -52,9 +51,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(TestEnginePlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.getPlugins(), TestEnginePlugin.class);
     }
 
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {

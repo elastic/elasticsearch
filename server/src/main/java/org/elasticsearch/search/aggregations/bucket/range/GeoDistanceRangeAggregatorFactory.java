@@ -39,7 +39,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -75,6 +74,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                     rangeFactory,
                     ranges,
                     averageDocsPerRange,
+                    null, // null here because we didn't try filters at all
                     keyed,
                     context,
                     parent,
@@ -85,6 +85,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                 true);
     }
 
+    private final GeoDistanceAggregatorSupplier aggregatorSupplier;
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;
     private final GeoPoint origin;
     private final Range[] ranges;
@@ -96,8 +97,10 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                                              Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed,
                                              AggregationContext context, AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metadata) throws IOException {
+                                             Map<String, Object> metadata,
+                                             GeoDistanceAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.origin = origin;
         this.ranges = ranges;
         this.unit = unit;
@@ -106,22 +109,18 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new RangeAggregator.Unmapped<>(name, factories, ranges, keyed, config.format(), searchContext, parent,
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new RangeAggregator.Unmapped<>(name, factories, ranges, keyed, config.format(), context, parent,
             rangeFactory, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(GeoDistanceAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(
                 name,
                 factories,
@@ -133,7 +132,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                 rangeFactory,
                 ranges,
                 keyed,
-                searchContext,
+                context,
                 parent,
                 cardinality,
                 metadata

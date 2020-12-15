@@ -1,3 +1,25 @@
+ifdef::permanently-unreleased-branch[]
+
+[role="xpack"]
+[testenv="basic"]
+[[rollup-put-job]]
+=== Create legacy {rollup-jobs} API
+[subs="attributes"]
+++++
+<titleabbrev>Create legacy {rollup-jobs}</titleabbrev>
+++++
+
+// tag::legacy-rollup-admon[]
+WARNING: This documentation is about legacy rollups. Legacy rollups are
+deprecated and will be replaced by new rollup functionality introduced in {es}
+7.x.
+// end::legacy-rollup-admon[]
+
+Creates a legacy {rollup-job}.
+
+endif::[]
+ifndef::permanently-unreleased-branch[]
+
 [role="xpack"]
 [testenv="basic"]
 [[rollup-put-job]]
@@ -10,6 +32,8 @@
 Creates a {rollup-job}.
 
 experimental[]
+
+endif::[]
 
 [[rollup-put-job-api-request]]
 ==== {api-request-title}

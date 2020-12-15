@@ -386,7 +386,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private void createEmptyStore(Store store) {
         store.incRef();
         try {
-            store.createEmpty(store.indexSettings().getIndexVersionCreated().luceneVersion);
+            store.createEmpty();
         } catch (final EngineException | IOException e) {
             throw new IndexShardRecoveryException(store.shardId(), "failed to create empty store", e);
         } finally {

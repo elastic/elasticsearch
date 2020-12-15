@@ -116,7 +116,9 @@ setup:
 
 ---
 "Regexp length limit":
-
+  - skip:
+      version: all
+      reason: Long regex breaks HTTP query length when request body is sent as a query param - https://github.com/elastic/elasticsearch/issues/65718
   - do:
       catch: /The length of regex \[1110\] used in the Regexp Query request has exceeded the allowed maximum of \[1000\]\. This maximum can be set by changing the \[index.max_regex_length\] index level setting\./
       search:

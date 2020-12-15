@@ -11,7 +11,7 @@ integTest {
   }
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   // The setup that we actually want
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.http.ssl.enabled', 'true'

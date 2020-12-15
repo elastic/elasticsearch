@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
@@ -35,13 +36,27 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
 
     private static final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
+    private final PolicyValidator policyValidator;
+
     @Inject
     public TransportPutAutoscalingPolicyAction(
         final TransportService transportService,
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final AutoscalingCalculateCapacityService.Holder policyValidatorHolder
+    ) {
+        this(transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, policyValidatorHolder.get());
+    }
+
+    TransportPutAutoscalingPolicyAction(
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final ActionFilters actionFilters,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final PolicyValidator policyValidator
     ) {
         super(
             PutAutoscalingPolicyAction.NAME,
@@ -53,6 +68,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
+        this.policyValidator = policyValidator;
     }
 
     @Override
@@ -65,7 +81,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         clusterService.submitStateUpdateTask("put-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                return putAutoscalingPolicy(currentState, request, logger);
+                return putAutoscalingPolicy(currentState, request, policyValidator, logger);
             }
         });
     }
@@ -78,6 +94,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
     static ClusterState putAutoscalingPolicy(
         final ClusterState currentState,
         final PutAutoscalingPolicyAction.Request request,
+        final PolicyValidator policyValidator,
         final Logger logger
     ) {
         // we allow putting policies with roles that not all nodes in the cluster may understand currently (but the current master must
@@ -111,6 +128,8 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
                 request.deciders() != null ? request.deciders() : existing.deciders()
             );
         }
+
+        policyValidator.validate(updatedPolicy);
 
         final SortedMap<String, AutoscalingPolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.policies());
         final AutoscalingPolicyMetadata newPolicyMetadata = new AutoscalingPolicyMetadata(updatedPolicy);

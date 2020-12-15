@@ -27,7 +27,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 int pluginsCount = 0
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
     if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
       // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)

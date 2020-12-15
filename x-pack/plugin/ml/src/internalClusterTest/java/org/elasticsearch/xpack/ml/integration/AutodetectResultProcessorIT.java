@@ -758,7 +758,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<Optional<Quantiles>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobResultsProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).build(), params -> {
+        jobResultsProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).setModelSnapshotId("test_snapshot").build(), params -> {
             resultHolder.set(Optional.ofNullable(params.quantiles()));
             latch.countDown();
         }, e -> {

@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -532,4 +533,11 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return this.filterPlugins(SystemIndexPlugin.class)
+            .stream()
+            .flatMap(p -> p.getSystemIndexDescriptors(this.settings).stream())
+            .collect(Collectors.toList());
+    }
 }

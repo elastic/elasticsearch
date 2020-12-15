@@ -16,13 +16,45 @@ the aggregation uses the related sub-field's values. For example, a
 `aggregate_metric_double` field returns the minimum value of all `min`
 sub-fields.
 
-[IMPORTANT]
-========
-* An `aggregate_metric_double` field can only store a single value for each `metric` sub-field per document.
-Nested arrays are not supported.
-* The values of the `min`, `max`, `sum` can be any `double` numbers. The values of `value_count` can only be
-a positive long number.
-========
+
+IMPORTANT: An `aggregate_metric_double` field stores a single numeric
+<<doc-values,doc value>> for each metric sub-field. Array values are not
+supported.  `min`, `max`, and `sum` values are `double` numbers. `value_count`
+is a positive `long` number. 
+
+[source,console]
+----
+PUT my-index
+  "mappings": {
+    "properties": {
+      "my-agg-metric-field": {
+        "type": "aggregate_metric_double",
+        "metrics": [ "min", "max", "sum", "value_count"],
+        "default_metric": "max"
+      }
+    }
+  }
+}
+----
+
+[[aggregate-metric-double-params]]
+==== Parameters for `aggregate_metric_double` fields
+
+`metrics`::
+(Required, array of strings)
+Array of metric sub-fields to store. Each value corresponds to a
+<<search-aggregations-metrics,metric aggregation>>. Valid values are
+<<search-aggregations-metrics-min-aggregation,`min`>>,
+<<search-aggregations-metrics-max-aggregation,`max`>>,
+<<search-aggregations-metrics-sum-aggregation,`sum`>>, and
+<<search-aggregations-metrics-valuecount-aggregation,`value_count`>>. You must
+specify at least one value.
+
+`default_metric`::
+(Required, string)
+Default metric sub-field to use for queries, scripts, and aggregations that
+don't use a sub-field. Must be a value from the `metrics` array.
+
 
 [[aggregate-metric-double-uses]]
 ==== Uses

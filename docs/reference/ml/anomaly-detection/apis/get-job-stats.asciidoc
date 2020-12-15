@@ -119,6 +119,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latest-record-timestamp]
 (date)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latest-sparse-record-timestamp]
 
+`log_time`:::
+(date) The timestamp of the `data_counts` according to server time.
+
 `missing_field_count`:::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=missing-field-count]

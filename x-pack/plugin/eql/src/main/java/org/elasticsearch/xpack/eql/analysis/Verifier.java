@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_F
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 /**
@@ -148,6 +149,7 @@ public class Verifier {
                 Set<Failure> localFailures = new LinkedHashSet<>();
                 failures.addAll(localFailures);
 
+                checkFilterConditionType(p, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {

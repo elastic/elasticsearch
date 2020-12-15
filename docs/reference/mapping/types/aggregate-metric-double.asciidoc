@@ -156,8 +156,7 @@ POST stats-index/_search?size=0
 }
 --------------------------------------------------
 
-The above aggregations will compute results based on their associated metrics
-and will return the following output:
+The aggregation results are based on related metric sub-field values.
 
 [source,console-result]
 --------------------------------------------------

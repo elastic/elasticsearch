@@ -142,11 +142,11 @@ documentation].
 There are four ways to configuring logging levels, each having situations in which they are appropriate to use.
 
 1. Via the command-line: `-E <name of logging hierarchy>=<level>` (e.g.,
-   `-E logger.org.elasticsearch.transport=trace`). This is most appropriate when
+   `-E logger.org.elasticsearch.discovery=debug`). This is most appropriate when
    you are temporarily debugging a problem on a single node (for example, a
    problem with startup, or during development).
 2. Via `elasticsearch.yml`: `<name of logging hierarchy>: <level>` (e.g.,
-   `logger.org.elasticsearch.transport: trace`). This is most appropriate when
+   `logger.org.elasticsearch.discovery: debug`). This is most appropriate when
    you are temporarily debugging a problem but are not starting Elasticsearch
    via the command-line (e.g., via a service) or you want a logging level
    adjusted on a more permanent basis.
@@ -171,7 +171,7 @@ For example:
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.org.elasticsearch.transport": "trace"
+    "logger.org.elasticsearch.discovery": "DEBUG"
   }
 }
 -------------------------------
@@ -193,8 +193,8 @@ For example:
 
 [source,properties]
 --------------------------------------------------
-logger.transport.name = org.elasticsearch.transport
-logger.transport.level = trace
+logger.discovery.name = org.elasticsearch.discovery
+logger.discovery.level = debug
 --------------------------------------------------
 
 This is most appropriate when you need fine-grained control over the logger (for

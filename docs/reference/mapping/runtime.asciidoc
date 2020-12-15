@@ -27,6 +27,8 @@ indices where the field is a runtime field, and other indices where the field
 is an indexed field. You have the flexibility to choose which fields to index
 and which ones to keep as runtime fields.
 
+The most important benefit of runtime fields is the ability to add fields to documents after these documents have already been ingested into Runtime fields. With runtime fields users can decide in retrospect how to parse the data, which makes all mapping decisions simpler, because they can be amended later on using runtime fields. Adding or changing runtime fields is less impactful than adding an indexed field, because it can be changed and because it does not impact index size and through that resource consumption, so the permission barrier for adding runtime fields can be lower compared with indexed fields. All of that reduces operating costs and time till users can start working with a new data source.
+
 [discrete]
 [[runtime-use-cases]]
 === Use cases
@@ -54,7 +56,7 @@ your data, but can impact search performance based on the computation defined in
 the runtime script.
 
 To balance search performance and flexibility, index fields that you'll
-commonly search for and filter on, such as a timestamp. {es} automatically uses
+frequently search for, aggregate and filter on, such as a timestamp. {es} automatically uses
 these indexed fields first when running a query, resulting in a fast response
 time. You can then use runtime fields to limit the number of fields that {es}
 needs to calculate values for. Using indexed fields in tandem with runtime

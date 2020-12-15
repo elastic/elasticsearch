@@ -5,6 +5,7 @@
       "description": "Returns the specified policy definition. Includes the policy version and last modified date."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

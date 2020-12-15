@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -81,14 +82,14 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
                 )
         );
         assertBusy(() -> {
-            final List<RecoveryState> recoveryStates = getActiveRestores(restoredIndex);
+            final List<RecoveryState> recoveryStates = getActiveRelocations(restoredIndex);
             assertThat(recoveryStates, Matchers.hasSize(1));
             final RecoveryState shardRecoveryState = recoveryStates.get(0);
             assertEquals(firstDataNode, shardRecoveryState.getSourceNode().getName());
             assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
         });
 
-        assertBusy(() -> assertSame(RecoveryState.Stage.TRANSLOG, getActiveRestores(restoredIndex).get(0).getStage()));
+        assertBusy(() -> assertSame(RecoveryState.Stage.TRANSLOG, getActiveRelocations(restoredIndex).get(0).getStage()));
         final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().index(restoredIndex).getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
         assertEquals(1, indicesService.indexService(restoredIdx).getShard(0).outstandingCleanFilesConditions());
@@ -109,10 +110,10 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
                 .get()
                 .isTimedOut()
         );
-        assertBusy(() -> assertThat(getActiveRestores(restoredIndex), Matchers.empty()));
+        assertBusy(() -> assertThat(getActiveRelocations(restoredIndex), Matchers.empty()));
     }
 
-    private static List<RecoveryState> getActiveRestores(String restoredIndex) {
+    private static List<RecoveryState> getActiveRelocations(String restoredIndex) {
         return client().admin()
             .indices()
             .prepareRecoveries(restoredIndex)
@@ -120,6 +121,9 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             .setActiveOnly(true)
             .get()
             .shardRecoveryStates()
-            .get(restoredIndex);
+            .get(restoredIndex)
+            .stream()
+            .filter(recoveryState -> recoveryState.getSourceNode() != null)
+            .collect(Collectors.toList());
     }
 }

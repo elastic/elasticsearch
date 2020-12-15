@@ -5,6 +5,7 @@
       "description": "Resumes an auto-follow pattern that has been paused"
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

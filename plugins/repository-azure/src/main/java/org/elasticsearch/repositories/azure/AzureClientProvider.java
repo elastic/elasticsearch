@@ -144,14 +144,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, pooledByteBufAllocator);
     }
 
-    private static ExecutorService getExecutorService(ThreadPool threadPool, String executorName) {
-        try {
-            return threadPool.executor(executorName);
-        } catch (IllegalArgumentException e) {
-            throw new SettingsException("Unable to find executor [" + executorName + "]");
-        }
-    }
-
     private static ByteBufAllocator createByteBufAllocator() {
         int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
         int pageSize = PooledByteBufAllocator.defaultPageSize();

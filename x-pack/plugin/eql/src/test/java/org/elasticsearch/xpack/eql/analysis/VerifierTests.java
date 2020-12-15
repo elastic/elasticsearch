@@ -77,7 +77,7 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:11: Condition expression needs to be boolean, found [DATETIME]", error("any where @timestamp"));
         assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where command_line"));
         assertEquals("1:11: Condition expression needs to be boolean, found [TEXT]", error("any where hostname"));
-        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where constant_keyword"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [CONSTANT_KEYWORD]", error("any where constant_keyword"));
         assertEquals("1:11: Condition expression needs to be boolean, found [IP]", error("any where source_address"));
     }
 

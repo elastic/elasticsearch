@@ -147,9 +147,10 @@ public class Verifier {
 
             plan.forEachDown(p -> {
                 Set<Failure> localFailures = new LinkedHashSet<>();
-                failures.addAll(localFailures);
 
                 checkFilterConditionType(p, localFailures);
+
+                failures.addAll(localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {

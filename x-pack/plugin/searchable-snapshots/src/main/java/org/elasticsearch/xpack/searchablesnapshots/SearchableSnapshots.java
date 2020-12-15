@@ -202,7 +202,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
-            CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT
+            CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
+            SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART
         );
     }
 
@@ -354,7 +355,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return List.of(
-            new SearchableSnapshotAllocationDecider(() -> getLicenseState().isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS))
+            new SearchableSnapshotAllocationDecider(() -> getLicenseState().isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS)),
+            new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings)
         );
     }
 

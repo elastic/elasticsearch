@@ -52,7 +52,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     }
 
     public void testRollover() {
-        DataStream ds = DataStreamTestHelper.randomInstance();
+        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         Index newWriteIndex = new Index(getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1), UUIDs.randomBase64UUID(random()));
         DataStream rolledDs = ds.rollover(newWriteIndex);
 
@@ -89,8 +89,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         // will also require changing a lot of hard-coded values in REST tests and docs
         long backingIndexNum = randomLongBetween(1, 1000001);
         String dataStreamName = randomAlphaOfLength(6);
-        String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum);
-        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%06d", dataStreamName, backingIndexNum);
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        String dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
+        String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum, epochMillis);
+        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
         assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
     }
 

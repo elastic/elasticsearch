@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
+import org.elasticsearch.gradle.docker.ShellRetry
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
@@ -21,6 +22,7 @@ configurations {
   dockerSource
   aarch64OssDockerSource
   ossDockerSource
+  transformLog4jJar
 }
 
 dependencies {
@@ -28,6 +30,7 @@ dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
   aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
+  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: "default")
 }
 
 ext.expansions = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
@@ -67,25 +70,13 @@ ARG BASE_TAG=8.2
     sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
   } else {
     sourceElasticsearch = """
-RUN curl --retry 8 -S -L \\
+RUN curl --retry 10 -S -L \\
       --output /opt/elasticsearch.tar.gz \\
       https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/$elasticsearch
 """.trim()
   }
 
   def (major,minor) = VersionProperties.elasticsearch.split("\\.")
-
-  def retry_loop = { name, command, indentSize = 4, exitKeyword = 'exit'  ->
-    String indent = ' ' * indentSize
-    String commandWithRetry = """for iter in {1..10}; do
-${indent}  ${command} &&
-${indent}  exit_code=0 && break ||
-${indent}    exit_code=\$? && echo "${name} error: retry \$iter in 10s" && sleep 10;
-${indent}done;
-${indent}${exitKeyword} \$exit_code"""
-
-    return commandWithRetry.replaceAll(" *\n", " \\\\\n")
-  }
 
   return [
     'base_image'          : base.getImage(),
@@ -100,7 +91,7 @@ ${indent}${exitKeyword} \$exit_code"""
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
     'major_minor_version' : "${major}.${minor}",
-    'retry_loop'          : retry_loop
+    'retry'               : ShellRetry
   ]
 }
 
@@ -185,6 +176,10 @@ void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase
 
     with dockerBuildContext(architecture, oss, base, true)
 
+    into(base == DockerBase.IRON_BANK ? 'scripts' : 'bin') {
+      from configurations.transformLog4jJar
+    }
+
     if (architecture == Architecture.AARCH64) {
       if (oss) {
         from configurations.aarch64OssDockerSource
@@ -217,46 +212,6 @@ tasks.register("copyKeystore", Sync) {
     file("${buildDir}/certs").setReadable(true, false)
     file("${buildDir}/certs/testnode.jks").setReadable(true, false)
   }
-}
-
-tasks.register("checkSecurityAuditLayoutPatternIdentical") {
-  // the two log4j2.properties files containing security audit configuration for archive and docker builds respectively
-  def originalLog4j = project(":x-pack:plugin:core").file('src/main/config/log4j2.properties')
-  def dockerLog4j = project.file("src/docker/config/log4j2.properties")
-  inputs.files(originalLog4j, dockerLog4j)
-  def patternPropertyKey = "appender.audit_rolling.layout.pattern"
-  doLast {
-    def coreLog4jProperties = new Properties()
-    originalLog4j.withInputStream { input ->
-      coreLog4jProperties.load(input)
-    }
-
-    if (false == coreLog4jProperties.containsKey(patternPropertyKey)) {
-      throw new GradleException("The [${originalLog4j.getPath()}] file changed such that the layout pattern is not " +
-              "referred to by the property named [${patternPropertyKey}]. Please update the task [${name}] " +
-              "definition from project [${path}] to reflect the new name for the layout pattern property.")
-    }
-
-    def dockerLog4jProperties = new Properties()
-    dockerLog4j.withInputStream { input ->
-      dockerLog4jProperties.load(input)
-    }
-
-    if (false == dockerLog4jProperties.containsKey(patternPropertyKey)) {
-      throw new GradleException("The [${dockerLog4j.getPath()}] file changed such that the layout pattern is not " +
-              "referred to by the property named [${patternPropertyKey}]. Please update the task [${name}] " +
-              "definition from project [${path}] to reflect the new name for the layout pattern property.")
-    }
-
-    if (false == coreLog4jProperties.getProperty(patternPropertyKey).equals(dockerLog4jProperties.getProperty(patternPropertyKey))) {
-      throw new GradleException("The property value for the layout pattern [${patternPropertyKey}] is NOT identical " +
-              "between the [${originalLog4j.getPath()}] and the [${dockerLog4j.getPath()}] files.")
-    }
-  }
-}
-
-tasks.named("precommit").configure {
-  dependsOn 'checkSecurityAuditLayoutPatternIdentical'
 }
 
 elasticsearch_distributions {

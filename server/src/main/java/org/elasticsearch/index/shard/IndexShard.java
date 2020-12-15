@@ -1753,14 +1753,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return ShardLongFieldRange.EMPTY;
         }
 
-        try {
-            return ShardLongFieldRange.of(
-                    dateFieldType.resolution().roundDownToMillis(rawTimestampFieldRange.getMin()),
-                    dateFieldType.resolution().roundUpToMillis(rawTimestampFieldRange.getMax()));
-        } catch (IllegalArgumentException e) {
-            logger.debug(new ParameterizedMessage("could not convert {} to a millisecond time range", rawTimestampFieldRange), e);
-            return ShardLongFieldRange.UNKNOWN; // any search might match this shard
-        }
+        return ShardLongFieldRange.of(rawTimestampFieldRange.getMin(), rawTimestampFieldRange.getMax());
     }
 
     /**

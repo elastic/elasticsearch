@@ -168,9 +168,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .missing(1234);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(searcher, new MatchAllDocsQuery(), builder);
-                });
+                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(searcher, new MatchAllDocsQuery(), builder));
             }
         }
     }

@@ -391,9 +391,9 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalValueCount> verify,
-        MappedFieldType... fieldType
+        MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 
     private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {

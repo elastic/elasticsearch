@@ -181,8 +181,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalCardinality> verify,
-        MappedFieldType... fieldType
+        MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 }

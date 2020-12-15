@@ -66,7 +66,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     private static final int SAMPLE_MIN = -1000000;
     private static final int SAMPLE_MAX = 1000000;
-    public static final String FIELD_NAME = "number";
+    private static final String FIELD_NAME = "number";
 
     /** Script to return the {@code _value} provided by aggs framework. */
     private static final String VALUE_SCRIPT = "_value";
@@ -258,9 +258,13 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         testAggregation(builder, query, buildIndex, verify, fieldType);
     }
 
-    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<InternalMedianAbsoluteDeviation> verify, MappedFieldType... fieldTypes) throws IOException {
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> indexer,
+        Consumer<InternalMedianAbsoluteDeviation> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
         testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
     }
 

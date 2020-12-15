@@ -94,7 +94,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                    ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
+                    ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                     : null;
                 return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount,
                     rounding.offset(), emptyBucketInfo, config.format(), keyed, metadata());

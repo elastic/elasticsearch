@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -263,6 +264,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                         for (Map.Entry<String, NodeCacheFilesMetadata> entry : nodesCacheFilesMetadata.getNodesMap().entrySet()) {
                             res.put(nodes.get(entry.getKey()), entry.getValue());
                         }
+                        for (FailedNodeException entry : nodesCacheFilesMetadata.failures()) {
+                            final DiscoveryNode dataNode = nodes.get(entry.nodeId());
+                            logger.warn("Failed fetching cache size from datanode", entry);
+                            res.put(dataNode, new NodeCacheFilesMetadata(dataNode, 0L));
+                        }
                         asyncFetch.addData(res);
                     }
 
@@ -275,7 +281,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                         }
                         asyncFetch.addData(res);
                     }
-                }, () -> client.admin().cluster().prepareReroute().execute(REROUTE_LISTENER))
+                }, () -> {
+                    if (asyncFetch.data() != null) {
+                        client.admin().cluster().prepareReroute().execute(REROUTE_LISTENER);
+                    }
+                })
             );
         }
         return new AsyncShardFetch.FetchResult<>(shardId, asyncFetch.data(), Collections.emptySet());

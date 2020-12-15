@@ -231,10 +231,6 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             }
             c.doLast(task -> {
                 if (expectedOutputFile.exists() == false) {
-                    System.out.println("expectedOutputFile.getParentFile().exists() = " + expectedOutputFile.getParentFile().exists());
-                    if (expectedOutputFile.getParentFile().exists()) {
-                        Arrays.asList(expectedOutputFile.getParentFile().list()).forEach(f -> System.out.println("f = " + f));
-                    }
                     throw new InvalidUserDataException(
                         "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
                     );
@@ -253,14 +249,22 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         final String name;
         final File checkoutDir;
         final String projectPath;
-        final boolean nativeExtractedSupport;
+
+        /**
+         * can be removed once we don't build 7.10 anymore
+         * from source for bwc tests.
+         * */
+        @Deprecated
+        final boolean expandedDistDirSupport;
+        final boolean extractedAssembleSupported;
         final DistributionProjectArtifact expectedBuildArtifact;
 
         DistributionProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
             this.name = name;
             this.checkoutDir = checkoutDir;
             this.projectPath = baseDir + "/" + name;
-            this.nativeExtractedSupport = version.onOrAfter("7.11.0") && (name.endsWith("zip") || name.endsWith("tar"));
+            this.expandedDistDirSupport = version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"));
+            this.extractedAssembleSupported = version.onOrAfter("7.11.0") && (name.endsWith("zip") || name.endsWith("tar"));
             this.expectedBuildArtifact = new DistributionProjectArtifact(
                 new File(
                     checkoutDir,
@@ -275,7 +279,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
                         + "."
                         + extension
                 ),
-                nativeExtractedSupport ? new File(checkoutDir, baseDir + "/" + name + "/build/install") : null
+                expandedDistDirSupport ? new File(checkoutDir, baseDir + "/" + name + "/build/install") : null
             );
         }
 
@@ -284,7 +288,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
          * from source without the overhead of creating an archive by using assembleExtracted instead of assemble.
          * */
         public String getAssembleTaskName() {
-            return nativeExtractedSupport ? "extractedAssemble" : "assemble";
+            return extractedAssembleSupported ? "extractedAssemble" : "assemble";
         }
     }
 

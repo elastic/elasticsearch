@@ -16,20 +16,34 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Map.Entry.comparingByKey;
 
 public final class TransformIndex {
     private static final Logger logger = LogManager.getLogger(TransformIndex.class);
 
+    /**
+     * The list of object types used in the mappings.
+     * We include {@code null} as an alternative for "object", which is the default.
+     */
+    private static final Set<String> OBJECT_TYPES =
+        new HashSet<>(Arrays.asList(null, ObjectMapper.CONTENT_TYPE, ObjectMapper.NESTED_CONTENT_TYPE));
     private static final String PROPERTIES = "properties";
+    private static final String FIELDS = "fields";
     private static final String META = "_meta";
 
     private TransformIndex() {}
@@ -135,16 +149,23 @@ public final class TransformIndex {
      * @param mappings A Map of the form {"fieldName": "fieldType"}
      */
     static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
+        List<Map.Entry<String, String>> sortedMappingsEntries = new ArrayList<>(mappings.entrySet());
+        // We sort the entry list to make sure that for each (parent, parent.child) pair, parent entry will be processed before child entry.
+        sortedMappingsEntries.sort(comparingByKey());
         Map<String, Object> fieldMappings = new HashMap<>();
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
+        for (Map.Entry<String, String> entry : sortedMappingsEntries) {
             String[] parts = entry.getKey().split("\\.");
+            String type = entry.getValue();
             Map<String, Object> current = fieldMappings;
             current = diveInto(current, parts[0]);
             for (int j = 1; j < parts.length; ++j) {
-                current = diveInto(current, "fields");
+                // Here we decide whether a dot ('.') means inner object or a multi-field.
+                current = diveInto(current, OBJECT_TYPES.contains(current.get("type")) ? PROPERTIES : FIELDS);
                 current = diveInto(current, parts[j]);
             }
-            current.put("type", entry.getValue());
+            if (ObjectMapper.CONTENT_TYPE.equals(type) == false) {
+                current.put("type", type);
+            }
         }
         return fieldMappings;
     }

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,6 +69,8 @@ public class LatestIT extends TransformIntegTestCase {
             put(STARS, stars);
             put(TIMESTAMP, timestamp);
             put(COMMENT, comment);
+            put("regular_object", singletonMap("foo", 42));
+            put("nested_object", singletonMap("bar", 43));
         }};
     }
 

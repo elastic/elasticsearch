@@ -121,5 +121,48 @@ public class TransformIndexTests extends ESTestCase {
                 }});
             }}))
         );
+        assertThat(
+            TransformIndex.createMappingsFromStringMap(new HashMap<>() {{
+                put("a", "object");
+                put("a.b", "long");
+                put("c", "nested");
+                put("c.d", "boolean");
+                put("f", "object");
+                put("f.g", "object");
+                put("f.g.h", "text");
+                put("f.g.h.i", "text");
+            }}),
+            is(equalTo(new HashMap<>() {{
+                put("a", new HashMap<>() {{
+                    put("properties", new HashMap<>() {{
+                        put("b", new HashMap<>() {{
+                            put("type", "long");
+                        }});
+                    }});
+                }});
+                put("c", new HashMap<>() {{
+                    put("type", "nested");
+                    put("properties", new HashMap<>() {{
+                        put("d", new HashMap<>() {{
+                            put("type", "boolean");
+                        }});
+                    }});
+                }});
+                put("f", new HashMap<>() {{
+                    put("properties", new HashMap<>() {{
+                        put("g", new HashMap<>() {{
+                            put("properties", new HashMap<>() {{
+                                put("h", new HashMap<>() {{
+                                    put("type", "text");
+                                    put("fields", new HashMap<>() {{
+                                        put("i", singletonMap("type", "text"));
+                                    }});
+                                }});
+                            }});
+                        }});
+                    }});
+                }});
+            }}))
+        );
     }
 }

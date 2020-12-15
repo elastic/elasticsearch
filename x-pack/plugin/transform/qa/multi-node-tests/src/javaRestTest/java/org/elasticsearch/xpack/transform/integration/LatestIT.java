@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -168,11 +169,24 @@ public class LatestIT extends TransformIntegTestCase {
             GetMappingsResponse sourceIndexMapping =
                 restClient.indices().getMapping(new GetMappingsRequest().indices(SOURCE_INDEX_NAME), RequestOptions.DEFAULT);
             assertThat(
-                previewResponse.getMappings().get("properties"),
+                // Mappings we get from preview sometimes contain redundant { "type": "object" } entries.
+                // We clear them here to be able to compare with the GetMappingsAction output.
+                clearDefaultObjectType(previewResponse.getMappings().get("properties")),
                 is(equalTo(sourceIndexMapping.mappings().get(SOURCE_INDEX_NAME).sourceAsMap().get("properties"))));
             // Verify preview contents
             assertThat(previewResponse.getDocs(), hasSize(NUM_USERS + 1));
             assertThat(previewResponse.getDocs(), containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
         }
+    }
+
+    private static Object clearDefaultObjectType(Object obj) {
+        if (obj instanceof Map == false) {
+            return obj;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) obj;
+        return map.entrySet().stream()
+            .filter(entry -> (entry.getKey().equals("type") && entry.getValue().equals("object")) == false)
+            .collect(toMap(entry -> entry.getKey(), entry -> clearDefaultObjectType(entry.getValue())));
     }
 }

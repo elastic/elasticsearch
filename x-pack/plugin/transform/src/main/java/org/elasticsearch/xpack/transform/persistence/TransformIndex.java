@@ -163,9 +163,7 @@ public final class TransformIndex {
                 current = diveInto(current, OBJECT_TYPES.contains(current.get("type")) ? PROPERTIES : FIELDS);
                 current = diveInto(current, parts[j]);
             }
-            if (ObjectMapper.CONTENT_TYPE.equals(type) == false) {
-                current.put("type", type);
-            }
+            current.put("type", type);
         }
         return fieldMappings;
     }

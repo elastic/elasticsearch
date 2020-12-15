@@ -451,8 +451,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void testCanMatchFilteringOnCoordinatorThatCanBeSkipped() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
+        final List<Index> dataStreamIndices = org.elasticsearch.common.collect.List.of(dataStreamIndex1, dataStreamIndex2);
         DataStream dataStream =
-            new DataStream("mydata", new DataStream.TimestampField("@timestamp"), List.of(dataStreamIndex1, dataStreamIndex2));
+            new DataStream("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
 
         List<Index> regularIndices =
             randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
@@ -518,8 +519,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void testCanMatchFilteringOnCoordinatorParsingFails() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
+        final List<Index> dataStreamIndices = org.elasticsearch.common.collect.List.of(dataStreamIndex1, dataStreamIndex2);
         DataStream dataStream =
-            new DataStream("mydata", new DataStream.TimestampField("@timestamp"), List.of(dataStreamIndex1, dataStreamIndex2));
+            new DataStream("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
 
         List<Index> regularIndices =
             randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
@@ -559,8 +561,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         // Generate indices
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
+        final List<Index> dataStreamIndices = org.elasticsearch.common.collect.List.of(dataStreamIndex1, dataStreamIndex2);
         DataStream dataStream =
-            new DataStream("mydata", new DataStream.TimestampField("@timestamp"), List.of(dataStreamIndex1, dataStreamIndex2));
+            new DataStream("mydata", new DataStream.TimestampField("@timestamp"), dataStreamIndices);
 
         List<Index> regularIndices =
             randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));

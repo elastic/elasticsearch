@@ -597,19 +597,19 @@ public class SearchAsyncActionTests extends ESTestCase {
             searchShardIterators.add(searchShardIterator);
         }
         GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(searchShardIterators);
-        Map<String, Transport.Connection> lookup = Map.of(primaryNode.getId(), new MockConnection(primaryNode));
+        Map<String, Transport.Connection> lookup = Collections.singletonMap(primaryNode.getId(), new MockConnection(primaryNode));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
-            new AbstractSearchAsyncAction<>(
+            new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                 "test",
                 logger,
                 new SearchTransportService(null, null, null),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node); },
-                Map.of("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
                 Collections.emptyMap(),
                 null,
                 request,

@@ -19,11 +19,8 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.LocationMode;
-import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -32,6 +29,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -42,6 +40,8 @@ import java.util.Locale;
 import java.util.Map;
 
 final class AzureStorageSettings {
+
+    public static final int DEFAULT_MAX_RETRIES = 3;
 
     // prefix for azure client settings
     private static final String AZURE_CLIENT_PREFIX_KEY = "azure.client.";
@@ -58,10 +58,10 @@ final class AzureStorageSettings {
     public static final AffixSetting<SecureString> SAS_TOKEN_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "sas_token",
         key -> SecureSetting.secureString(key, null));
 
-    /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
+    /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RequestRetryOptions). */
     public static final AffixSetting<Integer> MAX_RETRIES_SETTING =
         Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "max_retries",
-            (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope),
+            (key) -> Setting.intSetting(key, DEFAULT_MAX_RETRIES, Setting.Property.NodeScope),
             () -> ACCOUNT_SETTING, () -> KEY_SETTING);
     /**
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
@@ -97,19 +97,6 @@ final class AzureStorageSettings {
     private final TimeValue timeout;
     private final int maxRetries;
     private final Proxy proxy;
-    private final LocationMode locationMode;
-
-    // copy-constructor
-    private AzureStorageSettings(String account, String connectString, String endpointSuffix, TimeValue timeout, int maxRetries,
-                                 Proxy proxy, LocationMode locationMode) {
-        this.account = account;
-        this.connectString = connectString;
-        this.endpointSuffix = endpointSuffix;
-        this.timeout = timeout;
-        this.maxRetries = maxRetries;
-        this.proxy = proxy;
-        this.locationMode = locationMode;
-    }
 
     private AzureStorageSettings(String account, String key, String sasToken, String endpointSuffix, TimeValue timeout, int maxRetries,
                                  Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
@@ -136,7 +123,6 @@ final class AzureStorageSettings {
                 throw new SettingsException("Azure proxy host is unknown.", e);
             }
         }
-        this.locationMode = LocationMode.PRIMARY_ONLY;
     }
 
     public String getEndpointSuffix() {
@@ -181,9 +167,6 @@ final class AzureStorageSettings {
         return connectionStringBuilder.toString();
     }
 
-    public LocationMode getLocationMode() {
-        return locationMode;
-    }
 
     @Override
     public String toString() {
@@ -193,7 +176,6 @@ final class AzureStorageSettings {
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
-        sb.append(", locationMode='").append(locationMode).append('\'');
         sb.append('}');
         return sb.toString();
     }
@@ -245,16 +227,5 @@ final class AzureStorageSettings {
         final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
         final String fullKey = k.toConcreteKey(groupName).toString();
         return setting.getConcreteSetting(fullKey).get(settings);
-    }
-
-    static Map<String, AzureStorageSettings> overrideLocationMode(Map<String, AzureStorageSettings> clientsSettings,
-                                                                  LocationMode locationMode) {
-        final MapBuilder<String, AzureStorageSettings> mapBuilder = new MapBuilder<>();
-        for (final Map.Entry<String, AzureStorageSettings> entry : clientsSettings.entrySet()) {
-            mapBuilder.put(entry.getKey(),
-                new AzureStorageSettings(entry.getValue().account, entry.getValue().connectString, entry.getValue().endpointSuffix,
-                    entry.getValue().timeout, entry.getValue().maxRetries, entry.getValue().proxy, locationMode));
-        }
-        return mapBuilder.immutableMap();
     }
 }

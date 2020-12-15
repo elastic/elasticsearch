@@ -6,10 +6,13 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Locale;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class StringMatcherTests extends ESTestCase {
 
@@ -70,7 +73,7 @@ public class StringMatcherTests extends ESTestCase {
             () -> randomAlphaOfLengthBetween(15, 20));
 
         final StringMatcher matcher = StringMatcher.of(List.of(
-            prefix1 + "*", prefix2 + "*", "/" + prefix3 + "@/", "*" + suffix1, "/@" + suffix2 + "/", exact1, exact2, exact3
+            prefix1 + "*", prefix2 + "?", "/" + prefix3 + "@/", "*" + suffix1, "/@" + suffix2 + "/", exact1, exact2, exact3
         ));
 
         assertMatch(matcher, exact1);
@@ -79,13 +82,34 @@ public class StringMatcherTests extends ESTestCase {
         assertMatch(matcher, randomAlphaOfLength(3) + suffix1);
         assertMatch(matcher, randomAlphaOfLength(3) + suffix2);
         assertMatch(matcher, prefix1 + randomAlphaOfLengthBetween(1, 5));
-        assertMatch(matcher, prefix2 + randomAlphaOfLengthBetween(1, 5));
+        assertMatch(matcher, prefix2 + randomAlphaOfLength(1));
         assertMatch(matcher, prefix3 + randomAlphaOfLengthBetween(1, 5));
+
+        assertNoMatch(matcher, prefix2 + randomAlphaOfLength(2));
 
         final char[] nonAlpha = "@/#$0123456789()[]{}<>;:%&".toCharArray();
         assertNoMatch(matcher, randomFrom(nonAlpha) + randomFrom(exact1, prefix1, suffix1) + randomFrom(nonAlpha));
         assertNoMatch(matcher, randomFrom(nonAlpha) + randomFrom(exact2, prefix2, suffix2) + randomFrom(nonAlpha));
         assertNoMatch(matcher, randomFrom(nonAlpha) + randomFrom(exact3, prefix3) + randomFrom(nonAlpha));
+    }
+
+    public void testToString() throws Exception {
+        // Replace any '/' characters because they're meaningful at the start, and just removing them all is simpler
+        final String text1 = RandomizedTest.randomUnicodeOfLengthBetween(5, 80).replace('/', '.');
+        final String text2 = RandomizedTest.randomUnicodeOfLength(20).replace('/', '.');
+        final String text3 = RandomizedTest.randomUnicodeOfLength(50).replace('/', '.');
+        final String text4 = randomAlphaOfLength(100);
+        final String text5 = randomAlphaOfLength(100);
+
+        for (String s1 : List.of(text1, text2, text3, text4, text5)) {
+            assertThat(StringMatcher.of(s1).toString(), equalTo(s1));
+            for (String s2 : List.of(text1, text2, text3, text4, text5)) {
+                assertThat(StringMatcher.of(s1, s2).toString(), equalTo(s1 + "|" + s2));
+            }
+        }
+
+        StringMatcher m = StringMatcher.of(text2, text3, text4, text5); // 270 chars
+        assertThat(m.toString(), equalTo(text2 + "|" + text3 + "|" + text4.substring(0, 59) + "...|" + text5.substring(0, 59) + "..."));
     }
 
     private void assertMatch(StringMatcher matcher, String str) {

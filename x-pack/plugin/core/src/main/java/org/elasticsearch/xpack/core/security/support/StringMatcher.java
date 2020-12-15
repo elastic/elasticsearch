@@ -13,7 +13,9 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -31,7 +33,7 @@ import java.util.stream.Collectors;
  */
 public class StringMatcher implements Predicate<String> {
 
-    private static final StringMatcher MATCH_NOTHING = new StringMatcher("(empty))", s -> false);
+    private static final StringMatcher MATCH_NOTHING = new StringMatcher("(empty)", s -> false);
 
     private final String description;
     private final Predicate<String> predicate;
@@ -64,11 +66,13 @@ public class StringMatcher implements Predicate<String> {
         return predicate.test(s);
     }
 
+    @Override
     public StringMatcher or(Predicate<? super String> other) {
         Objects.requireNonNull(other);
         return new StringMatcher(description + "|" + other, this.predicate.or(other));
     }
 
+    @Override
     public StringMatcher and(Predicate<? super String> other) {
         return this.and(String.valueOf(other), other);
     }
@@ -81,7 +85,7 @@ public class StringMatcher implements Predicate<String> {
     public static class Builder {
         private final List<String> allText = new ArrayList<>();
         private final Set<String> exactMatch = new HashSet<>();
-        private final List<String> nonExactMatch = new ArrayList<>();
+        private final Set<String> nonExactMatch = new LinkedHashSet<>();
 
         public Builder include(String pattern) {
             allText.add(pattern);
@@ -127,29 +131,34 @@ public class StringMatcher implements Predicate<String> {
             if (strings.size() == 1) {
                 return strings.get(0);
             }
+            final int totalLength = strings.stream().map(String::length).reduce(0, Math::addExact);
+            if (totalLength < 250) {
+                return Strings.collectionToDelimitedString(strings, "|");
+            }
+            final int maxItemLength = Math.max(16, 250 / strings.size());
             return strings.stream().map(s -> {
-                if (s.length() > 16) {
-                    return Strings.cleanTruncate(s, 12) + "...";
+                if (s.length() > maxItemLength) {
+                    return Strings.cleanTruncate(s, maxItemLength - 3) + "...";
                 } else {
                     return s;
                 }
             }).collect(Collectors.joining("|"));
         }
 
-        private static Predicate<String> buildExactMatchPredicate(Set<String> indices) {
-            if (indices.size() == 1) {
-                final String singleValue = indices.iterator().next();
+        private static Predicate<String> buildExactMatchPredicate(Set<String> stringValues) {
+            if (stringValues.size() == 1) {
+                final String singleValue = stringValues.iterator().next();
                 return singleValue::equals;
             }
-            return indices::contains;
+            return stringValues::contains;
         }
 
-        private static Predicate<String> buildAutomataPredicate(List<String> indices) {
+        private static Predicate<String> buildAutomataPredicate(Collection<String> patterns) {
             try {
-                return Automatons.predicate(indices);
+                return Automatons.predicate(patterns);
             } catch (TooComplexToDeterminizeException e) {
-                LOGGER.debug("Pattern automaton [{}] is too complex", indices);
-                String description = Strings.collectionToCommaDelimitedString(indices);
+                LOGGER.debug("Pattern automaton [{}] is too complex", patterns);
+                String description = Strings.collectionToCommaDelimitedString(patterns);
                 if (description.length() > 80) {
                     description = Strings.cleanTruncate(description, 80) + "...";
                 }

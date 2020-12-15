@@ -63,17 +63,20 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
             diskThresholdSettings,
             allocationDeciders
         );
-        long unassignedBeforeForecast = allocationState.storagePreventsAllocation();
-        assert unassignedBeforeForecast >= 0;
+        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation();
+        assert unassignedBytesBeforeForecast >= 0;
 
         TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
-        allocationState = allocationState.forecast(forecastWindow.millis(), System.currentTimeMillis());
+        ReactiveStorageDeciderService.AllocationState allocationStateAfterForecast = allocationState.forecast(
+            forecastWindow.millis(),
+            System.currentTimeMillis()
+        );
 
-        long unassignedBytes = allocationState.storagePreventsAllocation();
-        long assignedBytes = allocationState.storagePreventsRemainOrMove();
-        long maxShardSize = allocationState.maxShardSize();
+        long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation();
+        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove();
+        long maxShardSize = allocationStateAfterForecast.maxShardSize();
         assert assignedBytes >= 0;
-        assert unassignedBytes >= unassignedBeforeForecast;
+        assert unassignedBytes >= unassignedBytesBeforeForecast;
         assert maxShardSize >= 0;
         String message = ReactiveStorageDeciderService.message(unassignedBytes, assignedBytes);
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
@@ -82,7 +85,7 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
             .build();
         return new AutoscalingDeciderResult(
             requiredCapacity,
-            new ProactiveReason(message, unassignedBytes, assignedBytes, unassignedBytes - unassignedBeforeForecast, forecastWindow)
+            new ProactiveReason(message, unassignedBytes, assignedBytes, unassignedBytes - unassignedBytesBeforeForecast, forecastWindow)
         );
     }
 

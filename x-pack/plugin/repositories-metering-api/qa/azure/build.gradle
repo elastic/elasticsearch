@@ -86,7 +86,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
       '127.0.0.1:' + ephemeralPort
     }
     setting 'azure.client.repositories_metering.endpoint_suffix',
-      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-repositories-metering')}" }, IGNORE_VALUE
+      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-repositories-metering')}/azure_integration_test_account" },
+      IGNORE_VALUE
 
   } else {
     println "Using an external service to test " + project.name

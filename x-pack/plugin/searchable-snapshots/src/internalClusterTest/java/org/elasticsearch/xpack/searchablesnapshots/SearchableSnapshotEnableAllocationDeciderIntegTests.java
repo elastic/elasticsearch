@@ -52,29 +52,26 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
         int numPrimaries = getNumShards(restoredIndexName).numPrimaries;
         setEnableAllocation(EnableAllocationDecider.Allocation.PRIMARIES);
         if (randomBoolean()) {
-            setSearchableSnapshotPrimariesAllocation(EnableAllocationDecider.Allocation.NONE);
+            setAllocateOnRollingRestart(false);
         }
         Set<String> indexNodes = internalCluster().nodesInclude(restoredIndexName);
         for (String indexNode : indexNodes) {
             internalCluster().restartNode(indexNode);
         }
 
-        assertBusy(() -> {
-            ClusterHealthResponse response =
-                client().admin().cluster().health(Requests.clusterHealthRequest(restoredIndexName)).actionGet();
-            assertThat(response.getUnassignedShards(), Matchers.equalTo(numPrimaries));
-        });
+        ClusterHealthResponse response = client().admin().cluster().health(Requests.clusterHealthRequest(restoredIndexName)).actionGet();
+        assertThat(response.getUnassignedShards(), Matchers.equalTo(numPrimaries));
 
-        setSearchableSnapshotPrimariesAllocation(EnableAllocationDecider.Allocation.PRIMARIES);
+        setAllocateOnRollingRestart(true);
         ensureGreen(restoredIndexName);
     }
 
-    public void testAllocationEnabled() throws Exception {
+    public void testAllocateOnRollingRestartEnabled() throws Exception {
         final String restoredIndexName = setupMountedIndex();
         if (randomBoolean()) {
             setEnableAllocation(EnableAllocationDecider.Allocation.PRIMARIES);
         }
-        setSearchableSnapshotPrimariesAllocation(EnableAllocationDecider.Allocation.PRIMARIES);
+        setAllocateOnRollingRestart(true);
         Set<String> indexNodes = internalCluster().nodesInclude(restoredIndexName);
         for (String indexNode : indexNodes) {
             internalCluster().restartNode(indexNode);
@@ -96,24 +93,23 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
     }
 
     public void setEnableAllocation(EnableAllocationDecider.Allocation allocation) {
-        setAllocation(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, allocation);
+        setSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, allocation.name());
     }
 
-    public void setSearchableSnapshotPrimariesAllocation(EnableAllocationDecider.Allocation allocation) {
-        setAllocation(SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATION_ENABLE_PRIMARIES_SETTING, allocation);
+    public void setAllocateOnRollingRestart(boolean allocateOnRollingRestart) {
+        setSetting(
+            SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
+            Boolean.toString(allocateOnRollingRestart)
+        );
     }
 
-    private void setAllocation(Setting<EnableAllocationDecider.Allocation> setting, EnableAllocationDecider.Allocation allocation) {
-        logger.info("--> setting allocation to [{}]", allocation);
+    private void setSetting(Setting<?> setting, String value) {
+        logger.info("--> setting [{}={}]", setting.getKey(), value);
         assertAcked(
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(setting.getKey(), allocation.name())
-                        .build()
-                )
+                .setPersistentSettings(Settings.builder().put(setting.getKey(), value).build())
                 .get()
         );
     }

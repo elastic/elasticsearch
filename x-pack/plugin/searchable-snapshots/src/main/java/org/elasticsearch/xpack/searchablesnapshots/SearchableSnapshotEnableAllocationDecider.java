@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -23,47 +22,36 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
     static final String NAME = "searchable_snapshots_enable";
 
     /**
-     * This setting indicates the behavior of searchable snapshots when cluster.routing.allocation.enable=primaries
-     *
+     * This setting describes whether searchable snapshots are allocated during rolling restarts. For now, whether a rolling restart is
+     * ongoing is determined by cluster.routing.allocation.enable=primaries. Notice that other values for that setting except "all" mean
+     * that no searchable snapshots are allocated anyway.
      */
-    public static final Setting<EnableAllocationDecider.Allocation> SEARCHABLE_SNAPSHOTS_ALLOCATION_ENABLE_PRIMARIES_SETTING =
-        new Setting<>("xpack.searchable.snapshot.allocation.enable.primaries", EnableAllocationDecider.Allocation.NONE.toString(),
-            SearchableSnapshotEnableAllocationDecider::parseSetting,
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
-
-    private static EnableAllocationDecider.Allocation parseSetting(String value) {
-        EnableAllocationDecider.Allocation allocation = EnableAllocationDecider.Allocation.parse(value);
-        if (allocation == EnableAllocationDecider.Allocation.ALL || allocation == EnableAllocationDecider.Allocation.NEW_PRIMARIES) {
-            throw new IllegalArgumentException("[" + SEARCHABLE_SNAPSHOTS_ALLOCATION_ENABLE_PRIMARIES_SETTING.getKey() + "=" + allocation
-                 + "] is not valid");
-        }
-        return allocation;
-    }
+    public static final Setting<Boolean> SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART = Setting.boolSetting(
+        "xpack.searchable.snapshot.allocate_on_rolling_restart",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private volatile EnableAllocationDecider.Allocation enableAllocation;
-    private volatile EnableAllocationDecider.Allocation primariesAllocation;
+    private volatile boolean allocateOnRollingRestart;
 
     public SearchableSnapshotEnableAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.enableAllocation = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(settings);
-        this.primariesAllocation = SEARCHABLE_SNAPSHOTS_ALLOCATION_ENABLE_PRIMARIES_SETTING.get(settings);
-        assertSettingValue();
-        clusterSettings.addSettingsUpdateConsumer(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
-            this::setEnableAllocation);
-        clusterSettings.addSettingsUpdateConsumer(SEARCHABLE_SNAPSHOTS_ALLOCATION_ENABLE_PRIMARIES_SETTING,
-            this::setPrimariesAllocation);
-    }
-
-    public void assertSettingValue() {
-        assert this.primariesAllocation != EnableAllocationDecider.Allocation.ALL && this.primariesAllocation != EnableAllocationDecider.Allocation.NEW_PRIMARIES;
-    }
-
-    private void setPrimariesAllocation(EnableAllocationDecider.Allocation allocation) {
-        this.primariesAllocation = allocation;
-        assertSettingValue();
+        this.allocateOnRollingRestart = SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
+            this::setEnableAllocation
+        );
+        clusterSettings.addSettingsUpdateConsumer(SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART, this::setAllocateOnRollingRestart);
     }
 
     private void setEnableAllocation(EnableAllocationDecider.Allocation allocation) {
         this.enableAllocation = allocation;
+    }
+
+    private void setAllocateOnRollingRestart(boolean allocateOnRollingRestart) {
+        this.allocateOnRollingRestart = allocateOnRollingRestart;
     }
 
     @Override
@@ -76,22 +64,32 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexMetadata.getSettings())) {
             EnableAllocationDecider.Allocation enableAllocation = this.enableAllocation;
-            EnableAllocationDecider.Allocation primariesAllocation = this.primariesAllocation;
+            boolean allocateOnRollingRestart = this.allocateOnRollingRestart;
             if (enableAllocation == EnableAllocationDecider.Allocation.PRIMARIES) {
-                if (primariesAllocation == EnableAllocationDecider.Allocation.NONE) {
-                    return allocation.decision(Decision.NO, NAME,
-                        "no allocations of searchable snapshots allowed due to [%s=%s] and [%s=%s]",
+                if (allocateOnRollingRestart == false) {
+                    return allocation.decision(
+                        Decision.NO,
+                        NAME,
+                        "no allocations of searchable snapshots allowed during rolling restart due to [%s=%s] and [%s=false]",
                         EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
                         enableAllocation,
-                        SEARCHABLE_SNAPSHOTS_ALLOCATION_ENABLE_PRIMARIES_SETTING.getKey(),
-                        primariesAllocation
+                        SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART.getKey()
                     );
                 } else {
-                    return allocation.decision(Decision.YES, NAME, "decider relies on generic enable decider");
+                    return allocation.decision(
+                        Decision.YES,
+                        NAME,
+                        "allocate on rolling restart enabled [%s=true]",
+                        SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART.getKey()
+                    );
                 }
             } else {
-                return allocation.decision(Decision.YES, NAME, "decider only active when [%s=primaries]",
-                    EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey());
+                return allocation.decision(
+                    Decision.YES,
+                    NAME,
+                    "decider only active during rolling restarts [%s=primaries]",
+                    EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
+                );
             }
         } else {
             return allocation.decision(Decision.YES, NAME, "decider only applicable for indices backed by searchable snapshots");

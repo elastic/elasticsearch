@@ -58,6 +58,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
     public static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
     public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
+    public static final String HYPERPARAMETER_IMPORTANCE = "hyperparameter_importance";
     private static final Set<String> RESERVED_METADATA_FIELDS = new HashSet<>(Arrays.asList(
         TOTAL_FEATURE_IMPORTANCE,
         FEATURE_IMPORTANCE_BASELINE));
@@ -500,7 +501,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (this.metadata == null) {
                 this.metadata = new HashMap<>();
             }
-            this.metadata.put(TOTAL_FEATURE_IMPORTANCE,
+            this.metadata.put(HYPERPARAMETER_IMPORTANCE,
             hyperparameterImportance.stream().map(HyperparameterImportance::asMap).collect(Collectors.toList()));
             return this;
         }

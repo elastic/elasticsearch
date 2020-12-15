@@ -14,7 +14,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -721,7 +720,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(1, indices.size());
         assertEquals(getOldClusterVersion().onOrAfter(Version.V_7_11_0)
             ? DataStream.getDefaultBackingIndexName("ds", 1)
-            : DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1),
+            : DataStream.getLegacyDefaultBackingIndexName("ds", 1),
             indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
     }

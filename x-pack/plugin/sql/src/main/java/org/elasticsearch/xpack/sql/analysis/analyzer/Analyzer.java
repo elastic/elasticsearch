@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -119,6 +120,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 );
         Batch finish = new Batch("Finish Analysis",
                 new PruneSubqueryAliases(),
+                new AddMissingEqualsToBoolField(),
                 CleanAliases.INSTANCE
                 );
         return Arrays.asList(substitution, resolution, finish);

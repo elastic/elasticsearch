@@ -284,6 +284,16 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Get the number of bytes cached for the given shard id in the given snapshot id.
+     * @param shardId    shard id
+     * @param snapshotId snapshot id
+     * @return number of bytes cached
+     */
+    public long getCachedSize(ShardId shardId, SnapshotId snapshotId) {
+        return persistentCache.getCacheSize(shardId, snapshotId);
+    }
+
+    /**
      * Computes a new {@link CacheFile} instance using the specified cache file information (file length, file name, parent directory and
      * already available cache ranges) and associates it with the specified {@link CacheKey} in the cache. If the key is already
      * associated with a {@link CacheFile}, the previous instance is replaced by a new one.
@@ -467,7 +477,8 @@ public class CacheService extends AbstractLifecycleComponent {
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
      * cache entry. Note that cache files might be evicted during the synchronization.
      */
-    protected void synchronizeCache() {
+    // public for tests only
+    public void synchronizeCache() {
         cacheSyncLock.lock();
         try {
             long count = 0L;

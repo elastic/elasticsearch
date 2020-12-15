@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -25,6 +26,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InvalidateApiKeyRequestTests extends ESTestCase {
 
@@ -36,7 +38,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 randomAlphaOfLength(12),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 false,
-                new String[] { randomAlphaOfLength(12) }));
+                new String[]{randomAlphaOfLength(12)}));
         assertThat(e.getMessage(), containsString("Must use either [id] or [ids], not both at the same time"));
     }
 
@@ -47,7 +49,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             null,
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             false,
-            new String[] {});
+            new String[]{});
         ActionRequestValidationException validationException = invalidateApiKeyRequest.validate();
         assertNotNull(validationException);
         assertThat(validationException.getMessage(), containsString("Field [ids] cannot be an empty array"));
@@ -58,12 +60,27 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             null,
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             false,
-            new String[] {randomAlphaOfLength(12), null});
+            new String[]{randomAlphaOfLength(12), null});
         validationException = invalidateApiKeyRequest.validate();
         assertNotNull(validationException);
 
         assertThat(validationException.getMessage(), containsString("Field [ids] must not contain blank id, "
             + "but got blank id at index position: [1]"));
+    }
+
+    public void testEmptyStringsAreCoercedToNull() {
+        Supplier<String> randomBlankString = () -> " ".repeat(randomIntBetween(0, 5));
+        final InvalidateApiKeyRequest request = new InvalidateApiKeyRequest(
+            randomBlankString.get(), // realm name
+            randomBlankString.get(), // user name
+            randomBlankString.get(), // key id
+            randomBlankString.get(), // key name
+            randomBoolean() // owned by user
+        );
+        assertThat(request.getRealmName(), nullValue());
+        assertThat(request.getUserName(), nullValue());
+        assertThat(request.getIds(), nullValue());
+        assertThat(request.getName(), nullValue());
     }
 
     public void testRequestValidation() {
@@ -112,7 +129,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(user);
                 if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                     if (Strings.hasText(apiKeyId)) {
-                        out.writeOptionalStringArray(new String[] { apiKeyId });
+                        out.writeOptionalStringArray(new String[]{apiKeyId});
                     } else {
                         out.writeOptionalStringArray(null);
                     }
@@ -148,7 +165,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
 
         for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
             try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
+                 OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
                 final Version streamVersion = randomVersionBetween(random(), Version.V_7_4_0, getPreviousVersion(Version.V_7_10_0));
                 Dummy d = new Dummy(inputs[caseNo]);
                 osso.setVersion(streamVersion);
@@ -218,7 +235,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             null,
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             false,
-            new String[] { randomAlphaOfLength(12), randomAlphaOfLength(12) });
+            new String[]{randomAlphaOfLength(12), randomAlphaOfLength(12)});
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, getPreviousVersion(Version.V_7_10_0)));

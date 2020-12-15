@@ -7,21 +7,13 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin {
 
     public LocalStateAutoscaling(final Settings settings) {
         super(settings, null);
-        plugins.add(new Autoscaling() {
-
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return LocalStateAutoscaling.this.getLicenseState();
-            }
-
-        });
+        plugins.add(new Autoscaling(new AutoscalingLicenseChecker(() -> true)));
     }
 
 }

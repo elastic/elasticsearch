@@ -37,6 +37,7 @@ PUT my-index
   }
 }
 ----
+// TEST[skip:awaiting fix]
 
 [[aggregate-metric-double-params]]
 ==== Parameters for `aggregate_metric_double` fields
@@ -111,6 +112,7 @@ PUT stats-index
   }
 }
 --------------------------------------------------
+// TEST[skip:awaiting fix]
 
 The following <<docs-index_,index>> API request adds documents with
 pre-aggregated data in the `agg_metric` field.
@@ -137,6 +139,7 @@ PUT stats-index/_doc/2
     }
 }
 --------------------------------------------------
+// TEST[skip:awaiting fix]
 
 You can run `min`, `max`, `sum`, `value_count`, and `avg` aggregations on a
 `agg_metric` field.
@@ -154,6 +157,7 @@ POST stats-index/_search?size=0
     }
 }
 --------------------------------------------------
+// TEST[skip:awaiting fix]
 
 The aggregation results are based on related metric sub-field values.
 
@@ -180,6 +184,7 @@ The aggregation results are based on related metric sub-field values.
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[skip:awaiting fix]
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
@@ -198,6 +203,7 @@ GET stats-index/_search
   }
 }
 --------------------------------------------------
+// TEST[skip:awaiting fix]
 
 The search returns the following hit. The value of the `default_metric` field,
 `max`, matches the query value.
@@ -224,4 +230,5 @@ The search returns the following hit. The value of the `default_metric` field,
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[skip:awaiting fix]
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]

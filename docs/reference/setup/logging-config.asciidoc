@@ -140,22 +140,23 @@ documentation].
 === Configuring logging levels
 
 Each Java package in the {es-repo}[{es} source code] has a related logger. For
-example, the `org.elasticsearch.transport` package has
-`logger.org.elasticsearch.transport` for logs related to communication between
-nodes.
+example, the `org.elasticsearch.discovery` package has
+`logger.org.elasticsearch.discovery` for logs related to the
+<<modules-discovery-hosts-providers,discovery>> process.
 
 To get more or less verbose logs, use the <<cluster-update-settings,cluster
 update settings API>> to change the related logger's log level. Each logger
 accepts Log4j 2's built-in log levels, from least to most verbose: `OFF`,
-`FATAL`, `ERROR`, `WARN`, `INFO`, `TRACE`, and `DEBUG`. The default log level is
-`INFO`.
+`FATAL`, `ERROR`, `WARN`, `INFO`, `DEBUG`, and `TRACE`. The default log level is
+`INFO`. Messages logged at higher verbosity levels (`DEBUG` and `TRACE`) are
+only intended for expert use.
 
 [source,console]
 ----
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.org.elasticsearch.transport": "TRACE"
+    "logger.org.elasticsearch.discovery": "DEBUG"
   }
 }
 ----
@@ -167,7 +168,7 @@ Other ways to change log levels include:
 --
 [source,yaml]
 ----
-logger.org.elasticsearch.transport: TRACE
+logger.org.elasticsearch.discovery: DEBUG
 ----
 
 This is most appropriate when debugging a problem on a single node.
@@ -178,7 +179,7 @@ This is most appropriate when debugging a problem on a single node.
 --
 [source,properties]
 ----
-logger.transport.level = trace
+logger.org.elasticsearch.discovery.level = debug
 ----
 
 This is most appropriate when you already need to change your Log4j 2

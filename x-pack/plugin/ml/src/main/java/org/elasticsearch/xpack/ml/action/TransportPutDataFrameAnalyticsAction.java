@@ -29,6 +29,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
@@ -171,7 +172,7 @@ public class TransportPutDataFrameAnalyticsAction
         if (response.isCompleteMatch()) {
             updateDocMappingAndPutConfig(
                 memoryCappedConfig,
-                threadPool.getThreadContext().getHeaders(),
+                ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()),
                 ActionListener.wrap(
                     unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                     listener::onFailure

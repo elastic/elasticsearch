@@ -33,6 +33,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -152,7 +153,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                      ClusterState clusterState,
                                      ActionListener<PutDatafeedAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
+            putDatafeed(request, ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()), clusterState, listener);
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();

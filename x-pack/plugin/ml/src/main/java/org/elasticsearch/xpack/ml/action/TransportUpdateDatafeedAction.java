@@ -21,6 +21,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -83,7 +84,7 @@ public class TransportUpdateDatafeedAction extends
 
         Runnable doUpdate = () ->
             useSecondaryAuthIfAvailable(securityContext, () -> {
-                final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+                final Map<String, String> headers = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
                 datafeedConfigProvider.updateDatefeedConfig(
                     request.getUpdate().getId(),
                     request.getUpdate(),

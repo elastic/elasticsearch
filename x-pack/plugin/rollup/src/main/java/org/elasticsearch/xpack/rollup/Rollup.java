@@ -93,10 +93,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
-    // list of headers that will be stored when a job is created
-    public static final Set<String> HEADER_FILTERS =
-            new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
-
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
 

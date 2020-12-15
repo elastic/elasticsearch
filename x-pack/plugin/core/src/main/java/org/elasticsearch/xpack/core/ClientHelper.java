@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 
 import java.util.Map;
 import java.util.Objects;
@@ -37,7 +38,8 @@ public final class ClientHelper {
     public static final Set<String> SECURITY_HEADER_FILTERS =
         Sets.newHashSet(
             AuthenticationServiceField.RUN_AS_USER_HEADER,
-            AuthenticationField.AUTHENTICATION_KEY);
+            AuthenticationField.AUTHENTICATION_KEY,
+            SecondaryAuthentication.THREAD_CTX_KEY);
 
     /**
      * Leaves only headers that are related to security and filters out the rest.
@@ -46,9 +48,14 @@ public final class ClientHelper {
      * @return A portion of entries that are related to security
      */
     public static Map<String, String> filterSecurityHeaders(Map<String, String> headers) {
-        return Objects.requireNonNull(headers).entrySet().stream()
-            .filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (SECURITY_HEADER_FILTERS.containsAll(headers.keySet())) {
+            // fast-track to skip the artifice below
+            return headers;
+        } else {
+            return Objects.requireNonNull(headers).entrySet().stream()
+                    .filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
     }
 
     /**

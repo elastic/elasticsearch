@@ -85,9 +85,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
             watch.setState(request.isActive(), now);
 
             // ensure we only filter for the allowed headers
-            Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
             watch.status().setHeaders(filteredHeaders);
 
             try (XContentBuilder builder = jsonBuilder()) {

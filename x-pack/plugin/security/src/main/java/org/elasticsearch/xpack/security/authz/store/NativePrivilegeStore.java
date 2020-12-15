@@ -468,7 +468,6 @@ public class NativePrivilegeStore {
                 applicationNamesCache.invalidateAll();
                 updatedApplicationNames.forEach(descriptorsCache::invalidate);
             });
-
         }
 
         public void invalidateAll() {

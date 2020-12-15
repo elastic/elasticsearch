@@ -106,12 +106,12 @@ public class TransportRollupAction
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, RollupAction.Request request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RollupAction.Request request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 
     @Override
@@ -299,7 +299,7 @@ public class TransportRollupAction
                 if (originalIndex.getParentDataStream() != null) {
                     DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
                     List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices());
-                    backingIndices.add(backingIndices.size() - 1, rollupIndex);
+                    backingIndices.add(rollupIndex);
                     dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
                         backingIndices, originalDataStream.getGeneration(), null);
                 }

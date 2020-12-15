@@ -26,9 +26,7 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -98,14 +96,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testNonBooleanFilter() {
-        Map<String, List<String>> testData = new HashMap<>();
-        testData.put("INTEGER", List.of("int", "int + 1", "ABS(int)", "ASCII(keyword)"));
-        testData.put("KEYWORD", List.of("keyword", "RTRIM(keyword)", "IIF(true, 'true', 'false')"));
-        testData.put("DATETIME", List.of("date", "date + INTERVAL 1 DAY", "NOW()"));
-        for (String typeName : testData.keySet()) {
-            for (String exp : testData.get(typeName)) {
-                assertEquals("1:26: Condition expression needs to be boolean, found [" + typeName + "]",
-                    error("SELECT * FROM test WHERE " + exp));
+        String[][] testData = new String[][]{
+            {"INTEGER", "int", "int + 1", "ABS(int)", "ASCII(keyword)"},
+            {"KEYWORD", "keyword", "RTRIM(keyword)", "IIF(true, 'true', 'false')"},
+            {"DATETIME", "date", "date + INTERVAL 1 DAY", "NOW()"}};
+        for (String[] testDatum : testData) {
+            for (int j = 1; j < testDatum.length; j++) {
+                assertEquals("1:26: Condition expression needs to be boolean, found [" + testDatum[0] + "]",
+                    error("SELECT * FROM test WHERE " + testDatum[j]));
             }
         }
     }

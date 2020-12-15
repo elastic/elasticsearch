@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -18,10 +20,20 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                // ensure the cache is definitely used
+                .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(1L, ByteSizeUnit.GB))
+                .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -32,7 +44,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         internalCluster().startMasterOnlyNode();
         final String firstDataNode = internalCluster().startDataOnlyNode();
         final String index = "test-idx";
-        createIndexWithContent(index, indexSettingsNoReplicas(1).build());
+        createIndexWithContent(index, indexSettingsNoReplicas(1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         final String snapshotName = "test-snapshot";
@@ -42,7 +54,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         ensureGreen(restoredIndex);
         internalCluster().startDataOnlyNodes(randomIntBetween(1, 4));
 
-        client().admin()
+        assertAcked(client().admin()
             .cluster()
             .prepareUpdateSettings()
             .setTransientSettings(
@@ -52,14 +64,14 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
                         EnableAllocationDecider.Allocation.NONE.name()
                     )
             )
-            .get();
+            .get());
 
         final CacheService cacheService = internalCluster().getInstance(CacheService.class, firstDataNode);
         cacheService.synchronizeCache();
         internalCluster().restartNode(firstDataNode);
+        ensureStableCluster(internalCluster().numDataAndMasterNodes());
 
-        final CacheService cacheServiceAfterRestart = internalCluster().getInstance(CacheService.class, firstDataNode);
-        client().admin()
+        assertAcked(client().admin()
             .cluster()
             .prepareUpdateSettings()
             .setTransientSettings(
@@ -70,7 +82,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
                     )
                     .build()
             )
-            .get();
+            .get());
         ensureGreen(restoredIndex);
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();

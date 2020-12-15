@@ -29,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,11 +40,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
@@ -248,9 +245,14 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
         );
         final DiscoveryNodes nodes = allocation.nodes();
-        final AsyncCacheStatusFetch asyncFetch = asyncFetchStore.computeIfAbsent(shardId, sid -> {
+        final AsyncCacheStatusFetch asyncFetch = asyncFetchStore.compute(shardId, (sid, existing) -> {
+            // TODO: make this smarter so that it only adds the fetch for new nodes
+            if (existing != null && Arrays.stream(nodes.getDataNodes().values().toArray(DiscoveryNode.class)).allMatch(
+                    Arrays.asList(existing.dataNodes)::contains)) {
+                return existing;
+            }
             final DiscoveryNode[] dataNodes = nodes.getDataNodes().values().toArray(DiscoveryNode.class);
-            final AsyncCacheStatusFetch fetch = new AsyncCacheStatusFetch(dataNodes.length);
+            final AsyncCacheStatusFetch fetch = new AsyncCacheStatusFetch(dataNodes);
             client.execute(
                 TransportSearchableSnapshotCacheStoresAction.TYPE,
                 new TransportSearchableSnapshotCacheStoresAction.Request(snapshotId, indexId, shardId, dataNodes),
@@ -391,12 +393,12 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private static final class AsyncCacheStatusFetch {
 
-        private final int fetches;
+        private final Set<DiscoveryNode> dataNodes;
 
         private volatile Map<DiscoveryNode, NodeCacheFilesMetadata> data;
 
-        AsyncCacheStatusFetch(int fetches) {
-            this.fetches = fetches;
+        AsyncCacheStatusFetch(DiscoveryNode[] dataNodes) {
+            this.dataNodes = Set.of(dataNodes);
         }
 
         @Nullable
@@ -405,7 +407,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
 
         int numberOfInFlightFetches() {
-            return data == null ? fetches : 0;
+            return data == null ? dataNodes.size() : 0;
         }
     }
 

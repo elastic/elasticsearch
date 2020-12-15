@@ -598,7 +598,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (indexExists) {
                 logger.trace("pruning monitoring watch [{}]", uniqueWatchId);
                 asyncActions.add(() -> client.execute(DeleteWatchAction.INSTANCE, new DeleteWatchRequest(uniqueWatchId),
-                    new ErrorCapturingResponseListener<>("watch", uniqueWatchId, pendingResponses, setupListener, errors)));
+                    new ErrorCapturingResponseListener<>("watch", uniqueWatchId, name(), pendingResponses, setupListener, errors)));
             }
         }
     }
@@ -770,11 +770,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private class ErrorCapturingResponseListener<Response> extends ResponseActionListener<Response> {
         private final List<Exception> errors;
 
-        ErrorCapturingResponseListener(String type, String name, AtomicInteger countDown,
+        ErrorCapturingResponseListener(String type, String name, String localExporterName, AtomicInteger countDown,
                                               Consumer<ExporterResourceStatus> setupListener, List<Exception> errors) {
+            /*
+             * We need to take localExporterName to work around an eclipse bug:
+             * https://bugs.eclipse.org/bugs/show_bug.cgi?id=569557
+             */
             super(type, name, countDown, () -> {
                 // Called on completion of all removal tasks
-                ExporterResourceStatus status = ExporterResourceStatus.determineReadiness(LocalExporter.this.name(), TYPE, errors);
+                ExporterResourceStatus status = ExporterResourceStatus.determineReadiness(localExporterName, TYPE, errors);
                 setupListener.accept(status);
             });
             this.errors = errors;

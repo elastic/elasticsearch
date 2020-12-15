@@ -422,6 +422,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66251")
     public void testRolloverAliasInFollowClusterForbidden() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             return;

@@ -104,7 +104,15 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
             if (hasUsefulTimestampField(indexMetadata) && fieldTypesByIndex.containsKey(index) == false) {
                 logger.trace("computing timestamp mapping for {}", index);
-                final PlainActionFuture<DateFieldMapper.DateFieldType> future = new PlainActionFuture<>();
+                final PlainActionFuture<DateFieldMapper.DateFieldType> future = new PlainActionFuture<>() {
+                    @Override
+                    protected boolean blockingAllowed() {
+                        // We only get the future result once it's completed
+                        // so technically we don't block the calling thread.
+                        // See #getTimestampFieldType()
+                        return true;
+                    }
+                };
                 fieldTypesByIndex.put(index, future);
 
                 final IndexService indexService = indicesService.indexService(index);

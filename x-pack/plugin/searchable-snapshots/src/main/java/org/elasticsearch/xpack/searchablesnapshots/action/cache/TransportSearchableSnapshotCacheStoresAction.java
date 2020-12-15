@@ -19,7 +19,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -88,29 +87,23 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     @Override
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
         assert cacheService != null;
-        return new NodeCacheFilesMetadata(
-            clusterService.localNode(),
-            cacheService.getCachedSize(request.shardId, request.indexId, request.snapshotId)
-        );
+        return new NodeCacheFilesMetadata(clusterService.localNode(), cacheService.getCachedSize(request.shardId, request.snapshotId));
     }
 
     public static final class Request extends BaseNodesRequest<Request> {
 
         private final SnapshotId snapshotId;
-        private final IndexId indexId;
         private final ShardId shardId;
 
-        public Request(SnapshotId snapshotId, IndexId indexId, ShardId shardId, DiscoveryNode[] nodes) {
+        public Request(SnapshotId snapshotId, ShardId shardId, DiscoveryNode[] nodes) {
             super(nodes);
             this.snapshotId = snapshotId;
-            this.indexId = indexId;
             this.shardId = shardId;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             snapshotId = new SnapshotId(in);
-            indexId = new IndexId(in);
             shardId = new ShardId(in);
         }
 
@@ -118,7 +111,6 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             snapshotId.writeTo(out);
-            indexId.writeTo(out);
             shardId.writeTo(out);
         }
     }
@@ -126,19 +118,16 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     public static final class NodeRequest extends TransportRequest {
 
         private final SnapshotId snapshotId;
-        private final IndexId indexId;
         private final ShardId shardId;
 
         public NodeRequest(Request request) {
             this.snapshotId = request.snapshotId;
-            this.indexId = request.indexId;
             this.shardId = request.shardId;
         }
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             this.snapshotId = new SnapshotId(in);
-            this.indexId = new IndexId(in);
             this.shardId = new ShardId(in);
         }
 
@@ -146,7 +135,6 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             snapshotId.writeTo(out);
-            indexId.writeTo(out);
             shardId.writeTo(out);
         }
     }

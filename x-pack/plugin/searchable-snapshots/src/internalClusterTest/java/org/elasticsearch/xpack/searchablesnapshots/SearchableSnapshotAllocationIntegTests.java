@@ -29,10 +29,10 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                // ensure the cache is definitely used
-                .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(1L, ByteSizeUnit.GB))
-                .build();
+            .put(super.nodeSettings(nodeOrdinal))
+            // ensure the cache is definitely used
+            .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(1L, ByteSizeUnit.GB))
+            .build();
     }
 
     @Override
@@ -54,35 +54,39 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         ensureGreen(restoredIndex);
         internalCluster().startDataOnlyNodes(randomIntBetween(1, 4));
 
-        assertAcked(client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .put(
-                        EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
-                        EnableAllocationDecider.Allocation.NONE.name()
-                    )
-            )
-            .get());
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(
+                            EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
+                            EnableAllocationDecider.Allocation.NONE.name()
+                        )
+                )
+                .get()
+        );
 
         final CacheService cacheService = internalCluster().getInstance(CacheService.class, firstDataNode);
         cacheService.synchronizeCache();
         internalCluster().restartNode(firstDataNode);
         ensureStableCluster(internalCluster().numDataAndMasterNodes());
 
-        assertAcked(client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .put(
-                        EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
-                        EnableAllocationDecider.Allocation.ALL.name()
-                    )
-                    .build()
-            )
-            .get());
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(
+                            EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
+                            EnableAllocationDecider.Allocation.ALL.name()
+                        )
+                        .build()
+                )
+                .get()
+        );
         ensureGreen(restoredIndex);
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();

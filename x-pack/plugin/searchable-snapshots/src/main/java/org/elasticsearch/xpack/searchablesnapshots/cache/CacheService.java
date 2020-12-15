@@ -286,13 +286,11 @@ public class CacheService extends AbstractLifecycleComponent {
     /**
      * Get the number of bytes cached for the given shard id in the given snapshot id.
      * @param shardId    shard id
-     * @param indexId    index id TODO: we should not need this, it's redundant in CacheKey as well since index name + snapshot id form a
-     *                                  unique tuple
      * @param snapshotId snapshot id
      * @return number of bytes cached
      */
-    public long getCachedSize(ShardId shardId, IndexId indexId, SnapshotId snapshotId) {
-        return persistentCache.getCacheSize(shardId, indexId, snapshotId);
+    public long getCachedSize(ShardId shardId, SnapshotId snapshotId) {
+        return persistentCache.getCacheSize(shardId, snapshotId);
     }
 
     /**

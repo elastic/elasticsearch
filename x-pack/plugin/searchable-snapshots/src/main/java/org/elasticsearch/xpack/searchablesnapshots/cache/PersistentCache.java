@@ -23,6 +23,14 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -63,7 +71,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntPredicate;
 
 import static java.util.Collections.synchronizedMap;
 import static java.util.Collections.unmodifiableList;
@@ -128,42 +136,42 @@ public class PersistentCache implements Closeable {
         getWriter(cacheFile).deleteCacheFile(cacheFile);
     }
 
-    public long getCacheSize(ShardId shardId, IndexId indexId, SnapshotId snapshotId) {
-        // TODO: make this actually do the correct work
-        final AtomicLong aggregateSize = new AtomicLong(0L);
-        for (CacheIndexWriter writer : writers) {
-            try (Directory directory = FSDirectory.open(resolveCacheIndexFolder(writer.nodePath()))) {
-                try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    for (LeafReaderContext leafReaderContext : indexReader.leaves()) {
-                        final LeafReader leafReader = leafReaderContext.reader();
-                        final Bits liveDocs = leafReader.getLiveDocs();
-                        for (int i = 0; i < leafReader.maxDoc(); i++) {
-                            if (liveDocs == null || liveDocs.get(i)) {
-                                final Document document = leafReader.document(i);
-                                logger.trace("loading document [{}]", document);
-                                documents.put(getValue(document, CACHE_ID_FIELD), document);
+    public long getCacheSize(ShardId shardId, SnapshotId snapshotId) {
+        long aggregateSize = 0L;
+        final CacheIndexWriter writer = writers.get(0);
+        try (Directory directory = FSDirectory.open(resolveCacheIndexFolder(writer.nodePath()))) {
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                final IndexSearcher searcher = new IndexSearcher(indexReader);
+                searcher.setQueryCache(null);
+                BooleanQuery.Builder query = new BooleanQuery.Builder().add(
+                    new TermQuery(new Term(SNAPSHOT_ID_FIELD, snapshotId.getUUID())),
+                    BooleanClause.Occur.MUST
+                )
+                    .add(new TermQuery(new Term(SHARD_INDEX_ID_FIELD, shardId.getIndex().getUUID())), BooleanClause.Occur.MUST)
+                    .add(new TermQuery(new Term(SHARD_ID_FIELD, String.valueOf(shardId.getId()))), BooleanClause.Occur.MUST);
+                final Weight weight = searcher.createWeight(query.build(), ScoreMode.COMPLETE_NO_SCORES, 0.0f);
+                for (LeafReaderContext leafReaderContext : searcher.getIndexReader().leaves()) {
+                    final Scorer scorer = weight.scorer(leafReaderContext);
+                    if (scorer != null) {
+                        final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                        final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
+                        final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                        while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            if (isLiveDoc.test(docIdSetIterator.docID())) {
+                                final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                                var ranges = buildCacheFileRanges(document);
+                                for (Tuple<Long, Long> range : ranges) {
+                                    aggregateSize += range.v2() - range.v1();
+                                }
                             }
                         }
                     }
                 }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        for (Document value : documents.values()) {
-            try {
-                var ranges = buildCacheFileRanges(value);
-                for (Tuple<Long, Long> range : ranges) {
-                    aggregateSize.addAndGet(range.v2() - range.v1());
-                }
-            } catch (IOException e) {
-                assert false : new AssertionError("should not throw no actual IO happens here", e);
-                throw new UncheckedIOException(e);
-            }
-        }
-        return aggregateSize.get();
+        return aggregateSize;
     }
 
     /**

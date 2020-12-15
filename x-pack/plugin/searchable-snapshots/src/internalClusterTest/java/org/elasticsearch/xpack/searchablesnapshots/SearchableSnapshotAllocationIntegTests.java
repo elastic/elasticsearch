@@ -52,7 +52,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         internalCluster().restartNode(firstDataNode);
         ensureStableCluster(internalCluster().numDataAndMasterNodes());
 
-        setAllocation(EnableAllocationDecider.Allocation.ALL);
+        setAllocation(randomBoolean() ? EnableAllocationDecider.Allocation.ALL : EnableAllocationDecider.Allocation.NEW_PRIMARIES);
         ensureGreen(restoredIndex);
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();

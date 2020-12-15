@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -49,7 +50,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.equalTo;
 
 public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
@@ -70,7 +70,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
                         settings(Version.CURRENT).put(
                             ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(),
                             SearchableSnapshotAllocator.ALLOCATOR_NAME
-                        )
+                        ).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)
                     )
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -108,7 +108,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final AtomicInteger reroutesTriggered = new AtomicInteger(0);
 
         final Map<DiscoveryNode, Long> existingCacheSizes = nodes.stream()
-            .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> randomLongBetween(0, shardSize)));
+            .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> randomBoolean() ? 0L : randomLongBetween(0, shardSize)));
 
         final Client client = new NoOpNodeClient(deterministicTaskQueue.getThreadPool()) {
 
@@ -148,13 +148,17 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         allocateAllUnassigned(allocation, allocator);
 
         assertEquals(1, reroutesTriggered.get());
-        assertThat(allocation.routingNodesChanged(), equalTo(true));
-        final long bestCacheSize = existingCacheSizes.values().stream().mapToLong(l -> l).max().orElseThrow();
+        if (existingCacheSizes.values().stream().allMatch(size -> size == 0L)) {
+            assertFalse("If there are no existing caches the allocator should not take a decision", allocation.routingNodesChanged());
+        } else {
+            assertTrue(allocation.routingNodesChanged());
+            final long bestCacheSize = existingCacheSizes.values().stream().mapToLong(l -> l).max().orElseThrow();
 
-        final ShardRouting primaryRouting = allocation.routingNodes().assignedShards(shardId).get(0);
-        final String primaryNodeId = primaryRouting.currentNodeId();
-        final DiscoveryNode primaryNode = discoveryNodes.get(primaryNodeId);
-        assertEquals(bestCacheSize, (long) existingCacheSizes.get(primaryNode));
+            final ShardRouting primaryRouting = allocation.routingNodes().assignedShards(shardId).get(0);
+            final String primaryNodeId = primaryRouting.currentNodeId();
+            final DiscoveryNode primaryNode = discoveryNodes.get(primaryNodeId);
+            assertEquals(bestCacheSize, (long) existingCacheSizes.get(primaryNode));
+        }
     }
 
     private static void allocateAllUnassigned(RoutingAllocation allocation, ExistingShardsAllocator allocator) {

@@ -14,7 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
-import java.util.List;
+import java.util.Collections;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -39,7 +39,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
         final String snapshotName = "test-snapshot";
-        createSnapshot(repoName, snapshotName, List.of(index));
+        createSnapshot(repoName, snapshotName, Collections.singletonList(index));
         assertAcked(client().admin().indices().prepareDelete(index));
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);

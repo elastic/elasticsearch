@@ -271,8 +271,8 @@ The API returns the following response:
 {
   "acknowledged": true,
   "shards_acknowledged": true,
-  "old_index": ".ds-my-data-stream-000001", <1>
-  "new_index": ".ds-my-data-stream-000002", <2>
+  "old_index": ".ds-my-data-stream-2099.03.07-000001", <1>
+  "new_index": ".ds-my-data-stream-2099.03.08-000002", <2>
   "rolled_over": true, <3>
   "dry_run": false, <4>
   "conditions": { <5>
@@ -282,6 +282,8 @@ The API returns the following response:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/.ds-my-data-stream-2099.03.07-000001/$body.old_index/]
+// TESTRESPONSE[s/.ds-my-data-stream-2099.03.08-000002/$body.new_index/]
 
 <1> The previous write index for the data stream.
 <2> The new write index for the data stream.

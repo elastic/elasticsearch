@@ -60,6 +60,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -1191,45 +1192,53 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
 
             try (canMatchSearcher) {
-                // get info about things
-
-                RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
-                IndexMetadata requestIndexMetadata = clusterService.state().getMetadata().index(request.shardId().getIndexName());
-                // cluster state point here. collect metadata about all other indices that are a part of the query
-
-                Map<String, String> indexRollupMeta = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
-                logger.error("indices searching: " + Arrays.toString(request.indices()));
-                logger.error("shard's index: " + requestIndexMetadata.getIndex().getName());
-
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
                     request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
+                final boolean canMatch = queryStillMatchesAfterRewrite(request, context);
+                final MinAndMax<?> minMax;
+                if (canMatch || hasRefreshPending) {
+                    FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
+                    minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+                } else {
+                    minMax = null;
+                }
 
-                Rewriteable.rewrite(request.getRewriteable(), context, false);
-
-                final boolean aliasFilterCanMatch = request.getAliasFilter()
-                    .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-                FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-                MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                final boolean canMatch;
-
+                // get info about things
                 QueryBuilder queryBuilder = request.source() == null ? null : request.source().query();
                 AggregatorFactories.Builder aggregations = request.source() == null ? null : request.source().aggregations();
 
+                RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
+                IndexMetadata requestIndexMetadata = clusterService.state().getMetadata().index(request.shardId().getIndexName());
+
+                // cluster state point here. collect metadata about all other indices that are a part of the query
+                Map<String, String> indexRollupMeta = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
+                logger.error("indices searching: " + Arrays.toString(request.indices()));
+                logger.error("shard's index: " + requestIndexMetadata.getIndex().getName());
                 // check can-match because rollup is part of request
                 if (RollupShardDecider.shouldMatchRollup(context, queryBuilder, aggregations, rollupMetadata, indexRollupMeta,
-                        requestIndexMetadata, request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
+                    requestIndexMetadata, request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
                     return new CanMatchResponse(false, minMax);
                 }
 
-                if (canRewriteToMatchNone(request.source())) {
-                    canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
-                } else {
-                    // null query means match_all
-                    canMatch = aliasFilterCanMatch;
-                }
+
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
         }
+    }
+
+    public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
+        Rewriteable.rewrite(request.getRewriteable(), context, false);
+        final boolean aliasFilterCanMatch = request.getAliasFilter()
+            .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
+        final boolean canMatch;
+        if (canRewriteToMatchNone(request.source())) {
+            QueryBuilder queryBuilder = request.source().query();
+            canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
+        } else {
+            // null query means match_all
+            canMatch = aliasFilterCanMatch;
+        }
+        return canMatch;
     }
 
     /**
@@ -1265,6 +1274,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return indicesService.getRewriteContext(nowInMillis);
+    }
+
+    public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
+        return indicesService.getCoordinatorRewriteContextProvider(nowInMillis);
     }
 
     public IndicesService getIndicesService() {

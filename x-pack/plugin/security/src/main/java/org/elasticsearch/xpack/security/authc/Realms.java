@@ -302,15 +302,15 @@ public class Realms implements Iterable<Realm> {
     private void addNativeRealms(List<Realm> realms) throws Exception {
         Realm.Factory fileRealm = factories.get(FileRealmSettings.TYPE);
         if (fileRealm != null) {
-            realms.add(fileRealm.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE),
-                    settings, env, threadContext)));
+            RealmConfig.RealmIdentifier realmIdentifier =
+                new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
+            realms.add(fileRealm.create(new RealmConfig(realmIdentifier, settings, env, threadContext)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
-            realms.add(indexRealmFactory.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
-                    settings, env, threadContext)));
+            RealmConfig.RealmIdentifier realmIdentifier =
+                new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
+            realms.add(indexRealmFactory.create(new RealmConfig(realmIdentifier, settings, env, threadContext)));
         }
     }
 

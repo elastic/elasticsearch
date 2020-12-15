@@ -252,7 +252,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), includeRequestBody)
                 .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), reservedRealmEnabled)
                 .put(AnonymousUser.USERNAME_SETTING.getKey(), customAnonymousUsername)
-                .putList(AnonymousUser.ROLES_SETTING.getKey(), (List<String>) randomFrom(Collections.singleton(
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), randomFrom(Collections.singletonList(
                         "smth"), Collections.<String>emptyList()))
                 .build();
         localNode = mock(DiscoveryNode.class);

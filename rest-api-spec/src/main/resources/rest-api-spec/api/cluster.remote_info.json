@@ -5,6 +5,7 @@
       "description":"Returns the information about configured remote clusters."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -5,6 +5,7 @@
       "description": "Gets all stats related to cross-cluster replication."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

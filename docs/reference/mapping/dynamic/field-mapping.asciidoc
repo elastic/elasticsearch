@@ -1,35 +1,37 @@
 [[dynamic-field-mapping]]
 === Dynamic field mapping
 
-By default, when a previously unseen field is found in a document,
-Elasticsearch will add the new field to the type mapping.   This behaviour can
-be disabled, both at the document and at the <<object,`object`>>  level, by
-setting the <<dynamic,`dynamic`>> parameter to `false` (to ignore new fields) or to `strict` (to throw
-an exception if an unknown field is encountered).
+When {es} detects a new field in a document, it _dynamically_ adds the field to
+the type mapping. The <<dynamic,`dynamic`>> parameter controls this behavior.
 
-Assuming `dynamic` field mapping is enabled, some simple rules are used to
-determine which data type the field should have:
+You can disable dynamic mapping, both at the document and at the
+<<object,`object`>> level. Setting the `dynamic` parameter to
+`false` ignores new fields, and `strict` rejects the document if {es}
+encounters an unknown field.
 
-[horizontal]
-*JSON data type*::                   *Elasticsearch data type*
+When dynamic field mapping is enabled, {es} uses the following rules to
+determine how to map data types for each field.
 
-`null`::                            No field is added.
-`true` or `false`::                 <<boolean,`boolean`>> field
-floating{nbsp}point{nbsp}number::   <<number,`float`>> field
-integer::                           <<number,`long`>> field
-object::                            <<object,`object`>> field
-array::                             Depends on the first non-`null` value in the array.
-string::                            Either a <<date,`date`>> field
-                                        (if the value passes <<date-detection,date detection>>),
-                                    a <<number,`double`>> or <<number,`long`>> field
-                                        (if the value passes <<numeric-detection,numeric detection>>)
-                                    or a <<text,`text`>> field, with a <<keyword,`keyword`>> sub-field.
+NOTE: These are the only <<mapping-types,field data types>> that {es} detects
+dynamically. All other data types must be mapped explicitly.
 
-These are the only <<mapping-types,field data types>> that are dynamically
-detected.  All other data types must be mapped explicitly.
+[cols="3"]
+|===
+h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
+ |`null` 2*| No field added
+ |`true` or `false` 2*| `boolean`
+ |floating point number | `float` | `double`
+ |`integer` 2*| `long`
+ |`object`<<dynamic-object-footnote,^1^>>  2*| `object`
+ |`array` 2*|  Depends on the first non-`null` value in the array
+ |`string` that passes <<date-detection,date detection>> 2*| `date`
+ |`string` that passes <<numeric-detection,numeric detection>> | `double` or `long` | `double`
+ |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
+3+| [[dynamic-object-footnote]] ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
+|===
 
-Besides the options listed below, dynamic field mapping rules can be further
-customised with <<dynamic-templates,`dynamic_templates`>>.
+Besides the following options, you can customize dynamic field mapping rules
+with <<dynamic-templates,`dynamic_templates`>>.
 
 [[date-detection]]
 ==== Date detection
@@ -129,4 +131,3 @@ PUT my-index-000001/_doc/1
 
 <1> The `my_float` field is added as a <<number,`float`>> field.
 <2> The `my_integer` field is added as a <<number,`long`>> field.
-

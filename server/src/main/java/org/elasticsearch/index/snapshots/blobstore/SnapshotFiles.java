@@ -128,4 +128,9 @@ public class SnapshotFiles {
         return physicalFiles.get(physicalName);
     }
 
+    @Override
+    public String toString() {
+        return "SnapshotFiles{snapshot=[" + snapshot + "], shardStateIdentifier=[" + shardStateIdentifier + "], indexFiles=" + indexFiles
+                + "}";
+    }
 }

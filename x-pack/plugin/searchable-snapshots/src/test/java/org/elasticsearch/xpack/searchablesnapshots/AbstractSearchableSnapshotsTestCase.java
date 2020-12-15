@@ -35,9 +35,11 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -85,7 +87,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a new {@link CacheService} instance configured with default settings
      */
     protected CacheService defaultCacheService() {
-        return new CacheService(Settings.EMPTY, clusterService, threadPool, AbstractSearchableSnapshotsTestCase::noOpCacheCleaner);
+        return new CacheService(Settings.EMPTY, clusterService, threadPool, new PersistentCache(nodeEnvironment));
     }
 
     /**
@@ -100,12 +102,15 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             cacheSettings.put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
         if (randomBoolean()) {
+            cacheSettings.put(CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+        }
+        if (randomBoolean()) {
             cacheSettings.put(
                 CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueSeconds(scaledRandomIntBetween(1, 120))
             );
         }
-        return new CacheService(cacheSettings.build(), clusterService, threadPool, AbstractSearchableSnapshotsTestCase::noOpCacheCleaner);
+        return new CacheService(cacheSettings.build(), clusterService, threadPool, new PersistentCache(nodeEnvironment));
     }
 
     /**
@@ -119,11 +124,16 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .build(),
             clusterService,
             threadPool,
-            AbstractSearchableSnapshotsTestCase::noOpCacheCleaner
+            new PersistentCache(nodeEnvironment)
         );
     }
 
-    protected static void noOpCacheCleaner() {}
+    /**
+     * Returns a random shard data path for the specified {@link ShardId}. The returned path can be located on any of the data node paths.
+     */
+    protected Path randomShardPath(ShardId shardId) {
+        return randomFrom(nodeEnvironment.availableShardPaths(shardId));
+    }
 
     /**
      * @return a random {@link ByteSizeValue} that can be used to set {@link CacheService#SNAPSHOT_CACHE_SIZE_SETTING}.
@@ -142,7 +152,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         );
     }
 
-    protected static SearchableSnapshotRecoveryState createRecoveryState() {
+    protected static SearchableSnapshotRecoveryState createRecoveryState(boolean finalizedDone) {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
             randomAlphaOfLength(10),
@@ -163,8 +173,9 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             .setStage(RecoveryState.Stage.VERIFY_INDEX)
             .setStage(RecoveryState.Stage.TRANSLOG);
         recoveryState.getIndex().setFileDetailsComplete();
-        recoveryState.setStage(RecoveryState.Stage.FINALIZE).setStage(RecoveryState.Stage.DONE);
-
+        if (finalizedDone) {
+            recoveryState.setStage(RecoveryState.Stage.FINALIZE).setStage(RecoveryState.Stage.DONE);
+        }
         return recoveryState;
     }
 

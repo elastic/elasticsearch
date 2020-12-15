@@ -137,7 +137,7 @@ name must match one of your template's index patterns.
 ----
 POST /my-data-stream/_doc/
 {
-  "@timestamp": "2020-12-06T11:04:05.000Z",
+  "@timestamp": "2099-03-07T11:04:05.000Z",
   "user": {
     "id": "vlb44hny"
   },

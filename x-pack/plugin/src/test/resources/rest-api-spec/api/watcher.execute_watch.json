@@ -5,6 +5,7 @@
       "description":"Forces the execution of a stored watch."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

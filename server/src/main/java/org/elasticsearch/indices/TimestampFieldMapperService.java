@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -168,7 +170,17 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         if (future == null || future.isDone() == false) {
             return null;
         }
-        return future.actionGet();
+
+        try {
+            // It's possible that callers of this class are executed
+            // in a transport thread, for that reason we request
+            // the future value with a timeout of 0. That won't
+            // trigger assertion errors.
+            return future.actionGet(TimeValue.ZERO);
+        } catch (ElasticsearchTimeoutException e) {
+            assert false : "Unexpected timeout exception while getting a timestamp mapping";
+            throw e;
+        }
     }
 
 }

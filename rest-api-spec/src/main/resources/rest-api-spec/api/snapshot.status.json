@@ -5,6 +5,7 @@
       "description":"Returns information about the status of a snapshot."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

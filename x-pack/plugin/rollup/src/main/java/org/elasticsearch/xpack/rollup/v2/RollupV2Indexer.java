@@ -106,13 +106,13 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
         this.request = request;
         this.headers = headers;
         this.compositeBuilder = createCompositeBuilder(this.request.getRollupConfig());
-        this.tmpIndex = ".rolluptmp-" + this.request.getRollupConfig().getRollupIndex();
+        this.tmpIndex = ".rolluptmp-" + this.request.getRollupIndex();
         this.completionListener = completionListener;
     }
 
     @Override
     protected String getJobId() {
-        return request.getRollupConfig().getId();
+        return "rollup_" + request.getRollupIndex();
     }
 
     @Override
@@ -196,7 +196,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
     @Override
     protected void onFinish(ActionListener<Void> listener) {
         // "shrink index"
-        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupConfig().getRollupIndex(), tmpIndex);
+        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndex);
         resizeRequest.setResizeType(ResizeType.CLONE);
         resizeRequest.getTargetIndexRequest()
             .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());

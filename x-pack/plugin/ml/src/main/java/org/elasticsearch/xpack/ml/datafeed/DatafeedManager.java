@@ -184,12 +184,12 @@ public class DatafeedManager {
                     if (endTime == null) {
                         next = e.nextDelayInMsSinceEpoch;
                     }
-                    holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
+                    holder.problemTracker.reportExtractionProblem(e);
                 } catch (DatafeedJob.AnalysisProblemException e) {
                     if (endTime == null) {
                         next = e.nextDelayInMsSinceEpoch;
                     }
-                    holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
+                    holder.problemTracker.reportAnalysisProblem(e);
                     if (e.shouldStop) {
                         holder.stop("lookback_analysis_error", TimeValue.timeValueSeconds(20), e);
                         return;
@@ -241,10 +241,10 @@ public class DatafeedManager {
                         holder.problemTracker.reportNonEmptyDataCount();
                     } catch (DatafeedJob.ExtractionProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
+                        holder.problemTracker.reportExtractionProblem(e);
                     } catch (DatafeedJob.AnalysisProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
+                        holder.problemTracker.reportAnalysisProblem(e);
                         if (e.shouldStop) {
                             holder.stop("realtime_analysis_error", TimeValue.timeValueSeconds(20), e);
                             return;

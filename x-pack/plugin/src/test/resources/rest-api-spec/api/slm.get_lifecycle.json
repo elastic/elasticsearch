@@ -5,6 +5,7 @@
       "description":"Retrieves one or more snapshot lifecycle policy definitions and information about the latest snapshot attempts."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

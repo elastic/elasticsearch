@@ -32,6 +32,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -428,6 +429,22 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+        CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
+        if (coordinatorRewriteContext != null) {
+            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
+            if (fieldType instanceof DateFieldMapper.DateFieldType) {
+                final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) fieldType;
+                if (coordinatorRewriteContext.hasTimestampData() == false) {
+                    return MappedFieldType.Relation.DISJOINT;
+                }
+                long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+                long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
+                DateMathParser dateMathParser = getForceDateParser();
+                return dateFieldType.isFieldWithinQuery(minTimestamp, maxTimestamp, from, to, includeLower,
+                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
+            }
+        }
+
         QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
         if (shardContext != null) {
             final MappedFieldType fieldType = shardContext.getFieldType(fieldName);

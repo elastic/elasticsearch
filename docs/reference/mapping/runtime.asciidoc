@@ -6,7 +6,10 @@ add fields to existing documents. With _runtime fields_, you can add
 fields to documents already indexed to {es} without reindexing your data.
 
 You access runtime fields from the search API like any other field, and {es}
-sees runtime fields no differently.
+sees runtime fields no differently. You can define runtime fields in the
+<<runtime-mapping-fields,index mapping>> or in the
+<<runtime-search-request,search request>>. Your choice, which is part of the
+inherent flexibility of runtime fields.
 
 [discrete]
 [[runtime-benefits]]
@@ -82,6 +85,10 @@ NOTE: You can define a runtime field in the mapping definition without a
 script. If you define a runtime field without a script, {es} evaluates the
 field at search time, looks at each document containing that field, retrieves
 the `_source`, and returns a value if one exists.
+
+If <<dynamic-field-mapping,dynamic field mapping>> is enabled where the
+`dynamic` parameter is set to `runtime`, new fields are automatically added to
+the index mapping as runtime fields.
 
 Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
 of the `_search` request, but also make the script results available anywhere

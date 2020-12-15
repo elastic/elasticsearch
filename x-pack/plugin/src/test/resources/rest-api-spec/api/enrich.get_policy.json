@@ -5,6 +5,7 @@
       "description": "Gets information about an enrich policy."
     },
     "stability" : "stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

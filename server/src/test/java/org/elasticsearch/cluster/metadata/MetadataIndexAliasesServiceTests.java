@@ -491,8 +491,9 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     }
 
     public void testAliasesForDataStreamBackingIndicesNotSupported() {
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
         String dataStreamName = "foo-stream";
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis);
         IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)
             .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
@@ -504,8 +505,8 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(state,
             singletonList(new AliasAction.Add(backingIndexName, "test", null, null, null, null, null))));
-        assertThat(exception.getMessage(), is("The provided index [ .ds-foo-stream-000001] is a backing index belonging to data stream " +
-            "[foo-stream]. Data streams and their backing indices don't support alias operations."));
+        assertThat(exception.getMessage(), is("The provided index [" + backingIndexName + "] is a backing index belonging to data " +
+            "stream [foo-stream]. Data streams and their backing indices don't support alias operations."));
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

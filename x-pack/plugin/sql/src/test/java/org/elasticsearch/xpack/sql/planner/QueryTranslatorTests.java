@@ -2503,8 +2503,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(1, expectedInts.size());
 
         condition = condition
-            .transformDown(x -> x.name().equals("bool") ? (FieldAttribute)expectedBools.toArray()[0] : x, FieldAttribute.class)
-            .transformDown(x -> x.name().equals("int") ? (FieldAttribute)expectedInts.toArray()[0] : x , FieldAttribute.class);
+            .transformDown(x -> x.name().equals("bool") ? (FieldAttribute) expectedBools.toArray()[0] : x, FieldAttribute.class)
+            .transformDown(x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x , FieldAttribute.class);
 
         assertEquals(expectedCondition, condition);
     }

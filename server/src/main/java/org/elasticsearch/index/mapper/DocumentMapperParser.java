@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -110,7 +109,7 @@ public class DocumentMapperParser {
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
                 docBuilder.put(typeParser.parse(fieldName, fieldNodeMap, parserContext));
                 fieldNodeMap.remove("type");
-                checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());
+                checkNoRemainingFields(fieldName, fieldNodeMap);
             }
         }
 
@@ -133,17 +132,16 @@ public class DocumentMapperParser {
             docBuilder.meta(Collections.unmodifiableMap(new HashMap<>(meta)));
         }
 
-        checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
+        checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
 
         return docBuilder.build();
     }
 
-    public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {
-        checkNoRemainingFields(fieldNodeMap, indexVersionCreated,
-                "Mapping definition for [" + fieldName + "] has unsupported parameters: ");
+    public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap) {
+        checkNoRemainingFields(fieldNodeMap, "Mapping definition for [" + fieldName + "] has unsupported parameters: ");
     }
 
-    public static void checkNoRemainingFields(Map<?, ?> fieldNodeMap, Version indexVersionCreated, String message) {
+    public static void checkNoRemainingFields(Map<?, ?> fieldNodeMap, String message) {
         if (!fieldNodeMap.isEmpty()) {
             throw new MapperParsingException(message + getRemainingFields(fieldNodeMap));
         }

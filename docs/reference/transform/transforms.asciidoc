@@ -13,6 +13,8 @@ your data.
 * <<transform-overview>>
 * <<transform-setup>>
 * <<transform-usage>>
+* <<transform-scale>>
+* <<transform-checkpoints>>
 * <<transform-api-quickref>>
 * <<ecommerce-transforms>>
 * <<transform-examples>>

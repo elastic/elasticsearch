@@ -66,7 +66,7 @@ import static java.util.Collections.emptyList;
  * worst case. Critically, it is a very fast {@code O(1)} to check if a value
  * is competitive at all which, so long as buckets aren't hit in reverse
  * order, they mostly won't be. Extracting results in sorted order is still
- * {@code O(n * log n)}. 
+ * {@code O(n * log n)}.
  * </p>
  * <p>
  * When we first collect a bucket we make sure that we've allocated enough
@@ -90,7 +90,7 @@ public abstract class BucketedSort implements Releasable {
          * <p>
          * Both parameters will have previously been loaded by
          * {@link Loader#loadFromDoc(long, int)} so the implementer shouldn't
-         * need to grow the underlying storage to implement this. 
+         * need to grow the underlying storage to implement this.
          * </p>
          */
         void swap(long lhs, long rhs);
@@ -128,7 +128,7 @@ public abstract class BucketedSort implements Releasable {
     private final SortOrder order;
     private final DocValueFormat format;
     private final int bucketSize;
-    private final ExtraData extra;
+    protected final ExtraData extra;
     /**
      * {@code true} if the bucket is in heap mode, {@code false} if
      * it is still gathering.
@@ -206,9 +206,9 @@ public abstract class BucketedSort implements Releasable {
     }
 
     /**
-     * Is this bucket a min heap {@code true} or in gathering mode {@code false}? 
+     * Is this bucket a min heap {@code true} or in gathering mode {@code false}?
      */
-    private boolean inHeapMode(long bucket) {
+    public boolean inHeapMode(long bucket) {
         return heapMode.get(bucket);
     }
 
@@ -254,7 +254,7 @@ public abstract class BucketedSort implements Releasable {
     /**
      * {@code true} if the entry at index {@code lhs} is "better" than
      * the entry at {@code rhs}. "Better" in this means "lower" for
-     * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}. 
+     * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     protected abstract boolean betterThan(long lhs, long rhs);
 
@@ -283,7 +283,7 @@ public abstract class BucketedSort implements Releasable {
 
     /**
      * Initialize the gather offsets after setting up values. Subclasses
-     * should call this once, after setting up their {@link #values()}.  
+     * should call this once, after setting up their {@link #values()}.
      */
     protected final void initGatherOffsets() {
         setNextGatherOffsets(0);
@@ -325,12 +325,12 @@ public abstract class BucketedSort implements Releasable {
      * case.
      * </p>
      * <ul>
-     * <li>Hayward, Ryan; McDiarmid, Colin (1991).  
+     * <li>Hayward, Ryan; McDiarmid, Colin (1991).
      * <a href="https://web.archive.org/web/20160205023201/http://www.stats.ox.ac.uk/__data/assets/pdf_file/0015/4173/heapbuildjalg.pdf">
      * Average Case Analysis of Heap Building byRepeated Insertion</a> J. Algorithms.
      * <li>D.E. Knuth, ”The Art of Computer Programming, Vol. 3, Sorting and Searching”</li>
      * </ul>
-     * @param rootIndex the index the start of the bucket 
+     * @param rootIndex the index the start of the bucket
      */
     private void heapify(long rootIndex) {
         int maxParent = bucketSize / 2 - 1;
@@ -344,7 +344,7 @@ public abstract class BucketedSort implements Releasable {
      * runs in {@code O(log n)} time.
      * @param rootIndex index of the start of the bucket
      * @param parent Index within the bucket of the parent to check.
-     *               For example, 0 is the "root". 
+     *               For example, 0 is the "root".
      */
     private void downHeap(long rootIndex, int parent) {
         while (true) {
@@ -443,7 +443,7 @@ public abstract class BucketedSort implements Releasable {
         /**
          * {@code true} if the sort value for the doc is "better" than the
          * entry at {@code index}. "Better" in means is "lower" for
-         * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}. 
+         * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
          */
         protected abstract boolean docBetterThan(long index);
 
@@ -545,7 +545,7 @@ public abstract class BucketedSort implements Releasable {
          * The maximum size of buckets this can store. This is because we
          * store the next offset to write to in a float and floats only have
          * {@code 23} bits of mantissa so they can't accurate store values
-         * higher than {@code 2 ^ 24}. 
+         * higher than {@code 2 ^ 24}.
          */
         public static final int MAX_BUCKET_SIZE = (int) Math.pow(2, 24);
 

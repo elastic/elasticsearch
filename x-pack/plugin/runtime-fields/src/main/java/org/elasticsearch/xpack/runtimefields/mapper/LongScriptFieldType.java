@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermsQuery;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -36,10 +37,17 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
         @Override
         protected AbstractScriptFieldType<?> buildFieldType() {
+            if (script.get() == null) {
+                return new LongScriptFieldType(name, LongFieldScript.PARSE_FROM_SOURCE, this);
+            }
             LongFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), LongFieldScript.CONTEXT);
             return new LongScriptFieldType(name, factory, this);
         }
     });
+
+    LongScriptFieldType(String name) {
+        this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
+    }
 
     private LongScriptFieldType(String name, LongFieldScript.Factory scriptFactory, Builder builder) {
         super(name, scriptFactory::newFactory, builder);

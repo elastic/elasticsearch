@@ -69,7 +69,7 @@ abstract class SortedDocsProducer {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 hasCollected[0] = true;
-                long docCount = docCountProvider.getDocCount(doc);
+                int docCount = docCountProvider.getDocCount(doc);
                 if (queue.addIfCompetitive(docCount)) {
                     topCompositeCollected[0]++;
                     if (adder != null && doc != lastDoc) {

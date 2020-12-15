@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -29,9 +30,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
@@ -62,11 +65,12 @@ import org.elasticsearch.xpack.searchablesnapshots.action.TransportClearSearchab
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.NodeEnvironmentCacheCleaner;
+import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -82,6 +86,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.emptyIndexCommit;
 
 /**
  * Plugin for Searchable Snapshots feature
@@ -182,7 +187,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
-            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
+            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
+            CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
+            CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
+            CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT
         );
     }
 
@@ -200,27 +208,42 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        final CacheService cacheService = new CacheService(new NodeEnvironmentCacheCleaner(nodeEnvironment), settings);
-        this.cacheService.set(cacheService);
+        final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool.set(threadPool);
-        final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
-            clusterService,
-            threadPool,
-            client,
-            SNAPSHOT_BLOB_CACHE_INDEX
-        );
-        this.blobStoreCacheService.set(blobStoreCacheService);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
-        return List.of(cacheService, blobStoreCacheService);
+        if (DiscoveryNode.isDataNode(settings)) {
+            final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
+            this.cacheService.set(cacheService);
+            components.add(cacheService);
+            final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
+                clusterService,
+                threadPool,
+                client,
+                SNAPSHOT_BLOB_CACHE_INDEX
+            );
+            this.blobStoreCacheService.set(blobStoreCacheService);
+            components.add(blobStoreCacheService);
+        } else {
+            PersistentCache.cleanUp(settings, nodeEnvironment);
+        }
+        return Collections.unmodifiableList(components);
     }
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
-            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener());
+            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener(settings, cacheService.get()));
             indexModule.addIndexEventListener(failShardsListener.get());
         }
+    }
+
+    @Override
+    public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
+        if (DiscoveryNode.isDataNode(settings)) {
+            return List.of(new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get));
+        }
+        return List.of();
     }
 
     @Override
@@ -260,6 +283,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             );
         }
         return Optional.empty();
+    }
+
+    @Override
+    public Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
+        return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, e -> {
+            final Store store = e.config().getStore();
+            store.incRef();
+            return new Engine.IndexCommitRef(emptyIndexCommit(store.directory()), store::decRef);
+        });
     }
 
     @Override

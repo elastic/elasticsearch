@@ -11,9 +11,9 @@ You can also use unfollow directly when moving follower indices through the life
 Has no effect on indices that are not followers, phase execution just moves to the next action.
 
 [NOTE]
-This action is triggered automatically by the <<ilm-rollover-action, rollover>>,
-<<ilm-shrink-action, shrink>>, and
-<<ilm-searchable-snapshot-action, searchable snapshot>> actions when they are
+This action is triggered automatically by the <<ilm-rollover, rollover>>,
+<<ilm-shrink, shrink>>, and
+<<ilm-searchable-snapshot, searchable snapshot>> actions when they are
 applied to follower indices.
 
 This action waits until is it safe to convert a follower index into a regular index. 
@@ -21,7 +21,7 @@ The following conditions must be met:
 
 * The leader index must have `index.lifecycle.indexing_complete` set to `true`.
 This happens automatically if the leader index is rolled over using the
-<<ilm-rollover-action, rollover>> action, and can be set manually using
+<<ilm-rollover, rollover>> action, and can be set manually using
 the <<indices-update-settings,index settings>> API.
 * All operations performed on the leader index have been replicated to the follower index. 
 This ensures that no operations are lost when the index is converted.

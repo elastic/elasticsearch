@@ -5,6 +5,10 @@
       "description":"Stops an existing, started rollup job."
     },
     "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

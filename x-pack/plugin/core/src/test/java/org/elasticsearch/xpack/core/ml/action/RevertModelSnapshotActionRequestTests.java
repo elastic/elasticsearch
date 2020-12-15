@@ -19,6 +19,9 @@ public class RevertModelSnapshotActionRequestTests extends AbstractSerializingTe
         if (randomBoolean()) {
             request.setDeleteInterveningResults(randomBoolean());
         }
+        if (randomBoolean()) {
+            request.setForce(randomBoolean());
+        }
         return request;
     }
 

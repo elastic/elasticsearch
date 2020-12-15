@@ -382,7 +382,12 @@ public abstract class AbstractClient implements Client {
     @Override
     public final <Request extends ActionRequest, Response extends ActionResponse> void execute(
         ActionType<Response> action, Request request, ActionListener<Response> listener) {
-        doExecute(action, request, listener);
+        try {
+            doExecute(action, request, listener);
+        } catch (Exception e) {
+            assert false : new AssertionError(e);
+            listener.onFailure(e);
+        }
     }
 
     protected abstract <Request extends ActionRequest, Response extends ActionResponse>

@@ -198,6 +198,10 @@ model.
 .Properties of `model_size_stats`
 [%collapsible%open]
 ====
+`assignment_memory_basis`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-memory-basis]
+
 `bucket_allocation_failures_count`:::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-allocation-failures-count]

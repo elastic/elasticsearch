@@ -1,8 +1,5 @@
 ---
 "Response format for search failures":
-  - skip:
-      version: "all"
-      reason: "awaits fix of https://github.com/elastic/elasticsearch/pull/64382"
   - do:
       indices.create:
         index: source

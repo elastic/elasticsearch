@@ -67,7 +67,7 @@ import java.util.Set;
  *  <li>"min_input_length": 50 (default)</li>
  *  <li>"contexts" : CONTEXTS</li>
  * </ul>
- * see {@link ContextMappings#load(Object, Version)} for CONTEXTS<br>
+ * see {@link ContextMappings#load(Object)} for CONTEXTS<br>
  * see {@link #parse(ParseContext)} for acceptable inputs for indexing<br>
  * <p>
  *  This field type constructs completion queries that are run
@@ -128,7 +128,7 @@ public class CompletionFieldMapper extends FieldMapper {
             m -> builder(m).preservePosInc.get(), Defaults.DEFAULT_POSITION_INCREMENTS)
             .alwaysSerialize();
         private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, () -> null,
-            (n, c, o) -> ContextMappings.load(o, c.indexVersionCreated()), m -> builder(m).contexts.get())
+            (n, c, o) -> ContextMappings.load(o), m -> builder(m).contexts.get())
             .setSerializer((b, n, c) -> {
                 if (c == null) {
                     return;

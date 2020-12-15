@@ -100,6 +100,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 break;
             case MIXED:
                 assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
                 testSnapshotUpgradeFailsOnMixedCluster();
                 break;
             case UPGRADED:

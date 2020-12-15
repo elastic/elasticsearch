@@ -331,6 +331,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             newShardRoutingToDataPath.put(shardRouting, s.getDataPath());
 
             final StoreStats storeStats = s.getStats().getStore();
+            if (storeStats == null) {
+                continue;
+            }
             final long size = storeStats.sizeInBytes();
             final long reserved = storeStats.getReservedSize().getBytes();
 

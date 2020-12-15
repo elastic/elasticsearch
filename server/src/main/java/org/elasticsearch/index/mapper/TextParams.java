@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.index.analysis.AnalysisMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -44,22 +46,35 @@ public final class TextParams {
         public final Parameter<NamedAnalyzer> searchAnalyzer;
         public final Parameter<NamedAnalyzer> searchQuoteAnalyzer;
         public final Parameter<Integer> positionIncrementGap;
+        public final IndexAnalyzers indexAnalyzers;
 
-        public Analyzers(Supplier<NamedAnalyzer> defaultAnalyzer,
+        public Analyzers(IndexAnalyzers indexAnalyzers,
                          Function<FieldMapper, Analyzers> analyzerInitFunction) {
             this.indexAnalyzer = Parameter.analyzerParam("analyzer", false,
-                m -> analyzerInitFunction.apply(m).indexAnalyzer.get(), defaultAnalyzer)
+                m -> analyzerInitFunction.apply(m).indexAnalyzer.get(), indexAnalyzers::getDefaultIndexAnalyzer)
                 .setSerializerCheck((id, ic, a) -> id || ic ||
                     Objects.equals(a, getSearchAnalyzer()) == false || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), indexAnalyzer::getValue)
+                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), () -> {
+                    NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
+                    if (defaultAnalyzer != null) {
+                        return defaultAnalyzer;
+                    }
+                    return indexAnalyzer.get();
+                })
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.searchQuoteAnalyzer
                 = Parameter.analyzerParam("search_quote_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), searchAnalyzer::getValue)
+                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), () -> {
+                    NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
+                    if (defaultAnalyzer != null) {
+                        return defaultAnalyzer;
+                    }
+                    return searchAnalyzer.get();
+                })
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.positionIncrementGap = Parameter.intParam("position_increment_gap", false,
                 m -> analyzerInitFunction.apply(m).positionIncrementGap.get(), POSITION_INCREMENT_GAP_USE_ANALYZER)
@@ -68,6 +83,7 @@ public final class TextParams {
                         throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
                     }
                 });
+            this.indexAnalyzers = indexAnalyzers;
         }
 
         public NamedAnalyzer getIndexAnalyzer() {

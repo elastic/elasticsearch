@@ -155,7 +155,7 @@ public class TypeParsers {
                 FieldMapper.TypeParser fieldTypeParser = (FieldMapper.TypeParser) typeParser;
                 multiFieldsBuilder.accept(fieldTypeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
-                DocumentMapperParser.checkNoRemainingFields(propName, multiFieldNodes, parserContext.indexVersionCreated());
+                DocumentMapperParser.checkNoRemainingFields(propName, multiFieldNodes);
             }
             return true;
         }

@@ -67,4 +67,8 @@ public class Mul extends SqlArithmeticOperation {
     protected Mul replaceChildren(Expression newLeft, Expression newRight) {
         return new Mul(source(), newLeft, newRight);
     }
+
+    public Mul swapLeftAndRight() {
+        return new Mul(source(), right(), left());
+    }
 }

@@ -471,7 +471,7 @@ public class PersistentCache implements Closeable {
     static class CacheIndexWriter implements Closeable {
 
         private final NodeEnvironment.NodePath nodePath;
-        final IndexWriter indexWriter;
+        private final IndexWriter indexWriter;
         private final Directory directory;
 
         private CacheIndexWriter(NodeEnvironment.NodePath nodePath, Directory directory, IndexWriter indexWriter) {

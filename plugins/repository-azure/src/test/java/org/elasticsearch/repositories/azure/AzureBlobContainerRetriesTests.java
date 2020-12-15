@@ -329,8 +329,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                         Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
                     } else {
                         Streams.readFully(exchange.getRequestBody());
-                        AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE
-                        ));
+                        AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
                     }
                 }
                 exchange.close();

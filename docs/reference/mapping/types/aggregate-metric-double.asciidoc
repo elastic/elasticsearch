@@ -113,7 +113,8 @@ PUT stats-index
 <1> The metrics supported by this index are `min`, `max`, `sum`, `value_count`.
 <2> The `default_metric` is the `max` sub-field.
 
-The following <<docs-index_,index>> API requests store pre-aggregated data:
+The following <<docs-index_,index>> API request adds documents with
+pre-aggregated data in the `agg_metric` field.
 
 [source,console]
 --------------------------------------------------

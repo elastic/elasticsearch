@@ -33,6 +33,7 @@ import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.MlTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -1382,7 +1383,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
-        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+                "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+        client.machineLearning().postData(postDataRequest, requestOptions);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         ForecastJobResponse forecastJobResponse = client.machineLearning().
@@ -1519,7 +1524,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             builder.addDoc(hashMap);
         }
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
-        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+                "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+        client.machineLearning().postData(postDataRequest, requestOptions);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         {
@@ -1789,7 +1798,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             postDataRequest.setResetStart(null);
 
             // tag::post-data-execute
-            PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+            RequestOptions ignoreDeprecationsWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(WarningsHandler.PERMISSIVE).build();
+            PostDataResponse postDataResponse =
+                client.machineLearning().postData(postDataRequest, ignoreDeprecationsWarningsOptions);
             // end::post-data-execute
 
             // tag::post-data-response
@@ -1823,7 +1835,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::post-data-execute-async
-            client.machineLearning().postDataAsync(postDataRequest, RequestOptions.DEFAULT, listener); // <1>
+            RequestOptions ignoreDeprecationsWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(WarningsHandler.PERMISSIVE).build();
+            client.machineLearning().postDataAsync(postDataRequest, ignoreDeprecationsWarningsOptions, listener); // <1>
             // end::post-data-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

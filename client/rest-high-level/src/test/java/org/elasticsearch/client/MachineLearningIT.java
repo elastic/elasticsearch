@@ -435,7 +435,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             builder.addDoc(hashMap);
         }
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
-        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+                "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+        machineLearningClient.postData(postDataRequest, requestOptions);
         machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
 
         ForecastJobRequest request = new ForecastJobRequest(jobId);
@@ -461,7 +465,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
 
-        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync);
+        // Post data is deprecated, so expect a deprecation warning
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+                "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync,
+            requestOptions);
         assertEquals(10, response.getDataCounts().getInputRecordCount());
         assertEquals(0, response.getDataCounts().getOutOfOrderTimeStampCount());
     }
@@ -1038,7 +1047,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
 
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
-        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+                "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+        machineLearningClient.postData(postDataRequest, requestOptions);
         machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
         ForecastJobResponse forecastJobResponse1 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
         ForecastJobResponse forecastJobResponse2 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);

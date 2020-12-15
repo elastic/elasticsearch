@@ -219,8 +219,9 @@ public final class RequestOptions {
          * fail the request if the warnings returned don't
          * <strong>exactly</strong> match some set.
          */
-        public void setWarningsHandler(WarningsHandler warningsHandler) {
+        public Builder setWarningsHandler(WarningsHandler warningsHandler) {
             this.warningsHandler = warningsHandler;
+            return this;
         }
 
         /**

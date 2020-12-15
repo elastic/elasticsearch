@@ -15,8 +15,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
 import org.elasticsearch.index.store.cache.TestUtils.FSyncTrackingFileSystemProvider;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
@@ -49,17 +47,12 @@ import static org.hamcrest.Matchers.sameInstance;
 public class CacheFileTests extends ESTestCase {
 
     private static final Runnable NOOP = () -> {};
-    private static final CacheKey CACHE_KEY = new CacheKey(
-        new SnapshotId("_name", "_uuid"),
-        new IndexId("_name", "_uuid"),
-        new ShardId("_name", "_uuid", 0),
-        "_filename"
-    );
+    private static final CacheKey CACHE_KEY = new CacheKey("_snap_uuid", "_snap_index", new ShardId("_name", "_uuid", 0), "_filename");
 
     public void testGetCacheKey() throws Exception {
         final CacheKey cacheKey = new CacheKey(
-            new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
-            new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())),
+            UUIDs.randomBase64UUID(random()),
+            randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
             new ShardId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()), randomInt(5)),
             randomAlphaOfLength(105).toLowerCase(Locale.ROOT)
         );

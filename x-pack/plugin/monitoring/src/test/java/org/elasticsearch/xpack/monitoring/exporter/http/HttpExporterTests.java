@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 import org.junit.Before;
 import org.mockito.InOrder;
 
@@ -212,9 +213,10 @@ public class HttpExporterTests extends ESTestCase {
         }
 
         final Config config = createConfig(builder.build());
+        final MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
 
         final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext, coordinator));
 
         assertThat(exception.getMessage(), equalTo(expected));
     }
@@ -232,9 +234,10 @@ public class HttpExporterTests extends ESTestCase {
         }
 
         final Config config = createConfig(builder.build());
+        final MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
 
         final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext, coordinator));
 
         assertThat(exception.getMessage(), equalTo(expected));
     }
@@ -258,9 +261,10 @@ public class HttpExporterTests extends ESTestCase {
                 .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", blacklist);
 
         final Config config = createConfig(builder.build());
+        final MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
 
         final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext, coordinator));
 
         assertThat(exception.getMessage(),
                    equalTo("[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] contains unrecognized Cluster " +
@@ -276,8 +280,9 @@ public class HttpExporterTests extends ESTestCase {
                 .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
 
         final Config config = createConfig(builder.build());
+        final MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
 
-        new HttpExporter(config, sslService, threadContext).close();
+        new HttpExporter(config, sslService, threadContext, coordinator).close();
     }
 
     public void testExporterWithInvalidProxyBasePath() throws Exception {
@@ -415,7 +420,7 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final MultiHttpResource multiResource = HttpExporter.createResources(config);
+        final MultiHttpResource multiResource = HttpExporter.createResources(config).allResources;
 
         final List<HttpResource> resources = multiResource.getResources();
         final int version = (int)resources.stream().filter((resource) -> resource instanceof VersionHttpResource).count();
@@ -498,6 +503,37 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(parameters.size(), equalTo(0));
     }
 
+    public void testHttpExporterMigrationInProgressBlock() throws Exception {
+        final Config config = createConfig(Settings.EMPTY);
+        final RestClient client = mock(RestClient.class);
+        final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+        // this is configured to throw an error when the resource is checked
+        final HttpResource resource = new MockHttpResource(exporterName(), true, null, false);
+        final HttpResource alertsResource = new MockHttpResource(exporterName(), false, null, false);
+        final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
+        assertTrue(migrationCoordinator.tryBlockInstallationTasks());
+
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, migrationCoordinator, listener, resource,
+            alertsResource)) {
+            verify(listener).setResource(resource);
+
+            final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
+            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(
+                bulk -> {
+                    assertNull("should have been invoked with null value to denote migration in progress", bulk);
+                    awaitResponseAndClose.countDown();
+                },
+                e -> fail("[onResponse] should have been invoked with null value to denote migration in progress")
+            );
+
+            exporter.openBulk(bulkListener);
+
+            // wait for it to actually respond
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
+        }
+    }
+
     public void testHttpExporterDirtyResourcesBlock() throws Exception {
         final Config config = createConfig(Settings.EMPTY);
         final RestClient client = mock(RestClient.class);
@@ -505,8 +541,11 @@ public class HttpExporterTests extends ESTestCase {
         final NodeFailureListener listener = mock(NodeFailureListener.class);
         // this is configured to throw an error when the resource is checked
         final HttpResource resource = new MockHttpResource(exporterName(), true, null, false);
+        final HttpResource alertsResource = new MockHttpResource(exporterName(), false, null, false);
+        final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, migrationCoordinator, listener, resource,
+            alertsResource)) {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
@@ -529,8 +568,11 @@ public class HttpExporterTests extends ESTestCase {
         final NodeFailureListener listener = mock(NodeFailureListener.class);
         // always has to check, and never succeeds checks but it does not throw an exception (e.g., version check fails)
         final HttpResource resource = new MockHttpResource(exporterName(), true, false, false);
+        final HttpResource alertsResource = new MockHttpResource(exporterName(), false, null, false);
+        final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, migrationCoordinator, listener, resource,
+            alertsResource)) {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
@@ -557,8 +599,11 @@ public class HttpExporterTests extends ESTestCase {
         final NodeFailureListener listener = mock(NodeFailureListener.class);
         // sometimes dirty to start with and sometimes not; but always succeeds on checkAndPublish
         final HttpResource resource = new MockHttpResource(exporterName(), randomBoolean());
+        final HttpResource alertsResource = new MockHttpResource(exporterName(), false, null, false);
+        final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, migrationCoordinator, listener, resource,
+            alertsResource)) {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
@@ -584,6 +629,8 @@ public class HttpExporterTests extends ESTestCase {
         final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
         final NodeFailureListener listener = mock(NodeFailureListener.class);
         final MultiHttpResource resource = mock(MultiHttpResource.class);
+        final HttpResource alertsResource = mock(MultiHttpResource.class);
+        final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
         if (sniffer != null && rarely()) {
             doThrow(new RuntimeException("expected")).when(sniffer).close();
@@ -593,7 +640,7 @@ public class HttpExporterTests extends ESTestCase {
             doThrow(randomFrom(new IOException("expected"), new RuntimeException("expected"))).when(client).close();
         }
 
-        new HttpExporter(config, client, sniffer, threadContext, listener, resource).close();
+        new HttpExporter(config, client, sniffer, threadContext, migrationCoordinator, listener, resource, alertsResource).close();
 
         // order matters; sniffer must close first
         if (sniffer != null) {

@@ -59,7 +59,8 @@ using regular expression that supports referencing the original text, according 
 // tag::rename-restored-data-stream-tag[]
 If you rename a restored data stream, its backing indices are also
 renamed. For example, if you rename the `logs` data stream to `restored-logs`,
-the backing index `.ds-logs-000005` is renamed to `.ds-restored-logs-000005`.
+the backing index `.ds-logs-2099.03.09-000005` is renamed to
+`.ds-restored-logs-2099.03.09-000005`.
 
 [WARNING]
 ====
@@ -108,9 +109,9 @@ exists.
 
 In addition to entire data streams, you can restore only specific backing
 indices from a snapshot. However, restored backing indices are not automatically
-added to any existing data streams. For example, if only the `.ds-logs-000003`
-backing index is restored from a snapshot, it is not automatically added to the
-existing `logs` data stream.
+added to any existing data streams. For example, if only the
+`.ds-logs-2099.03.08-000003` backing index is restored from a snapshot, it is
+not automatically added to the existing `logs` data stream.
 
 [discrete]
 === Partial restore

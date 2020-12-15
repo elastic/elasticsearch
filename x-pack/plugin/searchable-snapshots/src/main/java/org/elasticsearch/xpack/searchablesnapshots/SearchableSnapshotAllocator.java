@@ -40,9 +40,10 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -249,14 +250,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
         );
         final DiscoveryNodes nodes = allocation.nodes();
-        final AsyncCacheStatusFetch asyncFetch = asyncFetchStore.compute(shardId, (sid, existing) -> {
-            // TODO: make this smarter so that it only adds the fetch for new nodes
-            if (existing != null
-                && Arrays.stream(nodes.getDataNodes().values().toArray(DiscoveryNode.class)).allMatch(existing.dataNodes::contains)) {
-                return existing;
-            }
-            final DiscoveryNode[] dataNodes = nodes.getDataNodes().values().toArray(DiscoveryNode.class);
-            final AsyncCacheStatusFetch fetch = new AsyncCacheStatusFetch(dataNodes);
+        final AsyncCacheStatusFetch asyncFetch = asyncFetchStore.computeIfAbsent(shardId, sid -> new AsyncCacheStatusFetch());
+        final DiscoveryNode[] dataNodes = asyncFetch.addFetches(nodes.getDataNodes().values().toArray(DiscoveryNode.class));
+        if (dataNodes.length > 0) {
             client.execute(
                 TransportSearchableSnapshotCacheStoresAction.TYPE,
                 new TransportSearchableSnapshotCacheStoresAction.Request(snapshotId, shardId, dataNodes),
@@ -267,18 +263,21 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                         for (Map.Entry<String, NodeCacheFilesMetadata> entry : nodesCacheFilesMetadata.getNodesMap().entrySet()) {
                             res.put(nodes.get(entry.getKey()), entry.getValue());
                         }
-                        fetch.data = Collections.unmodifiableMap(res);
+                        asyncFetch.addData(res);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        // TODO: I guess this is the best we can do?
-                        fetch.data = Collections.emptyMap();
+                        // TODO: can we do better here?
+                        final Map<DiscoveryNode, NodeCacheFilesMetadata> res = new HashMap<>(dataNodes.length);
+                        for (DiscoveryNode dataNode : dataNodes) {
+                            res.put(dataNode, new NodeCacheFilesMetadata(dataNode, 0L));
+                        }
+                        asyncFetch.addData(res);
                     }
                 }, () -> client.admin().cluster().prepareReroute().execute(REROUTE_LISTENER))
             );
-            return fetch;
-        });
+        }
         return new AsyncShardFetch.FetchResult<>(shardId, asyncFetch.data(), Collections.emptySet());
     }
 
@@ -397,21 +396,34 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private static final class AsyncCacheStatusFetch {
 
-        private final Set<DiscoveryNode> dataNodes;
+        private final Set<DiscoveryNode> fetchingDataNodes = new HashSet<>();
 
-        private volatile Map<DiscoveryNode, NodeCacheFilesMetadata> data;
+        private final Map<DiscoveryNode, NodeCacheFilesMetadata> data = new HashMap<>();
 
-        AsyncCacheStatusFetch(DiscoveryNode[] dataNodes) {
-            this.dataNodes = Set.of(dataNodes);
+        AsyncCacheStatusFetch() {}
+
+        synchronized DiscoveryNode[] addFetches(DiscoveryNode[] nodes) {
+            final Collection<DiscoveryNode> nodesToFetch = new ArrayList<>();
+            for (DiscoveryNode node : nodes) {
+                if (data.containsKey(node) == false && fetchingDataNodes.add(node)) {
+                    nodesToFetch.add(node);
+                }
+            }
+            return nodesToFetch.toArray(new DiscoveryNode[0]);
+        }
+
+        synchronized void addData(Map<DiscoveryNode, NodeCacheFilesMetadata> newData) {
+            data.putAll(newData);
+            fetchingDataNodes.removeAll(newData.keySet());
         }
 
         @Nullable
-        Map<DiscoveryNode, NodeCacheFilesMetadata> data() {
-            return data;
+        synchronized Map<DiscoveryNode, NodeCacheFilesMetadata> data() {
+            return fetchingDataNodes.size() > 0 ? null : Map.copyOf(data);
         }
 
-        int numberOfInFlightFetches() {
-            return data == null ? dataNodes.size() : 0;
+        synchronized int numberOfInFlightFetches() {
+            return fetchingDataNodes.size();
         }
     }
 

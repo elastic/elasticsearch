@@ -5,6 +5,7 @@
       "description":"Reverts to a specific snapshot."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

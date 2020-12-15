@@ -5,6 +5,7 @@
       "description":"Reloads an index's search analyzers and their resources."
     },
     "stability" : "stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

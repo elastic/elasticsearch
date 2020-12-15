@@ -36,8 +36,10 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
+import org.elasticsearch.xpack.monitoring.action.TransportMonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.collector.ccr.StatsCollector;
@@ -50,9 +52,11 @@ import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardsCollector;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
+import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringMigrateAlertsAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -65,7 +69,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
@@ -103,10 +106,12 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
+        final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
-        exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
+        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext(),
+            migrationCoordinator));
+        exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, migrationCoordinator, cleanerService));
         exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext(),
             dynamicSSLService);
 
@@ -124,7 +129,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
         var usageServices = new MonitoringUsageServices(monitoringService, exporters);
-        return Arrays.asList(monitoringService, exporters, cleanerService, usageServices);
+        return Arrays.asList(monitoringService, exporters, migrationCoordinator, cleanerService, usageServices);
     }
 
     @Override
@@ -133,6 +138,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
         return Arrays.asList(
             new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
+            new ActionHandler<>(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class),
             usageAction,
             infoAction);
     }
@@ -141,7 +147,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return singletonList(new RestMonitoringBulkAction());
+        return List.of(new RestMonitoringBulkAction(), new RestMonitoringMigrateAlertsAction());
     }
 
     @Override
@@ -149,7 +155,6 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         List<Setting<?>> settings = new ArrayList<>();
         settings.add(MonitoringField.HISTORY_DURATION);
         settings.add(CLEAN_WATCHER_HISTORY);
-        settings.add(MIGRATION_DECOMMISSION_ALERTS);
         settings.add(MonitoringService.ENABLED);
         settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
         settings.add(MonitoringService.INTERVAL);
@@ -163,6 +168,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
         settings.add(EnrichStatsCollector.STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
+        settings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
         return Collections.unmodifiableList(settings);
     }
 

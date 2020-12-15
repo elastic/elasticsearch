@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -75,9 +76,19 @@ public class ResolveIndexTests extends ESTestCase {
         {"logs-mysql-test", "@timestamp", 2}
     };
 
-    private Metadata metadata = buildMetadata(dataStreams, indices);
+    private Metadata metadata;
     private IndexAbstractionResolver resolver = new IndexAbstractionResolver(
         new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+
+    private long epochMillis;
+    private String dateString;
+
+    @Before
+    public void setup() {
+        epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
+        metadata = buildMetadata(dataStreams, indices);
+    }
 
     public void testResolveStarWithDefaultOptions() {
         String[] names = new String[] {"*"};
@@ -115,12 +126,12 @@ public class ResolveIndexTests extends ESTestCase {
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
         validateIndices(indices,
-            ".ds-logs-mysql-prod-000001",
-            ".ds-logs-mysql-prod-000002",
-            ".ds-logs-mysql-prod-000003",
-            ".ds-logs-mysql-prod-000004",
-            ".ds-logs-mysql-test-000001",
-            ".ds-logs-mysql-test-000002",
+            ".ds-logs-mysql-prod-" + dateString + "-000001",
+            ".ds-logs-mysql-prod-" + dateString + "-000002",
+            ".ds-logs-mysql-prod-" + dateString + "-000003",
+            ".ds-logs-mysql-prod-" + dateString + "-000004",
+            ".ds-logs-mysql-test-" + dateString + "-000001",
+            ".ds-logs-mysql-test-" + dateString + "-000002",
             "logs-pgsql-prod-20200101",
             "logs-pgsql-prod-20200102",
             "logs-pgsql-prod-20200103",
@@ -163,14 +174,15 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     public void testResolveWithMultipleNames() {
-        String[] names = new String[]{".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102", "one-off-alias", "logs-mysql-test"};
+        String[] names = new String[]{".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102", "one-off-alias",
+            "logs-mysql-test"};
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
-        validateIndices(indices, ".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102");
+        validateIndices(indices, ".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");
     }
@@ -178,7 +190,7 @@ public class ResolveIndexTests extends ESTestCase {
     public void testResolvePreservesBackingIndexOrdering() {
         Metadata.Builder builder = Metadata.builder();
         String dataStreamName = "my-data-stream";
-        String[] names = {"not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3)};
+        String[] names = {"not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3, epochMillis)};
         List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).collect(Collectors.toList());
         for (IndexMetadata index : backingIndices) {
             builder.put(index, false);
@@ -271,13 +283,13 @@ public class ResolveIndexTests extends ESTestCase {
             int numBackingIndices = (int) dataStreamInfo[2];
             List<String> expectedBackingIndices = new ArrayList<>();
             for (int m = 1; m <= numBackingIndices; m++) {
-                expectedBackingIndices.add(DataStream.getDefaultBackingIndexName(resolvedDataStream.getName(), m));
+                expectedBackingIndices.add(DataStream.getDefaultBackingIndexName(resolvedDataStream.getName(), m, epochMillis));
             }
             assertThat(resolvedDataStream.getBackingIndices(), is((expectedBackingIndices.toArray(Strings.EMPTY_ARRAY))));
         }
     }
 
-    static Metadata buildMetadata(Object[][] dataStreams, Object[][] indices) {
+    Metadata buildMetadata(Object[][] dataStreams, Object[][] indices) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
@@ -287,7 +299,8 @@ public class ResolveIndexTests extends ESTestCase {
             int numBackingIndices = (int) dsInfo[2];
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
-                backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber), true));
+                backingIndices.add(
+                    createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber, epochMillis), true));
             }
             allIndices.addAll(backingIndices);
 
@@ -344,14 +357,14 @@ public class ResolveIndexTests extends ESTestCase {
         return null;
     }
 
-    private static Object[] findBackingIndexInfo(Object[][] dataStreamSource, String indexName) {
+    private Object[] findBackingIndexInfo(Object[][] dataStreamSource, String indexName) {
         for (Object[] info : dataStreamSource) {
             String dataStreamName = (String) info[0];
             int generations = (int) info[2];
             for (int k = 1; k <= generations; k++) {
-                if (DataStream.getDefaultBackingIndexName(dataStreamName, k).equals(indexName)) {
+                if (DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis).equals(indexName)) {
                     return new Object[] {
-                        DataStream.getDefaultBackingIndexName(dataStreamName, k),
+                        DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis),
                         false, true, false, dataStreamName, Strings.EMPTY_ARRAY
                     };
                 }

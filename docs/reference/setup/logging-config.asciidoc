@@ -179,7 +179,8 @@ This is most appropriate when debugging a problem on a single node.
 --
 [source,properties]
 ----
-logger.org.elasticsearch.discovery.level = debug
+logger.discovery.name = org.elasticsearch.discovery
+logger.discovery.level = debug
 ----
 
 This is most appropriate when you already need to change your Log4j 2

@@ -458,7 +458,11 @@ public abstract class PackagingTestCase extends Assert {
      * Manually set the heap size with a jvm.options.d file. This will be reset before each test.
      */
     public static void setHeap(String heapSize) throws IOException {
-        Path heapOptions = installation.config.resolve("jvm.options.d").resolve("heap.options");
+        setHeap(heapSize, installation.config);
+    }
+
+    public static void setHeap(String heapSize, Path config) throws IOException {
+        Path heapOptions = config.resolve("jvm.options.d").resolve("heap.options");
         if (heapSize == null) {
             FileUtils.rm(heapOptions);
         } else {

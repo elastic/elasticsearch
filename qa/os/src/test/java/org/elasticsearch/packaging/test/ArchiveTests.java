@@ -248,7 +248,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
         withCustomConfig(tempConf -> {
-            setHeap("512m");
+            setHeap("512m", tempConf);
             final List<String> jvmOptions = List.of("-Dlog4j2.disable.jmx=true");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 

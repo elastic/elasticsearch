@@ -27,8 +27,7 @@ a positive long number.
 [[aggregate-metric-double-uses]]
 ==== Uses
 
-All metric sub-fields of the `aggregate_metric_double` fields are stored as numeric <<doc-values,doc values>>
-and are primarily intended for use with the following aggregations:
+We designed `aggregate_metric_double` fields for use with the following aggregations:
 
 * <<search-aggregations-metrics-min-aggregation,min>> aggregation returns the minimum value of all `min` sub-fields.
 * <<search-aggregations-metrics-max-aggregation,max>> aggregation returns the maximum value of all `max` sub-fields.

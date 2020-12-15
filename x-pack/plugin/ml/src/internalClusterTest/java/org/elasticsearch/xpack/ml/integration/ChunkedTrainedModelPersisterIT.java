@@ -112,6 +112,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         assertThat(storedConfig.getEstimatedHeapMemory(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));
         assertThat(storedConfig.getMetadata(), hasKey("feature_importance_baseline"));
+        assertThat(storedConfig.getMetadata(), hasKey("hyperparameter_importance"));
 
         PlainActionFuture<Map<String, TrainedModelMetadata>> getTrainedMetadataFuture = new PlainActionFuture<>();
         trainedModelProvider.getTrainedModelMetadata(Collections.singletonList(inferenceModelId), getTrainedMetadataFuture);

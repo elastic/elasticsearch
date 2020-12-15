@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparameterImportance;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -489,6 +490,18 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 this.metadata = new HashMap<>();
             }
             this.metadata.put(FEATURE_IMPORTANCE_BASELINE, featureImportanceBaseline.asMap());
+            return this;
+        }
+
+        public Builder setHyperparameterImportance(List<HyperparameterImportance> hyperparameterImportance) {
+            if (hyperparameterImportance == null) {
+                return this;
+            }
+            if (this.metadata == null) {
+                this.metadata = new HashMap<>();
+            }
+            this.metadata.put(TOTAL_FEATURE_IMPORTANCE,
+            hyperparameterImportance.stream().map(HyperparameterImportance::asMap).collect(Collectors.toList()));
             return this;
         }
 

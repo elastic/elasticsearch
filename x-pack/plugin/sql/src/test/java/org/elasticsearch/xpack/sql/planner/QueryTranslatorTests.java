@@ -2508,15 +2508,4 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertEquals(expectedCondition, condition);
     }
-
-    public void testNotAddMissingEqualsToNonBoolField() {
-        LogicalPlan p = plan("SELECT bool FROM test WHERE " + randomFrom("int", "text", "keyword", "date"));
-        assertTrue(p instanceof Project);
-
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-
-        Expression condition = ((Filter) p).condition();
-        assertTrue(condition instanceof FieldAttribute);
-    }
 }

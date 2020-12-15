@@ -1,0 +1,173 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+import java.nio.file.Files
+import java.nio.file.Paths
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+final Project hdfsFixtureProject = project(':test:fixtures:hdfs-fixture')
+final Project krbFixtureProject = project(':test:fixtures:krb5kdc-fixture')
+final Project hdfsRepoPluginProject = project(':plugins:repository-hdfs')
+
+dependencies {
+  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation hdfsRepoPluginProject
+}
+
+restResources {
+  restApi {
+    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
+    includeXpack 'searchable_snapshots'
+  }
+}
+
+testFixtures.useFixture(krbFixtureProject.path, 'hdfs-snapshot')
+
+configurations {
+  hdfsFixture
+}
+
+dependencies {
+  hdfsFixture hdfsFixtureProject
+  // Set the keytab files in the classpath so that we can access them from test code without the security manager freaking out.
+  if (isEclipse == false) {
+    testRuntimeOnly files(krbFixtureProject.ext.krb5Keytabs("hdfs-snapshot", "hdfs_hdfs.build.elastic.co.keytab").parent)
+  }
+}
+
+normalization {
+  runtimeClasspath {
+    // ignore generated keytab files for the purposes of build avoidance
+    ignore '*.keytab'
+    // ignore fixture ports file which is on the classpath primarily to pacify the security manager
+    ignore 'ports'
+  }
+}
+
+String realm = "BUILD.ELASTIC.CO"
+String krb5conf = krbFixtureProject.ext.krb5Conf("hdfs")
+
+// Create HDFS File System Testing Fixtures
+for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
+  def tsk = project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+    dependsOn project.configurations.hdfsFixture, krbFixtureProject.tasks.postProcessFixture
+    executable = "${BuildParams.runtimeJavaHome}/bin/java"
+    env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
+    maxWaitInSeconds 60
+    onlyIf { BuildParams.inFipsJvm == false }
+    waitCondition = { fixture, ant ->
+      // the hdfs.MiniHDFS fixture writes the ports file when
+      // it's ready, so we can just wait for the file to exist
+      return fixture.portsFile.exists()
+    }
+    final List<String> miniHDFSArgs = []
+
+    // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
+    if (fixtureName.equals('secureHdfsFixture')) {
+      miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
+    }
+
+    // Common options
+    miniHDFSArgs.add('hdfs.MiniHDFS')
+    miniHDFSArgs.add(baseDir)
+
+    // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
+    if (fixtureName.equals('secureHdfsFixture')) {
+      miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
+      miniHDFSArgs.add(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab"))
+    }
+
+    args miniHDFSArgs.toArray()
+  }
+
+  // TODO: The task configuration block has side effects that require it currently to be always executed.
+  // Otherwise tests start failing. Therefore we enforce the task creation for now.
+  tsk.get()
+}
+
+// Disable integration test if Fips mode
+integTest {
+  description = "Runs rest tests against an elasticsearch cluster with HDFS."
+  systemProperty 'test.hdfs.uri', 'hdfs://localhost:9999'
+  nonInputProperties.systemProperty 'test.hdfs.path', '/user/elasticsearch/test/searchable_snapshots/simple'
+  onlyIf { BuildParams.inFipsJvm == false }
+}
+
+task integTestSecure(type: RestIntegTestTask) {
+  description = "Runs rest tests against an elasticsearch cluster with Secured HDFS."
+  nonInputProperties.systemProperty 'test.hdfs.uri', 'hdfs://localhost:9998'
+  nonInputProperties.systemProperty 'test.hdfs.path', '/user/elasticsearch/test/searchable_snapshots/secure'
+  nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
+  nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
+  nonInputProperties.systemProperty(
+    "test.krb5.keytab.hdfs",
+    project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
+  )
+  onlyIf { BuildParams.inFipsJvm == false }
+}
+check.dependsOn(integTestSecure)
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  plugin(hdfsRepoPluginProject.path)
+  setting 'xpack.license.self_generated.type', 'trial'
+}
+
+testClusters.integTestSecure {
+  systemProperty "java.security.krb5.conf", krb5conf
+  extraConfigFile(
+    "repository-hdfs/krb5.keytab",
+    file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE
+  )
+}
+
+// Determine HDFS Fixture compatibility for the current build environment.
+boolean fixtureSupported = false
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  // hdfs fixture will not start without hadoop native libraries on windows
+  String nativePath = System.getenv("HADOOP_HOME")
+  if (nativePath != null) {
+    java.nio.file.Path path = Paths.get(nativePath)
+    if (Files.isDirectory(path) &&
+      Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+      Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+      Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+      fixtureSupported = true
+    } else {
+      throw new IllegalStateException("HADOOP_HOME: ${path} is invalid, does not contain hadoop native libraries in \$HADOOP_HOME/bin")
+    }
+  }
+} else {
+  fixtureSupported = true
+}
+
+boolean legalPath = rootProject.rootDir.toString().contains(" ") == false
+if (legalPath == false) {
+  fixtureSupported = false
+}
+
+if (fixtureSupported) {
+  integTest.dependsOn hdfsFixture
+  integTestSecure.dependsOn secureHdfsFixture
+} else {
+  integTest.enabled = false
+  integTestSecure.enabled = false
+  if (legalPath) {
+    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  } else {
+    logger.warn("hdfsFixture unsupported since there are spaces in the path: '" + rootProject.rootDir.toString() + "'")
+  }
+}

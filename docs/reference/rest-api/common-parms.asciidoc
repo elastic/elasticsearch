@@ -580,6 +580,13 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
+tag::bulk-require-alias[]
+`require_alias`::
+(Optional, Boolean)
+If `true`, the action must target an <<indices-aliases,index alias>>. Defaults
+to `false`.
+end::bulk-require-alias[]
+
 tag::require-alias[]
 `require_alias`::
 (Optional, Boolean)

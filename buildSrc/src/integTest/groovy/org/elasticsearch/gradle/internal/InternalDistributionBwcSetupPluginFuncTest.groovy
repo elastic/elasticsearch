@@ -125,7 +125,9 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     File setupGitRemote() {
         URL fakeRemote = getClass().getResource("fake_git/remote")
         File workingRemoteGit = new File(remoteRepoDirs.root, 'remote')
-        FileUtils.copyDirectory(new File(fakeRemote.file), workingRemoteGit)
+        println "workingRemoteGit = $workingRemoteGit"
+        println "fakeRemote.file = ${fakeRemote.file}"
+        FileUtils.copyDirectory(new File(fakeRemote.toURI()), workingRemoteGit)
         fakeRemote.file + "/.git"
         gradleRunner(workingRemoteGit, "wrapper").build()
         execute("git init", workingRemoteGit)

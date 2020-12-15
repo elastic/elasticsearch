@@ -54,9 +54,9 @@ setup:
   - do:
       rollup.rollup:
         index: docs
+        rollup_index: rollup_docs
         body:  >
           {
-            "rollup_index": "rollup_docs",
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",

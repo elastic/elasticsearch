@@ -83,6 +83,10 @@
                     if (m.matches()) {
                       emit(m.group(1));
                     }
+              bad_map:
+                type: double    # shadows the bad_map field in properties
+              message.text:
+                type: keyword   # shadows the message.text subfield in properties
               location_from_source:
                 type: geo_point
                 script:
@@ -93,10 +97,15 @@
                 type: date
               message:
                 type: keyword
+                fields:
+                  text:
+                    type: text
               voltage:
                 type: double
               location:
                 type: geo_point
+              bad_map:
+                type: long
 
   - do: {xpack.info: {}}
   - match: { features.runtime_fields.available: true }
@@ -125,6 +134,7 @@
   - match: { runtime_fields.field_types.1.count: 2 }
   - match: { runtime_fields.field_types.1.index_count: 1 }
   - match: { runtime_fields.field_types.1.scriptless_count: 0 }
+  - match: { runtime_fields.field_types.1.shadowed_count: 0 }
   - match: { runtime_fields.field_types.1.source_max: 0 }
   - match: { runtime_fields.field_types.1.source_total: 0 }
   - match: { runtime_fields.field_types.1.lines_max:  3 }
@@ -136,9 +146,10 @@
 
   - match: { runtime_fields.field_types.2.name: double }
   - match: { runtime_fields.field_types.2.lang: [painless] }
-  - match: { runtime_fields.field_types.2.count: 1 }
+  - match: { runtime_fields.field_types.2.count: 2 }
   - match: { runtime_fields.field_types.2.index_count: 1 }
-  - match: { runtime_fields.field_types.2.scriptless_count: 0 }
+  - match: { runtime_fields.field_types.2.scriptless_count: 1 }
+  - match: { runtime_fields.field_types.2.shadowed_count: 1 }
   - match: { runtime_fields.field_types.2.source_max: 1 }
   - match: { runtime_fields.field_types.2.source_total: 1 }
   - match: { runtime_fields.field_types.2.lines_max:  1 }
@@ -178,9 +189,10 @@
 
   - match: { runtime_fields.field_types.5.name: keyword }
   - match: { runtime_fields.field_types.5.lang: [painless] }
-  - match: { runtime_fields.field_types.5.count: 3 }
+  - match: { runtime_fields.field_types.5.count: 4 }
   - match: { runtime_fields.field_types.5.index_count: 1 }
-  - match: { runtime_fields.field_types.5.scriptless_count: 1 }
+  - match: { runtime_fields.field_types.5.scriptless_count: 2 }
+  - match: { runtime_fields.field_types.5.shadowed_count: 1 }
   - match: { runtime_fields.field_types.5.source_max: 1 }
   - match: { runtime_fields.field_types.5.source_total: 1 }
   - match: { runtime_fields.field_types.5.lines_max:  3 }

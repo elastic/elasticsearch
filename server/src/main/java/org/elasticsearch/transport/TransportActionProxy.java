@@ -121,6 +121,7 @@ public final class TransportActionProxy {
             super(in);
             targetNode = new DiscoveryNode(in);
             wrapped = reader.read(in);
+            setParentTask(wrapped.getParentTask());
         }
 
         @Override

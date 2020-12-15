@@ -9,10 +9,14 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Booleans;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 
@@ -52,6 +56,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             Response response = client().performRequest(bulk);
             assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+            long nowMillis = System.currentTimeMillis();
             Request rolloverRequest = new Request("POST", "/logs-foobar/_rollover");
             client().performRequest(rolloverRequest);
 
@@ -59,15 +64,27 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             index.addParameter("refresh", "true");
             index.addParameter("filter_path", "_index");
             if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                // include legacy name and date-named indices with today +/-1 in case of clock skew
+                var expectedIndices = List.of(
+                    "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis + 86400000) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis - 86400000) + "\"}"
+                );
                 index.setJsonEntity("{\"@timestamp\":\"2020-12-12\",\"test\":\"value1000\"}");
                 Response response = client().performRequest(index);
-                assertEquals("{\"_index\":\".ds-logs-foobar-000002\"}",
-                    EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+                assertThat(expectedIndices, Matchers.hasItem(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
             } else {
+                // include legacy name and date-named indices with today +/-1 in case of clock skew
+                var expectedIndices = List.of(
+                    "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 3) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis + 86400000) + "\"}",
+                    "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis - 86400000) + "\"}"
+                );
                 index.setJsonEntity("{\"@timestamp\":\"2020-12-12\",\"test\":\"value1001\"}");
                 Response response = client().performRequest(index);
-                assertEquals("{\"_index\":\".ds-logs-foobar-000003\"}",
-                    EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+                assertThat(expectedIndices, Matchers.hasItem(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
             }
         }
 

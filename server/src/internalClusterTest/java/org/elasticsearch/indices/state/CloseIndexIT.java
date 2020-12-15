@@ -34,9 +34,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
@@ -469,6 +471,34 @@ public class CloseIndexIT extends ESIntegTestCase {
             IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
                 .indexService(resolveIndex(indexName)).getShard(0);
             assertThat(shard.routingEntry().toString(), shard.getOperationPrimaryTerm(), equalTo(primaryTerm));
+        }
+    }
+
+    public void testCommitIdInSearcher() throws Exception {
+        final String indexName = "test_commit_id";
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertIndexIsClosed(indexName);
+        ensureGreen(indexName);
+        final String nodeWithPrimary = Iterables.get(internalCluster().nodesInclude(indexName), 0);
+        IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeWithPrimary)
+            .indexService(resolveIndex(indexName)).getShard(0);
+        final String commitId;
+        try (Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier(randomFrom(Engine.SearcherScope.values()))) {
+            assertNotNull(searcherSupplier.getCommitId());
+            commitId = searcherSupplier.getCommitId();
+        }
+        internalCluster().restartNode(nodeWithPrimary);
+        ensureGreen(indexName);
+        shard = internalCluster().getInstance(IndicesService.class, nodeWithPrimary).indexService(resolveIndex(indexName)).getShard(0);
+        try (Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier(randomFrom(Engine.SearcherScope.values()))) {
+            assertThat(searcherSupplier.getCommitId(), equalTo(commitId));
         }
     }
 

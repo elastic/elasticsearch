@@ -163,9 +163,8 @@ GET stats-index/_search
 }
 --------------------------------------------------
 
-Running a `term` query for a specific value, will return all documents that have this value
-stored as the `default_metric` sub-field. From the result, we can see that the `aggregate_metric_double`
-field delegates the `term` query to its `max` sub-field.
+The search returns the following hit. The value of the `default_metric` field,
+`max`, matches the query value.
 
 [source,console-result]
 --------------------------------------------------

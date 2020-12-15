@@ -117,7 +117,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         mockChain(task, "_action", request, actionResponse);
         filter.apply(task, "_action", request, listener, chain);
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
-        verify(auditTrail).actionResponse(eq(requestId), eq(authentication), eq("_action"), eq(request), eq(actionResponse));
+        verify(auditTrail).coordinatingActionResponse(eq(requestId), eq(authentication), eq("_action"), eq(request), eq(actionResponse));
     }
 
     public void testApplyRestoresThreadContext() throws Exception {
@@ -139,7 +139,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
-        verify(auditTrail).actionResponse(eq(requestId), eq(authentication), eq("_action"), eq(request), eq(actionResponse));
+        verify(auditTrail).coordinatingActionResponse(eq(requestId), eq(authentication), eq("_action"), eq(request), eq(actionResponse));
     }
 
     public void testApplyAsSystemUser() throws Exception {
@@ -235,8 +235,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         } else {
             verify(authzService).authorize(eq(authentication), eq(action), eq(request), any(ActionListener.class));
             verify(chain).proceed(eq(task), eq(action), eq(request), any(ActionListener.class));
-            verify(auditTrail).actionResponse(eq(requestIdFromAuthn.get()), eq(authentication), eq(action), eq(request),
-                    eq(actionResponse));
+            verify(auditTrail).coordinatingActionResponse(eq(requestIdFromAuthn.get()), eq(authentication), eq(action), eq(request), eq(actionResponse));
         }
     }
 

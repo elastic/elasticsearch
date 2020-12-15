@@ -156,7 +156,8 @@ public class SecurityActionFilter implements ActionFilter {
                                 (ignore, aVoid) -> {
                                     chain.proceed(task, action, request, ActionListener.delegateFailure(listener,
                                             (ignore2, response) -> {
-                                                auditTrailService.get().actionResponse(requestId, authc, action, request, response);
+                                                auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request,
+                                                        response);
                                                 listener.onResponse(response);
                                             }));
                                 }));

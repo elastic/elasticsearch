@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -33,18 +32,14 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -58,7 +53,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final AuditTrailService auditTrailService;
     private final SSLService sslService;
     private final Map<String, ServerTransportFilter> profileFilters;
     private final XPackLicenseState licenseState;
@@ -72,7 +66,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                               ThreadPool threadPool,
                                               AuthenticationService authcService,
                                               AuthorizationService authzService,
-                                              AuditTrailService auditTrailService,
                                               XPackLicenseState licenseState,
                                               SSLService sslService,
                                               SecurityContext securityContext,
@@ -82,7 +75,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.threadPool = threadPool;
         this.authcService = authcService;
         this.authzService = authzService;
-        this.auditTrailService = auditTrailService;
         this.licenseState = licenseState;
         this.sslService = sslService;
         this.securityContext = securityContext;
@@ -168,7 +160,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                                                                     boolean forceExecution,
                                                                                     TransportRequestHandler<T> actualHandler) {
         return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters,
-                auditTrailService, securityContext, licenseState, threadPool);
+                licenseState, threadPool);
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
@@ -193,8 +185,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         private final String action;
         private final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
-        private final AuditTrailService auditTrailService;
-        private final SecurityContext securityContext;
         private final XPackLicenseState licenseState;
         private final ThreadContext threadContext;
         private final String executorName;
@@ -204,22 +194,19 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         ProfileSecuredRequestHandler(Logger logger, String action, boolean forceExecution, String executorName,
                                      TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters,
-                                     AuditTrailService auditTrailService, SecurityContext securityContext,
                                      XPackLicenseState licenseState, ThreadPool threadPool) {
             this.logger = logger;
             this.action = action;
             this.executorName = executorName;
             this.handler = handler;
             this.profileFilters = profileFilters;
-            this.auditTrailService = auditTrailService;
-            this.securityContext = securityContext;
             this.licenseState = licenseState;
             this.threadContext = threadPool.getThreadContext();
             this.threadPool = threadPool;
             this.forceExecution = forceExecution;
         }
 
-        private AbstractRunnable getReceiveRunnable(T request, TransportChannel channel, Task task, boolean securityEnabled) {
+        AbstractRunnable getReceiveRunnable(T request, TransportChannel channel, Task task) {
             return new AbstractRunnable() {
                 @Override
                 public boolean isForceExecution() {
@@ -238,49 +225,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 @Override
                 protected void doRun() throws Exception {
-                    if (securityEnabled) {
-                        // extract the requestId and the authentication from the threadContext before executing the action
-                        final String requestId = AuditUtil.extractRequestId(threadContext);
-                        if (requestId == null) {
-                            channel.sendResponse(new ElasticsearchSecurityException("requestId is unexpectedly missing"));
-                            return;
-                        }
-                        final Authentication authentication = securityContext.getAuthentication();
-                        if (authentication == null) {
-                            channel.sendResponse(new ElasticsearchSecurityException("authn is unexpectedly missing"));
-                            return;
-                        }
-                        handler.messageReceived(request, new TransportChannel() {
-
-                            @Override
-                            public String getProfileName() {
-                                return channel.getProfileName();
-                            }
-
-                            @Override
-                            public String getChannelType() {
-                                return channel.getChannelType();
-                            }
-
-                            @Override
-                            public Version getVersion() {
-                                return channel.getVersion();
-                            }
-
-                            @Override
-                            public void sendResponse(TransportResponse response) throws IOException {
-                                auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
-                                channel.sendResponse(response);
-                            }
-
-                            @Override
-                            public void sendResponse(Exception exception) throws IOException {
-                                channel.sendResponse(exception);
-                            }
-                        }, task);
-                    } else {
-                        handler.messageReceived(request, channel, task);
-                    }
+                    handler.messageReceived(request, channel, task);
                 }
             };
         }
@@ -296,10 +241,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-            final boolean securityEnabled = licenseState.isSecurityEnabled();
-            final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task, securityEnabled);
+            final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (securityEnabled) {
+                if (licenseState.isSecurityEnabled()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 
@@ -315,7 +259,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert filter != null;
                     final Thread executingThread = Thread.currentThread();
 
-                    CheckedConsumer<Void, Exception> consumer = (aVoid) -> {
+                    CheckedConsumer<Void, Exception> consumer = (x) -> {
                         final Executor executor;
                         if (executingThread == Thread.currentThread()) {
                             // only fork off if we get called on another thread this means we moved to

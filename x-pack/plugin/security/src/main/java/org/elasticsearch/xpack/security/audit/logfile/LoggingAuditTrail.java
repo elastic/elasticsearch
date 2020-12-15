@@ -554,12 +554,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void actionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                               TransportResponse transportResponse) {
-        // not implemented yet
-    }
-
-    @Override
     public void tamperedRequest(String requestId, RestRequest request) {
         if (events.contains(TAMPERED_REQUEST) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
@@ -736,6 +730,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .build();
             logger.info(AUDIT_MARKER, logEntry);
         }
+    }
+
+    @Override
+    public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
+                                           TransportRequest transportRequest,
+                                           TransportResponse transportResponse) {
+        // not implemented yet
     }
 
     private class LogEntryBuilder {

@@ -118,10 +118,6 @@ public class AuditTrailService {
                                  AuthorizationInfo authorizationInfo) {}
 
         @Override
-        public void actionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                   TransportResponse transportResponse) {}
-
-        @Override
         public void tamperedRequest(String requestId, RestRequest request) {}
 
         @Override
@@ -152,6 +148,11 @@ public class AuditTrailService {
         public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication,
                                              String action, String indices, String requestName, TransportAddress remoteAddress,
                                              AuthorizationInfo authorizationInfo) {}
+
+        @Override
+        public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
+                                               TransportRequest transportRequest,
+                                               TransportResponse transportResponse) { }
     }
 
     private static class CompositeAuditTrail implements AuditTrail {
@@ -260,10 +261,11 @@ public class AuditTrailService {
         }
 
         @Override
-        public void actionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                   TransportResponse transportResponse) {
+        public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
+                                               TransportRequest transportRequest,
+                                               TransportResponse transportResponse) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.actionResponse(requestId, authentication, action, transportRequest, transportResponse);
+                auditTrail.coordinatingActionResponse(requestId, authentication, action, transportRequest, transportResponse);
             }
         }
 

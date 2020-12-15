@@ -48,10 +48,6 @@ public interface AuditTrail {
     void accessDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
                       AuthorizationInfo authorizationInfo);
 
-    // this is the only audit method that is called *after* the action executed, when the response is available
-    void actionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                        TransportResponse transportResponse);
-
     void tamperedRequest(String requestId, RestRequest request);
 
     void tamperedRequest(String requestId, String action, TransportRequest transportRequest);
@@ -86,4 +82,9 @@ public interface AuditTrail {
     void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String indices,
                                   String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo);
 
+    // this is the only audit method that is called *after* the action executed, when the response is available
+    // it is however *only called for coordinating actions*, which are the actions that a client invokes as opposed to
+    // the actions that a node invokes in order to service a client request
+    void coordinatingActionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
+                                    TransportResponse transportResponse);
 }

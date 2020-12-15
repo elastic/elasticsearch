@@ -49,6 +49,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -250,6 +251,7 @@ public class TaskManager implements ClusterStateApplier {
      * to unregister the child connection once the child task is completed or failed.
      */
     public Releasable registerChildConnection(long taskId, Transport.Connection childConnection) {
+        assert TransportService.unwrapConnection(childConnection) == childConnection : "Child connection must be unwrapped";
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
             logger.trace("register child connection [{}] task [{}]", childConnection, taskId);

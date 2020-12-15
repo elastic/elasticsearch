@@ -487,6 +487,20 @@ public final class DateFieldMapper extends FieldMapper {
         public Relation isFieldWithinQuery(IndexReader reader,
                                            Object from, Object to, boolean includeLower, boolean includeUpper,
                                            ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+            if (PointValues.size(reader, name()) == 0) {
+                // no points, so nothing matches
+                return Relation.DISJOINT;
+            }
+
+            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+
+            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+        }
+
+        public Relation isFieldWithinQuery(long minValue, long maxValue,
+                                           Object from, Object to, boolean includeLower, boolean includeUpper,
+                                           ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 if (from instanceof Number || to instanceof Number) {
                     // force epoch_millis
@@ -517,14 +531,6 @@ public final class DateFieldMapper extends FieldMapper {
                     --toInclusive;
                 }
             }
-
-            if (PointValues.size(reader, name()) == 0) {
-                // no points, so nothing matches
-                return Relation.DISJOINT;
-            }
-
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             if (minValue >= fromInclusive && maxValue <= toInclusive) {
                 return Relation.WITHIN;

@@ -11,13 +11,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -35,18 +31,13 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
             .build();
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockRepository.Plugin.class);
-    }
-
     public void testAllocatesToBestAvailableNodeOnRestart() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String firstDataNode = internalCluster().startDataOnlyNode();
         final String index = "test-idx";
         createIndexWithContent(index, indexSettingsNoReplicas(1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         final String repoName = "test-repo";
-        createRepository(repoName, "mock");
+        createRepository(repoName, "fs");
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(index));
         assertAcked(client().admin().indices().prepareDelete(index));

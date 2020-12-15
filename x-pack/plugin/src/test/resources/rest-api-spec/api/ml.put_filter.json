@@ -5,6 +5,7 @@
       "description":"Instantiates a filter."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

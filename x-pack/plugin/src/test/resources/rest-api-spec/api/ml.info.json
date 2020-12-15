@@ -5,6 +5,7 @@
       "description":"Returns defaults and limits used by machine learning."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

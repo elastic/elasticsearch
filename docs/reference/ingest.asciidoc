@@ -12,9 +12,9 @@ dedicated ingest nodes. To disable ingest for a node, configure the following se
 elasticsearch.yml file:
 
 [source,yaml]
---------------------------------------------------
-node.ingest: false
---------------------------------------------------
+----
+node.roles: [ ingest ]
+----
 
 To pre-process documents before indexing, <<pipeline,define a pipeline>> that specifies a series of
 <<ingest-processors,processors>>. Each processor transforms the document in some specific way. For example, a

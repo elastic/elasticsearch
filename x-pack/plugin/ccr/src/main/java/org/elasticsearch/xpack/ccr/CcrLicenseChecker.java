@@ -384,15 +384,11 @@ public class CcrLicenseChecker {
             if (filteredHeaders.isEmpty()) {
                 return client;
             }
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
             return new FilterClient(client) {
                 @Override
                 protected <Request extends ActionRequest, Response extends ActionResponse>
                 void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                    final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                    try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
-                        super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-                    }
+                    ClientHelper.executeWithHeadersAsync(filteredHeaders, null, client, action, request, listener);
                 }
             };
         }

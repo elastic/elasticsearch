@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -31,6 +32,21 @@ import java.util.stream.Collectors;
  * have the origin as a transient and listeners have the appropriate context upon invocation
  */
 public final class ClientHelper {
+
+    private static Pattern authorizationHeaderPattern = Pattern.compile("\\s*" + Pattern.quote("Authorization") + "\\s*",
+            Pattern.CASE_INSENSITIVE);
+
+    public static void assertNoAuthorizationHeader(Map<String, String> headers) {
+        boolean assertsEnabled = false;
+        assert assertsEnabled = true;
+        if (assertsEnabled) {
+            for (String header : headers.keySet()) {
+                if (authorizationHeaderPattern.matcher(header).find()) {
+                    assert false : "headers contain \"Authorization\"";
+                }
+            }
+        }
+    }
 
     /**
      * List of headers that are related to security
@@ -167,11 +183,8 @@ public final class ClientHelper {
     public static <Request extends ActionRequest, Response extends ActionResponse>
     void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, ActionType<Response> action, Request request,
                                  ActionListener<Response> listener) {
-
-        Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
-
+        final Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-
         // No headers (e.g. security not installed/in use) so execute as origin
         if (filteredHeaders.isEmpty()) {
             ClientHelper.executeAsyncWithOrigin(client, origin, action, request, listener);
@@ -186,6 +199,7 @@ public final class ClientHelper {
 
     private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
         final ThreadContext.StoredContext storedContext = threadContext.stashContext();
+        assertNoAuthorizationHeader(headers);
         threadContext.copyHeaders(headers.entrySet());
         return storedContext;
     }

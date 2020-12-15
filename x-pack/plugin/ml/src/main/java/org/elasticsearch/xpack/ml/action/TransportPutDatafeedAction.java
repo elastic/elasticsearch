@@ -153,7 +153,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                      ClusterState clusterState,
                                      ActionListener<PutDatafeedAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()), clusterState, listener);
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();

@@ -21,6 +21,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
+
 /**
  * This class is the main wrapper object that is serialized into the PersistentTask's cluster state.
  * It holds the config (RollupJobConfig) and a map of authentication headers.  Only RollupJobConfig
@@ -48,11 +50,13 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
     public RollupJob(RollupJobConfig config, Map<String, String> headers) {
         this.config = Objects.requireNonNull(config);
         this.headers = headers == null ? Collections.emptyMap() : headers;
+        assertNoAuthorizationHeader(headers);
     }
 
     public RollupJob(StreamInput in) throws IOException {
         this.config = new RollupJobConfig(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        assertNoAuthorizationHeader(headers);
     }
 
     public RollupJobConfig getConfig() {

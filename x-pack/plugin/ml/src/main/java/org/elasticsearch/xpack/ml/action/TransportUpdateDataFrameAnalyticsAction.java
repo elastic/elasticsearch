@@ -70,7 +70,7 @@ public class TransportUpdateDataFrameAnalyticsAction
 
         Runnable doUpdate = () ->
             useSecondaryAuthIfAvailable(securityContext, () -> {
-                Map<String, String> headers = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+                Map<String, String> headers = threadPool.getThreadContext().getHeaders();
                 configProvider.update(
                     request.getUpdate(),
                     headers,

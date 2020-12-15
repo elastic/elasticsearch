@@ -84,7 +84,7 @@ public class TransportUpdateDatafeedAction extends
 
         Runnable doUpdate = () ->
             useSecondaryAuthIfAvailable(securityContext, () -> {
-                final Map<String, String> headers = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+                final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
                 datafeedConfigProvider.updateDatefeedConfig(
                     request.getUpdate().getId(),
                     request.getUpdate(),

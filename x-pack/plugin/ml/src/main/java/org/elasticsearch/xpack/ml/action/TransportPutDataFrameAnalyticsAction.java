@@ -172,7 +172,7 @@ public class TransportPutDataFrameAnalyticsAction
         if (response.isCompleteMatch()) {
             updateDocMappingAndPutConfig(
                 memoryCappedConfig,
-                ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()),
+                threadPool.getThreadContext().getHeaders(),
                 ActionListener.wrap(
                     unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                     listener::onFailure

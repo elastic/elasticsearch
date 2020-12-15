@@ -474,16 +474,14 @@ class RollupShardIndexer {
 
         @Override
         public void visit(DocIdSetIterator iterator, byte[] packedValue) {
-            throw new IllegalStateException("should never be called");
+            long bucket = rounding.round(LongPoint.decodeDimension(packedValue, 0));
+            checkMinRounding(bucket);
         }
 
         @Override
         public void visit(int docID, byte[] packedValue) {
             long bucket = rounding.round(LongPoint.decodeDimension(packedValue, 0));
-            if (bucket > lastRounding) {
-                nextRounding = bucket;
-                throw new CollectionTerminatedException();
-            }
+            checkMinRounding(bucket);
         }
 
         @Override
@@ -493,11 +491,15 @@ class RollupShardIndexer {
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
             }
             long minRounding = rounding.round(LongPoint.decodeDimension(minPackedValue, 0));
-            if (minRounding > lastRounding) {
-                nextRounding = minRounding;
+            checkMinRounding(minRounding);
+            return PointValues.Relation.CELL_CROSSES_QUERY;
+        }
+
+        private void checkMinRounding(long rounding) {
+            if (rounding > lastRounding) {
+                nextRounding = rounding;
                 throw new CollectionTerminatedException();
             }
-            return PointValues.Relation.CELL_CROSSES_QUERY;
         }
     }
 

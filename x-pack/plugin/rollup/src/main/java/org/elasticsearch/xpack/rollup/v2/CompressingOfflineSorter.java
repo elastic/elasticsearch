@@ -22,8 +22,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterInputStream;
 
 /**
  * An {@link OfflineSorter} that compresses the values using a deflater.
@@ -48,21 +48,36 @@ class CompressingOfflineSorter extends OfflineSorter {
     @Override
     public ByteSequencesReader getReader(ChecksumIndexInput in, String name) throws IOException {
         // the footer is not compressed
-        long gzipLen = in.length()-CodecUtil.footerLength();
-        GZIPInputStream gzipInputStream = new GZIPInputStream(new InputStreamIndexInput(in, gzipLen));
+        long gzipLen = in.length() - CodecUtil.footerLength();
+        InflaterInputStream gzipInputStream = new InflaterInputStream(new InputStreamIndexInput(in, gzipLen));
         final DataInputStream dataIn = new DataInputStream(gzipInputStream);
         final BytesRefBuilder ref = new BytesRefBuilder();
         return new ByteSequencesReader(in, name) {
+
             public BytesRef next() throws IOException {
-                if (gzipInputStream.available() == 0) {
+                short length = readShort();
+                if (length == -1) {
                     return null;
                 }
-
-                short length = dataIn.readShort();
                 ref.grow(length);
                 ref.setLength(length);
-                dataIn.read(ref.bytes(), 0, length);
+                int readSize = 0;
+                while (readSize < length) {
+                    final int bytesRead = dataIn.read(ref.bytes(), readSize, length - readSize);
+                    readSize += bytesRead;
+                }
                 return ref.get();
+            }
+
+            private short readShort() throws IOException {
+                int ch1 = dataIn.read();
+                if (ch1 == -1) {
+                    return -1;
+                }
+                int ch2 = dataIn.read();
+                short length = (short) ((ch1 << 8) + (ch2 << 0));
+                assert length > 0;
+                return length;
             }
 
             @Override
@@ -75,7 +90,7 @@ class CompressingOfflineSorter extends OfflineSorter {
 
     @Override
     public Writer getWriter(IndexOutput out, long itemCount) throws IOException {
-        final GZIPOutputStream gzipOut = new GZIPOutputStream(new IndexOutputOutputStream(out));
+        final DeflaterOutputStream gzipOut = new DeflaterOutputStream(new IndexOutputOutputStream(out), true);
         final DataOutputStream dataOut = new DataOutputStream(gzipOut);
         // ensure that we flush the deflater when writing the footer
         return new Writer(new FlushIndexOutput(out.getName(), out, gzipOut)) {
@@ -100,23 +115,30 @@ class CompressingOfflineSorter extends OfflineSorter {
     }
 
     private static class FlushIndexOutput extends FilterIndexOutput {
-        final GZIPOutputStream gzip;
+        final DeflaterOutputStream gzip;
+        boolean finished = false;
 
-        private FlushIndexOutput(String resourceDescription, IndexOutput out, GZIPOutputStream gzip) {
+        private FlushIndexOutput(String resourceDescription, IndexOutput out, DeflaterOutputStream gzip) {
             super(resourceDescription, out);
             this.gzip = gzip;
         }
 
         @Override
         public void writeByte(byte b) throws IOException {
-            gzip.finish();
-            super.writeByte(b);
+            if (finished == false) {
+                gzip.finish();
+                finished = true;
+            }
+            out.writeByte(b);
         }
 
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            gzip.finish();
-            super.writeBytes(b, offset, length);
+            if (finished == false) {
+                gzip.finish();
+                finished = true;
+            }
+            out.writeBytes(b, offset, length);
         }
     }
 }

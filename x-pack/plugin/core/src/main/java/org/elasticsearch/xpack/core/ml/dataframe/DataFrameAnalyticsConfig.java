@@ -410,7 +410,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder setHeaders(Map<String, String> headers) {
             this.headers = headers;
-            assert false == this.headers.containsKey("Authorization");
+            assertNoAuthorizationHeader(this.headers);
             return this;
         }
 

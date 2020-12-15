@@ -346,7 +346,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         SetOnce<String> reqId = new SetOnce<>();
         if (requestIdAlreadyPresent) {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
-            assertThat(reqId.get(), not(nullValue()));
         }
 
         final AtomicBoolean completed = new AtomicBoolean(false);

@@ -417,7 +417,7 @@ public class NativePrivilegeStore {
         private final Cache<Set<String>, Set<String>> applicationNamesCache;
         private final CountingRunner countingRunner;
 
-        public DescriptorsAndApplicationNamesCache(TimeValue ttl, int cacheSize) {
+        DescriptorsAndApplicationNamesCache(TimeValue ttl, int cacheSize) {
             this.descriptorsCache = CacheBuilder.<String, Set<ApplicationPrivilegeDescriptor>>builder()
                 .setMaximumWeight(cacheSize)
                 .weigher((k, v) -> v.size())

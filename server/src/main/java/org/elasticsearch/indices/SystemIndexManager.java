@@ -137,7 +137,7 @@ public class SystemIndexManager implements ClusterStateListener {
     UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
         final State indexState = calculateIndexState(clusterState, descriptor);
 
-        final String indexDescription = "Index [" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
+        final String indexDescription = "[" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
 
         // The messages below will be logged on every cluster state update, which is why even in the index closed / red
         // cases, the log levels are DEBUG.

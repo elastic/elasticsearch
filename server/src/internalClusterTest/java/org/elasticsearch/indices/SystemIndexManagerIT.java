@@ -23,11 +23,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +41,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -85,9 +84,8 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
 
         // Cause a cluster state update, so that the SystemIndexManager will update the mappings in our index
         triggerClusterStateUpdates();
-        waitNoPendingTasksOnAll(); // FIXME why do I need this to see the new mappings?
 
-        assertMappings(TestSystemIndexDescriptor.getNewMappings());
+        assertBusy(() -> assertMappings(TestSystemIndexDescriptor.getNewMappings()));
     }
 
     /**
@@ -107,28 +105,19 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
         // Poke the test descriptor so that the mappings are now out-dated.
         TestSystemIndexDescriptor.useNewMappings.set(false);
 
-        // Cause a cluster state update, so that the SystemIndexManager will update the mappings in our index
+        // Cause a cluster state update, so that the SystemIndexManager's listener will execute
         triggerClusterStateUpdates();
-        waitNoPendingTasksOnAll(); // FIXME why do I need this to see the new mappings?
 
         // Mappings should be unchanged.
-        assertMappings(TestSystemIndexDescriptor.getNewMappings());
+        assertBusy(() -> assertMappings(TestSystemIndexDescriptor.getNewMappings()));
     }
 
     /**
-     * Performs a no-op cluster state update in order to trigger any cluster state listeners - specifically, SystemIndexManager.
+     * Performs a cluster state update in order to trigger any cluster state listeners - specifically, SystemIndexManager.
      */
     private void triggerClusterStateUpdates() {
-        internalCluster().getMasterNodeInstance(ClusterService.class).submitStateUpdateTask("test", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return ClusterState.builder(currentState).build();
-            }
-            @Override
-            public void onFailure(String source, Exception e) {
-                throw new AssertionError(source, e);
-            }
-        });
+        final String name = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        client().admin().indices().putTemplate(new PutIndexTemplateRequest(name).patterns(List.of(name))).actionGet();
     }
 
     /**
@@ -148,10 +137,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
                 final Map<String, Object> sourceAsMap = mappings.get(PRIMARY_INDEX_NAME).getSourceAsMap();
 
                 try {
-                    assertThat(
-                        convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(),
-                        equalTo(expectedMappings)
-                    );
+                    assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }

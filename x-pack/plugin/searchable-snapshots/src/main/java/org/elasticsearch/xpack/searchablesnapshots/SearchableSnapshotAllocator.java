@@ -59,7 +59,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotAllocator.class);
 
-    private static final ActionListener<ClusterRerouteResponse> REROUTE_LISTENER = new ActionListener<>() {
+    private static final ActionListener<ClusterRerouteResponse> REROUTE_LISTENER = new ActionListener<ClusterRerouteResponse>() {
         @Override
         public void onResponse(ClusterRerouteResponse clusterRerouteResponse) {
             logger.trace("reroute succeeded after loading snapshot cache information");
@@ -256,7 +256,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             client.execute(
                 TransportSearchableSnapshotCacheStoresAction.TYPE,
                 new TransportSearchableSnapshotCacheStoresAction.Request(snapshotId, shardId, dataNodes),
-                ActionListener.runAfter(new ActionListener<>() {
+                ActionListener.runAfter(new ActionListener<NodesCacheFilesMetadata>() {
                     @Override
                     public void onResponse(NodesCacheFilesMetadata nodesCacheFilesMetadata) {
                         final Map<DiscoveryNode, NodeCacheFilesMetadata> res = new HashMap<>(nodesCacheFilesMetadata.getNodesMap().size());
@@ -419,7 +419,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
         @Nullable
         synchronized Map<DiscoveryNode, NodeCacheFilesMetadata> data() {
-            return fetchingDataNodes.size() > 0 ? null : Map.copyOf(data);
+            return fetchingDataNodes.size() > 0 ? null : Collections.unmodifiableMap(new HashMap<>(data));
         }
 
         synchronized int numberOfInFlightFetches() {

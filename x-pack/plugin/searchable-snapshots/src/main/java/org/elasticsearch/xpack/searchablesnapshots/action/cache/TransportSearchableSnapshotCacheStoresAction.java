@@ -8,10 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,9 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
@@ -85,7 +80,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     }
 
     @Override
-    protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
+    protected NodeCacheFilesMetadata nodeOperation(NodeRequest request) {
         assert cacheService != null;
         return new NodeCacheFilesMetadata(clusterService.localNode(), cacheService.getCachedSize(request.shardId, request.snapshotId));
     }
@@ -115,7 +110,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
         }
     }
 
-    public static final class NodeRequest extends TransportRequest {
+    public static final class NodeRequest extends BaseNodeRequest {
 
         private final SnapshotId snapshotId;
         private final ShardId shardId;

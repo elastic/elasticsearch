@@ -108,7 +108,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final AtomicInteger reroutesTriggered = new AtomicInteger(0);
 
         final Map<DiscoveryNode, Long> existingCacheSizes = nodes.stream()
-            .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> randomBoolean() ? 0L : randomLongBetween(0, shardSize)));
+            .collect(Collectors.toMap(Function.identity(), k -> randomBoolean() ? 0L : randomLongBetween(0, shardSize)));
 
         final Client client = new NoOpNodeClient(deterministicTaskQueue.getThreadPool()) {
 
@@ -135,7 +135,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
                                     )
                                 )
                                 .collect(Collectors.toList()),
-                            List.of()
+                            Collections.emptyList()
                         )
                     );
                 } else {
@@ -152,7 +152,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             assertFalse("If there are no existing caches the allocator should not take a decision", allocation.routingNodesChanged());
         } else {
             assertTrue(allocation.routingNodesChanged());
-            final long bestCacheSize = existingCacheSizes.values().stream().mapToLong(l -> l).max().orElseThrow();
+            final long bestCacheSize = existingCacheSizes.values().stream().mapToLong(l -> l).max().getAsLong();
 
             final ShardRouting primaryRouting = allocation.routingNodes().assignedShards(shardId).get(0);
             final String primaryNodeId = primaryRouting.currentNodeId();

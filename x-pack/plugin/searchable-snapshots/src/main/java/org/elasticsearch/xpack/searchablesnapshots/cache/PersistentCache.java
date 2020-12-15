@@ -139,30 +139,29 @@ public class PersistentCache implements Closeable {
     public long getCacheSize(ShardId shardId, SnapshotId snapshotId) {
         long aggregateSize = 0L;
         final CacheIndexWriter writer = writers.get(0);
-        try (Directory directory = FSDirectory.open(resolveCacheIndexFolder(writer.nodePath()))) {
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher searcher = new IndexSearcher(indexReader);
-                searcher.setQueryCache(null);
-                BooleanQuery.Builder query = new BooleanQuery.Builder().add(
-                    new TermQuery(new Term(SNAPSHOT_ID_FIELD, snapshotId.getUUID())),
-                    BooleanClause.Occur.MUST
-                )
+        try (IndexReader indexReader = DirectoryReader.open(writer.indexWriter)) {
+            final IndexSearcher searcher = new IndexSearcher(indexReader);
+            searcher.setQueryCache(null);
+            final Weight weight = searcher.createWeight(
+                new BooleanQuery.Builder().add(new TermQuery(new Term(SNAPSHOT_ID_FIELD, snapshotId.getUUID())), BooleanClause.Occur.MUST)
                     .add(new TermQuery(new Term(SHARD_INDEX_ID_FIELD, shardId.getIndex().getUUID())), BooleanClause.Occur.MUST)
-                    .add(new TermQuery(new Term(SHARD_ID_FIELD, String.valueOf(shardId.getId()))), BooleanClause.Occur.MUST);
-                final Weight weight = searcher.createWeight(query.build(), ScoreMode.COMPLETE_NO_SCORES, 0.0f);
-                for (LeafReaderContext leafReaderContext : searcher.getIndexReader().leaves()) {
-                    final Scorer scorer = weight.scorer(leafReaderContext);
-                    if (scorer != null) {
-                        final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
-                        final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
-                        final DocIdSetIterator docIdSetIterator = scorer.iterator();
-                        while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                            if (isLiveDoc.test(docIdSetIterator.docID())) {
-                                final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                                var ranges = buildCacheFileRanges(document);
-                                for (Tuple<Long, Long> range : ranges) {
-                                    aggregateSize += range.v2() - range.v1();
-                                }
+                    .add(new TermQuery(new Term(SHARD_ID_FIELD, String.valueOf(shardId.getId()))), BooleanClause.Occur.MUST)
+                    .build(),
+                ScoreMode.COMPLETE_NO_SCORES,
+                0.0f
+            );
+            for (LeafReaderContext leafReaderContext : searcher.getIndexReader().leaves()) {
+                final Scorer scorer = weight.scorer(leafReaderContext);
+                if (scorer != null) {
+                    final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                    final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
+                    final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                    while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        if (isLiveDoc.test(docIdSetIterator.docID())) {
+                            final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                            var ranges = buildCacheFileRanges(document);
+                            for (Tuple<Long, Long> range : ranges) {
+                                aggregateSize += range.v2() - range.v1();
                             }
                         }
                     }

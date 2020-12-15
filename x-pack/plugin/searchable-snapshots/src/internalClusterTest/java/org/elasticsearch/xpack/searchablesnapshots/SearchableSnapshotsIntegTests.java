@@ -794,6 +794,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66411")
     public void testSnapshotOfSearchableSnapshotIncludesNoDataButCanBeRestored() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createAndPopulateIndex(

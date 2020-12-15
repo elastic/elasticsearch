@@ -29,6 +29,12 @@ The +{request}+ supports invalidating
 include-tagged::{doc-tests-file}[invalidate-api-key-id-request]
 --------------------------------------------------
 
+===== Specific API keys by an array of API key ids
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-api-key-ids-request]
+--------------------------------------------------
+
 ===== Specific API key by API key name
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

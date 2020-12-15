@@ -20,10 +20,12 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -31,7 +33,14 @@ import static org.hamcrest.Matchers.is;
 public class InvalidateApiKeyRequestTests extends ESTestCase {
 
     public void testRequestValidation() {
-        InvalidateApiKeyRequest request = InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5), randomBoolean());
+        InvalidateApiKeyRequest request;
+        if (randomBoolean()) {
+            request = InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5), randomBoolean());
+        } else {
+            request = InvalidateApiKeyRequest.usingApiKeyIds(
+                IntStream.range(1, randomIntBetween(1, 5)).mapToObj(ignored -> randomAlphaOfLength(5)).toArray(String[]::new),
+                randomBoolean());
+        }
         Optional<ValidationException> ve = request.validate();
         assertThat(ve.isPresent(), is(false));
         request = InvalidateApiKeyRequest.usingApiKeyName(randomAlphaOfLength(5), randomBoolean());
@@ -72,8 +81,8 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         for (int i = 0; i < inputs.length; i++) {
             final int caseNo = i;
             IllegalArgumentException ve = expectThrows(IllegalArgumentException.class,
-                    () -> new InvalidateApiKeyRequest(inputs[caseNo][0], inputs[caseNo][1], inputs[caseNo][2], inputs[caseNo][3],
-                        Boolean.valueOf(inputs[caseNo][4])));
+                    () -> new InvalidateApiKeyRequest(inputs[caseNo][0], inputs[caseNo][1], inputs[caseNo][3],
+                        Boolean.valueOf(inputs[caseNo][4]), convertToIds(inputs[caseNo][2])));
             assertNotNull(ve);
             assertThat(ve.getMessage(), equalTo(expectedErrorMessages[caseNo]));
         }
@@ -81,5 +90,9 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
 
     private static String randomNullOrEmptyString() {
         return randomBoolean() ? "" : null;
+    }
+
+    private String[] convertToIds(String id) {
+        return Strings.hasText(id) ? new String[] { id } : null;
     }
 }

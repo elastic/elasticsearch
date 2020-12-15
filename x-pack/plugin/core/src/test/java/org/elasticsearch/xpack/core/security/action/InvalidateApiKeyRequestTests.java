@@ -46,7 +46,6 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            null,
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             false,
             new String[]{});
@@ -57,7 +56,6 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         invalidateApiKeyRequest = new InvalidateApiKeyRequest(
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            null,
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             false,
             new String[]{randomAlphaOfLength(12), null});
@@ -232,7 +230,6 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         final InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            null,
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             false,
             new String[]{randomAlphaOfLength(12), randomAlphaOfLength(12)});

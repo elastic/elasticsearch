@@ -203,7 +203,7 @@ teardown:
 ---
 "Test invalidate api keys":
   - skip:
-      features: transform_and_set
+      features: ["transform_and_set", "warnings"]
 
   - do:
       headers:
@@ -224,6 +224,8 @@ teardown:
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
 
   - do:
+      warnings:
+        - "Deprecated field [id] used, replaced by [ids]"
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.invalidate_api_key:

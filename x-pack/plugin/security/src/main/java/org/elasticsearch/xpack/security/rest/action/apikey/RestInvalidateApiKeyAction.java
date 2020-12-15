@@ -10,6 +10,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Rest action to invalidate one or more API keys
  */
 public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
-    static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
+    static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("",
             a -> {
                 return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3],
                     (a[4] == null) ? false : (Boolean) a[4],
@@ -41,7 +42,7 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("realm_name"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id").withAllDeprecated("ids"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("owner"));
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ids"));
@@ -76,5 +77,4 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
     public String getName() {
         return "xpack_security_invalidate_api_key";
     }
-
 }

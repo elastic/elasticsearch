@@ -466,8 +466,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 Set<Boolean> inNodes = state.getRoutingTable()
                     .allShards(indexMetadata.getIndex().getName())
                     .stream()
-                    .filter(s -> s.currentNodeId() != null)
                     .map(ShardRouting::currentNodeId)
+                    .filter(Objects::nonNull)
                     .map(nodeIds::contains)
                     .collect(Collectors.toSet());
                 if (inNodes.contains(false)) {

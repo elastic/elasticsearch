@@ -187,6 +187,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             return future.actionGet(TimeValue.ZERO);
         } catch (ElasticsearchTimeoutException e) {
             assert false : "Unexpected timeout exception while getting a timestamp mapping";
+            throw e;
         }
         throw new AssertionError("Unexpected timeout exception while getting a timestamp mapping");
     }

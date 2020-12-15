@@ -23,8 +23,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
@@ -43,6 +46,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
     private static final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
     private final PolicyValidator policyValidator;
+    private final AutoscalingLicenseChecker autoscalingLicenseChecker;
 
     @Inject
     public TransportPutAutoscalingPolicyAction(
@@ -52,7 +56,8 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final AllocationDeciders allocationDeciders,
-        final AutoscalingCalculateCapacityService.Holder policyValidatorHolder
+        final AutoscalingCalculateCapacityService.Holder policyValidatorHolder,
+        final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
         this(
             transportService,
@@ -60,7 +65,8 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             indexNameExpressionResolver,
-            policyValidatorHolder.get(allocationDeciders)
+            policyValidatorHolder.get(allocationDeciders),
+            autoscalingLicenseChecker
         );
     }
 
@@ -70,7 +76,8 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final PolicyValidator policyValidator
+        final PolicyValidator policyValidator,
+        final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
         super(
             PutAutoscalingPolicyAction.NAME,
@@ -83,6 +90,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             ThreadPool.Names.SAME
         );
         this.policyValidator = policyValidator;
+        this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
     }
 
     @Override
@@ -91,6 +99,11 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        if (autoscalingLicenseChecker.isAutoscalingAllowed() == false) {
+            listener.onFailure(LicenseUtils.newComplianceException("autoscaling"));
+            return;
+        }
+
         SortedSet<String> roles = request.roles();
         if (roles != null) {
             List<String> errors = roles.stream().filter(not(DiscoveryNode.getPossibleRoleNames()::contains)).collect(Collectors.toList());

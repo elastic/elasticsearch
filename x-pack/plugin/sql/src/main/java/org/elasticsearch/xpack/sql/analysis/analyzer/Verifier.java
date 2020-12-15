@@ -69,8 +69,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
@@ -626,15 +626,6 @@ public final class Verifier {
             return true;
         }
         return false;
-    }
-
-    private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
-        if (p instanceof Filter) {
-            Expression condition = ((Filter) p).condition();
-            if (condition.dataType() != BOOLEAN) {
-                localFailures.add(fail(condition, "Condition expression needs to be boolean, found [{}]", condition.dataType()));
-            }
-        }
     }
 
     private static void checkGroupingFunctionInGroupBy(LogicalPlan p, Set<Failure> localFailures) {

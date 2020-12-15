@@ -10,11 +10,11 @@ The `aggregate_metric_double` field stores pre-aggregated numeric values (`min`,
 accessed by metric aggregations. An `aggregate_metric_double` field is defined as an object with one ore more of the following sub-fields:
 `min`, `max`, `sum` and `value_count`.
 
-The power of the `aggregate_metric_double` field comes from the fact that when an `aggregate_metric_double` field
-participates in a metric aggregation, it returns the value of the associated sub-field for that aggregation.
-For example, an `aggregate_metric_double` field that stores `min` and `max` metrics will return the `min` metric when
-collected by a <<search-aggregations-metrics-min-aggregation,min>> aggregation and the `max` metric
-when participating in a <<search-aggregations-metrics-max-aggregation-histogram-fields,max>> aggregation.
+When you run certain metric aggregations on an `aggregate_metric_double` field,
+the aggregation uses the related sub-field's values. For example, a
+<<search-aggregations-metrics-min-aggregation, `min`>> aggregation on an
+`aggregate_metric_double` field returns the minimum value of all `min`
+sub-fields.
 
 [IMPORTANT]
 ========

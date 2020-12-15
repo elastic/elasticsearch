@@ -445,6 +445,10 @@ public class JobResultsProvider {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 // look for both old and new formats
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
+                // We want to sort on log_time. However, this was added a long time later and before that we used to
+                // sort on latest_record_time. Thus we handle older data counts where no log_time exists and we fall back
+                // to the prior behaviour.
+                .addSort(SortBuilders.fieldSort(DataCounts.LOG_TIME.getPreferredName()).order(SortOrder.DESC).missing(0L))
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
     }
 

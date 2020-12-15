@@ -50,7 +50,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
  * {@link CacheService} maintains a cache entry for all files read from searchable snapshot directories (see
@@ -73,9 +73,30 @@ public class CacheService extends AbstractLifecycleComponent {
 
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
     public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+
+    /**
+     * If a search needs data from the repository then we expand it to a larger contiguous range whose size is determined by this setting,
+     * in anticipation of needing nearby data in subsequent reads. Repository reads typically have quite high latency (think ~100ms) and
+     * the default of 32MB for this setting represents the approximate point at which size starts to matter. In other words, reads of
+     * ranges smaller than 32MB don't usually happen much quicker, so we may as well expand all the way to 32MB ranges.
+     */
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "range_size",
         new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Starting up a shard involves reading small parts of some files from the repository, independently of the pre-warming process. If we
+     * expand those ranges using {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING} then we end up reading quite a few 32MB ranges. If
+     * we read enough of these ranges for the restore throttling rate limiter to kick in then all the read threads will end up waiting on
+     * the throttle, blocking subsequent reads. By using a smaller read size during restore we avoid clogging up the rate limiter so much.
+     */
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "recovery_range_size",
+        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
         MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
         MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
@@ -118,6 +139,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
     private final ByteSizeValue rangeSize;
+    private final ByteSizeValue recoveryRangeSize;
     private final KeyedLock<ShardEviction> shardsEvictionLock;
     private final Set<ShardEviction> evictedShards;
 
@@ -132,6 +154,7 @@ public class CacheService extends AbstractLifecycleComponent {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
         this.rangeSize = SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings);
+        this.recoveryRangeSize = SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
             .weigher((key, entry) -> entry.getLength())
@@ -228,6 +251,13 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
+     * @return the cache range size (in bytes) to use during recovery (until post_recovery)
+     */
+    public int getRecoveryRangeSize() {
+        return toIntBytes(recoveryRangeSize.getBytes());
+    }
+
+    /**
      * Retrieves the {@link CacheFile} instance associated with the specified {@link CacheKey} in the cache. If the key is not already
      * associated with a {@link CacheFile}, this method creates a new instance using the given file length and cache directory.
      *
@@ -303,7 +333,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId the {@link SnapshotId}
      */
     public void markShardAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        final ShardEviction shardEviction = new ShardEviction(snapshotId, indexId, shardId);
+        final ShardEviction shardEviction = new ShardEviction(snapshotId.getUUID(), indexId.getName(), shardId);
         if (evictedShards.add(shardEviction)) {
             threadPool.generic().submit(new AbstractRunnable() {
                 @Override
@@ -350,7 +380,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param runnable   a runnable to execute
      */
     public void runIfShardMarkedAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId, Runnable runnable) {
-        runIfShardMarkedAsEvictedInCache(new ShardEviction(snapshotId, indexId, shardId), runnable);
+        runIfShardMarkedAsEvictedInCache(new ShardEviction(snapshotId.getUUID(), indexId.getName(), shardId), runnable);
     }
 
     /**
@@ -458,7 +488,9 @@ public class CacheService extends AbstractLifecycleComponent {
                 assert value >= 0 : value;
 
                 final CacheKey cacheKey = cacheFile.getCacheKey();
-                if (evictedShards.contains(new ShardEviction(cacheKey.getSnapshotId(), cacheKey.getIndexId(), cacheKey.getShardId()))) {
+                if (evictedShards.contains(
+                    new ShardEviction(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId())
+                )) {
                     logger.debug("cache file belongs to a shard marked as evicted, skipping synchronization for [{}]", cacheKey);
                     continue;
                 }
@@ -549,13 +581,13 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     private static class ShardEviction {
 
-        private final SnapshotId snapshotId;
-        private final IndexId indexId;
+        private final String snapshotUUID;
+        private final String snapshotIndexName;
         private final ShardId shardId;
 
-        private ShardEviction(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-            this.snapshotId = snapshotId;
-            this.indexId = indexId;
+        private ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+            this.snapshotUUID = snapshotUUID;
+            this.snapshotIndexName = snapshotIndexName;
             this.shardId = shardId;
         }
 
@@ -564,24 +596,24 @@ public class CacheService extends AbstractLifecycleComponent {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ShardEviction that = (ShardEviction) o;
-            return Objects.equals(snapshotId, that.snapshotId)
-                && Objects.equals(indexId, that.indexId)
+            return Objects.equals(snapshotUUID, that.snapshotUUID)
+                && Objects.equals(snapshotIndexName, that.snapshotIndexName)
                 && Objects.equals(shardId, that.shardId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshotId, indexId, shardId);
+            return Objects.hash(snapshotUUID, snapshotIndexName, shardId);
         }
 
         @Override
         public String toString() {
-            return "[snapshotId=" + snapshotId + ", indexId=" + indexId + ", shardId=" + shardId + ']';
+            return "[snapshotUUID=" + snapshotUUID + ", snapshotIndexName=" + snapshotIndexName + ", shardId=" + shardId + ']';
         }
 
         boolean matches(CacheKey cacheKey) {
-            return Objects.equals(snapshotId, cacheKey.getSnapshotId())
-                && Objects.equals(indexId, cacheKey.getIndexId())
+            return Objects.equals(snapshotUUID, cacheKey.getSnapshotUUID())
+                && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
                 && Objects.equals(shardId, cacheKey.getShardId());
         }
     }

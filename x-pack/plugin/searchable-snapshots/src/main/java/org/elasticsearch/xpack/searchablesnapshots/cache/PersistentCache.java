@@ -486,9 +486,7 @@ public class PersistentCache implements Closeable {
     private static final String CACHE_PATH_FIELD = "cache_path";
     private static final String CACHE_RANGES_FIELD = "cache_ranges";
     private static final String SNAPSHOT_ID_FIELD = "snapshot_id";
-    private static final String SNAPSHOT_NAME_FIELD = "snapshot_name";
-    private static final String INDEX_ID_FIELD = "index_id";
-    private static final String INDEX_NAME_FIELD = "index_name";
+    private static final String SNAPSHOT_INDEX_NAME_FIELD = "index_name";
     private static final String SHARD_INDEX_NAME_FIELD = "shard_index_name";
     private static final String SHARD_INDEX_ID_FIELD = "shard_index_id";
     private static final String SHARD_ID_FIELD = "shard_id";
@@ -501,10 +499,6 @@ public class PersistentCache implements Closeable {
 
     private static String buildId(Path path) {
         return path.getFileName().toString();
-    }
-
-    private static Term buildTerm(CacheFile cacheFile) {
-        return buildTerm(buildId(cacheFile));
     }
 
     private static Term buildTerm(String cacheFileUuid) {
@@ -530,14 +524,8 @@ public class PersistentCache implements Closeable {
         final CacheKey cacheKey = cacheFile.getCacheKey();
         document.add(new StringField(FILE_NAME_FIELD, cacheKey.getFileName(), Field.Store.YES));
         document.add(new StringField(FILE_LENGTH_FIELD, Long.toString(cacheFile.getLength()), Field.Store.YES));
-
-        final SnapshotId snapshotId = cacheKey.getSnapshotId();
-        document.add(new StringField(SNAPSHOT_NAME_FIELD, snapshotId.getName(), Field.Store.YES));
-        document.add(new StringField(SNAPSHOT_ID_FIELD, snapshotId.getUUID(), Field.Store.YES));
-
-        final IndexId indexId = cacheKey.getIndexId();
-        document.add(new StringField(INDEX_NAME_FIELD, indexId.getName(), Field.Store.YES));
-        document.add(new StringField(INDEX_ID_FIELD, indexId.getId(), Field.Store.YES));
+        document.add(new StringField(SNAPSHOT_ID_FIELD, cacheKey.getSnapshotUUID(), Field.Store.YES));
+        document.add(new StringField(SNAPSHOT_INDEX_NAME_FIELD, cacheKey.getSnapshotIndexName(), Field.Store.YES));
 
         final ShardId shardId = cacheKey.getShardId();
         document.add(new StringField(SHARD_INDEX_NAME_FIELD, shardId.getIndex().getName(), Field.Store.YES));
@@ -555,8 +543,8 @@ public class PersistentCache implements Closeable {
 
     private static CacheKey buildCacheKey(Document document) {
         return new CacheKey(
-            new SnapshotId(getValue(document, SNAPSHOT_NAME_FIELD), getValue(document, SNAPSHOT_ID_FIELD)),
-            new IndexId(getValue(document, INDEX_NAME_FIELD), getValue(document, INDEX_ID_FIELD)),
+            getValue(document, SNAPSHOT_ID_FIELD),
+            getValue(document, SNAPSHOT_INDEX_NAME_FIELD),
             new ShardId(
                 new Index(getValue(document, SHARD_INDEX_NAME_FIELD), getValue(document, SHARD_INDEX_ID_FIELD)),
                 Integer.parseInt(getValue(document, SHARD_ID_FIELD))

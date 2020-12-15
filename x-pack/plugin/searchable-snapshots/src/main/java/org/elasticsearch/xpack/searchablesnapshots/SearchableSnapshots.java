@@ -30,9 +30,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
@@ -84,6 +86,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.emptyIndexCommit;
 
 /**
  * Plugin for Searchable Snapshots feature
@@ -280,6 +283,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             );
         }
         return Optional.empty();
+    }
+
+    @Override
+    public Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
+        return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, e -> {
+            final Store store = e.config().getStore();
+            store.incRef();
+            return new Engine.IndexCommitRef(emptyIndexCommit(store.directory()), store::decRef);
+        });
     }
 
     @Override

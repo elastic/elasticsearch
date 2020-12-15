@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
@@ -78,10 +80,6 @@ import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
-import org.apache.logging.log4j.LogManager;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -89,6 +87,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -192,10 +191,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
             false, Property.NodeScope, Property.Dynamic);
     // actions (and their requests) that are audited as "security change" events
-    public static final Set<String> SECURITY_CHANGE_ACTIONS = Set.of(PutUserAction.NAME, PutRoleAction.NAME, PutRoleMappingAction.NAME,
-            SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
-            DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
-            DeletePrivilegesAction.NAME);
+    public static final Set<String> SECURITY_CHANGE_ACTIONS = new HashSet<>();
+    static {
+        SECURITY_CHANGE_ACTIONS.addAll(Arrays.asList(PutUserAction.NAME, PutRoleAction.NAME, PutRoleMappingAction.NAME,
+                SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
+                DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
+                DeletePrivilegesAction.NAME));
+    }
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that

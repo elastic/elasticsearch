@@ -21,7 +21,7 @@ sub-fields.
 IMPORTANT: An `aggregate_metric_double` field stores a single numeric
 <<doc-values,doc value>> for each metric sub-field. Array values are not
 supported.  `min`, `max`, and `sum` values are `double` numbers. `value_count`
-is a positive `long` number. 
+is a positive `long` number.
 
 [source,console]
 ----
@@ -104,15 +104,13 @@ PUT stats-index
     "properties": {
       "agg_metric": {
         "type": "aggregate_metric_double",
-        "metrics": [ "min", "max", "sum", "value_count"], <1>
-        "default_metric": "max" <2>
+        "metrics": [ "min", "max", "sum", "value_count"],
+        "default_metric": "max"
       }
     }
   }
 }
 --------------------------------------------------
-<1> The metrics supported by this index are `min`, `max`, `sum`, `value_count`.
-<2> The `default_metric` is the `max` sub-field.
 
 The following <<docs-index_,index>> API request adds documents with
 pre-aggregated data in the `agg_metric` field.
@@ -225,7 +223,5 @@ The search returns the following hit. The value of the `default_metric` field,
     ]
   }
 }
-
-
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]

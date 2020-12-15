@@ -40,7 +40,7 @@ public class CountingRunnerTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         });
-        assertThat(loop, equalTo(countingRunner.getCount()));
+        assertThat((long)loop, equalTo(countingRunner.getCount()));
     }
 
     public void testRunnableWillNotRunIfCounterHasChanged() throws Exception {

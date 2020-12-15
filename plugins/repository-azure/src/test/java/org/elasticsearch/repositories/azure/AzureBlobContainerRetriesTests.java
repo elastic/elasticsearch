@@ -154,7 +154,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                 return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
                     maxRetries + 1,
-                    1,
+                    10,
                     1L,
                     5L,
                     // The SDK doesn't work well with ip endponts. Secondary host endpoints that contain

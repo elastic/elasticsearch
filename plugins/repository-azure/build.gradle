@@ -62,8 +62,6 @@ dependencies {
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
-  api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
-  api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
   api "org.codehaus.woodstox:stax2-api:${versions.stax2API}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
 
@@ -259,13 +257,18 @@ tasks.named("thirdPartyAudit").configure {
     'org.osgi.framework.BundleActivator',
     'org.osgi.framework.BundleContext',
 
-    // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
-    'com.sun.org.apache.xml.internal.resolver.Catalog',
-    'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
-
     'org.slf4j.impl.StaticLoggerBinder',
     'org.slf4j.impl.StaticMDCBinder',
     'org.slf4j.impl.StaticMarkerBinder',
+
+    'java.lang.StackWalker',
+    'java.lang.StackWalker$StackFrame',
+
+    // From reactor.adapter.JdkFlowAdapter
+    'java.util.concurrent.Flow$Processor',
+    'java.util.concurrent.Flow$Publisher',
+    'java.util.concurrent.Flow$Subscriber',
+    'java.util.concurrent.Flow$Subscription'
   )
 
   ignoreViolations(
@@ -287,9 +290,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-
-    'javax.activation.MailcapCommandMap',
-    'javax.activation.MimetypesFileTypeMap',
 
     'reactor.core.publisher.MultiProducerRingBuffer',
     'reactor.core.publisher.RingBufferFields',

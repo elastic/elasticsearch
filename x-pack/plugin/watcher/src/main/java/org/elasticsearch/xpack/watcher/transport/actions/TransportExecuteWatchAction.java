@@ -48,7 +48,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;

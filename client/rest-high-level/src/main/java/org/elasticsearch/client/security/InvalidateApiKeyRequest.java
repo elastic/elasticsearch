@@ -111,7 +111,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         } else if (ids.length == 1) {
             return ids[0];
         } else {
-            throw new IllegalArgumentException("Cannot get a single api key id when there are multiple of them");
+            throw new IllegalArgumentException("Cannot get a single api key id when multiple ids have been set " + Arrays.toString(ids));
         }
     }
 

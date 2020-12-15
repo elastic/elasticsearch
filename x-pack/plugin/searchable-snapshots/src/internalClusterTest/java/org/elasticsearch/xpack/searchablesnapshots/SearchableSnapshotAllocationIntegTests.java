@@ -54,45 +54,35 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         ensureGreen(restoredIndex);
         internalCluster().startDataOnlyNodes(randomIntBetween(1, 4));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(
-                    Settings.builder()
-                        .put(
-                            EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
-                            EnableAllocationDecider.Allocation.NONE.name()
-                        )
-                )
-                .get()
-        );
+        setAllocation(EnableAllocationDecider.Allocation.NONE);
 
         final CacheService cacheService = internalCluster().getInstance(CacheService.class, firstDataNode);
         cacheService.synchronizeCache();
         internalCluster().restartNode(firstDataNode);
         ensureStableCluster(internalCluster().numDataAndMasterNodes());
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(
-                    Settings.builder()
-                        .put(
-                            EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
-                            EnableAllocationDecider.Allocation.ALL.name()
-                        )
-                        .build()
-                )
-                .get()
-        );
+        setAllocation(EnableAllocationDecider.Allocation.ALL);
         ensureGreen(restoredIndex);
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         assertEquals(
             state.nodes().resolveNode(firstDataNode).getId(),
             state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId()
+        );
+    }
+
+    private void setAllocation(EnableAllocationDecider.Allocation allocation) {
+        logger.info("--> setting allocation to [{}]", allocation);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), allocation.name())
+                        .build()
+                )
+                .get()
         );
     }
 }

@@ -268,7 +268,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
                     @Override
                     public void onFailure(Exception e) {
-                        // TODO: can we do better here?
+                        logger.warn("Failure when trying to fetch existing cache sizes", e);
                         final Map<DiscoveryNode, NodeCacheFilesMetadata> res = new HashMap<>(dataNodes.length);
                         for (DiscoveryNode dataNode : dataNodes) {
                             res.put(dataNode, new NodeCacheFilesMetadata(dataNode, 0L));

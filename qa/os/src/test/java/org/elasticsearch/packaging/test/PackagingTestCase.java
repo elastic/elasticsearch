@@ -173,7 +173,9 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
         }
-        setHeap("1g");
+        if (installation != null) {
+            setHeap("1g");
+        }
     }
 
     @After

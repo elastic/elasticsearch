@@ -123,7 +123,9 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             .shardRecoveryStates()
             .get(restoredIndex)
             .stream()
-            .filter(recoveryState -> recoveryState.getSourceNode() != null)
+            // filter for relocations that are not in stage FINALIZE (they could end up in this stage without progress for good if the
+            // target node does not have enough cache space available to hold the primary completely
+            .filter(recoveryState -> recoveryState.getSourceNode() != null && recoveryState.getStage() != RecoveryState.Stage.FINALIZE)
             .collect(Collectors.toList());
     }
 }

@@ -38,18 +38,15 @@ sub-fields.
 the `sum` and `value_count` metrics. Therefore, there is no `avg` metric. To support `avg` aggregations, both `sum` and
 `value_count` metrics must be present.
 
-[[aggregate-metric-double-default]]
-==== Default metric
 
-When an `aggregate_metric_double` field does not participate in any of the above aggregations,
-it behaves as a `double` numeric field. To achieve this, its mapping must contain a `default_metric` which can
-be one of its supported metrics. When an `aggregate_metric_double` field is accessed by a script or any
-of the following queries, it will delegate the operation to its `default_metric` sub-field:
+If you use an `aggregate_metric_double` field with other aggregations, the field
+uses the `default_metric` value, which behaves as a `double` field. The
+`default_metric` is also used in scripts and the following queries:
 
-* <<query-dsl-exists-query,exists>> query.
-* <<query-dsl-range-query,range>> query.
-* <<query-dsl-term-query,term>> query.
-* <<query-dsl-terms-query,terms>> query.
+* <<query-dsl-exists-query,`exists`>>
+* <<query-dsl-range-query,`range`>>
+* <<query-dsl-term-query,`term`>>
+* <<query-dsl-terms-query,`terms`>>
 
 [[aggregate-metric-double-example]]
 ==== Examples

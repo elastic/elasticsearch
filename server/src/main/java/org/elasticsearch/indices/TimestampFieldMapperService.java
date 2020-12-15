@@ -189,7 +189,6 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             assert false : "Unexpected timeout exception while getting a timestamp mapping";
             throw e;
         }
-        throw new AssertionError("Unexpected timeout exception while getting a timestamp mapping");
     }
 
 }

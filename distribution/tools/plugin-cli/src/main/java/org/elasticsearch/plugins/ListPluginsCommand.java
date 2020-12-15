@@ -70,7 +70,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
                 "WARNING: plugin ["
                     + info.getName()
                     + "] was built for Elasticsearch version "
-                    + info.getVersion()
+                    + info.getElasticsearchVersion()
                     + " but version "
                     + Version.CURRENT
                     + " is required"

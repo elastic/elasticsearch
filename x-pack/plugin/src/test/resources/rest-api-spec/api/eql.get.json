@@ -5,6 +5,7 @@
       "description": "Returns async results from previously executed Event Query Language (EQL) search"
     },
     "stability": "stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

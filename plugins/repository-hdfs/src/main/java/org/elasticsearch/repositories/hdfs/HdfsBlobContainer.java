@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.hdfs;
 
 import org.apache.hadoop.fs.CreateFlag;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.FileNotFoundException;
@@ -112,8 +114,23 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) {
-        throw new UnsupportedOperationException();
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        // FSDataInputStream does buffering internally
+        // FSDataInputStream can open connections on read() or skip() so we wrap in
+        // HDFSPrivilegedInputSteam which will ensure that underlying methods will
+        // be called with the proper privileges.
+        try {
+            return store.execute(fileContext -> {
+                FSDataInputStream fsInput = fileContext.open(new Path(path, blobName), bufferSize);
+                // As long as no read operations have happened yet on the stream, seeking
+                // should direct the datanode to start on the appropriate block, at the
+                // appropriate target position.
+                fsInput.seek(position);
+                return Streams.limitStream(new HDFSPrivilegedInputSteam(fsInput, securityContext), length);
+            });
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
+        }
     }
 
     @Override

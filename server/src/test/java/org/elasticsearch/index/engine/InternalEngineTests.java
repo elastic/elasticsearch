@@ -105,6 +105,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -2906,7 +2907,8 @@ public class InternalEngineTests extends EngineTestCase {
                 () -> UNASSIGNED_SEQ_NO,
                 () -> RetentionLeases.EMPTY,
                 primaryTerm::get,
-                tombstoneDocSupplier());
+                tombstoneDocSupplier(),
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -5972,7 +5974,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), config.getSnapshotCommitSupplier());
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),

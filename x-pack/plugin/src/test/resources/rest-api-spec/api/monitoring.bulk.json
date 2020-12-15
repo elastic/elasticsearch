@@ -5,6 +5,7 @@
       "description":"Used by the monitoring features to send monitoring data."
     },
     "stability":"experimental",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

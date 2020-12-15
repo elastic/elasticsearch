@@ -19,6 +19,10 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -27,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -36,11 +41,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -144,6 +151,70 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         } finally {
             SearchListenerPlugin.allowQueryPhase();
         }
+    }
+
+    public void testCancel() throws Exception {
+        assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo"));
+        indexDocs(client(LOCAL_CLUSTER), "demo");
+        final InternalTestCluster remoteCluster = cluster("cluster_a");
+        remoteCluster.ensureAtLeastNumDataNodes(1);
+        final Settings.Builder allocationFilter = Settings.builder();
+        if (randomBoolean()) {
+            remoteCluster.ensureAtLeastNumDataNodes(3);
+            List<String> remoteDataNodes = StreamSupport.stream(remoteCluster.clusterService().state().nodes().spliterator(), false)
+                .filter(DiscoveryNode::isDataNode)
+                .map(DiscoveryNode::getName)
+                .collect(Collectors.toList());
+            assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(3));
+            List<String> seedNodes = randomSubsetOf(between(1, remoteDataNodes.size() - 1), remoteDataNodes);
+            disconnectFromRemoteClusters();
+            configureRemoteCluster("cluster_a", seedNodes);
+            if (randomBoolean()) {
+                // Using proxy connections
+                allocationFilter.put("index.routing.allocation.exclude._name", String.join(",", seedNodes));
+            } else {
+                allocationFilter.put("index.routing.allocation.include._name", String.join(",", seedNodes));
+            }
+        }
+        assertAcked(client("cluster_a").admin().indices().prepareCreate("prod")
+            .setSettings(Settings.builder().put(allocationFilter.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertFalse(client("cluster_a").admin().cluster().prepareHealth("prod")
+            .setWaitForYellowStatus().setTimeout(TimeValue.timeValueSeconds(10)).get().isTimedOut());
+        indexDocs(client("cluster_a"), "prod");
+        SearchListenerPlugin.blockQueryPhase();
+        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
+        SearchRequest searchRequest = new SearchRequest("demo", "cluster_a:prod");
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.setCcsMinimizeRoundtrips(false);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1000));
+        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
+        SearchListenerPlugin.waitSearchStarted();
+        // Get the search task and cancelled
+        final TaskInfo rootTask = client().admin().cluster().prepareListTasks()
+            .setActions(SearchAction.INSTANCE.name())
+            .get().getTasks().stream().filter(t -> t.getParentTaskId().isSet() == false)
+            .findFirst().get();
+        final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTaskId(rootTask.getTaskId());
+        cancelRequest.setWaitForCompletion(randomBoolean());
+        final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
+        assertBusy(() -> {
+            final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
+            for (TransportService transportService : transportServices) {
+                Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
+                for (CancellableTask cancellableTask : cancellableTasks) {
+                    assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                }
+            }
+        });
+        SearchListenerPlugin.allowQueryPhase();
+        assertBusy(() -> assertTrue(queryFuture.isDone()));
+        assertBusy(() -> assertTrue(cancelFuture.isDone()));
+        assertBusy(() -> {
+            final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
+            for (TransportService transportService : transportServices) {
+                assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
+            }
+        });
     }
 
     @Override

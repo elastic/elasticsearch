@@ -24,10 +24,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
+import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
@@ -58,6 +62,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
 
     private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
+    private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
 
     CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
                                  BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -66,13 +71,14 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                                  ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                  TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
                                  SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
-                                 SearchResponse.Clusters clusters) {
+                                 SearchResponse.Clusters clusters, CoordinatorRewriteContextProvider coordinatorRewriteContextProvider) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
                 new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
+        this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
     }
 
     @Override
@@ -100,7 +106,17 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         if (cardinality == 0) {
             // this is a special case where we have no hit but we need to get at least one search response in order
             // to produce a valid search result with all the aggs etc.
-            possibleMatches.set(0);
+            // Since it's possible that some of the shards that we're skipping are
+            // unavailable, we would try to query the node that at least has some
+            // shards available in order to produce a valid search result.
+            int shardIndexToQuery = 0;
+            for (int i = 0; i < shardsIts.size(); i++) {
+                if (shardsIts.get(i).size() > 0) {
+                    shardIndexToQuery = i;
+                    break;
+                }
+            }
+            possibleMatches.set(shardIndexToQuery);
         }
         SearchSourceBuilder source = getRequest().source();
         int i = 0;
@@ -116,6 +132,40 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         }
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
         return new GroupShardsIterator<>(sortShards(shardsIts, results.minAndMaxes, fieldSort.order()));
+    }
+
+    @Override
+    protected void performPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard) {
+        CoordinatorRewriteContext coordinatorRewriteContext =
+            coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardIt.shardId().getIndex());
+
+        if (coordinatorRewriteContext == null) {
+            super.performPhaseOnShard(shardIndex, shardIt, shard);
+            return;
+        }
+
+        try {
+            ShardSearchRequest request = buildShardSearchRequest(shardIt, shardIndex);
+            boolean canMatch = SearchService.queryStillMatchesAfterRewrite(request, coordinatorRewriteContext);
+
+            // Trigger the query as there's still a chance that we can skip
+            // this shard given other query filters that we cannot apply
+            // in the coordinator
+            if (canMatch) {
+                super.performPhaseOnShard(shardIndex, shardIt, shard);
+                return;
+            }
+
+            CanMatchResponse result = new CanMatchResponse(canMatch, null);
+            result.setSearchShardTarget(shard == null ? new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias(),
+                shardIt.getOriginalIndices()) : shard);
+            result.setShardIndex(shardIndex);
+            fork(() -> onShardResult(result, shardIt));
+        } catch (Exception e) {
+            // If we fail to rewrite it on the coordinator, just try to execute
+            // the query in the shard.
+            super.performPhaseOnShard(shardIndex, shardIt, shard);
+        }
     }
 
     private static List<SearchShardIterator> sortShards(GroupShardsIterator<SearchShardIterator> shardsIts,

@@ -133,19 +133,14 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test34CustomJvmOptionsDirectoryFile() throws Exception {
-        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
-        try {
-            append(heapOptions, "-Xms512m\n-Xmx512m\n");
+        setHeap("512m");
 
-            startElasticsearch();
+        startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+        assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
-            stopElasticsearch();
-        } finally {
-            rm(heapOptions);
-        }
+        stopElasticsearch();
     }
 
     public void test42BundledJdkRemoved() throws Exception {

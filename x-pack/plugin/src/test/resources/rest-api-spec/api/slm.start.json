@@ -5,6 +5,7 @@
       "description":"Turns on snapshot lifecycle management (SLM)."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

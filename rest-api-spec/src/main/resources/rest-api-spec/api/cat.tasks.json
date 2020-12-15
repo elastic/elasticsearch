@@ -5,6 +5,7 @@
       "description":"Returns information about the tasks currently executing on one or more nodes in the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "text/plain", "application/json"]
     },

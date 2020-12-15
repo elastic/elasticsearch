@@ -5,6 +5,7 @@
       "description":"Rollup an index"
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

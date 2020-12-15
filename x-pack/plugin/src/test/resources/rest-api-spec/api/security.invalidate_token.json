@@ -5,6 +5,7 @@
       "description":"Invalidates one or more access tokens or refresh tokens."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

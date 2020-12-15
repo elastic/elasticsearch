@@ -5,6 +5,7 @@
       "description":"Deletes any snapshots that are expired according to the policy's retention rules."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

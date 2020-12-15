@@ -5,6 +5,7 @@
       "description":"Stops one or more datafeeds."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -91,8 +91,9 @@ uses the `default_metric` value, which behaves as a `double` field. The
 [[aggregate-metric-double-example]]
 ==== Examples
 
-The following <<indices-create-index, create index>> API request creates a new index with an `aggregate_metric_double` field used
-to store aggregate metric data and sets the `max`:
+The following <<indices-create-index, create index>> API request creates an
+index with an `aggregate_metric_double` field named `agg_metric`. The request
+sets `max` as the field's `default_metric`.
 
 [source,console]
 --------------------------------------------------

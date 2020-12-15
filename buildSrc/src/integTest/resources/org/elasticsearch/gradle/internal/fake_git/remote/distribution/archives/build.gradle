@@ -34,7 +34,7 @@ subprojects {
         destinationDir = file('build/extractedDistro')
     }
 
-    tasks.register("assembleExtracted").configure {
+    tasks.register("extractedAssemble").configure {
         dependsOn('extracted')
     }
 

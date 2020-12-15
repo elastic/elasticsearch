@@ -35,7 +35,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     }
 
     @Unroll
-    def "builds distribution from branches via archives assemble"() {
+    def "builds distribution from branches via archives #expectedAssembleTaskName"() {
         when:
         def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
                 ":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar",
@@ -54,7 +54,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         where:
         bwcDistVersion | bwcProject | expectedAssembleTaskName
         "7.9.1"        | "bugfix"   | "assemble"
-        "7.11.0"       | "minor"    | "assembleExtracted"
+        "7.11.0"       | "minor"    | "extractedAssemble"
     }
 
     def "bwc distribution archives can be resolved as bwc project artifact"() {
@@ -125,7 +125,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
-        result.output.contains("[7.11.0] > Task :distribution:archives:darwin-tar:assemble")
+        result.output.contains("[7.11.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
         normalized(result.output)
                 .contains("distfile /distribution/bwc/minor/build/bwc/checkout-7.x/" +
                         "distribution/archives/darwin-tar/build/install")

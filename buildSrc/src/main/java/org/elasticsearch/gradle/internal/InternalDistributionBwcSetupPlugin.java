@@ -284,7 +284,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
          * from source without the overhead of creating an archive by using assembleExtracted instead of assemble.
          * */
         public String getAssembleTaskName() {
-            return nativeExtractedSupport ? "assembleExtracted" : "assemble";
+            return nativeExtractedSupport ? "extractedAssemble" : "assemble";
         }
     }
 

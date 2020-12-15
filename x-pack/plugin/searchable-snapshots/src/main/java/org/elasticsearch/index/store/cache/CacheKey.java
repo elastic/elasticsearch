@@ -6,31 +6,29 @@
 package org.elasticsearch.index.store.cache;
 
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Objects;
 
 public class CacheKey {
 
-    private final SnapshotId snapshotId;
-    private final IndexId indexId;
+    private final String snapshotUUID;
+    private final String snapshotIndexName;
     private final ShardId shardId;
     private final String fileName;
 
-    public CacheKey(SnapshotId snapshotId, IndexId indexId, ShardId shardId, String fileName) {
-        this.snapshotId = Objects.requireNonNull(snapshotId);
-        this.indexId = Objects.requireNonNull(indexId);
+    public CacheKey(String snapshotUUID, String snapshotIndexName, ShardId shardId, String fileName) {
+        this.snapshotUUID = Objects.requireNonNull(snapshotUUID);
+        this.snapshotIndexName = Objects.requireNonNull(snapshotIndexName);
         this.shardId = Objects.requireNonNull(shardId);
         this.fileName = Objects.requireNonNull(fileName);
     }
 
-    public SnapshotId getSnapshotId() {
-        return snapshotId;
+    public String getSnapshotUUID() {
+        return snapshotUUID;
     }
 
-    public IndexId getIndexId() {
-        return indexId;
+    public String getSnapshotIndexName() {
+        return snapshotIndexName;
     }
 
     public ShardId getShardId() {
@@ -50,19 +48,27 @@ public class CacheKey {
             return false;
         }
         final CacheKey cacheKey = (CacheKey) o;
-        return Objects.equals(snapshotId, cacheKey.snapshotId)
-            && Objects.equals(indexId, cacheKey.indexId)
+        return Objects.equals(snapshotUUID, cacheKey.snapshotUUID)
+            && Objects.equals(snapshotIndexName, cacheKey.snapshotIndexName)
             && Objects.equals(shardId, cacheKey.shardId)
             && Objects.equals(fileName, cacheKey.fileName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotId, indexId, shardId, fileName);
+        return Objects.hash(snapshotUUID, snapshotIndexName, shardId, fileName);
     }
 
     @Override
     public String toString() {
-        return "[" + "snapshotId=" + snapshotId + ", indexId=" + indexId + ", shardId=" + shardId + ", fileName='" + fileName + "']";
+        return "[snapshotUUID="
+            + snapshotUUID
+            + ", snapshotIndexName="
+            + snapshotIndexName
+            + ", shardId="
+            + shardId
+            + ", fileName='"
+            + fileName
+            + "']";
     }
 }

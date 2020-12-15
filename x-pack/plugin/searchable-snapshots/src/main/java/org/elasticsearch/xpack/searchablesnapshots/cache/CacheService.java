@@ -50,7 +50,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
  * {@link CacheService} maintains a cache entry for all files read from searchable snapshot directories (see
@@ -284,6 +284,16 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Get the number of bytes cached for the given shard id in the given snapshot id.
+     * @param shardId    shard id
+     * @param snapshotId snapshot id
+     * @return number of bytes cached
+     */
+    public long getCachedSize(ShardId shardId, SnapshotId snapshotId) {
+        return persistentCache.getCacheSize(shardId, snapshotId);
+    }
+
+    /**
      * Computes a new {@link CacheFile} instance using the specified cache file information (file length, file name, parent directory and
      * already available cache ranges) and associates it with the specified {@link CacheKey} in the cache. If the key is already
      * associated with a {@link CacheFile}, the previous instance is replaced by a new one.
@@ -333,7 +343,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId the {@link SnapshotId}
      */
     public void markShardAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        final ShardEviction shardEviction = new ShardEviction(snapshotId, indexId, shardId);
+        final ShardEviction shardEviction = new ShardEviction(snapshotId.getUUID(), indexId.getName(), shardId);
         if (evictedShards.add(shardEviction)) {
             threadPool.generic().submit(new AbstractRunnable() {
                 @Override
@@ -380,7 +390,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param runnable   a runnable to execute
      */
     public void runIfShardMarkedAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId, Runnable runnable) {
-        runIfShardMarkedAsEvictedInCache(new ShardEviction(snapshotId, indexId, shardId), runnable);
+        runIfShardMarkedAsEvictedInCache(new ShardEviction(snapshotId.getUUID(), indexId.getName(), shardId), runnable);
     }
 
     /**
@@ -467,7 +477,8 @@ public class CacheService extends AbstractLifecycleComponent {
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
      * cache entry. Note that cache files might be evicted during the synchronization.
      */
-    protected void synchronizeCache() {
+    // public for tests only
+    public void synchronizeCache() {
         cacheSyncLock.lock();
         try {
             long count = 0L;
@@ -488,7 +499,9 @@ public class CacheService extends AbstractLifecycleComponent {
                 assert value >= 0 : value;
 
                 final CacheKey cacheKey = cacheFile.getCacheKey();
-                if (evictedShards.contains(new ShardEviction(cacheKey.getSnapshotId(), cacheKey.getIndexId(), cacheKey.getShardId()))) {
+                if (evictedShards.contains(
+                    new ShardEviction(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId())
+                )) {
                     logger.debug("cache file belongs to a shard marked as evicted, skipping synchronization for [{}]", cacheKey);
                     continue;
                 }
@@ -579,13 +592,13 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     private static class ShardEviction {
 
-        private final SnapshotId snapshotId;
-        private final IndexId indexId;
+        private final String snapshotUUID;
+        private final String snapshotIndexName;
         private final ShardId shardId;
 
-        private ShardEviction(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-            this.snapshotId = snapshotId;
-            this.indexId = indexId;
+        private ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+            this.snapshotUUID = snapshotUUID;
+            this.snapshotIndexName = snapshotIndexName;
             this.shardId = shardId;
         }
 
@@ -594,24 +607,24 @@ public class CacheService extends AbstractLifecycleComponent {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ShardEviction that = (ShardEviction) o;
-            return Objects.equals(snapshotId, that.snapshotId)
-                && Objects.equals(indexId, that.indexId)
+            return Objects.equals(snapshotUUID, that.snapshotUUID)
+                && Objects.equals(snapshotIndexName, that.snapshotIndexName)
                 && Objects.equals(shardId, that.shardId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshotId, indexId, shardId);
+            return Objects.hash(snapshotUUID, snapshotIndexName, shardId);
         }
 
         @Override
         public String toString() {
-            return "[snapshotId=" + snapshotId + ", indexId=" + indexId + ", shardId=" + shardId + ']';
+            return "[snapshotUUID=" + snapshotUUID + ", snapshotIndexName=" + snapshotIndexName + ", shardId=" + shardId + ']';
         }
 
         boolean matches(CacheKey cacheKey) {
-            return Objects.equals(snapshotId, cacheKey.getSnapshotId())
-                && Objects.equals(indexId, cacheKey.getIndexId())
+            return Objects.equals(snapshotUUID, cacheKey.getSnapshotUUID())
+                && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
                 && Objects.equals(shardId, cacheKey.getShardId());
         }
     }

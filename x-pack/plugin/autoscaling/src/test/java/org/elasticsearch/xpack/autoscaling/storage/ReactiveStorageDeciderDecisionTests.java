@@ -425,7 +425,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         return new TestAutoscalingDeciderContext(state, roles, randomCurrentCapacity());
     }
 
-    private static AutoscalingCapacity randomCurrentCapacity() {
+    static AutoscalingCapacity randomCurrentCapacity() {
         if (randomInt(4) > 0) {
             // we only rely on storage.
             boolean includeMemory = randomBoolean();
@@ -537,13 +537,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         return ClusterState.builder(state).metadata(builder).routingTable(routingTableBuilder.build()).build();
     }
 
-    private static ClusterState addDataNodes(DiscoveryNodeRole role, String prefix, ClusterState state, int nodes) {
+    static ClusterState addDataNodes(DiscoveryNodeRole role, String prefix, ClusterState state, int nodes) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(state.nodes());
         IntStream.range(0, nodes).mapToObj(i -> newDataNode(role, prefix + "_" + i)).forEach(builder::add);
         return ClusterState.builder(state).nodes(builder).build();
     }
 
-    private static DiscoveryNode newDataNode(DiscoveryNodeRole role, String nodeName) {
+    static DiscoveryNode newDataNode(DiscoveryNodeRole role, String nodeName) {
         return new DiscoveryNode(
             nodeName,
             UUIDs.randomBase64UUID(),

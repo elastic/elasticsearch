@@ -117,7 +117,7 @@ public class TransportRollupAction
     @Override
     protected void doExecute(Task task, RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
         try {
-            String tmpIndexName =  ".rolluptmp-" + request.getRollupConfig().getRollupIndex();
+            String tmpIndexName =  ".rolluptmp-" + request.getRollupIndex();
             createTempRollupIndex(request, tmpIndexName,
                 ActionListener.wrap(
                     resp -> {
@@ -141,7 +141,7 @@ public class TransportRollupAction
     @Override
     protected RollupAction.ShardResponse shardOperation(RollupAction.ShardRequest request, Task task) throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
-        String tmpIndexName =  ".rolluptmp-" + request.getRollupConfig().getRollupIndex();
+        String tmpIndexName =  ".rolluptmp-" + request.getRollupIndex();
         RollupShardIndexer indexer = new RollupShardIndexer(client, indexService, request.shardId(),
             request.getRollupConfig(), tmpIndexName,100);
         indexer.execute();
@@ -235,9 +235,9 @@ public class TransportRollupAction
     }
 
     private void shrinkAndPublishIndex(RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
-        String tmpIndexName = ".rolluptmp-" + request.getRollupConfig().getRollupIndex();
+        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
         // "shrink index"
-        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupConfig().getRollupIndex(), tmpIndexName);
+        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
         resizeRequest.setResizeType(ResizeType.CLONE);
         resizeRequest.getTargetIndexRequest()
             .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
@@ -264,7 +264,7 @@ public class TransportRollupAction
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                String rollupIndexName = request.getRollupConfig().getRollupIndex();
+                String rollupIndexName = request.getRollupIndex();
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
                 // TODO(talevy): find better spot to get the original index name

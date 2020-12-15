@@ -83,7 +83,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
             new GroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.emptyList(), null, rollupIndex);
+            Collections.emptyList(), null);
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
@@ -116,7 +116,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
             new GroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))), null, rollupIndex);
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))), null);
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
@@ -133,7 +133,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
             new GroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("min"))), null, rollupIndex);
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("min"))), null);
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
@@ -150,7 +150,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
             new GroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("value_count"))), null, rollupIndex);
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("value_count"))), null);
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
@@ -167,7 +167,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
             new GroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("avg"))), null, rollupIndex);
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("avg"))), null);
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
@@ -236,7 +236,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void rollup(RollupActionConfig config) {
-        RollupAction.Response rollupResponse = client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, config)).actionGet();
+        RollupAction.Response rollupResponse = client().execute(RollupAction.INSTANCE,
+            new RollupAction.Request(index, rollupIndex, config)).actionGet();
         assertTrue(rollupResponse.isCreated());
     }
 

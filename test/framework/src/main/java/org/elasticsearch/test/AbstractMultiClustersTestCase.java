@@ -52,7 +52,7 @@ import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDE
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -144,34 +144,32 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     }
 
     protected void configureAndConnectsToRemoteClusters() throws Exception {
-        Map<String, List<String>> seedNodes = new HashMap<>();
         for (String clusterAlias : clusterGroup.clusterAliases()) {
             if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
                 final InternalTestCluster cluster = clusterGroup.getCluster(clusterAlias);
                 final String[] allNodes = cluster.getNodeNames();
-                final List<String> selectedNodes = randomSubsetOf(randomIntBetween(1, Math.min(3, allNodes.length)), allNodes);
-                seedNodes.put(clusterAlias, selectedNodes);
+                final List<String> seedNodes = randomSubsetOf(randomIntBetween(1, Math.min(3, allNodes.length)), allNodes);
+                configureRemoteCluster(clusterAlias, seedNodes);
             }
         }
-        if (seedNodes.isEmpty()) {
-            return;
-        }
+    }
+
+    protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
         Settings.Builder settings = Settings.builder();
-        for (Map.Entry<String, List<String>> entry : seedNodes.entrySet()) {
-            final String clusterAlias = entry.getKey();
-            final String seeds = entry.getValue().stream()
-                .map(node -> cluster(clusterAlias).getInstance(TransportService.class, node).boundAddress().publishAddress().toString())
-                .collect(Collectors.joining(","));
-            settings.put("cluster.remote." + clusterAlias + ".seeds", seeds);
-        }
+        final String seed = seedNodes.stream()
+            .map(node -> {
+                final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
+                return transportService.boundAddress().publishAddress().toString();
+            })
+            .collect(Collectors.joining(","));
+        settings.put("cluster.remote." + clusterAlias + ".seeds", seed);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         assertBusy(() -> {
             List<RemoteConnectionInfo> remoteConnectionInfos = client()
                 .execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet().getInfos()
-                .stream().filter(RemoteConnectionInfo::isConnected)
+                .stream().filter(c -> c.isConnected() && c.getClusterAlias().equals(clusterAlias))
                 .collect(Collectors.toList());
-            final long totalConnections = seedNodes.values().stream().map(List::size).count();
-            assertThat(remoteConnectionInfos, hasSize(Math.toIntExact(totalConnections)));
+            assertThat(remoteConnectionInfos, not(empty()));
         });
     }
 

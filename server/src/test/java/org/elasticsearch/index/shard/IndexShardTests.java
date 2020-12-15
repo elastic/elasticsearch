@@ -76,6 +76,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
@@ -125,7 +126,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Assert;
@@ -1425,28 +1425,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
 
         closeShards(shard);
-    }
-
-    public void testMinimumCompatVersion() throws IOException {
-        Version versionCreated = VersionUtils.randomVersion(random());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated.id)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(settings)
-            .primaryTerm(0, 1).build();
-        IndexShard test = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
-        recoverShardFromStore(test);
-
-        indexDoc(test, "_doc", "test");
-        assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
-        indexDoc(test, "_doc", "test");
-        assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
-        test.getEngine().flush();
-        assertEquals(Version.CURRENT.luceneVersion, test.minimumCompatibleVersion());
-
-        closeShards(test);
     }
 
     public void testShardStats() throws IOException {
@@ -4094,7 +4072,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
             return new InternalEngine(configWithWarmer);
         });
         Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));

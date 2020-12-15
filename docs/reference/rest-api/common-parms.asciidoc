@@ -580,6 +580,13 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
+tag::bulk-require-alias[]
+`require_alias`::
+(Optional, Boolean)
+If `true`, the action must target an <<indices-aliases,index alias>>. Defaults
+to `false`.
+end::bulk-require-alias[]
+
 tag::require-alias[]
 `require_alias`::
 (Optional, Boolean)
@@ -782,13 +789,6 @@ end::search-failures[]
 tag::search-time-ms[]
 The amount of time spent searching, in milliseconds.
 end::search-time-ms[]
-
-tag::search_timeout[]
-`timeout`::
-(Optional, <<time-units, time units>>)
-Explicit timeout for each search request.
-Defaults to no timeout.
-end::search_timeout[]
 
 tag::search-total[]
 The number of search operations on the source index for the {transform}.

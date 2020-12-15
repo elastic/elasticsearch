@@ -6,14 +6,13 @@
 <titleabbrev>Rollup</titleabbrev>
 ++++
 
-Aggregates an index's time series data and stores the results in another index.
+Aggregates an index's time series data and stores the results in a new index.
 For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
 ----
-POST /my-index-000001/_rollup
+POST /my-index-000001/_rollup/my-rollup-index
 {
-  "rollup_index": "my-rollup-index",
   "groups": {
     "date_histogram": {
       "field": "@timestamp",
@@ -44,7 +43,7 @@ POST /my-index-000001/_rollup
 [[rollup-api-request]]
 ==== {api-request-title}
 
-`PUT /<index>/_rollup`
+`PUT /<index>/_rollup/<rollup-index>`
 
 [[rollup-api-prereqs]]
 ==== {api-prereq-title}
@@ -61,18 +60,19 @@ Index to roll up. Cannot be a <<data-streams,data stream>> or
 <<indices-aliases,index alias>>. Does not support <<multi-index,multi-target
 syntax>> or wildcards (`*`).
 
+`<rollup-index>`::
+(Required, string)
+New index that stores the rollup results. Cannot be an existing index,
+a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
++
+The request creates this index with
+<<index-modules-blocks,`index.blocks.write`>> set to `true`. If the original
+`<index>` is a backing index for a data stream, this index is a backing index
+for the same stream.
+
 [role="child_attributes"]
 [[rollup-api-request-body]]
 ==== {api-request-body-title}
-
-`rollup_index`::
-(Required, string)
-Index that stores the rollup results. Cannot be a <<data-streams,data stream>>
-or <<indices-aliases,index alias>>.
-+
-If this index does not exist, the request creates it. If the `<index>` is a
-backing index for a data stream, this new index is a backing index for the same
-stream.
 
 `groups`::
 (Required, object)
@@ -104,7 +104,7 @@ Time interval used to group documents. For differences between
 TIP: Choose this value carefully. You won't be able to use a smaller interval
 later. For example, you can't aggregate daily rollups into hourly
 summaries. However, smaller time intervals can greatly increase the size of your
-`rollup_index`.
+`<rollup-index>`.
 
 `time_zone`::
 (Optional, string)
@@ -146,7 +146,7 @@ Array of <<keyword,keyword family>> and <<number,numeric>> fields to store. If
 you specify a `terms` object, this property is required.
 +
 TIP: Avoid storing high-cardinality fields. High-cardinality fields can greatly
-increase the size of your `rollup_index`.
+increase the size of your `<rollup-index>`.
 =====
 ====
 
@@ -186,3 +186,7 @@ values run faster but require more memory.
 +
 NOTE: This argument only affects the speed and memory usage of the rollup
 operation. It does not affect the rollup results.
+
+`timeout`::
+(Optional, <<time-units,time value>>)
+Time to wait for the request to complete. Defaults to `20s` (20 seconds).

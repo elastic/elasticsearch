@@ -69,7 +69,7 @@ By default, it returns all attributes and core settings for a node.
 		Process statistics, memory consumption, cpu usage, open file descriptors.
 
 `settings`::
-
+    Lists all node settings in use as defined in the `elasticsearch.yml` file.
 
 `thread_pool`::
 		Statistics about each thread pool, including current size, queue and

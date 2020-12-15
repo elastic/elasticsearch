@@ -113,6 +113,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
     }
 
+    @Override
+    protected int primaryOperationCount(ResyncReplicationRequest request) {
+        return request.getOperations().length;
+    }
+
     public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
@@ -129,6 +134,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     @Override
     protected long replicaOperationSize(ResyncReplicationRequest request) {
         return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int replicaOperationCount(ResyncReplicationRequest request) {
+        return request.getOperations().length;
     }
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {

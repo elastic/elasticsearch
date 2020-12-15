@@ -168,13 +168,8 @@ public final class TransformIndex {
         return fieldMappings;
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> diveInto(Map<String, Object> map, String key) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> childMap = (Map<String, Object>) map.get(key);
-        if (childMap == null) {
-            childMap = new HashMap<>();
-            map.put(key, childMap);
-        }
-        return childMap;
+        return (Map<String, Object>) map.computeIfAbsent(key, k -> new HashMap<>());
     }
 }

@@ -134,6 +134,7 @@ public class TransformIndexTests extends ESTestCase {
             }}),
             is(equalTo(new HashMap<>() {{
                 put("a", new HashMap<>() {{
+                    put("type", "object");
                     put("properties", new HashMap<>() {{
                         put("b", new HashMap<>() {{
                             put("type", "long");
@@ -149,8 +150,10 @@ public class TransformIndexTests extends ESTestCase {
                     }});
                 }});
                 put("f", new HashMap<>() {{
+                    put("type", "object");
                     put("properties", new HashMap<>() {{
                         put("g", new HashMap<>() {{
+                            put("type", "object");
                             put("properties", new HashMap<>() {{
                                 put("h", new HashMap<>() {{
                                     put("type", "text");

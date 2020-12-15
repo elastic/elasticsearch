@@ -30,30 +30,32 @@ a positive long number.
 All metric sub-fields of the `aggregate_metric_double` fields are stored as numeric <<doc-values,doc values>>
 and are primarily intended for use with the following aggregations:
 
-* <<search-aggregations-metrics-min-aggregation,min>> aggregation
-* <<search-aggregations-metrics-max-aggregation,max>> aggregation
-* <<search-aggregations-metrics-sum-aggregation,sum>> aggregation
-* <<search-aggregations-metrics-valuecount-aggregation,value_count>> aggregation
-* <<search-aggregations-metrics-avg-aggregation,avg>> aggregation
+* <<search-aggregations-metrics-min-aggregation,min>> aggregation.
+* <<search-aggregations-metrics-max-aggregation,max>> aggregation.
+* <<search-aggregations-metrics-sum-aggregation,sum>> aggregation.
+* <<search-aggregations-metrics-valuecount-aggregation,value_count>> aggregation.
+* <<search-aggregations-metrics-avg-aggregation,avg>> aggregation. The result of the `avg` aggregation is extracted from
+the `sum` and `value_count` metrics. Therefore, there is no `avg` metric. To support `avg` aggregations, both `sum` and
+`value_count` metrics must be present.
 
 [[aggregate-metric-double-default]]
 ==== Default metric
 
 When an `aggregate_metric_double` field does not participate in any of the above aggregations,
-it behaves as a simple numeric field. To achieve this, its mapping must define one of its supported
-metrics as the `default_metric`. A field of type `aggregate_metric_double` will return the `default_metric`
-sub-field when accessed in a script or by any of the following queries:
+it behaves as a `double` numeric field. To achieve this, its mapping must contain a `default_metric` which can
+be one of its supported metrics. When an `aggregate_metric_double` field is accessed by a script or any
+of the following queries, it will delegate the operation to its `default_metric` sub-field:
 
-* <<query-dsl-exists-query,exists>> query
-* <<query-dsl-range-query,range>> query
-* <<query-dsl-term-query,term>> query
-* <<query-dsl-terms-query,terms>> query
+* <<query-dsl-exists-query,exists>> query.
+* <<query-dsl-range-query,range>> query.
+* <<query-dsl-term-query,term>> query.
+* <<query-dsl-terms-query,terms>> query.
 
 [[aggregate-metric-double-example]]
 ==== Examples
 
 The following <<indices-create-index, create index>> API request creates a new index with an `aggregate_metric_double` field used
-to store aggregate metric data:
+to store aggregate metric data and sets the `max`:
 
 [source,console]
 --------------------------------------------------
@@ -63,13 +65,15 @@ PUT stats-index
     "properties": {
       "agg_metric": {
         "type": "aggregate_metric_double",
-        "metrics": [ "min", "max", "sum", "value_count"],
-        "default_metric": "max"
+        "metrics": [ "min", "max", "sum", "value_count"], <1>
+        "default_metric": "max" <2>
       }
     }
   }
 }
 --------------------------------------------------
+<1> The metrics supported by this index are `min`, `max`, `sum`, `value_count`.
+<2> The `default_metric` is the `max` sub-field.
 
 The following <<docs-index_,index>> API requests store pre-aggregated data:
 
@@ -113,7 +117,8 @@ POST stats-index/_search?size=0
 }
 --------------------------------------------------
 
-This will return the following results:
+The above aggregations will compute results based on their associated metrics
+and will return the following output:
 
 [source,console-result]
 --------------------------------------------------
@@ -142,7 +147,7 @@ This will return the following results:
 
 
 To give an example of how the `default_metric` is used in queries, let's see
-a `range` query on the `agg_metric` field:
+a `term` query on the `agg_metric` field:
 
 [source,console]
 --------------------------------------------------
@@ -159,8 +164,9 @@ GET stats-index/_search
 }
 --------------------------------------------------
 
-The result shows that the `term` query was delegated to the `max` sub-field which is the `default_metric`
-of the field.
+Running a `term` query for a specific value, will return all documents that have this value
+stored as the `default_metric` sub-field. From the result, we can see that the `aggregate_metric_double`
+field delegates the `term` query to its `max` sub-field.
 
 [source,console-result]
 --------------------------------------------------
@@ -187,5 +193,3 @@ of the field.
 
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-
-

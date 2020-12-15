@@ -147,8 +147,7 @@ and will return the following output:
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
-To give an example of how the `default_metric` is used in queries, let's see
-a `term` query on the `agg_metric` field:
+Queries on a `aggregate_metric_double` field use the `default_metric` value.
 
 [source,console]
 --------------------------------------------------

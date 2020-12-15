@@ -5,6 +5,7 @@
       "description":"Removes a watch from Watcher."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

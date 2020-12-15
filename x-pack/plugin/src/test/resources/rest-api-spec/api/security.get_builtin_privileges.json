@@ -5,6 +5,7 @@
       "description":"Retrieves the list of cluster privileges and index privileges that are available in this version of Elasticsearch."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

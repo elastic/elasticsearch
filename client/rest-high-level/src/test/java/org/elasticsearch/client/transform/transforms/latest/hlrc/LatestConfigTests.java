@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -33,7 +34,10 @@ public class LatestConfigTests
         extends AbstractResponseTestCase<LatestConfig, org.elasticsearch.client.transform.transforms.latest.LatestConfig> {
 
     public static LatestConfig randomLatestConfig() {
-        return new LatestConfig(randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
+        return new LatestConfig(
+            new ArrayList<>(randomUnique(() -> randomAlphaOfLengthBetween(1, 10), randomIntBetween(1, 10))),
+            randomAlphaOfLengthBetween(1, 10)
+        );
     }
 
     @Override

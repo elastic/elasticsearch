@@ -76,7 +76,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
     final List<String> miniHDFSArgs = []
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
-    if (fixtureName.equals('secureHdfsFixture')) {
+    if (name.equals('secureHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
     }
 
@@ -85,28 +85,24 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
     miniHDFSArgs.add(baseDir)
 
     // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
-    if (fixtureName.equals('secureHdfsFixture')) {
+    if (name.equals('secureHdfsFixture')) {
       miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
       miniHDFSArgs.add(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab"))
     }
 
     args miniHDFSArgs.toArray()
   }
-
-  // TODO: The task configuration block has side effects that require it currently to be always executed.
-  // Otherwise tests start failing. Therefore we enforce the task creation for now.
-  tsk.get()
 }
 
 // Disable integration test if Fips mode
-integTest {
+tasks.named("integTest").configure {
   description = "Runs rest tests against an elasticsearch cluster with HDFS."
   systemProperty 'test.hdfs.uri', 'hdfs://localhost:9999'
   nonInputProperties.systemProperty 'test.hdfs.path', '/user/elasticsearch/test/searchable_snapshots/simple'
   onlyIf { BuildParams.inFipsJvm == false }
 }
 
-task integTestSecure(type: RestIntegTestTask) {
+tasks.register("integTestSecure", RestIntegTestTask) {
   description = "Runs rest tests against an elasticsearch cluster with Secured HDFS."
   nonInputProperties.systemProperty 'test.hdfs.uri', 'hdfs://localhost:9998'
   nonInputProperties.systemProperty 'test.hdfs.path', '/user/elasticsearch/test/searchable_snapshots/secure'
@@ -118,7 +114,7 @@ task integTestSecure(type: RestIntegTestTask) {
   )
   onlyIf { BuildParams.inFipsJvm == false }
 }
-check.dependsOn(integTestSecure)
+tasks.named("check").configure { dependsOn("integTestSecure") }
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
@@ -126,7 +122,7 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
-testClusters.integTestSecure {
+testClusters.matching { it.name == "integTestSecure" }.configureEach {
   systemProperty "java.security.krb5.conf", krb5conf
   extraConfigFile(
     "repository-hdfs/krb5.keytab",
@@ -160,11 +156,11 @@ if (legalPath == false) {
 }
 
 if (fixtureSupported) {
-  integTest.dependsOn hdfsFixture
-  integTestSecure.dependsOn secureHdfsFixture
+  tasks.named("integTest").configure {dependsOn "hdfsFixture" }
+  tasks.named("integTestSecure").configure {dependsOn "secureHdfsFixture" }
 } else {
-  integTest.enabled = false
-  integTestSecure.enabled = false
+  tasks.named("integTest").configure {enabled = false }
+  tasks.named("integTestSecure").configure { enabled = false }
   if (legalPath) {
     logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
   } else {

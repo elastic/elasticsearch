@@ -56,7 +56,6 @@ public class CountingRunner {
      * Increment the internal counter before executing the given runnable.
      * The counter is incremented in a write-locking block so that no other runnable
      * can be executed by methods of the same manager when the counter is being incremented.
-     * @param runnable
      */
     public void incrementAndRun(Runnable runnable) {
         try (ReleasableLock ignored = countingWriteLock.acquire()) {

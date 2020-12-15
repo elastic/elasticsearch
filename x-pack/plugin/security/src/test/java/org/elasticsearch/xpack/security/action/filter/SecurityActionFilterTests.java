@@ -235,7 +235,8 @@ public class SecurityActionFilterTests extends ESTestCase {
         } else {
             verify(authzService).authorize(eq(authentication), eq(action), eq(request), any(ActionListener.class));
             verify(chain).proceed(eq(task), eq(action), eq(request), any(ActionListener.class));
-            verify(auditTrail).coordinatingActionResponse(eq(requestIdFromAuthn.get()), eq(authentication), eq(action), eq(request), eq(actionResponse));
+            verify(auditTrail).coordinatingActionResponse(eq(requestIdFromAuthn.get()), eq(authentication), eq(action), eq(request),
+                    eq(actionResponse));
         }
     }
 

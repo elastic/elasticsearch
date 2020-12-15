@@ -130,6 +130,12 @@ public abstract class PipelineAggregationBuilder
             }
 
             @Override
+            public AggregationBuilder getParent() {
+                //FIXME: we should handle this in a better way
+                return null;
+            }
+
+            @Override
             public void validateHasParent(String type, String name) {
                 addValidationError(type + " aggregation [" + name + "] must be declared inside of another aggregation");
             }
@@ -137,7 +143,7 @@ public abstract class PipelineAggregationBuilder
             @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
                 addValidationError(type + " aggregation [" + name
-                        + "] must have a histogram, date_histogram, auto_date_histogram or terms as parent but doesn't have a parent");
+                        + "] must have a histogram, date_histogram or auto_date_histogram as parent but doesn't have a parent");
             }
         }
 
@@ -147,6 +153,11 @@ public abstract class PipelineAggregationBuilder
             ForInsideTree(AggregationBuilder parent, ActionRequestValidationException validationFailuresSoFar) {
                 super(validationFailuresSoFar);
                 this.parent = Objects.requireNonNull(parent);
+            }
+
+            @Override
+            public AggregationBuilder getParent(){
+                return parent;
             }
 
             @Override
@@ -180,12 +191,10 @@ public abstract class PipelineAggregationBuilder
                     }
                 } else if (parent instanceof AutoDateHistogramAggregationBuilder) {
                     // Nothing to check
-                } else if (parent instanceof TermsAggregationBuilder) {
-                    //TODO: what should be checked?
                 } else {
                     addValidationError(
-                            type + " aggregation [" + name + "] must have a histogram, date_histogram, auto_date_histogram or terms "
-                                 + "as parent");
+                            type + " aggregation [" + name + "] must have a histogram, date_histogram or auto_date_histogram"
+                                 + " as parent");
                 }
             }
         }
@@ -216,6 +225,11 @@ public abstract class PipelineAggregationBuilder
         public void addBucketPathValidationError(String error) {
             addValidationError(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName() + ' ' + error);
         }
+
+        //FIXME: the sibling pipeline aggregators dont seem to care for a parent node
+        // evidenced by validateParentAggSequentiallyOrdered
+        /** Return the parent if it exists */
+        public abstract AggregationBuilder getParent();
 
         /**
          * Validates that there <strong>is</strong> a parent aggregation.

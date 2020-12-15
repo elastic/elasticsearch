@@ -173,6 +173,7 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
         }
+        setHeap("1g");
     }
 
     @After
@@ -224,6 +225,9 @@ public abstract class PackagingTestCase extends Assert {
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
+
+        // the purpose of the packaging tests are not to all test auto heap, so we explicitly set heap size to 1g
+        setHeap("1g");
     }
 
     protected static void cleanup() throws Exception {
@@ -446,5 +450,17 @@ public abstract class PackagingTestCase extends Assert {
             sh.getEnv().remove("ES_PATH_CONF");
         }
         IOUtils.rm(tempDir);
+    }
+
+    /**
+     * Manually set the heap size with a jvm.options.d file. This will be reset before each test.
+     */
+    public static void setHeap(String heapSize) throws IOException {
+        Path heapOptions = installation.config.resolve("jvm.options.d").resolve("heap.options");
+        if (heapSize == null) {
+            FileUtils.rm(heapOptions);
+        } else {
+            Files.writeString(heapOptions, "-Xmx=" + heapSize + "\n-Xms=" + heapSize);
+        }
     }
 }

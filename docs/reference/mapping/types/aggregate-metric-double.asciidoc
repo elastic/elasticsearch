@@ -157,8 +157,7 @@ GET stats-index/_search
   "query": {
     "term": {
       "agg_metric": {
-        "value": 702.30,
-        "boost": 1.0
+        "value": 702.30
       }
     }
   }

@@ -1298,8 +1298,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         switch (name) {
             case ".watches":
-            case "logstash-index-template":
-            case ".logstash-management":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":

@@ -719,7 +719,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(getOldClusterVersion().onOrAfter(Version.V_8_0_0)
+        assertEquals(getOldClusterVersion().onOrAfter(Version.V_7_11_0)
             ? DataStream.getDefaultBackingIndexName("ds", 1)
             : DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1),
             indices.get(0).get("index_name"));

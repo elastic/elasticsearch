@@ -18,15 +18,16 @@
  */
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.Constants;
-import com.microsoft.azure.storage.RetryExponentialRetry;
-import com.microsoft.azure.storage.RetryPolicyFactory;
-import com.microsoft.azure.storage.blob.BlobRequestOptions;
+import com.azure.storage.common.policy.RequestRetryOptions;
+import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.azure.AzureHttpHandler;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +36,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
@@ -44,8 +47,12 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.equalTo;
+
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
+
+    private static final String DEFAULT_ACCOUNT_NAME = "account";
 
     @Override
     protected String repositoryType() {
@@ -68,22 +75,25 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/container", new AzureHTTPStatsCollectorHandler(new AzureBlobStoreHttpHandler("container")));
+        return Collections.singletonMap("/" + DEFAULT_ACCOUNT_NAME,
+            new AzureHTTPStatsCollectorHandler(new AzureBlobStoreHttpHandler(DEFAULT_ACCOUNT_NAME, "container")));
     }
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        return new AzureErroneousHttpHandler(delegate, AzureStorageSettings.DEFAULT_MAX_RETRIES);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(StandardCharsets.UTF_8));
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), "account");
+        String accountName = DEFAULT_ACCOUNT_NAME;
+        secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), accountName);
         secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
 
-        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl();
+        // see com.azure.storage.blob.BlobUrlParts.parseIpUrl
+        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
@@ -102,18 +112,23 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
 
         @Override
-        AzureStorageService createAzureStoreService(final Settings settings) {
-            return new AzureStorageService(settings) {
+        AzureStorageService createAzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
+            return new AzureStorageService(settings, azureClientProvider) {
                 @Override
-                RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
-                    return new RetryExponentialRetry(1, 100, 500, azureStorageSettings.getMaxRetries());
+                RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
+                    return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
+                        azureStorageSettings.getMaxRetries() + 1, 5,
+                        1L, 15L, null);
                 }
 
                 @Override
-                BlobRequestOptions getBlobRequestOptionsForWriteBlob() {
-                    BlobRequestOptions options = new BlobRequestOptions();
-                    options.setSingleBlobPutThresholdInBytes(Math.toIntExact(ByteSizeUnit.MB.toBytes(1)));
-                    return options;
+                long getUploadBlockSize() {
+                    return ByteSizeUnit.MB.toBytes(1);
+                }
+
+                @Override
+                long getSizeThresholdForMultiBlockUpload() {
+                    return ByteSizeUnit.MB.toBytes(1);
                 }
             };
         }
@@ -122,8 +137,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an Azure endpoint")
     private static class AzureBlobStoreHttpHandler extends AzureHttpHandler implements BlobStoreHttpHandler {
 
-        AzureBlobStoreHttpHandler(final String container) {
-            super(container);
+        AzureBlobStoreHttpHandler(final String account, final String container) {
+            super(account, container);
         }
     }
 
@@ -152,8 +167,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         @Override
         protected String requestUniqueId(final HttpExchange exchange) {
-            final String requestId = exchange.getRequestHeaders().getFirst(Constants.HeaderConstants.CLIENT_REQUEST_ID_HEADER);
-            final String range = exchange.getRequestHeaders().getFirst(Constants.HeaderConstants.STORAGE_RANGE_HEADER);
+            final String requestId = exchange.getRequestHeaders().getFirst("X-ms-client-request-id");
+            final String range = exchange.getRequestHeaders().getFirst("Content-Range");
             return exchange.getRequestMethod()
                 + " " + requestId
                 + (range != null ? " " + range : "");
@@ -165,8 +180,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
     private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
-
-        private static final Predicate<String> listPattern = Pattern.compile("GET /[a-zA-Z0-9]+\\??.+").asMatchPredicate();
+        private static final Predicate<String> LIST_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+\\?.+").asMatchPredicate();
+        private static final Predicate<String> GET_BLOB_PATTERN = Pattern.compile("GET /[a-zA-Z0-9]+/[a-zA-Z0-9]+/.+").asMatchPredicate();
 
         private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
             super(delegate);
@@ -174,11 +189,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         @Override
         protected void maybeTrack(String request, Headers headers) {
-            if (Regex.simpleMatch("GET /*/*", request)) {
+            if (GET_BLOB_PATTERN.test(request)) {
                 trackRequest("GetBlob");
-            } else if (Regex.simpleMatch("HEAD /*/*", request)) {
+            } else if (Regex.simpleMatch("HEAD /*/*/*", request)) {
                 trackRequest("GetBlobProperties");
-            } else if (listPattern.test(request)) {
+            } else if (LIST_PATTERN.test(request)) {
                 trackRequest("ListBlobs");
             } else if (isPutBlock(request)) {
                 trackRequest("PutBlock");
@@ -197,6 +212,23 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
         private boolean isPutBlockList(String request) {
             return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request);
+        }
+    }
+
+    public void testLargeBlobCountDeletion() throws Exception {
+        int numberOfBlobs = randomIntBetween(257, 2000);
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            for (int i = 0; i < numberOfBlobs; i++) {
+                byte[] bytes = randomBytes(randomInt(100));
+                try (InputStream inputStream = new ByteArrayInputStream(bytes)) {
+                    String blobName = randomAlphaOfLength(10);
+                    container.writeBlob(blobName, inputStream, bytes.length, false);
+                }
+            }
+
+            container.delete();
+            assertThat(container.listBlobs().size(), equalTo(0));
         }
     }
 }

@@ -89,6 +89,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2478,6 +2479,34 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertTrue(eq.right() instanceof Literal);
         assertEquals(TRUE, eq.right());
+    }
+
+    public void testAddMissingEqualsToNestedBoolField() {
+        LogicalPlan p = plan("SELECT bool FROM test " +
+            "WHERE int > 1 and (bool or int < 2) or (int = 3 and bool) or (int = 4 and bool = false) or bool");
+        LogicalPlan expectedPlan = plan("SELECT bool FROM test " +
+            "WHERE int > 1 and (bool = true or int < 2) or (int = 3 and bool = true) or (int = 4 and bool = false) or bool = true");
+
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+
+        Expression expectedCondition = ((Filter) ((Project) expectedPlan).child()).condition();
+
+        List<Expression> expectedFields = expectedCondition.collect(x -> x instanceof FieldAttribute);
+        Set<Expression> expectedBools = expectedFields.stream()
+            .filter(x -> ((FieldAttribute) x).name().equals("bool")).collect(Collectors.toSet());
+        assertEquals(1, expectedBools.size());
+        Set<Expression> expectedInts = expectedFields.stream()
+            .filter(x -> ((FieldAttribute) x).name().equals("int")).collect(Collectors.toSet());
+        assertEquals(1, expectedInts.size());
+
+        condition = condition
+            .transformDown(x -> x.name().equals("bool") ? (FieldAttribute)expectedBools.toArray()[0] : x, FieldAttribute.class)
+            .transformDown(x -> x.name().equals("int") ? (FieldAttribute)expectedInts.toArray()[0] : x , FieldAttribute.class);
+
+        assertEquals(expectedCondition, condition);
     }
 
     public void testNotAddMissingEqualsToNonBoolField() {

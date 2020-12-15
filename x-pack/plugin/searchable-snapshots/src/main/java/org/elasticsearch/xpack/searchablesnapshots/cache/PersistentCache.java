@@ -56,10 +56,12 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -212,9 +214,6 @@ public class PersistentCache implements Closeable {
     void commit() throws IOException {
         ensureOpen();
         try {
-            for (CacheIndexWriter writer : writers) {
-                writer.prepareCommit();
-            }
             for (CacheIndexWriter writer : writers) {
                 writer.commit();
             }
@@ -457,16 +456,14 @@ public class PersistentCache implements Closeable {
             indexWriter.deleteDocuments(term);
         }
 
-        void prepareCommit() throws IOException {
-            logger.debug("preparing commit");
-            final Map<String, String> commitData = new HashMap<>(1);
-            commitData.put(NODE_VERSION_COMMIT_KEY, Integer.toString(Version.CURRENT.id));
-            indexWriter.setLiveCommitData(commitData.entrySet());
-            indexWriter.prepareCommit();
-        }
+        private static final Set<Map.Entry<String, String>> LUCENE_COMMIT_DATA = Collections.singletonMap(
+            NODE_VERSION_COMMIT_KEY,
+            Integer.toString(Version.CURRENT.id)
+        ).entrySet();
 
         void commit() throws IOException {
             logger.debug("committing");
+            indexWriter.setLiveCommitData(LUCENE_COMMIT_DATA);
             indexWriter.commit();
         }
 

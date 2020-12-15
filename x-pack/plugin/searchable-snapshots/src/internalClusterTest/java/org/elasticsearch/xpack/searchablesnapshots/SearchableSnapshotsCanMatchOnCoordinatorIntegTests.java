@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,7 +42,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
@@ -142,7 +142,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         assertThat(timestampFieldType, nullValue());
 
         final boolean includeIndexCoveringSearchRangeInSearchRequest = randomBoolean();
-        List<String> indicesToSearch = new ArrayList<>();
+        java.util.List<String> indicesToSearch = new ArrayList<>();
         if (includeIndexCoveringSearchRangeInSearchRequest) {
             indicesToSearch.add(indexWithinSearchRange);
         }
@@ -427,7 +427,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setMapping(
+                .addMapping(
+                    "_doc",
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("properties")
@@ -444,10 +445,10 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
     }
 
     private void indexDocumentsWithTimestampWithinDate(String indexName, int docCount, String timestampTemplate) throws Exception {
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        final java.util.List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(indexName)
+                client().prepareIndex(indexName, "_doc")
                     .setSource(
                         DataStream.TimestampField.FIXED_TIMESTAMP_FIELD,
                         String.format(
@@ -488,7 +489,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(index).get();
             assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-            for (List<RecoveryState> value : recoveryResponse.shardRecoveryStates().values()) {
+            for (java.util.List<RecoveryState> value : recoveryResponse.shardRecoveryStates().values()) {
                 for (RecoveryState recoveryState : value) {
                     assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
                 }

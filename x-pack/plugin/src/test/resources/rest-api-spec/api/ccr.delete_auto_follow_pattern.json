@@ -5,6 +5,7 @@
       "description": "Deletes auto-follow patterns."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

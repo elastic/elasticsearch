@@ -181,6 +181,11 @@ public final class NodeEnvironment  implements Closeable {
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
+    /**
+     * Searchable snapshot's Lucene index directory.
+     */
+    private static final String SNAPSHOT_CACHE_FOLDER = "snapshot_cache";
+
     public static class NodeLock implements Releasable {
 
         private final Lock[] locks;
@@ -381,7 +386,11 @@ public final class NodeEnvironment  implements Closeable {
                     MetadataStateFormat.STATE_DIR_NAME,
 
                     // indices
-                    INDICES_FOLDER));
+                    INDICES_FOLDER,
+
+                    // searchable snapshot cache Lucene index
+                    SNAPSHOT_CACHE_FOLDER
+                ));
 
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
                     for (Path subFolderPath : stream) {

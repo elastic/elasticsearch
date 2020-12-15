@@ -5,6 +5,7 @@
       "description":"Retrieves filters."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

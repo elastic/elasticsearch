@@ -33,6 +33,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -222,13 +223,31 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateAccessTokenResponse.getResult().getInvalidatedTokens(), empty());
         assertThat(invalidateAccessTokenResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
         assertThat(invalidateAccessTokenResponse.getResult().getErrors(), empty());
-        InvalidateTokenResponse invalidateRefreshTokenResponse = securityClient.prepareInvalidateToken(refreshToken)
+
+        // Weird testing behaviour ahead...
+        // invalidating by access token (above) is a Get, but invalidating by refresh token (below) is a Search
+        // In a multi node cluster, in a small % of cases, the search might find a document that has been invalidated but not yet deleted
+        // from that node's shard.
+        // Our assertion, therefore, is that an attempt to invalidate the (already invalidated) refresh token must not actually invalidate
+        // anything (concurrency controls must prevent that), nor may return any errors,
+        // but it might _temporarily_ find an "already invalidated" token.
+        final InvalidateTokenRequest invalidateRefreshTokenRequest = securityClient.prepareInvalidateToken(refreshToken)
             .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
-            .execute()
-            .actionGet();
+            .request();
+        final InvalidateTokenResponse invalidateRefreshTokenResponse = client.execute(InvalidateTokenAction.INSTANCE,
+            invalidateRefreshTokenRequest).actionGet();
         assertThat(invalidateRefreshTokenResponse.getResult().getInvalidatedTokens(), empty());
-        assertThat(invalidateRefreshTokenResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
         assertThat(invalidateRefreshTokenResponse.getResult().getErrors(), empty());
+
+        // 99% of the time, this will already be zero, but if not ensure it goes to zero within the allowed timeframe
+        if (invalidateRefreshTokenResponse.getResult().getPreviouslyInvalidatedTokens().size() > 0) {
+            assertThat(invalidateRefreshTokenResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+            assertBusy(() -> {
+                final InvalidateTokenResponse newResponse = client.execute(InvalidateTokenAction.INSTANCE,
+                    invalidateRefreshTokenRequest).actionGet();
+                assertThat(newResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
+            });
+        }
     }
 
     public void testInvalidateAllTokensForUser() throws Exception{
